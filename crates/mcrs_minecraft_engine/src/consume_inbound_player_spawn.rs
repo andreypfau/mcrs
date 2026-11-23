@@ -31,6 +31,7 @@ use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::session::Owner;
+use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_entity_key::EntityUuid;
@@ -65,6 +66,7 @@ pub(crate) fn consume_inbound_player_spawn(
     time: Res<GameTime>,
     game_rules: Option<Res<GameRules>>,
     saved_spawn: Option<Res<SavedSpawn>>,
+    pace: Option<Res<TickPace>>,
 ) {
     for spawn in reader.read() {
         let Some((dim, dim_key, dimension_type)) = dims.iter().next() else {
@@ -156,6 +158,7 @@ pub(crate) fn consume_inbound_player_spawn(
             op_level,
             arrival.position_packet(login_teleport_id),
             game_mode::abilities(default_game_mode.0, PlayerFlying(false)),
+            pace.as_deref(),
             |packet| {
                 packet_writer.write(packet);
             },

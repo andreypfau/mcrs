@@ -20,6 +20,7 @@ use crate::commands::{chats, load_stone_column};
 use crate::host_app::{self, PlayServer};
 
 const OPERATOR: Uuid = Uuid::from_u128(1);
+const VIEWER: Uuid = Uuid::from_u128(2);
 
 #[derive(Debug, PartialEq)]
 enum Ticking {
@@ -70,15 +71,18 @@ fn run(server: &mut PlayServer, operator: Entity, line: &str) -> (Vec<String>, V
             other => panic!("{line}: a translated answer: {other:?}"),
         })
         .collect();
-    let ticking = packets
+    (keys, ticking(packets))
+}
+
+fn ticking(packets: Vec<PacketPayload>) -> Vec<Ticking> {
+    packets
         .into_iter()
         .filter_map(|packet| match packet {
             PacketPayload::TickingState(state) => Some(Ticking::State(state)),
             PacketPayload::TickingStep(step) => Some(Ticking::Step(step)),
             _ => None,
         })
-        .collect();
-    (keys, ticking)
+        .collect()
 }
 
 fn snapshot(server: &mut PlayServer) -> (i64, f64) {
@@ -114,6 +118,18 @@ fn a_frozen_game_stops_time_and_mobs_until_a_step_runs_them() {
                 frozen: true,
             })]
         )
+    );
+    let (_, joined) = server.join(VIEWER, "viewer");
+    assert_eq!(
+        ticking(joined),
+        [
+            Ticking::State(ClientboundTickingState {
+                tick_rate: 20.0,
+                frozen: true,
+            }),
+            Ticking::Step(ClientboundTickingStep { steps: VarInt(0) })
+        ],
+        "a join receives the frozen state and the steps"
     );
     let frozen = snapshot(&mut server);
     ticks(&mut server, operator, 5);

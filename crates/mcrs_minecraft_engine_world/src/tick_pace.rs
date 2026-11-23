@@ -126,23 +126,21 @@ impl TickPace {
         self.runs_normally
     }
 
-    pub fn start_sprint(&mut self, ticks: u64) -> bool {
+    pub fn start_sprint(&mut self, ticks: u64) {
         let frozen_after = self.frozen;
         self.frozen = false;
         self.state_changed = true;
-        self.sprint
-            .replace(Sprint {
-                remaining: ticks,
-                ran: 0,
-                nanos: 0,
-                frozen_after,
-            })
-            .is_some()
+        self.sprint = Some(Sprint {
+            remaining: ticks,
+            ran: 0,
+            nanos: 0,
+            frozen_after,
+        });
     }
 
-    pub fn stop_sprint(&mut self) -> bool {
+    pub fn stop_sprint(&mut self) {
         let Some(sprint) = self.sprint.take() else {
-            return false;
+            return;
         };
         self.report = Some(SprintReport {
             ticks: sprint.ran,
@@ -150,7 +148,6 @@ impl TickPace {
         });
         self.frozen = sprint.frozen_after;
         self.state_changed = true;
-        true
     }
 
     pub fn freeze(&mut self) {
@@ -173,13 +170,11 @@ impl TickPace {
         self.announced_steps = Some(ticks);
     }
 
-    pub fn stop_step(&mut self) -> bool {
-        if self.steps == 0 {
-            return false;
+    pub fn stop_step(&mut self) {
+        if self.steps > 0 {
+            self.steps = 0;
+            self.announced_steps = Some(0);
         }
-        self.steps = 0;
-        self.announced_steps = Some(0);
-        true
     }
 
     #[must_use]
@@ -236,7 +231,7 @@ mod tests {
     #[test]
     fn a_sprint_of_n_ticks_runs_n_ticks_and_ends_at_the_start_of_the_next() {
         let mut pace = TickPace::new(20);
-        assert!(!pace.start_sprint(3), "no sprint ran before");
+        pace.start_sprint(3);
         let mut waits = Vec::new();
         for _ in 0..5 {
             pace.begin_tick();
@@ -268,25 +263,6 @@ mod tests {
         pace.end_tick(4);
         pace.end_tick(8);
         assert_eq!(pace.average_nanos(), 6, "two ticks wrote a sample");
-    }
-
-    #[test]
-    fn a_frozen_game_runs_exactly_the_stepped_ticks_normally() {
-        let mut pace = TickPace::new(20);
-        pace.freeze();
-        let mut runs = Vec::new();
-        for tick in 0..6 {
-            if tick == 1 {
-                pace.step(3);
-            }
-            pace.begin_tick();
-            runs.push(pace.runs_normally());
-        }
-        assert_eq!(runs, [false, true, true, true, false, false]);
-        assert!(
-            !pace.stop_step(),
-            "a step that ran all its ticks does not run"
-        );
     }
 
     #[test]

@@ -48,19 +48,13 @@ pub fn apply_edit(world: &mut World, edit: ServerEdit) {
                 });
             }
         }
-        ServerEdit::StartSprint { ticks } => edit_pace(world, |pace| {
-            pace.start_sprint(ticks);
-        }),
-        ServerEdit::StopSprint => edit_pace(world, |pace| {
-            pace.stop_sprint();
-        }),
+        ServerEdit::StartSprint { ticks } => edit_pace(world, |pace| pace.start_sprint(ticks)),
+        ServerEdit::StopSprint => edit_pace(world, TickPace::stop_sprint),
         ServerEdit::TickRate { rate } => edit_pace(world, |pace| pace.set_rate(rate)),
         ServerEdit::Freeze => edit_pace(world, TickPace::freeze),
         ServerEdit::Unfreeze => edit_pace(world, TickPace::unfreeze),
         ServerEdit::Step { ticks } => edit_pace(world, |pace| pace.step(ticks)),
-        ServerEdit::StopStep => edit_pace(world, |pace| {
-            pace.stop_step();
-        }),
+        ServerEdit::StopStep => edit_pace(world, TickPace::stop_step),
     }
 }
 
@@ -83,34 +77,38 @@ impl Plugin for ServerStateHostPlugin {
                 .run_if(clear_weather_counting)
                 .run_if(tick_runs_normally),
         );
-        app.add_systems(Update, announce_tick_state.after(send_online_count));
+        app.add_systems(
+            Update,
+            announce_tick_state
+                .run_if(resource_exists::<TickPace>)
+                .after(send_online_count),
+        );
     }
 }
 
 pub fn announce_tick_state(
-    pace: Option<ResMut<TickPace>>,
+    mut pace: ResMut<TickPace>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Some(mut pace) = pace else {
-        return;
-    };
     if pace.bypass_change_detection().take_state_change() {
-        packets.write(to_target(
-            PacketTarget::AllPlayers,
-            PacketPayload::TickingState(ClientboundTickingState {
-                tick_rate: pace.rate(),
-                frozen: pace.is_frozen(),
-            }),
-        ));
+        packets.write(to_target(PacketTarget::AllPlayers, ticking_state(&pace)));
     }
     if let Some(steps) = pace.bypass_change_detection().take_steps_change() {
-        packets.write(to_target(
-            PacketTarget::AllPlayers,
-            PacketPayload::TickingStep(ClientboundTickingStep {
-                steps: VarInt(i32::try_from(steps).unwrap_or(i32::MAX)),
-            }),
-        ));
+        packets.write(to_target(PacketTarget::AllPlayers, ticking_step(steps)));
     }
+}
+
+pub(crate) fn ticking_state(pace: &TickPace) -> PacketPayload {
+    PacketPayload::TickingState(ClientboundTickingState {
+        tick_rate: pace.rate(),
+        frozen: pace.is_frozen(),
+    })
+}
+
+pub(crate) fn ticking_step(steps: u64) -> PacketPayload {
+    PacketPayload::TickingStep(ClientboundTickingStep {
+        steps: VarInt(i32::try_from(steps).unwrap_or(i32::MAX)),
+    })
 }
 
 fn apply_host_edit(edit: On<ServerEdit>, mut commands: Commands) {

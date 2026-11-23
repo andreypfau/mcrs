@@ -15,6 +15,7 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, SessionAnchors, SessionPlacement,
 };
+use mcrs_minecraft_engine_world::tick_pace::TickPace;
 
 fn placed_anchor(host: &World, session: PlayerSession, source: Entity) -> Option<Entity> {
     host.get_resource::<SessionAnchors>()
@@ -65,6 +66,7 @@ fn announce(host: &mut World, anchor: Entity, destination: Destination, departur
         placement.set(Place::InDim(destination.label));
     }
     let session = departure.session;
+    let pace = host.get_resource::<TickPace>().cloned();
     let carried = &mut departure.carried;
     let teleport_id = carried.send_teleport(departure.arrival.transform);
     dim_outputs::deliver(
@@ -84,6 +86,7 @@ fn announce(host: &mut World, anchor: Entity, destination: Destination, departur
         carried.op_level(),
         departure.arrival.position_packet(teleport_id),
         game_mode::abilities(carried.game_mode(), carried.flying()),
+        pace.as_ref(),
         |packet| dim_outputs::deliver(host, packet),
     );
     if let Some(look_at) = departure.arrival.look_at.clone() {
