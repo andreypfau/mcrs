@@ -124,7 +124,7 @@ pub(crate) fn apply_hits(
             &pending.requests,
             &types,
             tick,
-            &mut targets,
+            targets.reborrow(),
             dead,
             &mut reports,
         );
@@ -140,7 +140,7 @@ fn apply_group(
     requests: &[DamageRequest],
     types: &DamageTypeRules,
     tick: Option<u64>,
-    targets: &mut Targets,
+    mut targets: Targets<'_, '_>,
     dead: &mut Vec<GridRow>,
     reports: &mut Reports<'_, '_, '_>,
 ) {

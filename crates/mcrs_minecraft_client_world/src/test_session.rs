@@ -270,7 +270,7 @@ pub(crate) fn joined(mut app: App) -> Joined {
                 .ok()
         })
         .expect("the client joins");
-    finish_configuration(&mut app.world_mut().commands(), connection);
+    finish_configuration(app.world_mut().commands(), connection);
     app.world_mut().flush();
     app.update();
     let _finished = server.next_frame();

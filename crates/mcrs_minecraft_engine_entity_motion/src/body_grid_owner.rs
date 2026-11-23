@@ -62,6 +62,13 @@ struct TileWork {
     reach: f32,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "each tick drains the removal readers and the departures, and regrids every body whose state changed outside the step"
+    )
+)]
 pub(crate) fn own_body_grid(
     mut grid: ResMut<BodyGrid>,
     mut regrids: ResMut<Regrids>,

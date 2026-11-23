@@ -140,6 +140,7 @@ impl Plugin for LocalPlayerPlugin {
             .add_systems(
                 Update,
                 request_respawn::send_respawn_requests
+                    .run_if(on_message::<request_respawn::RequestRespawn>)
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush),
             );

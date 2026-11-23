@@ -138,6 +138,20 @@ fn holds_signs(store: &ColumnStore, scene: &SignScene, pos: ColumnPos) -> bool {
             .is_some_and(|column| !column.signs().is_empty())
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "a column rebuilds only when its signs change or the camera crosses an outline range, and the built vertices move into `SignScene`"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the revision advances on every rebuild together with the rewritten vertices"
+    )
+)]
 fn sync_signs(
     store: Res<ColumnStore>,
     blocks: Res<Blocks>,
@@ -203,6 +217,8 @@ fn sync_signs(
             .flatten()
             .flat_map(|built| built.vertices.iter().copied()),
     );
-    text.texture = Some(assets.image.clone());
+    if text.texture.as_ref() != Some(&assets.image) {
+        text.texture = Some(assets.image.clone());
+    }
     text.revision = scene.revision;
 }

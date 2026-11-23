@@ -61,8 +61,13 @@ impl Plugin for NameTagRenderPlugin {
                 (
                     prepare
                         .in_set(RenderSystems::Prepare)
-                        .after(write_frame_view),
-                    prepare_bind_groups.in_set(RenderSystems::PrepareBindGroups),
+                        .after(write_frame_view)
+                        .run_if(resource_exists::<NameTagPass>)
+                        .run_if(resource_exists::<NameTags>),
+                    prepare_bind_groups
+                        .in_set(RenderSystems::PrepareBindGroups)
+                        .run_if(resource_exists::<NameTagPass>)
+                        .run_if(resource_exists::<NameTags>),
                 ),
             )
             .add_systems(
@@ -222,6 +227,13 @@ fn prepare(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the system writes a cached bind group only after it finds the entry missing or stale, so each write is a change"
+    )
+)]
 fn prepare_bind_groups(
     pass: Option<ResMut<NameTagPass>>,
     tags: Option<Res<NameTags>>,

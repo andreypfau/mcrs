@@ -155,7 +155,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         &mut self,
         world: &BlockGoalWorld<'_, V>,
         players: PlayerTable,
-        mobs: &mut Thinking<'_, '_>,
+        mut mobs: Thinking<'_, '_>,
         threads: &mut Parallel<BrainOut>,
     ) {
         let started = Instant::now();

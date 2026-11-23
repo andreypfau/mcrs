@@ -26,9 +26,12 @@ pub(crate) fn fill_defence(
     mut mobs: Defended,
 ) {
     let entity = add.event().entity;
-    refresh_defence(entity, &mut mobs);
+    refresh_defence(entity, mobs.reborrow());
     if let Ok((mob, _, mut defence)) = mobs.get_mut(entity) {
-        defence.immune = immunity(mob.kind, registries.as_deref());
+        let immune = immunity(mob.kind, registries.as_deref());
+        if defence.immune != immune {
+            defence.immune = immune;
+        }
     }
 }
 
@@ -38,12 +41,12 @@ pub(crate) fn project_defence(mut changed: MessageReader<AttributeChanged>, mut 
             change.attribute,
             Attribute::Armor | Attribute::ArmorToughness
         ) {
-            refresh_defence(change.target, &mut mobs);
+            refresh_defence(change.target, mobs.reborrow());
         }
     }
 }
 
-fn refresh_defence(entity: Entity, mobs: &mut Defended) {
+fn refresh_defence(entity: Entity, mut mobs: Defended<'_, '_>) {
     let Ok((mob, attributes, mut defence)) = mobs.get_mut(entity) else {
         return;
     };

@@ -208,7 +208,12 @@ fn prepare<B>(
         return;
     };
     let goal_world = BlockGoalWorld::new(&blocks, tables.collision());
-    ai.prepare(&goal_world, player_table(&players), &mut mobs, &mut threads);
+    ai.prepare(
+        &goal_world,
+        player_table(&players),
+        mobs.reborrow(),
+        &mut threads,
+    );
 }
 
 #[cfg_attr(
@@ -216,13 +221,6 @@ fn prepare<B>(
     expect(
         mcrs::blocking_in_system,
         reason = "the wall clock measures the AI stage for the periodic mob AI profile log"
-    )
-)]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "TaskPool::scope returns a Vec of the task results when the stage fans out to the compute pool"
     )
 )]
 fn run_stage<B>(

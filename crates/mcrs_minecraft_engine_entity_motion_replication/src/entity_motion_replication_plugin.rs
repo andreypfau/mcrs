@@ -25,6 +25,7 @@ use crate::mob_news::MobNews;
 use crate::mob_news::has_mob_spawns;
 use crate::mob_news::take_mob_news;
 use crate::publish_mob_attributes::publish_mob_attributes;
+use crate::publish_motion::has_motion_work;
 use crate::publish_motion::publish_motion;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -64,7 +65,7 @@ impl Plugin for EntityMotionReplicationPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                publish_motion,
+                publish_motion.run_if(has_motion_work),
                 publish_mob_attributes.run_if(on_message::<AttributeChanged>),
             )
                 .chain()

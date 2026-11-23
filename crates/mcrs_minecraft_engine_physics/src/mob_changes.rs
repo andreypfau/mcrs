@@ -26,6 +26,13 @@ pub struct Spawned {
     pub vitals: Vitals,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "clears the spawns of the previous tick, which must not survive a tick without spawns"
+    )
+)]
 pub(crate) fn clear_mob_changes(mut changes: ResMut<MobChanges>) {
     changes.spawned.clear();
 }
