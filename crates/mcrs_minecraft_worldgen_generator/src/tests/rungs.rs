@@ -13,7 +13,8 @@ use mcrs_voxel::ColumnPos;
 use crate::features::FeatureTables;
 use crate::staging::FilledSnapshot;
 
-use super::{TEMPERATE, blocks, corpus_state_of, generate_region};
+use super::{TEMPERATE, blocks, corpus_state_of};
+use crate::generate_area;
 
 const BIOME: &str = "minecraft:badlands";
 const SEED: u64 = 0x1a2e;
@@ -118,7 +119,7 @@ fn a_plant_never_grows_on_a_lake_a_neighbour_dug() {
         "the lakes step and the vegetal step are cut into rungs of their own"
     );
 
-    let region = generate_region(&ctx, ColumnPos::new(-1, -1), ColumnPos::new(1, 1));
+    let region = generate_area(&ctx, ColumnPos::new(-1, -1), ColumnPos::new(1, 1));
     let lava = state_of("minecraft:lava");
     let plant = state_of("minecraft:dead_bush");
 

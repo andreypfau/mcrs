@@ -24,9 +24,9 @@ use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sec
 use crate::{ColumnBiomes, SurfaceStates};
 use mcrs_minecraft_heightmap::heightmap_predicates;
 
-#[cfg(test)]
-use super::generate_region;
 use super::{block_tags, blocks, build_program, corpus_features, one_step};
+#[cfg(test)]
+use crate::generate_area;
 
 pub(super) const CHECKPOINT: [(&str, &str); 3] = [
     ("minecraft:plains", "minecraft:trees_plains"),
@@ -166,7 +166,7 @@ pub(super) fn decorate_region(
     let (ctx, y_sections) = tree_dimension(biome, placed_id, seed);
     let logs = tag_states("minecraft:logs");
     let leaves = tag_states("minecraft:leaves");
-    let region = generate_region(
+    let region = generate_area(
         &ctx,
         ColumnPos::new(centre.x - radius, centre.z - radius),
         ColumnPos::new(centre.x + radius, centre.z + radius),
@@ -284,7 +284,7 @@ fn a_generated_bee_nest_carries_its_occupants() {
 
     let (ctx, _) = dimension_over("minecraft:plains", Arc::new(bee_tables()), 4242);
 
-    let region = generate_region(&ctx, ColumnPos::new(-1, -1), ColumnPos::new(1, 1));
+    let region = generate_area(&ctx, ColumnPos::new(-1, -1), ColumnPos::new(1, 1));
     let nests: Vec<GeneratedBlockEntity> = region
         .values()
         .flat_map(|merged| merged.block_entities.iter().cloned())
@@ -326,7 +326,7 @@ fn the_pale_garden_grows_pale_oaks_and_their_moss() {
         "minecraft:pale_garden_vegetation",
         4242,
     );
-    let region = generate_region(&ctx, ColumnPos::new(-1, -1), ColumnPos::new(1, 1));
+    let region = generate_area(&ctx, ColumnPos::new(-1, -1), ColumnPos::new(1, 1));
     let wanted = [
         "minecraft:pale_oak_log",
         "minecraft:pale_oak_leaves",

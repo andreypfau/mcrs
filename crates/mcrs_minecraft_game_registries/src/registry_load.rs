@@ -12,6 +12,8 @@ use mcrs_minecraft_registries::{
 use crate::packs::DATAPACK_REPORT;
 use crate::registries::declarations;
 
+const FILE_PREFIX: &str = "file/";
+
 #[derive(Debug)]
 pub enum RegistryLoadError {
     Read(ReadError),
@@ -57,14 +59,23 @@ pub fn load_registries(
     let packs = RootPacks::read(source)?;
     let declarations = declarations(&source.read(DATAPACK_REPORT)?, extra)?;
 
+    let standard_packs = source.standard_packs();
+    if let Some(name) = standard_packs
+        .iter()
+        .find(|name| local_packs.contains(name))
+    {
+        return Err(RegistryLoadError::Declarations(format!(
+            "the extra pack {name} has the name of a local pack"
+        )));
+    }
+    let standard = |name: &str| standard_packs.iter().any(|standard| standard == name);
+    let local = |name: &str| local_packs.iter().any(|local| local == name);
     let mut selection = PackSelection::default();
     let mut available: Vec<AvailablePack> = packs
         .available()
         .iter()
         .filter(|pack| {
-            pack.id()
-                .strip_prefix("file/")
-                .is_none_or(|name| local_packs.iter().any(|local| local == name))
+            (pack.id().strip_prefix(FILE_PREFIX)).is_none_or(|name| local(name) || standard(name))
         })
         .cloned()
         .collect();
@@ -77,12 +88,30 @@ pub fn load_registries(
         selection.enabled.push(id.clone());
         available.push(AvailablePack::embedded(id));
     }
+    if !standard_packs.is_empty() {
+        let mut local_ids: Vec<&str> = (available.iter())
+            .map(AvailablePack::id)
+            .filter(|id| {
+                id.strip_prefix(FILE_PREFIX)
+                    .is_some_and(|name| !standard(name))
+            })
+            .collect();
+        local_ids.sort_unstable();
+        let standard_ids = standard_packs
+            .iter()
+            .map(|name| format!("{FILE_PREFIX}{name}"))
+            .filter(|id| available.iter().any(|pack| pack.id() == id));
+        let enabled = local_ids.into_iter().map(str::to_owned).chain(standard_ids);
+        selection.enabled.extend(enabled);
+    }
     let (stack, found) = pack_stack(&selection, &available, &Features::vanilla(), false);
     let mut diagnostics = Diagnostics::default();
     let unavailable = packs.unavailable().iter().cloned();
     diagnostics.extend(found.into_iter().chain(unavailable).map(Diagnostic::Pack));
     let content = ContentPaths::new(&declarations);
-    packs.read_files(source, &stack, &mut files, |path| content.needs(path))?;
+    packs.read_files(source, &stack, &mut files, ".json", |path| {
+        content.needs(path)
+    })?;
 
     match Registries::load(declarations, Arc::new(stack), files) {
         Ok((registries, loaded)) => {
@@ -124,7 +153,7 @@ pub fn test_additions() -> RegistryAdditions {
     let mut additions = RegistryAdditions::default();
     additions
         .local_packs
-        .extend(["mcrs".to_owned(), "beta".to_owned()]);
+        .extend(mcrs_minecraft_datapack::REPOSITORY_PACKS.map(str::to_owned));
     mcrs_minecraft_worldgen::registries::add_vanilla_worldgen(&mut additions)
         .unwrap_or_else(|error| panic!("{error}"));
     additions

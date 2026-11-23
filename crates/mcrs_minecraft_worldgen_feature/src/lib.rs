@@ -44,6 +44,7 @@ pub mod tree;
 
 pub mod column;
 pub mod template;
+pub mod template_file;
 
 #[cfg(test)]
 mod tests {

@@ -12,12 +12,12 @@ use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_generator::dimension_plan::DimensionPlan;
 use mcrs_minecraft_worldgen_generator::plan_error::PlanError;
+use mcrs_minecraft_worldgen_generator::template_names::named_templates;
 use mcrs_minecraft_worldgen_generator::world_tables::{MissingTable, WorldTables, WorldgenInputs};
 use tracing::{error, warn};
 
-use crate::template_asset::{TemplateAsset, named_templates};
+use crate::template_asset::TemplateAsset;
 use crate::template_handle::template_handle;
-use crate::worldgen_tables::WorldgenTables;
 
 #[derive(Resource, Default)]
 pub struct DimensionPlans(pub BTreeMap<ResourceLocationBuf, DimensionPlan>);
@@ -90,7 +90,6 @@ pub(crate) fn build_dimension_plans(
         }
     }
     commands.insert_resource(plans);
-    commands.insert_resource(WorldgenTables(tables));
 }
 
 fn log_missing(missing: &MissingTable) {

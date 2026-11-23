@@ -6,6 +6,7 @@ use crate::{AvailablePack, PackDiagnostic, PackFiles, PackStack, StackedPack};
 
 pub const PACKS_ROOT: &str = "mcrs/datapacks";
 pub const VANILLA_ROOT: &str = "minecraft";
+pub const REPOSITORY_PACKS: [&str; 2] = ["mcrs", "beta"];
 
 const FEATURE_PACKS: &str = "minecraft/datapacks";
 const METADATA: &str = "pack.mcmeta";
@@ -65,8 +66,8 @@ pub trait PackSource {
 
     fn list(&self, directory: &str) -> Result<Vec<DirectoryEntry>, ReadError>;
 
-    fn standard_pack(&self) -> Option<&str> {
-        None
+    fn standard_packs(&self) -> &[String] {
+        &[]
     }
 }
 
@@ -74,7 +75,8 @@ pub trait PackSource {
 pub struct DirectoryPacks {
     assets: PathBuf,
     vanilla: PathBuf,
-    only_pack: Option<(String, PathBuf)>,
+    standard_names: Vec<String>,
+    standard_directories: Vec<PathBuf>,
 }
 
 impl DirectoryPacks {
@@ -82,28 +84,37 @@ impl DirectoryPacks {
         Self {
             assets,
             vanilla,
-            only_pack: None,
+            standard_names: Vec::new(),
+            standard_directories: Vec::new(),
         }
     }
 
-    pub fn with_only_pack(mut self, directory: &Path) -> Result<Self, ReadError> {
+    pub fn with_pack(mut self, directory: &Path) -> Result<Self, ReadError> {
         let shown = directory.display().to_string();
         let directory =
             std::fs::canonicalize(directory).map_err(|error| ReadError::new(&shown, error))?;
         let name = (directory.file_name().and_then(|name| name.to_str()))
             .ok_or_else(|| ReadError::new(&shown, "the directory name is not a pack name"))?
             .to_owned();
-        self.only_pack = Some((name, directory));
+        if self.standard_names.contains(&name) {
+            return Err(ReadError::new(
+                &shown,
+                format!("another pack is named {name}"),
+            ));
+        }
+        self.standard_names.push(name);
+        self.standard_directories.push(directory);
         Ok(self)
     }
 
     fn path(&self, path: &str) -> PathBuf {
         let path = Path::new(path);
-        if let Some((name, directory)) = &self.only_pack
-            && let Some(below) =
-                (path.strip_prefix(PACKS_ROOT).ok()).and_then(|packs| packs.strip_prefix(name).ok())
-        {
-            return directory.join(below);
+        if let Ok(packs) = path.strip_prefix(PACKS_ROOT) {
+            for (name, directory) in self.standard_names.iter().zip(&self.standard_directories) {
+                if let Ok(below) = packs.strip_prefix(name) {
+                    return directory.join(below);
+                }
+            }
         }
         match below_vanilla_root(path) {
             Some(below) => self.vanilla.join(below),
@@ -118,26 +129,27 @@ impl PackSource for DirectoryPacks {
     }
 
     fn list(&self, directory: &str) -> Result<Vec<DirectoryEntry>, ReadError> {
-        if let Some((name, _)) = &self.only_pack
-            && directory == PACKS_ROOT
-        {
-            return Ok(vec![DirectoryEntry {
+        let mut listed = Vec::new();
+        let packs_root = directory == PACKS_ROOT;
+        if packs_root {
+            listed.extend(self.standard_names.iter().map(|name| DirectoryEntry {
                 name: name.clone(),
                 directory: true,
-            }]);
+            }));
         }
         let entries = match std::fs::read_dir(self.path(directory)) {
             Ok(entries) => entries,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(listed),
             Err(error) => return Err(ReadError::new(directory, error)),
         };
-        let mut listed = Vec::new();
         for entry in entries {
             let entry = entry.map_err(|error| ReadError::new(directory, error))?;
             let kind = entry
                 .file_type()
                 .map_err(|error| ReadError::new(directory, error))?;
-            if let Ok(name) = entry.file_name().into_string() {
+            if let Ok(name) = entry.file_name().into_string()
+                && !(packs_root && self.standard_names.contains(&name))
+            {
                 listed.push(DirectoryEntry {
                     name,
                     directory: kind.is_dir(),
@@ -147,8 +159,8 @@ impl PackSource for DirectoryPacks {
         Ok(listed)
     }
 
-    fn standard_pack(&self) -> Option<&str> {
-        self.only_pack.as_ref().map(|(name, _)| name.as_str())
+    fn standard_packs(&self) -> &[String] {
+        &self.standard_names
     }
 }
 
@@ -158,7 +170,11 @@ fn list(source: &dyn PackSource, directory: &str) -> Result<Vec<DirectoryEntry>,
     Ok(entries)
 }
 
-fn walk(source: &dyn PackSource, root: &str) -> Result<Vec<(String, String)>, ReadError> {
+fn walk(
+    source: &dyn PackSource,
+    root: &str,
+    extension: &str,
+) -> Result<Vec<(String, String)>, ReadError> {
     let mut found = Vec::new();
     let mut directories = vec![root.to_owned()];
     while let Some(directory) = directories.pop() {
@@ -168,7 +184,7 @@ fn walk(source: &dyn PackSource, root: &str) -> Result<Vec<(String, String)>, Re
                 if path != FEATURE_PACKS {
                     directories.push(path);
                 }
-            } else if entry.name.ends_with(".json")
+            } else if entry.name.ends_with(extension)
                 && let Some(relative) = path.strip_prefix(root)
             {
                 let relative = relative.trim_start_matches('/').to_owned();
@@ -203,6 +219,7 @@ impl RootPacks {
 
     pub fn read(source: &dyn PackSource) -> Result<Self, ReadError> {
         let mut packs = Self::vanilla();
+        let standard_packs = source.standard_packs();
         for entry in list(source, PACKS_ROOT)?
             .into_iter()
             .filter(|e| e.directory)
@@ -212,7 +229,7 @@ impl RootPacks {
                 pack: format!("file/{}", entry.name),
                 reason,
             };
-            let standard = source.standard_pack() == Some(entry.name.as_str());
+            let standard = standard_packs.contains(&entry.name);
             if !standard
                 && list(source, &root)?
                     .iter()
@@ -254,6 +271,7 @@ impl RootPacks {
         source: &dyn PackSource,
         stack: &PackStack,
         files: &mut PackFiles,
+        extension: &str,
         needs: impl Fn(&str) -> bool,
     ) -> Result<(), ReadError> {
         for pack in stack.packs() {
@@ -264,11 +282,14 @@ impl RootPacks {
                     pack.id(),
                     VANILLA_ROOT,
                     &format!("{STANDARD_DATA}/{VANILLA_ROOT}"),
+                    extension,
                     &needs,
                 )?,
-                Some(PackDirectory::Local(root)) => local_into(source, files, pack, root, &needs)?,
+                Some(PackDirectory::Local(root)) => {
+                    local_into(source, files, pack, root, extension, &needs)?
+                }
                 Some(PackDirectory::Standard(root)) => {
-                    standard_into(source, files, pack, root, &needs)?;
+                    standard_into(source, files, pack, root, extension, &needs)?;
                 }
                 None => {}
             }
@@ -283,9 +304,10 @@ fn read_tree(
     pack: &str,
     directory: &str,
     in_pack: &str,
+    extension: &str,
     needs: &impl Fn(&str) -> bool,
 ) -> Result<(), ReadError> {
-    for (path, relative) in walk(source, directory)? {
+    for (path, relative) in walk(source, directory, extension)? {
         let in_pack = format!("{in_pack}/{relative}");
         if !files.holds_value(pack, &in_pack) {
             let bytes = match needs(&relative) {
@@ -303,6 +325,7 @@ fn local_into(
     files: &mut PackFiles,
     pack: &StackedPack,
     root: &str,
+    extension: &str,
     needs: &impl Fn(&str) -> bool,
 ) -> Result<(), ReadError> {
     let overlays = &pack.overlays;
@@ -310,7 +333,15 @@ fn local_into(
         if !overlays.contains(&entry.name) {
             let directory = format!("{root}/{}", entry.name);
             let in_pack = format!("{STANDARD_DATA}/{}", entry.name);
-            read_tree(source, files, pack.id(), &directory, &in_pack, needs)?;
+            read_tree(
+                source,
+                files,
+                pack.id(),
+                &directory,
+                &in_pack,
+                extension,
+                needs,
+            )?;
         }
     }
     for overlay in overlays {
@@ -321,7 +352,15 @@ fn local_into(
         {
             let directory = format!("{overlay_root}/{}", entry.name);
             let in_pack = format!("{overlay}/{STANDARD_DATA}/{}", entry.name);
-            read_tree(source, files, pack.id(), &directory, &in_pack, needs)?;
+            read_tree(
+                source,
+                files,
+                pack.id(),
+                &directory,
+                &in_pack,
+                extension,
+                needs,
+            )?;
         }
     }
     Ok(())
@@ -332,6 +371,7 @@ fn standard_into(
     files: &mut PackFiles,
     pack: &StackedPack,
     root: &str,
+    extension: &str,
     needs: &impl Fn(&str) -> bool,
 ) -> Result<(), ReadError> {
     let overlays = pack.overlays.iter().map(|o| format!("{o}/{STANDARD_DATA}"));
@@ -343,7 +383,15 @@ fn standard_into(
         {
             let directory = format!("{data_root}/{}", entry.name);
             let in_pack = format!("{data}/{}", entry.name);
-            read_tree(source, files, pack.id(), &directory, &in_pack, needs)?;
+            read_tree(
+                source,
+                files,
+                pack.id(),
+                &directory,
+                &in_pack,
+                extension,
+                needs,
+            )?;
         }
     }
     Ok(())

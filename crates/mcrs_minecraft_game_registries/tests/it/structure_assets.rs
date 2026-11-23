@@ -2,9 +2,10 @@ use bevy_app::App;
 use bevy_asset::{AssetServer, Assets};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceLocationBuf;
-use mcrs_minecraft_vanilla_worldgen::{TemplateAsset, pool_templates, template_handle};
+use mcrs_minecraft_vanilla_worldgen::{TemplateAsset, template_handle};
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
+use mcrs_minecraft_worldgen_generator::template_names::pool_templates;
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 
 pub fn the_structure_registries_land_before_playing(app: &App) {
