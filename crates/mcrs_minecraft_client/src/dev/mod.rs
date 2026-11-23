@@ -46,7 +46,8 @@ impl Plugin for DevPlugin {
         }
         #[cfg(target_os = "macos")]
         app.insert_resource(gputrace::AutoTrace(knobs.gputrace_path()))
-            .add_systems(Update, gputrace::gputrace);
+            .init_resource::<gputrace::CaptureFrames>()
+            .add_systems(Update, gputrace::gputrace.run_if(gputrace::trace_due));
         #[cfg(not(target_family = "wasm"))]
         {
             if let Some(level) = knobs.light_guard() {

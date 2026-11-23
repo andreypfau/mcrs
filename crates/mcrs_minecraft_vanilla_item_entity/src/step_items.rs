@@ -34,13 +34,6 @@ pub(crate) struct SteppedItem {
     pub(crate) merges: bool,
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "clears the stepped list each tick, so the merge and projection systems never see despawned items"
-    )
-)]
 pub(crate) fn step_items(
     mut commands: Commands,
     mut items: Query<(Entity, &mut ItemEntity, &MotionState, &StepOutcome), With<MotionId>>,

@@ -105,6 +105,11 @@ impl TickPace {
         true
     }
 
+    #[must_use]
+    pub fn has_report(&self) -> bool {
+        self.report.is_some()
+    }
+
     pub fn take_report(&mut self) -> Option<SprintReport> {
         self.report.take()
     }

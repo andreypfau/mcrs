@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use bevy_app::{App, FixedUpdate, Last, Plugin};
-use bevy_ecs::prelude::{IntoScheduleConfigs, Query, ResMut, Resource, With};
+use bevy_ecs::prelude::{
+    Changed, IntoScheduleConfigs, Query, RemovedComponents, Res, ResMut, Resource, With,
+};
 use mcrs_engine_link::{Link, Placement};
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine::cold_light_edit::ColdLightEdit;
@@ -39,18 +41,25 @@ impl Plugin for ColdLightPlugin {
         let world = if self.sky { world } else { world.without_sky() };
         let link = Link::new(LightStage::awaited_only(world), Placement::Thread);
         app.insert_resource(ColdLightLink(LightLink::new(link)))
-            .add_systems(FixedUpdate, land_cold_light.in_set(ColdStageLandSet))
-            .add_systems(Last, send_cold_light);
+            .add_systems(
+                FixedUpdate,
+                land_cold_light
+                    .run_if(cold_light_answered)
+                    .in_set(ColdStageLandSet),
+            )
+            .add_systems(Last, send_cold_light.run_if(cold_light_due));
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "hands the light edits and awaits of the column production to the light thread each tick"
-    )
-)]
+fn cold_light_due(
+    production: Res<ColumnProduction>,
+    moved: Query<(), (With<Player>, Changed<Transform>)>,
+    mut left: RemovedComponents<Player>,
+) -> bool {
+    let left = left.read().count() > 0;
+    left || production.has_light_work() || !moved.is_empty()
+}
+
 #[cfg_attr(
     mcrs_lint,
     expect(
@@ -81,13 +90,10 @@ fn send_cold_light(
     light.send_edits();
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "polls the light thread, whose answers arrive asynchronously"
-    )
-)]
+fn cold_light_answered(light: Res<ColdLightLink>) -> bool {
+    light.0.has_replies()
+}
+
 #[cfg_attr(
     mcrs_lint,
     expect(

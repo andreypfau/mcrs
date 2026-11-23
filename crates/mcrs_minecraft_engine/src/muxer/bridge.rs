@@ -6,7 +6,7 @@ use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::{Local, Query, Res, ResMut};
+use bevy_ecs::system::{Local, Populated, Query, Res, ResMut};
 use bevy_ecs::world::World;
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
@@ -278,13 +278,6 @@ const MAX_UNSENT_BYTES: usize = 256 * 1024 * 1024;
 #[cfg_attr(
     feature = "telemetry-tracy",
     tracing::instrument(name = "network::dispatch_encode", skip_all)
-)]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "flushes the unsent bytes and checks the stalled writers and the client timeouts of every connection on each flush"
-    )
 )]
 #[cfg_attr(
     mcrs_lint,
@@ -752,19 +745,12 @@ pub fn forward_pending_inbound(
 #[cfg_attr(
     mcrs_lint,
     expect(
-        mcrs::ungated_system,
-        reason = "receives the packets of every connection, which arrive from the network without an ECS signal"
-    )
-)]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
         mcrs::alloc_in_tick,
         reason = "allocates the refusal cause only when a client is disconnected for an invalid move"
     )
 )]
 pub fn bridge_inbound(
-    mut conns: Query<(
+    mut conns: Populated<(
         Entity,
         &mut ServerSideConnection,
         &mut InboundPacketRate,

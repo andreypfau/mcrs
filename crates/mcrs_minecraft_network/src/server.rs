@@ -10,7 +10,7 @@ use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Res;
-use bevy_ecs::world::{FromWorld, World};
+use bevy_ecs::world::{FromWorld, Mut, World};
 use bytes::Bytes;
 use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
@@ -235,10 +235,35 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn add_connection_spawner(app: &mut App, mut new_sessions_recv: Receiver<Box<RawConnection>>) {
-    let spawn_new_raw_connections = move |world: &mut World| {
-        for _ in 0..new_sessions_recv.len() {
-            match new_sessions_recv.try_recv() {
+#[derive(Resource)]
+struct NewConnections(Receiver<Box<RawConnection>>);
+
+fn add_connection_spawner(app: &mut App, new_sessions_recv: Receiver<Box<RawConnection>>) {
+    app.insert_resource(NewConnections(new_sessions_recv));
+    app.configure_sets(FixedPreUpdate, NetworkSet::SpawnConnections);
+    app.add_systems(
+        FixedPreUpdate,
+        spawn_new_raw_connections
+            .run_if(connections_pending)
+            .in_set(NetworkSet::SpawnConnections),
+    );
+}
+
+fn connections_pending(new: Res<NewConnections>) -> bool {
+    !new.0.is_empty()
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "spawns the accepted connections at once, so the systems later in `FixedPreUpdate` see them in the same tick"
+    )
+)]
+fn spawn_new_raw_connections(world: &mut World) {
+    world.try_resource_scope(|world, mut new: Mut<NewConnections>| {
+        for _ in 0..new.0.len() {
+            match new.0.try_recv() {
                 Ok(session) => world.spawn((
                     ServerSideConnection { raw: session },
                     ConnectionState::Login,
@@ -246,27 +271,7 @@ fn add_connection_spawner(app: &mut App, mut new_sessions_recv: Receiver<Box<Raw
                 Err(_) => break,
             };
         }
-    };
-
-    app.configure_sets(FixedPreUpdate, NetworkSet::SpawnConnections);
-    #[cfg_attr(
-        mcrs_lint,
-        expect(
-            mcrs::exclusive_system,
-            reason = "spawns the accepted connections at once, so the systems later in `FixedPreUpdate` see them in the same tick"
-        )
-    )]
-    #[cfg_attr(
-        mcrs_lint,
-        expect(
-            mcrs::ungated_system,
-            reason = "drains the channel of accepted connections, which no ECS state can gate"
-        )
-    )]
-    app.add_systems(
-        FixedPreUpdate,
-        spawn_new_raw_connections.in_set(NetworkSet::SpawnConnections),
-    );
+    });
 }
 
 fn insert_status(app: &mut App, sender: watch::Sender<Bytes>) {
@@ -293,7 +298,7 @@ fn status_due(publisher: Res<StatusPublisher>, clock: Res<StatusClock>) -> bool 
     mcrs_lint,
     expect(
         mcrs::alloc_in_tick,
-        reason = "the run condition admits the system only when the status changes or its period elapses"
+        reason = "the `status_due` run condition admits the system only when the status changes or its period elapses, and each frame moves into the status channel"
     )
 )]
 #[cfg_attr(

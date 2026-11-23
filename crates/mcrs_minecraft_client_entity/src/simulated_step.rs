@@ -40,13 +40,10 @@ pub(crate) fn hold_entities_that_do_not_step(
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "the system clears the stirred tiles of the previous tick, also when no block changed"
-    )
-)]
+pub(crate) fn tiles_stirred(stirred: Res<StirredTiles>) -> bool {
+    !stirred.is_empty()
+}
+
 pub(crate) fn stir_changed_blocks(
     mut changes: MessageReader<ColumnChange>,
     mut stirred: ResMut<StirredTiles>,

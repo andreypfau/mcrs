@@ -34,6 +34,7 @@ pub struct SectionEntitySet;
 impl Plugin for TicketPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<SectionStageChanged>();
+        app.init_resource::<Condemned>();
         app.init_resource::<SimulationDistance>();
         app.add_observer(raise_simulation_ticket);
         app.add_observer(release_simulation_ticket);
@@ -54,7 +55,7 @@ impl Plugin for TicketPlugin {
                     .before(SectionEntitySet),
                 (
                     release_sections.after(ColumnCoolSet),
-                    despawn_chunks,
+                    despawn_chunks.run_if(on_message::<SectionStageChanged>.or_else(any_condemned)),
                     spawn_chunks,
                 )
                     .chain()
@@ -93,21 +94,22 @@ fn release_sections(
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "drains the queue of condemned sections, which carries over between ticks past the despawn cap"
-    )
-)]
+#[derive(Resource, Default)]
+struct Condemned(VecDeque<Entity>);
+
+fn any_condemned(condemned: Res<Condemned>) -> bool {
+    !condemned.0.is_empty()
+}
+
 fn despawn_chunks(
     mut commands: Commands,
     mut changes: MessageReader<SectionStageChanged>,
-    mut condemned: Local<VecDeque<Entity>>,
+    mut condemned: ResMut<Condemned>,
     mut dims: Query<(&mut SectionIndex, &mut ColumnLoading)>,
     sections: Query<(&SectionStage, &SectionPos, &InDimension)>,
     mut random_ticks: Option<ResMut<RandomTickIndex>>,
 ) {
+    let condemned = &mut condemned.0;
     condemned.extend(
         changes
             .read()

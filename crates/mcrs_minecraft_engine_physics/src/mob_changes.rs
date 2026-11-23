@@ -1,5 +1,6 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_damage::Vitals;
@@ -26,13 +27,10 @@ pub struct Spawned {
     pub vitals: Vitals,
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "clears the spawns of the previous tick, which must not survive a tick without spawns"
-    )
-)]
+pub(crate) fn has_spawns(changes: Res<MobChanges>) -> bool {
+    !changes.spawned.is_empty()
+}
+
 pub(crate) fn clear_mob_changes(mut changes: ResMut<MobChanges>) {
     changes.spawned.clear();
 }

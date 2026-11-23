@@ -356,6 +356,10 @@ impl ColumnStore {
         self.changes.push(ColumnChange::Relit(pos, vec![at.y]));
     }
 
+    pub(crate) fn has_changes(&self) -> bool {
+        !self.changes.is_empty()
+    }
+
     pub fn drain_changes(&mut self, into: &mut Vec<ColumnChange>) {
         into.append(&mut self.changes);
     }
@@ -805,7 +809,9 @@ impl Plugin for ColumnCachePlugin {
                     .in_set(SessionSet::Clear)
                     .before(settle_columns)
                     .run_if(session_boundary),
-                settle_columns.in_set(ClientTerrainSet::Settle),
+                settle_columns
+                    .run_if(columns_unsettled)
+                    .in_set(ClientTerrainSet::Settle),
             ),
         );
     }
@@ -1169,13 +1175,13 @@ impl LightStep<'_> {
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "the system settles queued light checks and drains the block changes of the store, also when no arrival is queued"
-    )
-)]
+fn columns_unsettled(arrivals: Res<Arrivals>, store: Res<ColumnStore>) -> bool {
+    !arrivals.queue.is_empty()
+        || store.has_changes()
+        || store.has_light_checks()
+        || store.has_unlit_arrivals()
+}
+
 #[cfg_attr(
     mcrs_lint,
     expect(

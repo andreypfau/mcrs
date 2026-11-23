@@ -24,7 +24,12 @@ impl Plugin for WorldCommandsPlugin {
         report("weather", app.add_command(weather::build, weather::run));
         report("tick", app.add_command(tick::build, tick::run));
         app.add_dimension_plugin(ForcedColumnsPlugin);
-        app.add_systems(Update, report_sprint.after(send_online_count));
+        app.add_systems(
+            Update,
+            report_sprint
+                .run_if(sprint_reported)
+                .after(send_online_count),
+        );
     }
 }
 
@@ -43,17 +48,11 @@ impl Plugin for ForcedColumnsPlugin {
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "a finished sprint leaves its report inside TickPace, which changes every tick, so no run condition can see a pending report"
-    )
-)]
-fn report_sprint(pace: Option<ResMut<TickPace>>, mut packets: MessageWriter<OutboundPlayerPacket>) {
-    let Some(mut pace) = pace else {
-        return;
-    };
+fn sprint_reported(pace: Option<Res<TickPace>>) -> bool {
+    pace.is_some_and(|pace| pace.has_report())
+}
+
+fn report_sprint(mut pace: ResMut<TickPace>, mut packets: MessageWriter<OutboundPlayerPacket>) {
     let Some(report) = pace.take_report() else {
         return;
     };

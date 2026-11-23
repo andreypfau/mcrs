@@ -2,6 +2,7 @@ use bevy_app::App;
 use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::SystemCondition;
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::schedule::common_conditions::any_with_component;
 use bevy_ecs::schedule::common_conditions::on_message;
@@ -11,6 +12,7 @@ use mcrs_minecraft_engine_entity_motion_replication::MotionPublish;
 use mcrs_minecraft_engine_physics::MobPublish;
 use mcrs_minecraft_engine_world::block_drops::ItemDropped;
 use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_item_entity::ItemEntity;
 
 use crate::ItemCollector;
 use crate::PickedUp;
@@ -23,8 +25,10 @@ use crate::merge_items::Merged;
 use crate::merge_items::merge_items;
 use crate::publish_items::Released;
 use crate::publish_items::Takes;
+use crate::publish_items::correct_spawn_counts;
 use crate::publish_items::publish_stacks;
 use crate::publish_items::publish_takes;
+use crate::publish_items::takes_pending;
 use crate::release_motion::forget_item_values;
 use crate::release_motion::release_motion;
 use crate::spawn_motions::spawn_motions;
@@ -57,7 +61,7 @@ impl Plugin for ItemEntityPlugin {
             .add_systems(
                 FixedUpdate,
                 (
-                    step_items,
+                    step_items.run_if(any_with_component::<ItemEntity>.or_else(any_stepped)),
                     merge_items.run_if(any_stepped),
                     age_items,
                     collect_items.run_if(any_with_component::<ItemCollector>),
@@ -79,7 +83,12 @@ impl Plugin for ItemEntityPlugin {
             )
             .add_systems(
                 FixedUpdate,
-                publish_takes.in_set(MobPublish).ambiguous_with(MobPublish),
+                (
+                    publish_takes.run_if(on_message::<PickedUp>.or_else(takes_pending)),
+                    correct_spawn_counts,
+                )
+                    .in_set(MobPublish)
+                    .ambiguous_with(MobPublish),
             )
             .add_systems(
                 FixedUpdate,

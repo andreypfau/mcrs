@@ -2,8 +2,13 @@ use core::fmt;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
+use bevy_ecs::system::SystemChangeTick;
 use bevy_utils::Parallel;
+
+use crate::regrids::Regrids;
+use crate::regrids::stepped_since;
 
 #[derive(Resource, Default)]
 pub struct Movers {
@@ -18,13 +23,14 @@ impl Movers {
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "clears the movers of the previous tick, which must not survive a tick without movers"
-    )
-)]
+pub(crate) fn movers_pending(
+    movers: Res<Movers>,
+    regrids: Res<Regrids>,
+    ticks: SystemChangeTick,
+) -> bool {
+    !movers.sorted.is_empty() || stepped_since(&regrids, &ticks)
+}
+
 pub(crate) fn collect_movers(mut movers: ResMut<Movers>) {
     let Movers { queues, sorted } = &mut *movers;
     sorted.clear();

@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::With;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::{Query, Res, ResMut};
+use bevy_ecs::system::{Populated, Res, ResMut};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
@@ -36,7 +36,7 @@ impl ForeignPlayers {
 #[derive(Resource, Default)]
 pub(crate) struct OwnPlayers(pub(crate) Vec<RosterRow>);
 
-type RosterQuery<'w, 's> = Query<
+type RosterQuery<'w, 's> = Populated<
     'w,
     's,
     (
@@ -49,13 +49,6 @@ type RosterQuery<'w, 's> = Query<
     With<Player>,
 >;
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "rebuilds the roster of the players of this cell each tick, because the positions in it change with every move"
-    )
-)]
 #[cfg_attr(
     mcrs_lint,
     expect(

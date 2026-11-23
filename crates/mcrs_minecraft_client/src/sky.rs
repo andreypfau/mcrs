@@ -374,7 +374,7 @@ fn evaluate_sky(
     mcrs_lint,
     expect(
         mcrs::ungated_system,
-        reason = "the render world must drop the extracted sky on the frame that the main world loses its environment"
+        reason = "the sky uniform follows the world clocks and the camera on each frame, and the render world must drop the sky on the frame that the main world loses its environment"
     )
 )]
 fn extract_sky(

@@ -14,6 +14,11 @@ impl StirredTiles {
     }
 
     #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    #[must_use]
     pub fn wakes(&self, tile: TileKey) -> bool {
         if self.0.is_empty() {
             return false;

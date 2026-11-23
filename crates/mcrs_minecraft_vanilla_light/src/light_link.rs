@@ -76,6 +76,10 @@ impl LightLink {
         }
     }
 
+    pub(crate) fn has_replies(&self) -> bool {
+        self.link.has_replies()
+    }
+
     pub(crate) fn outputs(&mut self) -> Drain<'_, LightOutput> {
         self.link.outputs()
     }

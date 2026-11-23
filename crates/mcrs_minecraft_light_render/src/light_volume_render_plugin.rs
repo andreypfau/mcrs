@@ -54,7 +54,9 @@ impl Plugin for LightVolumeRenderPlugin {
             .add_systems(
                 Render,
                 (
-                    colour::prepare_colour_pipelines.in_set(RenderSystems::Prepare),
+                    colour::prepare_colour_pipelines
+                        .run_if(colour::colour_pipelines_unsettled)
+                        .in_set(RenderSystems::Prepare),
                     (
                         volume::apply_volume_commands.run_if(resource_exists::<volume::Volume>),
                         volume::write_volume_terms

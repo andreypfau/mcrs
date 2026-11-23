@@ -37,13 +37,20 @@ pub(crate) fn colour_layout() -> BindGroupLayoutDescriptor {
     )
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "polls the pipeline cache each frame because a pipeline compiles or fails asynchronously"
-    )
-)]
+pub(crate) fn colour_pipelines_unsettled(
+    pipelines: Res<ColourPipelines>,
+    cache: Res<PipelineCache>,
+) -> bool {
+    pipelines.stages.is_none_or(|stages| {
+        stages.into_iter().any(|id| {
+            !matches!(
+                cache.get_compute_pipeline_state(id),
+                CachedPipelineState::Ok(_)
+            )
+        })
+    })
+}
+
 pub(crate) fn prepare_colour_pipelines(
     mut pipelines: ResMut<ColourPipelines>,
     asset_server: Res<AssetServer>,

@@ -31,13 +31,10 @@ use crate::mobs::Mob;
 #[derive(Resource, Debug, Default)]
 pub(crate) struct WaitingSpawns(VecDeque<MobSpawnRequest>);
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "retries the waiting spawns on each tick until the cell has free entity ids, also when no request arrives"
-    )
-)]
+pub(crate) fn has_waiting_spawns(waiting: Res<WaitingSpawns>) -> bool {
+    !waiting.0.is_empty()
+}
+
 #[cfg_attr(
     mcrs_lint,
     expect(

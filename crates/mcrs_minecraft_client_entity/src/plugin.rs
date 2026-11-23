@@ -25,7 +25,7 @@ use crate::project_simulated_positions::project_simulated_positions;
 use crate::receive;
 use crate::remove_spent_entities::remove_spent_entities;
 use crate::simulated_step::{
-    hold_entities_that_do_not_step, step_simulated_entities, stir_changed_blocks,
+    hold_entities_that_do_not_step, step_simulated_entities, stir_changed_blocks, tiles_stirred,
 };
 use crate::sleeping_beds::{BedFacings, build_bed_facings, find_sleeping_beds};
 use crate::tracked_velocity::tick_velocities;
@@ -62,7 +62,12 @@ impl Plugin for ClientEntityPlugin {
                                 .and_then(resource_exists_and_changed::<CurrentRegistries>),
                         )
                         .before(MotionPass),
-                    (advance_motion_tick, stir_changed_blocks).before(MotionPass),
+                    (
+                        advance_motion_tick,
+                        stir_changed_blocks
+                            .run_if(on_message::<ColumnChange>.or_else(tiles_stirred)),
+                    )
+                        .before(MotionPass),
                     step_orb_interpolations
                         .after(ClientEntityTick)
                         .before(MotionPass),
