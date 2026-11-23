@@ -204,6 +204,27 @@ impl StagingStore {
         self.columns.get(&col).and_then(ColumnEntry::top)
     }
 
+    pub(crate) fn take_merged(&mut self, col: ColumnPos) -> Option<Arc<FilledSnapshot>> {
+        let ColumnEntry { filled, staged, .. } = self.columns.remove(&col)?;
+        staged.into_iter().rev().flatten().next().or(filled)
+    }
+
+    pub(crate) fn release_merged_below(&mut self, col: ColumnPos, rung: usize) {
+        let Some(entry) = self.columns.get_mut(&col) else {
+            return;
+        };
+        for row in entry.out.iter_mut().take(rung.saturating_add(1)) {
+            *row = Default::default();
+        }
+        if entry.staged.get(rung).is_none_or(Option::is_none) {
+            return;
+        }
+        entry.filled = None;
+        for staged in entry.staged.iter_mut().take(rung) {
+            *staged = None;
+        }
+    }
+
     pub fn take_block_entities(&mut self, col: ColumnPos) -> Vec<GeneratedBlockEntity> {
         let Some(entry) = self.columns.get_mut(&col) else {
             return Vec::new();

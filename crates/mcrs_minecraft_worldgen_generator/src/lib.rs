@@ -1282,6 +1282,8 @@ use end_biome_grid::end_biome_grid;
 pub mod column_blocks;
 pub mod task;
 pub use column_blocks::ColumnBlocks;
+mod generate_area;
+pub use generate_area::generate_area;
 pub mod beta_caves;
 pub use beta_caves::{BetaCaveBlockIds, apply_beta_carvers};
 pub mod beta_ores;

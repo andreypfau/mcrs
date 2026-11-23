@@ -12,13 +12,13 @@ use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_generator::ColumnBlocks;
+use mcrs_minecraft_worldgen_generator::generate_area;
 use mcrs_minecraft_worldgen_generator::stages::{fill_pooled, run_region};
 use mcrs_minecraft_worldgen_generator::staging::{
     FilledSnapshot, RegionSnapshots, Stage, region_column,
 };
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use mcrs_minecraft_worldgen_generator::tests::corpus;
-use mcrs_minecraft_worldgen_generator::tests::generate_region;
 use mcrs_minecraft_worldgen_generator::tests::ladder::{
     Column, Consumer, Dimension, Region, decode, fill_context, region_columns,
 };
@@ -284,7 +284,7 @@ fn run_oracle(dim: &Dimension, wanted: &[ColumnPos]) -> Region {
         wanted.iter().map(|c| c.x).max().unwrap(),
         wanted.iter().map(|c| c.z).max().unwrap(),
     );
-    generate_region(&dim.ctx, min, max)
+    generate_area(&dim.ctx, min, max)
         .into_iter()
         .map(|(col, merged)| (col, decode(&merged.sections)))
         .collect()
