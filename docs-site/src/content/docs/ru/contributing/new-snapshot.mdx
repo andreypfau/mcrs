@@ -3,7 +3,7 @@ title: Переход на новый снапшот
 description: Одна команда переводит репозиторий на новую версию игры. Страница перечисляет, что она меняет и что нужно обновить в документации.
 sidebar:
   order: 6
-translated_from: 51d45c26a
+translated_from: 485b34f36
 ---
 import { fact } from '~/lib/facts.mjs';
 import { Aside } from '@astrojs/starlight/components';
@@ -21,8 +21,8 @@ cargo run -p mcrs_minecraft_update -- <version id>
 | Путь | Что команда туда пишет |
 |---|---|
 | `assets/minecraft/version.json` | Единственное место, где записана версия. Файл копируется байт в байт из клиентского jar. Тест падает, если исходник на Rust, TOML или Gradle повторяет одно из его значений. |
-| `crates/mcrs_minecraft_client_jar/src/release.json` | Дескриптор клиентского jar. |
-| `assets/mcrs/reports/` | Отчеты из игры: `registries.json`, `packets.json`, `datapack.json` и `names.json`. |
+| `crates/mcrs_minecraft_client_jar/src/` | `release.json`, дескриптор клиентского jar. `font_hint.json`, где внутри jar лежат файлы шрифтов. `index_objects.json`, файлы шрифтов и фонов титульного экрана из индекса ассетов игры. |
+| `assets/mcrs/reports/` | Отчеты из игры: `registries.json`, `packets.json`, `datapack.json`, `names.json` и `creative_tabs.json` со стеками каждой вкладки творческого инвентаря. |
 | `assets/mcrs/block_definition`, `item_definition` и `registry_definition` | Определения блоков, предметов и реестров, их заменяет то, что записал дамп из игры. |
 | Сгенерированные исходники ключей реестров | Заново сгенерированные ключи. Никогда не правьте их руками. |
 

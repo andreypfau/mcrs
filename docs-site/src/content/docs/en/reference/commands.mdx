@@ -12,23 +12,69 @@ sources:
   - crates/mcrs_minecraft_command_world/src/plugin.rs
   - crates/mcrs_minecraft_command/src/permission.rs
   - docs/spec/command-permissions.md
+  - docs/spec/command-swing.md
+  - crates/mcrs_minecraft_engine_server/src/loopback_ops.rs
   - issue:285
   - issue:667
+  - crates/mcrs_minecraft_command_vanilla/Cargo.toml
+  - crates/mcrs_minecraft_command_vanilla/src/ban.rs
+  - crates/mcrs_minecraft_command_vanilla/src/op.rs
+  - crates/mcrs_minecraft_command_vanilla/src/whitelist.rs
+  - crates/mcrs_minecraft_command_vanilla/src/damage.rs
+  - crates/mcrs_minecraft_command_vanilla/src/kill.rs
+  - crates/mcrs_minecraft_command_vanilla/src/execute.rs
+  - crates/mcrs_minecraft_command_vanilla/src/gamemode.rs
+  - crates/mcrs_minecraft_command_vanilla/src/teleport.rs
+  - crates/mcrs_minecraft_command_vanilla/src/locate.rs
+  - crates/mcrs_minecraft_command_vanilla/src/summon.rs
+  - crates/mcrs_minecraft_command_vanilla/src/data.rs
+  - crates/mcrs_minecraft_command_vanilla/src/time.rs
+  - crates/mcrs_minecraft_command_world/src/fill.rs
+  - crates/mcrs_minecraft_command_world/src/forceload.rs
+  - crates/mcrs_minecraft_command_world/src/gamerule.rs
+  - crates/mcrs_minecraft_command_world/src/weather.rs
+  - crates/mcrs_minecraft_command_world/src/tick.rs
+  - crates/mcrs_minecraft_console/src/console_plugin.rs
+  - crates/mcrs_minecraft_command_engine/src/pass.rs
+  - crates/mcrs_minecraft_command_engine/src/app_commands.rs
+  - crates/mcrs_minecraft_command_engine/src/command_tree.rs
+  - crates/mcrs_minecraft_command_engine/src/plugin.rs
+  - crates/mcrs_minecraft_server/tests/it/op_level.rs
+  - crates/mcrs_minecraft_engine/src/coordinator/ops.rs
+  - docs/spec/command-execute.md
+  - docs/spec/command-gamemode.md
+  - docs/spec/command-teleport.md
+  - docs/spec/command-locate.md
+  - docs/spec/command-kill.md
+  - docs/spec/command-damage.md
+  - docs/spec/command-time.md
+  - docs/spec/bans.md
+  - docs/spec/whitelist.md
+  - docs/spec/command-fill.md
+  - docs/spec/command-forceload.md
+  - docs/spec/command-gamerule.md
+  - docs/spec/command-weather.md
+  - docs/spec/command-tick.md
+  - docs/spec/command-parser.md
+  - docs/spec/commands-packet.md
+  - docs/command-dimensions.md
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
 
-This page lists the commands that the server registers today, the permission level each one needs and the specification that states its behavior. The server registers {fact('root_commands')} root commands, or 21 names when you count the alias `tp`. `VanillaCommandsPlugin` in `crates/mcrs_minecraft_command_vanilla` registers most of them, and `WorldCommandsPlugin` in `crates/mcrs_minecraft_command_world` registers the rest. The list was checked against both `plugin.rs` files and the permission calls of each command on commit `51d45c26a`. A vanilla command that is missing from the list does not exist here yet. For example, `setblock`, `give`, `say` and `stop` are not registered.
+This page lists the commands that the server registers today, their permission levels and their specifications. With the default `locate` feature enabled, the server registers {fact('root_commands')} root commands, or 21 names including the alias `tp`. `VanillaCommandsPlugin` in `crates/mcrs_minecraft_command_vanilla` registers most of them, and `WorldCommandsPlugin` in `crates/mcrs_minecraft_command_world` registers the rest. The list was checked against both registration files and each command's permission calls on commit `9eac02a81`. Commands absent from the list, such as `setblock`, `give`, `say` and `stop`, are not registered.
 
 <Aside type="caution" title="WIP">
-The table is written by hand for now, and it will be generated from the two `plugin.rs` files. The command tree with permission levels is planned, and so is a Bedrock command dialect.[^285][^667]
+This table is maintained by hand. The Java client already receives a command tree filtered by its permission level, and a change of operator level sends a new tree.[^285] A Bedrock command dialect is planned.[^667]
 </Aside>
+
+The [`/swing` specification](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-swing.md) exists, but neither plugin registers that command. The specification index includes behavior that has not been implemented.
 
 ## Permission levels
 
@@ -42,7 +88,7 @@ Every command needs a permission level. There are five levels and they are order
 | 3 | `admins` |
 | 4 | `owners` |
 
-A player who is not an operator has level `all`. An operator has the level that `ops.json` gives, from 0 to 4, and the `op` command gives the default level, which is `owners`. The server binary gives no player operator rights for joining from its own machine; only `ops.json` and the `op` command make operators. Every command in the next table needs level 2 or 3, so only operators can run them.
+A player who is not an operator has level `all`. An operator has the level that `ops.json` gives, from 0 to 4, and the `op` command gives the default level, which is `owners`. In the server binary only `ops.json` and the `op` command make operators, as [Who becomes an operator](/docs/en/server/connections/#who-becomes-an-operator) explains. Every command in the next table needs level 2 or 3, so only operators can run them.
 
 ## Commands
 
@@ -65,14 +111,14 @@ In the "Plugin" column, `vanilla` stands for `VanillaCommandsPlugin` and `world`
 | `fill` | gamemasters (2) | world | [command-fill.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-fill.md) |
 | `forceload` | gamemasters (2) | world | [command-forceload.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-forceload.md) |
 | `gamerule` | gamemasters (2) | world | [command-gamerule.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-gamerule.md) |
-| `weather` | gamemasters (2) | world | [command-weather.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-weather.md) |
+| `weather` (clear only) | gamemasters (2) | world | [command-weather.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-weather.md) |
 | `tick` (including `tick sprint stop`) | admins (3) | world | [command-tick.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-tick.md) |
 
 Three more groups of specs cover what all commands share. Parsing is in [command-parser.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-parser.md), argument types are in the `argument-*.md` files, and the command tree that the server sends to the client is in [commands-packet.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/commands-packet.md). The note [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) explains how a command finds players in every dimension.
 
 ## Typing commands
 
-A player types commands in chat. The server also reads its standard input, and each line runs in the overworld as a command whose source is the server itself. When many lines arrive at once, the server spreads them over several ticks and runs at most 2000 lines per tick. The answers go to the server log. The code is `ConsolePlugin` in `crates/mcrs_minecraft_console`.
+A player types commands in chat. The server also reads its standard input, and each line runs in the overworld as a command whose source is the server itself. When many lines arrive at once, the server spreads them over several app updates and sends at most 2000 lines per update. The answers go to the server log. The code is `ConsolePlugin` in `crates/mcrs_minecraft_console`.
 
 ## For plugin authors
 
