@@ -64,20 +64,26 @@ these subjects:
   client can give that entity (section 7).
 - **Interpolation length** (`N`): the number of client ticks over which the client moves an entity
   to a new position, as CENTS-INTERP-001 of `client-entities.md` defines it.
+- **Entity move**: one `move_entity_pos`, `move_entity_pos_rot`, `move_entity_rot`,
+  `entity_position_sync` or `teleport_entity` for one entity.
+- **End point**, **end box**, **can snap**, **can be active**, **settled**, **rest box** (`F(k)`):
+  as CK-ENT-003 defines them.
 
 ### 0.2 Provenance
 
 The labels of `registry.md`, section 0.3, apply. The kinds are those of `README.md`, section
 "Semantics, not accidents". Each rule states them on its provenance line.
 
-A rule with the label `design` is a choice of mcrs. A vanilla server does no lag compensation, so
-a comparison with a vanilla server cannot confirm such a rule. A conformance test with a legit
-client tests it (section 14). Some `design` rules take their idea from a third-party open source
-anticheat, which `docs/clean-room.md` allows as a source for the author. Such a rule has the note
-`third-party` on its provenance line. It is still a design choice of mcrs and not game behaviour.
+A rule with the label `design` is a choice of mcrs. A vanilla server does no lag compensation, so a
+comparison with a vanilla server cannot confirm such a rule. A conformance test with a legit client
+tests it, for example the test of CK-INV-001. Some `design` rules take their idea from a third-party
+open source anticheat, which `docs/clean-room.md` allows as a source for the author. Such a rule has
+the note `third-party` on its provenance line. It is still a design choice of mcrs and not game
+behaviour.
 
 A rule of the kind client agreement states what the vanilla client does. Each such rule cites the
-rule of another document that states the behaviour, or an experiment of section 14.
+rule of another document that states the behaviour, or an experiment of section 14. The
+experiments of section 14 have not run. A rule that names one of them is not confirmed.
 
 ### 0.3 ID prefix
 
@@ -258,16 +264,27 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ### CK-BRK-009: The bound in bytes
 
-The records of the tracked changes of one connection use at most `max_kept_bytes`. The default is
-1 MiB. When a new group passes the bound, the knowledge state does these steps:
+The records of the tracked changes of one connection use at most `max_kept_bytes`, plus one record
+of a fixed size. The default is 1 MiB. When a new group passes the bound, the knowledge state does
+these steps. It does a step only when the bound is still passed after the step before it.
 
 1. Drop the records of changes in the applied state that no reader needs (CK-KNW-003).
-2. When the bound is still passed, replace the records of the new group by one record. This
-   record holds only the chunk sections and the entities that the group changes.
+2. Replace the records of the new group by one record. This record holds only the chunk sections
+   and the entities that the group changes.
+3. Replace all the records of the connection by one record of a fixed size. This record holds
+   only the probe after the new group.
 
-Until the probe after that group is acknowledged, each value of these sections and entities is an
-unknown value. After that, the client has the values that the server sent, and the knowledge
-state gives them again.
+After step 2, each value of these sections and entities is an unknown value until the probe after
+that group is acknowledged. After step 3, each value that a tracked change sets is an unknown
+value at each knowledge point before the acknowledgement of that probe. This also
+applies to an earlier knowledge point that a reader compares again. After the acknowledgement, the
+client has each value that the server sent before that probe, and the knowledge state gives the
+values again.
+
+Step 3 always gives records within the bound, also for one group that is larger than the bound. A
+later group that passes the bound again replaces that record with a new one. Thus the bound holds
+at each time. The knowledge state never disconnects a client because of the bound. Each reader
+uses its rule for an unknown value (CK-UNC-005).
 
 Provenance: `design`. Kind: semantic. Confidence: medium.
 
@@ -302,7 +319,7 @@ These classes of clientbound packets are tracked changes:
 | own equipment | each packet that changes a slot of the own inventory | the own player |
 | tags | `update_tags` | the world view |
 | teams | `set_player_team` | the own player and the other entities |
-| entities | `add_entity`, `remove_entities`, `move_entity_pos`, `move_entity_pos_rot`, `entity_position_sync`, `teleport_entity`, `set_passengers`; the `set_entity_data` and `update_attributes` that change an entity box | each tracked entity (section 7) |
+| entities | `add_entity`, `remove_entities`, `move_entity_pos`, `move_entity_pos_rot`, `move_entity_rot`, `entity_position_sync`, `teleport_entity`, `set_passengers`; the `set_entity_data` and `update_attributes` that change an entity box | each tracked entity (section 7) |
 
 A packet of these classes is a tracked change also when the server sends it in a bundle.
 
@@ -464,8 +481,8 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 The entity view of a tracked entity at a client tick is a set of positions. Each position is a
 position that the client can give the entity at the end of that client tick. Each allowed apply
 sequence (CK-UNC-002) gives one position. CENTS-MOVE-002 to CENTS-MOVE-004 and CENTS-INTERP-001
-to CENTS-INTERP-004 of `client-entities.md` give that position. Their input is the position
-packets of the entity, at the client ticks of the sequence.
+to CENTS-INTERP-004 of `client-entities.md` give that position. Their input is the entity moves of
+the entity, at the client ticks of the sequence.
 
 The entity moves only in a client tick in which it ticks on the client (`client-entities.md`,
 section 0.1). The knowledge state counts the client ticks of the player by `client_tick_end`.
@@ -475,22 +492,76 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 ### CK-ENT-003: A box that contains the entity view
 
 A reader can use the box `H(k)` for client tick `k` instead of the exact entity view
-(CK-UNC-004). The knowledge state computes `H(k)` in these steps:
+(CK-UNC-004). The knowledge state also computes the rest box `F(k)`. These words apply to one
+entity move. In them, `H` is the box before that entity move.
 
-1. At the tick in which `add_entity` can first be applied, `H` is the position of `add_entity`.
-2. For each later client tick `k`, take the position packets of the entity whose probe before
-   is acknowledged for tick `k`. `H(k)` is the smallest box that contains `H(k − 1)` and the end
-   position of each of these packets.
-3. `H(k)` becomes the end position `Z` of the last position packet when these conditions are
-   true:
-   - each position packet of the entity has the applied state for tick `k`;
-   - the entity ticked in at least `N` client ticks after the first client tick in which the last
-     position packet has the applied state.
+- Its **end points** are the position of each step of a stepped path, or the end position of a
+  linear path. A `move_entity_rot` has no end point.
+- Its **end box** `S` is the box of the positions at which its path ends: the last end point. On a
+  relative axis of `teleport_entity`, `S` holds each value of `H` on that axis plus the value of
+  the packet.
+- It **can snap** the entity when it is an `entity_position_sync` or a `teleport_entity`, and one of
+  these conditions is true (CENTS-MOVE-003, CENTS-MOVE-004):
+  - a point of `H` and a point of `S` are more than 64 blocks apart;
+  - for `entity_position_sync`, a chunk that `H` touches is not a loaded chunk of the client in an
+    allowed apply sequence.
+- The interpolation **can be active** at it, except in two cases. The type of the entity has the
+  interpolation length 0 or no interpolation. Or the entity move is the first of step 2 for tick
+  `k`, and the entity is settled for tick `k − 1`.
 
-`H(k)` contains each position of CK-ENT-002. The client moves the entity only along a path
-between its position and the end positions that it received (CENTS-INTERP-002). Or it snaps to an
-end position (CENTS-INTERP-003). Each point of such a path is in the box. Step 3 is correct
-because the path that remains after a start ends in `N` ticks (CENTS-INTERP-001).
+The entity is **settled** for tick `k` when these conditions are true:
+
+- each entity move of the entity whose probe before is acknowledged for tick `k` has the applied
+  state for tick `k`;
+- the entity ticked in at least `N` client ticks after the first client tick in which the last of
+  these entity moves has the applied state.
+
+The knowledge state computes `H(k)` and `F(k)` in these steps. For a box `X`, `X.lo` and `X.hi` are
+its two corners, and the size of `X` is `X.hi − X.lo` on each axis.
+
+1. At the first client tick in which `add_entity` can be applied, `H` and `F` are the position of
+   `add_entity`.
+2. For each later client tick `k`, start with `H = H(k − 1)` and `F = F(k − 1)`. Take each entity
+   move whose probe before is acknowledged for tick `k` and not for tick `k − 1`. Do these steps
+   for each of them, in the order of the server. `H₀` and `F₀` are `H` and `F` before the step.
+   1. Grow `H` to contain each end point and `S`.
+   2. Do this step when the entity move can snap the entity and the interpolation can be active
+      at it. Grow `H` to contain the box from `S.lo − w` to `S.hi + w`, with `w` the size of `H₀`.
+      `F` becomes the
+      smallest box that contains `F₀` and the box from `S.lo + F₀.lo − H₀.hi` to
+      `S.hi + F₀.hi − H₀.lo`.
+   3. Otherwise, when the entity move has an end point, `F` becomes `S`.
+3. `H(k)` and `F(k)` are the boxes that step 2 gives.
+4. When the entity is settled for tick `k`, `H(k)` becomes `F(k)`.
+
+`H(k)` contains each position of CK-ENT-002. While the path of the client is active, its point
+`A`, its end `Z` and each end point of its path are in `H(k)`. When the client has applied each
+entity move of step 2, `Z` is in `F(k)`. An entity whose path ended then stops at a point of `F(k)`.
+These steps keep each statement true:
+
+- A start adds segments that end at the end points of its entity move, and the path then ends in
+  `S` (CENTS-INTERP-001). The client moves the entity only along the segments of the path
+  (CENTS-INTERP-002). A box contains each segment between two of its points.
+- A `move_entity_rot` adds a segment to `Z`, or to the position of the entity. It moves no end of
+  the path.
+- A snap puts the entity at a point `s` of `S` (CENTS-INTERP-003). When the interpolation is not
+  active, the entity stops there. When it is active, CENTS-INTERP-004 moves `A`, `Z` and each end
+  point by `Δ = s − r`, with `r` a position in `H₀`. Each moved point `q + Δ`, with `q` in `H₀`, is
+  in the box of step 2.2. The moved end `Z + Δ`, with `Z` in `F₀`, is in the new `F`. When the
+  collision test stops the move, the path still ends at `Z`, which is in `F₀`.
+- The tick speed is 1 or more (CENTS-INTERP-001, CENTS-TIME-003). Thus the path that remains ends in
+  at most `N` ticks of the entity after the last start. A snap does not make the path longer. Thus
+  step 4 is correct.
+
+Example: an entity stops at `(0, 0, 0)`, and `N` is 3. A stepped entity move has the steps
+`(1, 0, 0)` and `(0, 0, 1)`, each with the tick count 1. After one tick, the client shows the entity
+at `(2/3, 0, 0)`. `H` is the box from `(0, 0, 0)` to `(1, 0, 1)`, and it contains that point. `F`
+is the point `(0, 0, 1)`.
+
+Example: an entity moves from `x = 0` to `x = 10`, so `H` is from 0 to 10 on `x`, and `F` is 10. At
+`x = 5`, a teleport by more than 64 blocks snaps it to `x = 100`. The client moves the end of the
+path to 105. Step 2.2 grows `H` to the box from 0 to 110 on `x`, and `F` becomes the box from 10 to
+110.
 
 The movement reader uses this box for the possible pushers of MVC-UNC-004 of `movement-checks.md`.
 That rule and MVC-UNC-005 to MVC-UNC-007 stay in that document.
@@ -499,13 +570,13 @@ Provenance: `design`, third-party. Kind: semantic. Confidence: medium. Experimen
 
 ### CK-ENT-004: The interpolation length of each type
 
-Step 3 of CK-ENT-003 uses the interpolation length `N` of the type of the entity, from the table
-of CENTS-INTERP-005 of `client-entities.md`. For a type whose `N` that rule does not state, step 3
-uses `entity_settle_ticks` (section 0.5). Without step 3, the box only grows. Thus a value larger than
+Step 4 of CK-ENT-003 uses the interpolation length `N` of the type of the entity, from the table of
+CENTS-INTERP-005 of `client-entities.md`. For a type whose `N` that rule does not state, step 4 uses
+`entity_settle_ticks` (section 0.5). Without step 4, the box only grows. Thus a value larger than
 the true `N` gives a wider box, and it is never wrong (CK-UNC-004). The default of 20 is such a
 wider bound for each type whose true `N` is 20 or less.
 
-Step 3 does not apply while the tick rate of the client is frozen. It also does not apply while
+The entity is not settled while the tick rate of the client is frozen. It is also not settled while
 the entity can be outside the ticking area of the client.
 
 The box of CK-ENT-003 contains the view only of a type that the client moves by the rules of
@@ -533,17 +604,17 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ### CK-ENT-007: The records of the entity view
 
-For each pair of a client and a tracked entity, the knowledge state keeps one box and the position
-packets in the window state. The server sends the same position packets to each client that tracks
-the entity. Thus the clients can share the records of these packets (MVC-UNC-007).
+For each pair of a client and a tracked entity, the knowledge state keeps the boxes of CK-ENT-003
+and the entity moves in the window state. The server sends the same entity moves to each client
+that tracks the entity. Thus the clients can share the records of these packets (MVC-UNC-007).
 
 Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ### CK-ENT-008: The entity view of a passenger
 
 While a tracked entity rides a tracked vehicle on the client, the client puts it at its seat
-position (`teleport-confirmation.md`, section 0.1). The client does not move it by its own position
-packets. The entity view of the passenger is then the view of the vehicle plus the seat offset:
+position (`teleport-confirmation.md`, section 0.1). The client does not move it by its own entity
+moves. The entity view of the passenger is then the view of the vehicle plus the seat offset:
 
 1. The seat offset is the seat position minus the position of the vehicle. It depends on the type,
    the scale and the state of the vehicle, the type of the passenger and the index of the
@@ -623,13 +694,17 @@ Provenance: `design`, third-party. Kind: semantic. Confidence: medium.
 The client of mcrs, and a bot on it, must answer as a vanilla client does. Otherwise the server
 cannot know what the client applied.
 
+Conformance test of CK-CLI-001 to CK-CLI-003: do the scenes of K1 and K3 (section 14) with the
+client of mcrs in place of the vanilla client. The order of `pong`, accept and tick packets is the
+order of the vanilla client in K1 and K3.
+
 ### CK-CLI-001: Answer each ping in order
 
 The client answers each ping with a `pong` of the same id. It answers the pings in the order in
 which they arrive. It sends no `pong` without a ping.
 
 Provenance: `source_suggested`, from MVC-PKT-008. Kind: client agreement. Confidence: medium.
-Experiment: K6.
+Experiment: K1.
 
 ### CK-CLI-002: Answer after the changes before the ping
 
@@ -638,7 +713,7 @@ It sends the answer before it applies a packet that arrived after the ping. It s
 between two client ticks, never between the tick packets of one client tick (MVC-PKT-010).
 
 Provenance: `source_suggested`, from MVC-PKT-010 and MVC-LAT-006. Kind: client agreement.
-Confidence: medium. Experiment: K6.
+Confidence: medium. Experiment: K1.
 
 ### CK-CLI-003: Accept a teleport when it applies it
 
@@ -646,7 +721,7 @@ The client sends the accept of a teleport when it applies the teleport, before i
 ping (MVC-PKT-020).
 
 Provenance: `source_suggested`, from MVC-PKT-020. Kind: client agreement. Confidence: medium.
-Experiment: K6.
+Experiment: K3.
 
 ### CK-CLI-004: Answer in the configuration state
 
@@ -666,7 +741,11 @@ A legit client never gets a mismatch because of its latency. This is true for an
 jitter and any frame rate. Two examples are the break of the block below a player that moves, and
 a knockback of a player. Neither gives a mismatch at any latency below `max_ack_delay`.
 
-Provenance: `design`. Kind: semantic. Confidence: medium. Experiment: K4.
+Conformance test: record a vanilla client in the scenes of K1 (section 14) and in a hit by a
+zombie. Use 0, 150, 300 and 1000 ms of delay in each direction. Give each recording to a server
+with the movement reader. The reader reports no mismatch.
+
+Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ### CK-INV-002: The same packets give the same knowledge
 
@@ -772,22 +851,17 @@ A Bedrock client sends one input frame in each of its own ticks, at a fixed 20 e
 cannot follow a change of the tick rate. Thus the edge records the applied changes for each input
 frame, not for each server tick.
 
-## 14. Experiments
+## 14. Unresolved
 
-No experiment of this section has run. Each experiment uses a vanilla client and the proxy of `tools/mcrs_minecraft_client_recorder`.
-The proxy needs one change: it must insert a `ping` into the clientbound stream and record the
-place of each `pong` among the serverbound packets.
+These experiments have not run. Each rule that names one of them is not confirmed until the
+experiment runs. Each experiment uses a vanilla client and the proxy of
+`tools/mcrs_minecraft_client_recorder`. The proxy needs one change: it must insert a `ping` into
+the clientbound stream and record the place of each `pong` among the serverbound packets.
 
 | Experiment | Steps | Expected result | Rules |
 |------------|-------|-----------------|-------|
 | K1 | Insert a `ping` before and after a `block_update` that removes the block below the player, and before and after a `set_entity_motion` for the player. Add 300 ms of delay in both directions. Record the serverbound packets. | Each `pong` is in the order of the pings, between two client ticks. The first move packet after the first `pong` and before the second `pong` shows the change or not. Each move packet after the second `pong` shows it. | CK-BRK-001, CK-KNW-001 |
 | K2 | Insert a `ping` directly before `start_configuration`. Record the serverbound packets. | The `pong` comes before `configuration_acknowledged`. | CK-BRK-010, CK-CLI-004 |
 | K3 | Run `tp <name> ~ ~10 ~`. Insert a `ping` before and after the `player_position`. | The accept comes after the first `pong` and before the second `pong`. | CK-TP-001 |
-| K4 | Run the scenes of K1 and a hit by a zombie with 0, 150, 300 and 1000 ms of delay in each direction. Feed the recordings to a server with the movement reader. | No mismatch. | CK-INV-001 |
 | K5 | Lead a pig and a player that walk. Delay each `pong` by 300 ms. Record the positions of the client entities with the capture of `client-entities.md`, section 0.2. | Each position of each client tick is in `H(k)` of CK-ENT-003. | CK-ENT-003 |
-| K6 | Run K1 and K3 with the client of mcrs in place of the vanilla client. | The same order of `pong`, accept and tick packets as the vanilla client. | CK-CLI-001 to CK-CLI-003 |
-| K7 | Seat a player in a boat and a second player in a minecart. Let a third player watch both while the vehicles move and turn. Record the positions of the client entities with the capture of `client-entities.md`, section 0.2. | Each position of each passenger is in the set of CK-ENT-008, step 3. A position packet of a passenger does not move it. | CK-ENT-008 |
-
-## 15. Unresolved
-
-No item is open.
+| K7 | Seat a player in a boat and a second player in a minecart. Let a third player watch both while the vehicles move and turn. Record the positions of the client entities with the capture of `client-entities.md`, section 0.2. | Each position of each passenger is in the set of CK-ENT-008, step 3. An entity move of a passenger does not move it. | CK-ENT-008 |

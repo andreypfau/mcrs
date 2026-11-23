@@ -13,7 +13,7 @@ each difference that a differential test can see.
 
 The document has these subjects:
 
-- the check as four parts that a user can take one at a time (section 1);
+- the check as five parts that a user can take one at a time (section 1);
 - the actions that the check covers and their targets (section 2);
 - the time of an action in the client tick (section 3);
 - the eye, the look and the target as the client had them (sections 4 to 6);
@@ -61,7 +61,9 @@ The document has these subjects:
 - **Attack range item**: an item stack with the component `attack_range` (`item-stack.md`). Its
   fields are `min_reach`, `max_reach`, `min_creative_reach`, `max_creative_reach`,
   `hitbox_margin` and `mob_factor`.
-- **Verdict**: the result of the check for one action (section 10).
+- **Intake**: the part that keeps the actions of a client tick until the check (RCH-TCK-002).
+- **Hit distance**: the distance that orders the candidates of RCH-CMP-007.
+- **Verdict**: the result of the check or of the intake for one action (section 10).
 - **Reaction**: what the server does for a verdict (section 11).
 
 ### 0.2 Provenance
@@ -69,14 +71,16 @@ The document has these subjects:
 The labels of `registry.md`, section 0.3, apply. The kinds are those of `README.md`, section
 "Semantics, not accidents". Each rule states them on its provenance line.
 
-A rule with the label `design` is a choice of mcrs. A vanilla server does no lag compensation, so
-a comparison with a vanilla server cannot confirm such a rule. A conformance test with a legit
-client tests it (section 16). Some `design` rules take their idea from a third-party open source
-anticheat, which `docs/clean-room.md` allows as a source for the author. Such a rule has the note
-`third-party` on its provenance line. It is still a design choice of mcrs and not game behaviour.
+A rule with the label `design` is a choice of mcrs. A vanilla server does no lag compensation, so a
+comparison with a vanilla server cannot confirm such a rule. A conformance test with a legit client
+tests it, for example the test of RCH-INV-002. Some `design` rules take their idea from a
+third-party open source anticheat, which `docs/clean-room.md` allows as a source for the author.
+Such a rule has the note `third-party` on its provenance line. It is still a design choice of mcrs
+and not game behaviour.
 
 A rule of the kind client agreement states what the vanilla client does. Each such rule cites the
-rule of another document that states the behaviour, or an experiment of section 16.
+rule of another document that states the behaviour, or an experiment of section 16. The
+experiments of section 16 have not run. A rule that names one of them is not confirmed.
 
 ### 0.3 ID prefix
 
@@ -131,19 +135,21 @@ default.
 
 ## 1. Parts
 
-### RCH-PART-001: Four parts
+### RCH-PART-001: Five parts
 
-The reach check has four parts. Each part has these inputs and outputs:
+The reach check has five parts. Each part has these inputs and outputs:
 
 | Part | Inputs | Outputs |
 |------|--------|---------|
 | knowledge state | as `client-knowledge.md`, CK-PART-001 | the values that the client can have at each knowledge point |
+| intake | the serverbound packets of one client | each action at the end of its action tick (RCH-TCK-002), or a verdict with the reason `over_limit` (RCH-TCK-003) |
 | check | one action, the eye set, the look set, the target region, the range, the tolerances | one verdict |
-| verdict | the output of the check | data for the reaction and for other readers |
+| verdict | the output of the check or of the intake | data for the reaction and for other readers |
 | reaction | one verdict | clientbound packets, the effect of the action, or nothing |
 
-The check reads only its inputs. It reads no state of the server, of the connection or of the
-reaction. The verdict has no side effect.
+The check reads only its inputs. It reads no state of the server, of the connection, of the
+intake or of the reaction. Only the intake counts the actions of a client tick. The verdict has
+no side effect.
 
 Provenance: `design`. Kind: semantic. Confidence: high.
 
@@ -197,8 +203,9 @@ Provenance: `source_suggested`. Kind: wire. Confidence: medium.
 
 ### RCH-ACT-002: Each action has one verdict
 
-The check gives one verdict for each action of the table of RCH-ACT-001. It gives the verdicts of
-one client in the order of the actions.
+Each action of the table of RCH-ACT-001 gets one verdict. The check gives it, or the intake gives
+it with the reason `over_limit` (RCH-TCK-003). The verdicts of one client keep the order of the
+actions.
 
 Provenance: `design`. Kind: semantic. Confidence: high.
 
@@ -244,16 +251,29 @@ Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Expe
 
 ### RCH-TCK-002: The check waits for the end of the action tick
 
-The check of an action runs at the first move packet or `client_tick_end` after the action. The
-reaction then applies the verdict. Thus an accepted action takes effect after the move packet of
-its client tick. The verdicts of one client tick keep the order of their actions.
+The intake keeps each action until the first move packet or `client_tick_end` after the action.
+The check of the action runs then, and the reaction applies the verdict. Thus an accepted action
+takes effect after the move packet of its client tick. The verdicts of one client tick keep the
+order of their actions.
 
 Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### RCH-TCK-003: A bound on the actions of one tick
 
-At most `max_actions_per_tick` actions of one client tick wait for the check. The check refuses
-each later action of the same client tick at once, with the reason `over_limit`.
+The intake keeps at most `max_actions_per_tick` actions of one client tick. When one more action
+of the same client tick arrives, the intake does these steps:
+
+1. It gives a verdict with the reason `over_limit` to each action of that client tick that it
+   keeps, in the order of the actions.
+2. It removes these actions. The check does not run for them.
+3. It gives a verdict with the reason `over_limit` to the new action, and to each later action of
+   the same client tick when it arrives.
+
+The actions of an earlier client tick got their verdicts no later than the `client_tick_end` of
+that tick.
+Thus each verdict keeps the order of the actions (RCH-TCK-002), and at most `max_actions_per_tick`
+actions wait. A client that sends more actions in one client tick gets a refusal for each action
+of that tick.
 
 Provenance: `design`, third-party. Kind: semantic. Confidence: medium.
 
@@ -556,17 +576,29 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Experiment: R5.
 ### RCH-CMP-005: A placement or a use of a block
 
 This rule applies to `use_item_on`. Let `Q` be the block position, `f` the face and `P` the cursor
-point of the packet. Let `O` be the outline region at `Q`, grown by `box_tolerance`. Let `D` be
-`max(R_b, R_e)`, the length of the ray of the client (CBK-TGT-003). The action passes when an eye
-`e` in `E` and a look `v` in `L` obey the conditions of the inside flag.
+point of the packet. Let `U` be the set of the boxes of the outline region at `Q`, not grown. Let
+`O` be the outline region, grown by `box_tolerance`. Let `D` be `max(R_b, R_e)`, the length of the
+ray of the client (CBK-TGT-003). The action passes when an eye `e` in `E` and a look `v` in `L`
+obey the conditions of the inside flag.
 
-When the inside flag is false:
+When the inside flag is false, these conditions apply. In them, `p` is `point_tolerance`, and a box
+goes from the corner `lo` to the corner `hi`. `x_a` is the coordinate of a point `x` on the axis
+`a`.
 
-1. `P` is within `point_tolerance` of the ray from `e` along `v`, at a ray distance `t` with
-   `0 ≤ t < R_b + distance_tolerance`.
-2. `P` is within `point_tolerance` of the boundary of `O`.
-3. Take the boxes of `O` and the boxes of the second shape of RCH-TGT-006, grown by
-   `box_tolerance`. `e` is on the outer side of the plane of face `f` of one of these boxes.
+1. Ray test. Let `t = ((P − e) · v) / (v · v)`. Then `0 ≤ t < R_b + distance_tolerance`, and
+   `|P − (e + t × v)| ≤ p`.
+2. Surface test. One box of `U` obeys both of these conditions:
+   - on each axis `a`, `lo_a − p ≤ P_a ≤ hi_a + p`;
+   - on one axis `a` or more, `|P_a − lo_a| ≤ p` or `|P_a − hi_a| ≤ p`.
+3. Face test. Take the boxes of `U` and the boxes of the second shape of RCH-TGT-006, not grown.
+   Let `a` be the axis of face `f`. Let `σ` be +1 for the faces up, south and east, and −1 for the
+   faces down, north and west. Let `c` be `hi_a` of a box when `σ` is +1, and `lo_a` otherwise. One
+   of these boxes obeys `σ × (e_a − c) ≥ −box_tolerance`.
+
+The surface test and the face test use the boxes of `U`, not the boxes of `O`. The boxes of an
+outline shape are exact data, and the client puts its hit point on the surface of one of them. A box
+grown by `box_tolerance` moves its surface 5.0E-4 blocks away from the hit point, which is more than
+`point_tolerance`.
 
 When the inside flag is true:
 
@@ -575,13 +607,41 @@ When the inside flag is true:
 3. `f` is the face whose normal points against the axis of the largest absolute component of `v`
    (CBK-TGT-007).
 
-The client sends the hit point of its pick as `P`. That point is on the ray, on the outline shape,
-and at a distance less than `R_b` (CBK-TGT-010). When the eye is in the shape, the hit point is the
-eye plus `0.001 × D × v`. Condition 3 of the first list is true for each face through which a ray
-goes into a box.
-
-When `O` is empty, or no pair `(e, v)` obeys the conditions without the bound on `t`, the reason
+When `U` is empty, or no pair `(e, v)` obeys the conditions without the bound on `t`, the reason
 is `no_line`. Otherwise, the reason is `out_of_range`.
+
+A legit placement passes. The client computes its hit point `H` in binary64, as the first point of
+its ray in the outline shape (CBK-TGT-005). `H` is on the surface of one box of the shape, and
+`|H − e| < R_b` (CBK-TGT-010). The client sends `H − Q` as three binary32 values (PLC-REQ-001).
+When the eye is in the shape, the hit point is the eye plus `0.001 × D × v`. The arithmetic of the
+other case is this:
+
+- A binary32 value with an absolute value less than 2 has a rounding error of at most 2⁻²⁴, about
+  6.0E-8. Thus each axis of `P` is within 6.0E-8 of the same axis of `H`, and `|P − H|` is at
+  most 1.1E-7.
+- The surface test holds, because `H` is on the surface of a box and `p` is 1.0E-4.
+- The distance from `P` to the ray is at most `|P − H|`, which is less than `p`.
+- The look of RCH-LOOK-003 has a length that differs from 1 by less than 1.0E-6. Thus `t` is less
+  than `R_b × (1 + 1.0E-6) + 1.1E-7`. For each `R_b` up to 64, that is less than
+  `R_b + distance_tolerance`.
+- The ray goes into the box through face `f` (CBK-TGT-007, CBK-TGT-008). Thus `e` is on the outer
+  side of the plane of that face, and `σ × (e_a − c) ≥ 0`.
+
+Example: the block at `Q = (0, 64, 0)` is a full block. Thus `U` holds the box from `(0, 64, 0)` to
+`(1, 65, 1)`. The eye is `e = (0.5, 64.5, −2.0)`, with the yaw 0 and the pitch 0, so
+`v = (0, 0, 1)`. The ray meets the north face at `H = (0.5, 64.5, 0.0)`, at the distance 2.0. The
+packet has the face north and the cursor `(0.5, 0.5, 0.0)`. Thus `P` is `(0.5, 64.5, 0.0)`.
+
+| Test | Values | Result |
+|------|--------|--------|
+| ray | `t = 2.0`, `2.0 < 4.5 + 0.0005`; distance from the ray 0 | passes |
+| surface | `0 − p ≤ 0.5 ≤ 1 + p`, `64 − p ≤ 64.5 ≤ 65 + p`, `0 − p ≤ 0.0 ≤ 1 + p`; `|P_z − lo_z| = 0` | passes |
+| face | axis `z`, `σ = −1`, `c = 0`; `−1 × (−2.0 − 0) = 2.0 ≥ −0.0005` | passes |
+
+The same test against the boxes of `O` puts `P` 0.0005 from the nearest surface, at `z = −0.0005`.
+That is more than `p`, so a surface test with `O` refuses this placement. With the eye at
+`x = 0.3`, the cursor `x` is the binary32 value 0.300000011920929. `P` is then 1.2E-8 from the ray
+and from `H`, and each test passes.
 
 Provenance: `design`, third-party. Kind: semantic. Confidence: medium. Experiment: R4.
 
@@ -595,9 +655,25 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 ### RCH-CMP-007: The first entity on the rays of the client
 
 A rule can select a target on the rays of the client, for example ATK-TGT-006 of
-`player-attack.md`. The candidates are the entities that the rule allows and that pass RCH-CMP-001.
-The first entity is the candidate with the smallest entry distance over the pairs `(e, v)`. When two
-candidates have the same distance, the first entity is the one with the smaller network id.
+`player-attack.md`. The candidates are the entities that obey each of these conditions:
+
+1. The rule allows the entity.
+2. The entity is in the view of the client (RCH-TGT-004).
+3. The entity passes the comparison of an attack. This comparison is RCH-CMP-001 when no item of
+   RCH-RNG-002 is an attack range item, and RCH-CMP-002 when one is.
+
+The hit distance of a candidate is the smallest value of this list, over each pair `(e, v)` that
+passes that comparison:
+
+- for RCH-CMP-001, the entry distance `d(e, v, B)`, with `B` of RCH-CMP-001;
+- for RCH-CMP-002, the smallest ray distance `t` from `min` to `max + w(v)` at which the ray from
+  `e` along `v` is in the region of its condition 1. The rule uses each set of values of
+  RCH-RNG-003 that passes.
+
+The first entity is the candidate with the smallest hit distance. When two candidates have the same
+hit distance, the first entity is the one with the smaller network id. When a value of sections 4
+to 7 is an unknown value, the rule uses the value of the server in its place (RCH-VRD-004). This
+value is the eye or the look of the player, or the box of the entity, on the server.
 
 Provenance: `design`. Kind: semantic. Confidence: medium.
 
@@ -605,7 +681,8 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ### RCH-TOL-001: The box and distance tolerances
 
-`box_tolerance` grows each target region. `distance_tolerance` adds to each bound of a distance.
+`box_tolerance` grows each target region, except in the surface test of RCH-CMP-005.
+`distance_tolerance` adds to each bound of a distance.
 These tolerances cover the rounding difference between the client and the check. They do not cover
 latency. The eye set and the target region cover latency.
 
@@ -613,8 +690,9 @@ Provenance: `design`, third-party. Kind: semantic. Confidence: medium.
 
 ### RCH-TOL-002: The point tolerance
 
-`point_tolerance` is the largest distance of the cursor point of `use_item_on` from the ray and
-from the outline. It covers the binary32 rounding of the cursor in the packet.
+`point_tolerance` is the largest distance of the cursor point of `use_item_on` from the ray. It is
+also the largest distance of that point from the surface of a box of `U` (RCH-CMP-005). It covers the
+binary32 rounding of the cursor in the packet.
 
 Provenance: `design`. Kind: semantic. Confidence: medium. Experiment: R4.
 
@@ -637,9 +715,9 @@ A verdict has these fields:
 | knowledge point | the knowledge point of the action (CK-BRK-004) |
 | result | `accepted` or `refused` |
 | reason | for `refused`, one reason of RCH-VRD-002 |
-| basis | `client_view`, or `baseline` when RCH-VRD-004 applies |
+| basis | `client_view`, or `baseline` when RCH-VRD-004 applies; none for the reason `over_limit` |
 | distance | the measured distance of RCH-VRD-003, when the check measured one |
-| bound | the bound with which the check compared the distance |
+| bound | the bound with which the check compared the distance, when the check ran |
 
 A verdict is data. It is not a mismatch of `client-knowledge.md` until a reaction reports it.
 
@@ -647,15 +725,17 @@ Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### RCH-VRD-002: The reasons
 
-The check tests in this order, and the first test that fails gives the reason:
+The intake gives the reason `over_limit` (RCH-TCK-003), and the check does not run for that
+action. The check never gives `over_limit`. For each other action, the check does the tests of rows
+2 to 5 in their order, and the first test that fails gives the reason:
 
-| Order | Reason | Test |
-|-------|--------|------|
-| 1 | `over_limit` | RCH-TCK-003 |
-| 2 | `unknown_target` | the server has no such target (RCH-TGT-004, RCH-TGT-007) |
-| 3 | `not_in_view` | the client cannot have the target (RCH-TGT-004, RCH-TGT-007) |
-| 4 | `no_line` | no ray from the eye set along the look set meets the target as section 8 states |
-| 5 | `out_of_range` | each such ray meets the target too far away |
+| Order | Reason | Part | Test |
+|-------|--------|------|------|
+| 1 | `over_limit` | intake | RCH-TCK-003 |
+| 2 | `unknown_target` | check | the server has no such target (RCH-TGT-004, RCH-TGT-007) |
+| 3 | `not_in_view` | check | the client cannot have the target (RCH-TGT-004, RCH-TGT-007) |
+| 4 | `no_line` | check | no ray from the eye set along the look set meets the target as section 8 states |
+| 5 | `out_of_range` | check | each such ray meets the target too far away |
 
 Provenance: `design`. Kind: semantic. Confidence: high.
 
@@ -804,12 +884,16 @@ Provenance: `design`. Kind: semantic. Confidence: high.
 A legit client gets no refusal from the check because of its latency. This is true for any latency
 below `max_ack_delay` of `movement-checks.md`, any jitter and any frame rate.
 
-Provenance: `design`. Kind: semantic. Confidence: medium. Experiment: R10.
+Conformance test: record a vanilla client in the scenes of R1, R3 and R5 (section 16), with 0, 150,
+300 and 1000 ms of delay in each direction. Give each recording to a server with the check. The
+check gives no refusal.
+
+Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ### RCH-INV-003: The same inputs give the same verdict
 
-The same inputs of RCH-PART-001 give the same verdict. The time of arrival of a packet changes no
-verdict.
+The same inputs of the check (RCH-PART-001) give the same verdict. The time of arrival of a packet
+changes no verdict of the check.
 
 Provenance: `design`. Kind: semantic. Confidence: high.
 
@@ -888,8 +972,10 @@ this list.
 
 - **Rule**: RCH-TCK-003.
 - **Reference**: the vanilla server handles each action.
-- **Reason**: the memory of one connection must have a bound.
-- **Visible to the client**: no, for a legit client that sends fewer actions.
+- **Reason**: the memory of one connection must have a bound. The verdicts must keep the order of
+  the actions.
+- **Visible to the client**: no, for a legit client that sends at most `max_actions_per_tick`
+  actions in a client tick. A client that sends more gets a refusal for each action of that tick.
 - **Bug reference**: none.
 - **Test**: a differential test does not send more than `max_actions_per_tick` actions in one client
   tick.
@@ -915,9 +1001,10 @@ The Bedrock Edition outlines differ for some blocks. Stairs, a hopper and scaffo
 block. Flowers, torches and signs have other sizes. A fence and a pane at a corner do not follow
 the direction.
 
-## 16. Experiments
+## 16. Unresolved
 
-No experiment of this section has run. Each experiment uses a vanilla client and the proxy of
+These experiments have not run. Each rule that names one of them is not confirmed until the
+experiment runs. Each experiment uses a vanilla client and the proxy of
 `tools/mcrs_minecraft_client_recorder`, except R8, which uses `tools/vanilla-server`. Each
 experiment records the target of the pick in each client tick with the capture of
 `client-entities.md`, section 0.2.
@@ -927,14 +1014,9 @@ experiment records the target of the pick in each client tick with the capture o
 | R1 | Walk, turn fast and attack a standing zombie at about 2.9 blocks in many client ticks. Do the same just after a `tp`. Record the serverbound packets and the pick. | Each `attack` comes before the move packet of its client tick. The eye of the pick is the position at the end of the previous client tick plus the eye height, or the position of the teleport. The look of the pick is the rotation of the move packet of the same client tick. | RCH-TCK-001, RCH-EYE-001, RCH-LOOK-001 |
 | R2 | Press the sneak key and attack in the same client tick. Release it and attack in the same client tick. | The eye height of the pick is the eye height of the pose of the previous client tick. | RCH-EYE-002 |
 | R3 | Attack and interact with a pig that walks, with 0, 150 and 300 ms of delay in each direction. | The hit point of each pick is in the region of RCH-TGT-001. The location of `interact` is the hit point minus the position of the pig on the client. | RCH-TGT-001, RCH-CMP-001, RCH-CMP-003 |
-| R4 | Place blocks on a slab, a fence, a composter and a piston head, from outside and from inside the outline. | The cursor point is within `point_tolerance` of the ray of RCH-LOOK-003 and of the outline. The inside flag and the face obey RCH-CMP-005. | RCH-LOOK-003, RCH-TGT-005, RCH-CMP-005, RCH-TOL-002 |
+| R4 | Place blocks on a slab, a fence, a composter and a piston head, from outside and from inside the outline. | The cursor point is within 1.1E-7 of the ray of RCH-LOOK-003 and of the surface of a box of the outline shape. The inside flag and the face obey RCH-CMP-005. | RCH-LOOK-003, RCH-TGT-005, RCH-CMP-005, RCH-TOL-002 |
 | R5 | Break a block, change the face, change to another block, and look away during a dig. Do the same in creative mode. | Actions 0, 1 and 3 come only for the block of the pick of the same client tick. Action 2 comes for the old block at any distance. | RCH-ACT-003, RCH-CMP-004 |
 | R6 | Give an item the component `attack_range` with `min_reach` 2.0 and `max_reach` 4.5. Attack at 1.0, 3.5 and 5.0 blocks while the player walks. Change the selected slot in the tick of an attack. | The client sends `attack` only when the conditions of RCH-CMP-002 are true for its eye and look. The pick uses the item before the slot change. | RCH-RNG-002, RCH-RNG-003, RCH-RNG-004, RCH-CMP-002 |
 | R7 | Ride a boat that turns, and attack a zombie and use a chest. | The eye of the pick is in the set of RCH-EYE-003. The yaw of the pick differs from the reported yaw by the turn of the boat in that client tick. | RCH-EYE-003, RCH-LOOK-002 |
 | R8 | On the vanilla server, attack, interact, dig and place at distances around the bounds of section 12. Open a chest and walk away. | The vanilla server accepts and refuses at the bounds of RCH-VAN-001 to RCH-VAN-004. It closes the menu at the bound of RCH-VAN-006. | RCH-VAN-001, RCH-VAN-002, RCH-VAN-006 |
 | R9 | Send a sprint attack and a placement that a server refuses with the reaction of RCH-RCT-001. | The client restores the block and the stack. Its velocity after the attack has steps 3 and 4 of ATK-KB-002. | RCH-RCT-002 |
-| R10 | Run R1, R3 and R5 with 0, 150, 300 and 1000 ms of delay in each direction. Feed the recordings to a server with the check. | No refusal. | RCH-INV-002 |
-
-## 17. Unresolved
-
-No item is open.

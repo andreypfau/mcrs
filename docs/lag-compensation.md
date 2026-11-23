@@ -26,7 +26,7 @@ is shared, and each viewer reads it with its own `Knowledge` (MVC-UNC-007).
 | `Known<T>` on a player | temporal facts: each value that the server sent with its mark, and the newest required value | the system that queues the packet of that value |
 | `ChangeLog<Change>` on a player | temporal facts: velocity, impulse, abilities, attributes and effects with their marks | the system that queues the packet; trimmed `replay_depth` client ticks after the applied state |
 | `BlockLog` per dimension | temporal facts: position, old state, new state and mark of each block change that a viewer gets | the system that sends block changes (`VoxelUpdateSet::NetworkSync`); 24 bytes for each change, kept `max_kept_ticks` ticks |
-| `SentPositions` on an entity | temporal facts: each position that the server sends, as the client decodes it, with its mark | the motion publisher; one entry for each sent move, at most 42 entries of 28 bytes |
+| `SentPositions` on an entity | temporal facts: each entity move that the server sends, with its kind, its mark and each step position as the client decodes it (none for `move_entity_rot`) | the motion publisher; one entry for each sent entity move, at most 42 entries |
 | `ViewLog` on a player | temporal facts: the loads and unloads of chunks, the subscriptions of tiles at tier 0, the adds and removes of mobs, with their marks | the system that changes the subscription; one entry for each change |
 | entity view `H(k)`, eye set, look set, target region | derived on read by `entity_hull` and the reach engine, into `Local` buffers | none; no storage |
 | `TickActions` on a player | authoritative truth: the actions that wait for the end of their client tick (RCH-TCK-002) | the action intake; at most `max_actions_per_tick` entries |
@@ -35,7 +35,7 @@ is shared, and each viewer reads it with its own `Knowledge` (MVC-UNC-007).
 
 No pair of a viewer and an entity has a stored value. A reader computes `H(k)` of CK-ENT-003 only
 for the target of an action or a possible pusher. It reads `SentPositions` of that entity, the
-`ViewLog` and the `KnowledgeHistory` of the viewer. One read visits at most 42 positions and
+`ViewLog` and the `KnowledgeHistory` of the viewer. One read visits at most 42 entries and
 `history_ticks` client ticks, an estimated 1 µs. Thus the work follows the actions, at most 10
 targets and 24 pushers for each player and tick, not the count of viewers times entities.
 
@@ -160,7 +160,8 @@ leaves no second path.
 2. Refs #93: `BracketPlugin`: one probe for each tick, foreign pings, `Knowledge` on
    `InboundPlayerPacket`. `muxer/probes.rs`, `payload_changes_prediction` and the bracket methods
    of `MoveGuard` are deleted.
-3. Refs #93: the client answers in the apply step and in the configuration state. Experiment K6.
+3. Refs #93: the client answers in the apply step and in the configuration state. The
+   conformance test of section 10 of `client-knowledge.md` confirms it.
 4. Refs #93: `mcrs_minecraft_client_knowledge` with `Known`, `ChangeLog`, `KnowledgeHistory`;
    `move_predict` borrows them; `KeptChanges` and `ChangeStates` are deleted.
 5. Refs #93: `mcrs_minecraft_engine_client_knowledge`: the records of velocity, abilities,
@@ -186,4 +187,5 @@ leaves no second path.
 5. #94 states that the setback is not optional. Recommended: the server adds `SetbackPlugin` by
    default, and a user can replace it.
 6. `mcrs_minecraft_client_world` answers a ping at its arrival, in an observer. Recommended:
-   answer in the apply step of the client tick (CK-CLI-002), and confirm it with experiment K6.
+   answer in the apply step of the client tick (CK-CLI-002), and confirm it with the conformance
+   test of section 10 of `client-knowledge.md`.
