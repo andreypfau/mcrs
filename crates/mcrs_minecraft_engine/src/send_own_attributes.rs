@@ -21,13 +21,6 @@ use crate::tile_events::TileEvents;
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct OwnAttributesSet;
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "allocates only for a player whose attributes change, and the snapshots move into the outbound packet"
-    )
-)]
 pub(crate) fn send_own_attributes(
     mut announced: MessageReader<OpLevelAnnounced>,
     mut players: Populated<

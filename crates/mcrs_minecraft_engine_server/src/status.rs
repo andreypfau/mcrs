@@ -53,13 +53,6 @@ fn on_disconnect_handle(
     players.players.retain(|x| x.0 != e);
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "clones the player name only when a player enters the game"
-    )
-)]
 fn on_connection_state_change_handle(
     query: Populated<
         (Entity, &ConnectionState, &GameProfile),

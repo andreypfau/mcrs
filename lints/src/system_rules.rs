@@ -154,9 +154,10 @@ fn check_system<'tcx>(
     }
 
     check_clock(cx, &target, inputs, &schedule);
-    let on_event = tick
-        .iter()
-        .all(|system_use| cx.graph.runs_on_event(&system_use.placement));
+    let on_event = inputs.iter().any(|ty| cx.anchors.filters_change(*ty))
+        || tick
+            .iter()
+            .all(|system_use| cx.graph.runs_on_event(&system_use.placement));
 
     let Some(local) = def.as_local() else {
         return always_changed;

@@ -28,6 +28,7 @@ pub struct Anchors {
     pub partial_eq: Option<DefId>,
     pub bundle: DefId,
     pub changed: DefId,
+    pub added: DefId,
     pub mut_ref: DefId,
 }
 
@@ -119,6 +120,7 @@ impl Anchors {
         let commands = get("bevy_ecs::system::Commands");
         let bundle = get("bevy_ecs::bundle::Bundle");
         let changed = get("bevy_ecs::query::Changed");
+        let added = get("bevy_ecs::query::Added");
         let mut_ref = get("bevy_ecs::change_detection::Mut");
         let mut registrars: Vec<DefId> =
             ECS_REGISTRARS.iter().filter_map(|path| get(path)).collect();
@@ -201,6 +203,7 @@ impl Anchors {
             partial_eq: tcx.get_diagnostic_item(rustc_span::sym::PartialEq),
             bundle: bundle?,
             changed: changed?,
+            added: added?,
             mut_ref: mut_ref?,
         })
     }
@@ -212,6 +215,15 @@ impl Anchors {
 
     pub fn is_gate_param(&self, ty: Ty<'_>) -> bool {
         adt_of(ty).is_some_and(|did| self.gate_params.contains(&did))
+    }
+
+    pub fn filters_change(&self, ty: Ty<'_>) -> bool {
+        self.is_gate_param(ty)
+            && ty.walk().any(|arg| {
+                arg.as_type()
+                    .and_then(adt_of)
+                    .is_some_and(|did| did == self.changed || did == self.added)
+            })
     }
 
     pub fn is_heap(&self, ty: Ty<'_>) -> bool {

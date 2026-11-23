@@ -140,13 +140,6 @@ struct Settling {
         reason = "allocates and writes the timing table only on the timeout and on the one frame that captures the scene"
     )
 )]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::per_frame_insert_resource,
-        reason = "the insert runs once, in the observer of the captured screenshot, not in the system body"
-    )
-)]
 fn capture_scene(
     mut commands: Commands,
     capture: Res<SceneCapture>,

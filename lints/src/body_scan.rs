@@ -7,6 +7,7 @@ use rustc_hir::BodyId;
 use rustc_hir::Expr;
 use rustc_hir::ExprKind;
 use rustc_hir::MatchSource;
+use rustc_hir::QPath;
 use rustc_hir::Stmt;
 use rustc_hir::StmtKind;
 use rustc_hir::UnOp;
@@ -62,6 +63,8 @@ pub fn scan(tcx: TyCtxt<'_>, anchors: &Anchors, test: bool) -> BodyMap {
             conditional: 0,
             guarded: 0,
             compared: 0,
+            finished: 0,
+            detached: 0,
             test,
             anchors,
             bodies: &mut bodies,
@@ -79,6 +82,8 @@ struct Scanner<'a, 'tcx> {
     conditional: usize,
     guarded: usize,
     compared: usize,
+    finished: usize,
+    detached: usize,
     test: bool,
     anchors: &'a Anchors,
     bodies: &'a mut BodyMap,
@@ -96,7 +101,8 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
         if !self.tcx.is_typeck_child(owner.to_def_id()) {
             return;
         }
-        if self.tcx.is_closure_like(owner.to_def_id())
+        if self.detached == 0
+            && self.tcx.is_closure_like(owner.to_def_id())
             && self.tcx.coroutine_kind(owner.to_def_id()).is_none()
         {
             self.facts().closures.push(owner);
@@ -107,18 +113,28 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
     }
 
     fn visit_block(&mut self, block: &'tcx Block<'tcx>) {
-        let mut guards = 0;
+        let (mut compared, mut finished) = (0, 0);
         for stmt in block.stmts {
             self.visit_stmt(stmt);
-            if exits_unless_changed(stmt) {
-                guards += 1;
+            let Some(condition) = early_exit(stmt) else {
+                continue;
+            };
+            if compares(condition) {
+                compared += 1;
+                self.conditional += 1;
                 self.compared += 1;
+            }
+            if calls(condition, "is_finished") {
+                finished += 1;
+                self.finished += 1;
             }
         }
         if let Some(expr) = block.expr {
             self.visit_expr(expr);
         }
-        self.compared -= guards;
+        self.conditional -= compared;
+        self.compared -= compared;
+        self.finished -= finished;
     }
 
     fn visit_expr(&mut self, expr: &'tcx Expr<'tcx>) {
@@ -126,10 +142,13 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
         match expr.kind {
             ExprKind::If(condition, ..) => {
                 let compares = compares(condition);
+                let finished = calls(condition, "is_finished");
                 self.conditional += 1;
                 self.guarded += 1;
                 self.compared += usize::from(compares);
+                self.finished += usize::from(finished);
                 walk_expr(self, expr);
+                self.finished -= usize::from(finished);
                 self.compared -= usize::from(compares);
                 self.guarded -= 1;
                 self.conditional -= 1;
@@ -147,9 +166,19 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
                 walk_expr(self, expr);
                 self.conditional -= 1;
             }
-            ExprKind::Assign(place, ..) => {
-                self.check_assign(expr, place);
+            ExprKind::Assign(place, value, _) => {
+                if !self.negates(place, value) {
+                    self.check_assign(expr, place);
+                }
                 walk_expr(self, expr);
+            }
+            ExprKind::MethodCall(segment, ..)
+                if matches!(segment.ident.name.as_str(), "observe" | "add_observer") =>
+            {
+                self.inspect_call(expr);
+                self.detached += 1;
+                walk_expr(self, expr);
+                self.detached -= 1;
             }
             _ => {
                 self.inspect_call(expr);
@@ -269,7 +298,9 @@ impl<'tcx> Scanner<'_, 'tcx> {
         let tcx = self.tcx;
         let anchors = self.anchors;
         self.check_unit_in_bundle(expr, callee, generics);
-        if anchors.is_blocking(tcx, callee) {
+        if anchors.is_blocking(tcx, callee)
+            && !(self.finished > 0 && tcx.item_name(callee).as_str() == "join")
+        {
             self.facts().blocking.push((expr.span, callee));
         }
         if let Some(local) = callee.as_local()
@@ -327,6 +358,17 @@ impl<'tcx> Scanner<'_, 'tcx> {
             }
             _ => {}
         }
+    }
+
+    fn negates(&self, place: &'tcx Expr<'tcx>, value: &'tcx Expr<'tcx>) -> bool {
+        let ExprKind::Unary(UnOp::Not, inner) = value.kind else {
+            return false;
+        };
+        let source = self.tcx.sess.source_map();
+        matches!(
+            (source.span_to_snippet(place.span), source.span_to_snippet(inner.span)),
+            (Ok(place), Ok(inner)) if place == inner
+        )
     }
 
     fn check_assign(&mut self, expr: &'tcx Expr<'tcx>, place: &'tcx Expr<'tcx>) {
@@ -401,29 +443,48 @@ fn compares(expr: &Expr<'_>) -> bool {
     }
 }
 
-fn exits_unless_changed(stmt: &Stmt<'_>) -> bool {
-    let (StmtKind::Expr(expr) | StmtKind::Semi(expr)) = stmt.kind else {
-        return false;
-    };
-    let ExprKind::If(condition, then, None) = expr.kind else {
-        return false;
-    };
-    let ExprKind::Block(block, _) = then.kind else {
-        return false;
-    };
-    let last = block.expr.or_else(|| {
-        block.stmts.last().and_then(|stmt| match stmt.kind {
-            StmtKind::Expr(expr) | StmtKind::Semi(expr) => Some(expr),
-            _ => None,
-        })
-    });
-    compares(condition)
-        && last.is_some_and(|last| {
+fn early_exit<'tcx>(stmt: &Stmt<'tcx>) -> Option<&'tcx Expr<'tcx>> {
+    match stmt.kind {
+        StmtKind::Let(_) | StmtKind::Item(_) => None,
+        StmtKind::Expr(expr) | StmtKind::Semi(expr) => {
+            let ExprKind::If(condition, then, None) = expr.kind else {
+                return None;
+            };
+            let ExprKind::Block(block, _) = then.kind else {
+                return None;
+            };
+            let last = block.expr.or_else(|| {
+                block.stmts.last().and_then(|stmt| match stmt.kind {
+                    StmtKind::Expr(expr) | StmtKind::Semi(expr) => Some(expr),
+                    _ => None,
+                })
+            })?;
             matches!(
                 last.kind,
                 ExprKind::Ret(_) | ExprKind::Continue(_) | ExprKind::Break(..)
             )
-        })
+            .then_some(condition)
+        }
+    }
+}
+
+fn calls(expr: &Expr<'_>, method: &str) -> bool {
+    match expr.kind {
+        ExprKind::MethodCall(segment, receiver, args, _) => {
+            segment.ident.name.as_str() == method
+                || calls(receiver, method)
+                || args.iter().any(|arg| calls(arg, method))
+        }
+        ExprKind::Path(QPath::Resolved(_, path)) => path
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident.name.as_str() == method),
+        ExprKind::Path(QPath::TypeRelative(_, segment)) => segment.ident.name.as_str() == method,
+        ExprKind::Let(binding) => calls(binding.init, method),
+        ExprKind::Unary(_, inner) | ExprKind::DropTemps(inner) => calls(inner, method),
+        ExprKind::Binary(_, left, right) => calls(left, method) || calls(right, method),
+        _ => false,
+    }
 }
 
 fn contains_unit(ty: Ty<'_>) -> bool {

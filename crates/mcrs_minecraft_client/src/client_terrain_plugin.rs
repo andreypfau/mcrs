@@ -82,13 +82,6 @@ fn step_debug_view(
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::missed_set_if_neq,
-        reason = "a negation always yields a different value, so each write is a real change"
-    )
-)]
 fn toggle_culls(
     keys: Res<ButtonInput<KeyCode>>,
     mut occlusion: ResMut<mcrs_minecraft_render::Occlusion>,

@@ -182,13 +182,6 @@ impl Plugin for VanillaAssetsPlugin {
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::blocking_in_system,
-        reason = "the join runs only after the worker has finished, so it returns at once with its panic"
-    )
-)]
 fn finish_fetch(mut fetch: ResMut<Fetch>, mut next: ResMut<NextState<VanillaAssets>>) {
     if fetch.unpacked.load(Ordering::Acquire) {
         next.set(VanillaAssets::Ready);

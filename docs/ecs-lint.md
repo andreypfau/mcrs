@@ -119,17 +119,18 @@ fn tick_dimensions(world: &mut World) { /* ... */ }
 ```
 
 Rules on systems. A "tick system" is a system in a tick schedule. "Reach" is the body of the
-system, its closures, and the local functions that it calls, at any depth. An `async` block is
-not in the reach, because a task pool runs it outside the system.
+system, its closures, and the local functions that it calls, at any depth. An `async` block and
+a closure in `observe` or `add_observer` are not in the reach: a task pool or an event runs them
+outside the system.
 
 | Lint | Rule | Check |
 |------|------|-------|
 | `exclusive_system` | "No system takes `&mut World`" | a registered system with a `&mut World` parameter at any position |
 | `exclusive_observer` | Bevy panics on an exclusive observer | an observer with a `&mut World` parameter, from `add_observer` or `observe` |
 | `ungated_system` | "Systems are gated by run conditions" | a tick system with no run condition, and with no `Single`, `Populated` or `If` parameter |
-| `blocking_in_system` | "The tick never waits" | the reach of a tick system calls `Instant::now`, `SystemTime::now`, `thread::sleep`, a `std::fs` function, a `File` or `TcpStream` method, `Receiver::recv`, `JoinHandle::join` or a `block_on` |
+| `blocking_in_system` | "The tick never waits" | the reach of a tick system calls `Instant::now`, `SystemTime::now`, `thread::sleep`, a `std::fs` function, a `File` or `TcpStream` method, `Receiver::recv`, `JoinHandle::join` without an `is_finished` check, or a `block_on` |
 | `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace`, `mem::swap` and a `new` or `default` with no arguments do not count. A system with a run condition that fires on an event (§10) is not checked |
-| `per_frame_insert_resource` | Do not insert a resource on each run | the body of a tick system calls `insert_resource` outside an `if`, a `match` or a loop, and no run condition of the system fires on an event (§10) |
+| `per_frame_insert_resource` | Do not insert a resource on each run | the body of a tick system calls `insert_resource` outside an `if`, a `match`, a loop or a comparing early exit, and no run condition of the system fires on an event (§10) |
 | `marker_toggle` | "State that flips often is a value, not a marker" | the body of a tick system inserts and removes the same unit component |
 | `time_clock_mismatch` | Read the clock of the schedule | a system in a `Fixed*` schedule reads `Res<Time<Real>>` or `Res<Time<Virtual>>` |
 | `always_changed_filter` | "`Changed<T>` still visits every candidate" | a `Changed<T>` in a query, when a tick system with no run condition dereferences `Mut<T>` mutably outside an `if` or a `match`; the facts files carry the written components to the dependent crates |
@@ -138,7 +139,7 @@ Rules on any function:
 
 | Lint | Rule | Check |
 |------|------|-------|
-| `missed_set_if_neq` | "Write through `set_if_neq`" | an assignment through `Mut`, `ResMut` or `NonSendMut` of a `PartialEq` value, outside a guard. A guard is an `if` with a comparison, a `!`, `is_none` or `is_some` in its condition, or such an `if` that ends with `return`, `continue` or `break` before the assignment |
+| `missed_set_if_neq` | "Write through `set_if_neq`" | an assignment through `Mut`, `ResMut` or `NonSendMut` of a `PartialEq` value, outside a guard. A guard is an `if` with a comparison, a `!`, `is_none` or `is_some` in its condition, or such an `if` that ends with `return`, `continue` or `break` before the assignment. `x = !x` is not checked |
 | `borrowed_reborrowable` | Pass a reborrow, not `&mut` | a parameter `&mut` of `Commands`, `EntityCommands`, `Query`, `DeferredWorld`, `EntityMut`, `Mut`, `ResMut` or `NonSendMut`, if the return type does not use its lifetime; `self` and trait methods are not checked |
 | `zst_query` | Filter on a marker | `Query` data that fetches `&T` of a unit component |
 | `insert_message_resource` | Register messages with `add_message` | `init_resource` or `insert_resource` of `Messages<T>` |
@@ -233,7 +234,9 @@ so the model does not resolve them.
   an event: `on_message`, `resource_changed`, `resource_added`, `resource_removed`,
   `resource_exists_and_changed`, `resource_changed_or_removed`, `run_once`,
   `any_component_removed`, `state_changed`, `input_just_pressed`, `input_just_released` and
-  `not(resource_exists)`. A project condition needs an `#[expect]` that names the condition.
+  `not(resource_exists)`. A `Single` or `Populated` parameter with a `Changed` or `Added`
+  filter also counts as such a condition. A project condition needs an `#[expect]` that names
+  the condition.
 - `always_changed_filter` sees a writer only in the crate that registers it or in a
   dependency of the crate of the filter. A loop is not a guard; an `if` or a `match` is.
 - Without the driver, `cfg_attr(mcrs_lint, expect(mcrs::too_many_arguments, ..))` is not

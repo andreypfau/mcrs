@@ -102,13 +102,6 @@ impl Plugin for ChunkMapPlugin {
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::missed_set_if_neq,
-        reason = "a toggle always writes a different value, so every write is a change"
-    )
-)]
 fn toggle(keys: Res<ButtonInput<KeyCode>>, mut map: ResMut<ChunkMap>) {
     if keys.just_pressed(KeyCode::F6) {
         map.visible = !map.visible;

@@ -242,14 +242,6 @@ fn clear_world_fog(mut fog: ResMut<WorldFog>) {
     fog.set_if_neq(WorldFog::default());
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        mcrs::per_frame_insert_resource,
-        reason = "the Changed filter of the Single runs the system only on the frame that the dimension changes"
-    )
-)]
 fn build_sky_environment(
     current: Single<&CurrentDimension, Changed<CurrentDimension>>,
     registries: Res<CurrentRegistries>,

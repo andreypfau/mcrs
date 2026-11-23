@@ -17,8 +17,21 @@ pub struct Held;
 #[derive(Resource)]
 pub struct Counter(pub u8);
 
+#[derive(Resource, PartialEq)]
+pub struct Switch {
+    pub on: bool,
+}
+
+#[derive(Resource)]
+pub struct Worker(pub Option<std::thread::JoinHandle<()>>);
+
 #[derive(Event)]
 pub struct Ping;
+
+#[derive(EntityEvent)]
+pub struct Poke {
+    pub entity: Entity,
+}
 
 #[derive(Message)]
 pub struct Note;
@@ -123,6 +136,40 @@ fn inserts_until_present(mut commands: Commands) {
     commands.insert_resource(Counter(0));
 }
 
+fn toggles_switch(mut switch: ResMut<Switch>) {
+    switch.on = !switch.on;
+}
+
+fn joins_finished(mut worker: ResMut<Worker>) {
+    if worker
+        .0
+        .as_ref()
+        .is_some_and(std::thread::JoinHandle::is_finished)
+        && let Some(handle) = worker.0.take()
+    {
+        drop(handle.join());
+    }
+}
+
+fn inserts_after_return(mut commands: Commands, counter: Option<Res<Counter>>) {
+    if counter.is_some() {
+        return;
+    }
+    commands.insert_resource(Counter(0));
+}
+
+fn inserts_on_change(mut commands: Commands, score: Single<&Score, Changed<Score>>) {
+    commands.insert_resource(Counter(score.0));
+}
+
+fn inserts_in_observer(mut commands: Commands) {
+    commands
+        .spawn_empty()
+        .observe(|_: On<Poke>, mut commands: Commands| {
+            commands.insert_resource(Counter(2));
+        });
+}
+
 pub fn build_tick_rules(app: &mut App) {
     let gate = resource_exists::<Enabled>;
     app.add_systems(
@@ -148,6 +195,14 @@ pub fn build_tick_rules(app: &mut App) {
         (
             allocates_on_message.run_if(on_message::<Note>.and_then(gate)),
             inserts_until_present.run_if(not(resource_exists::<Counter>)),
+            (
+                toggles_switch,
+                joins_finished,
+                inserts_after_return,
+                inserts_on_change,
+                inserts_in_observer,
+            )
+                .run_if(gate),
         ),
     )
     .add_observer(exclusive_observer)

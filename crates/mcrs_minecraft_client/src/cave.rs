@@ -445,13 +445,6 @@ pub fn cave_cull(mut cave: ResMut<CaveCull>, camera: Single<&GlobalTransform, Wi
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::missed_set_if_neq,
-        reason = "a negation always yields a different value, so the write is a real change"
-    )
-)]
 pub fn toggle(keys: Res<ButtonInput<KeyCode>>, mut cave: ResMut<CaveCull>) {
     if keys.just_pressed(KeyCode::KeyC) {
         cave.enabled = !cave.enabled;

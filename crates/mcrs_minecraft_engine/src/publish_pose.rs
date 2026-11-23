@@ -30,13 +30,6 @@ type PoseInputsChanged = Or<(
     Changed<Vitals>,
 )>;
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "the changed entries allocate only for a player whose pose entries change, and they move into the outbound packet"
-    )
-)]
 pub(crate) fn publish_pose(
     mut players: Populated<
         (
