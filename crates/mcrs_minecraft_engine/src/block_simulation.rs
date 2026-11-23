@@ -7,7 +7,8 @@ use bevy_ecs::prelude::{Has, Query, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::common_conditions::{not, on_message, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition, SystemSet};
-use bevy_ecs::system::{Commands, Local, Res, ResMut, SystemParam};
+use bevy_ecs::system::{Local, Res, ResMut, SystemParam};
+use bevy_ecs::world::World;
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut, TaskPool};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
@@ -686,28 +687,34 @@ fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
         reason = "runs once, because its run condition stops it as soon as the index exists"
     )
 )]
-fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(
-    definitions: Option<Res<Blocks>>,
-    rules: Option<Res<BlockRules<B>>>,
-    dimensions: Query<&SectionIndex>,
-    ticking: Query<Has<EntityTicking>>,
-    mut simulation: ResMut<BlockSimulation>,
-    mut commands: Commands,
-) {
-    let (Some(definitions), Some(rules)) = (definitions, rules) else {
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "the observers of `EntityTicking` and of section despawns read the index, so it must exist before any later command applies"
+    )
+)]
+fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(world: &mut World) {
+    let (Some(definitions), Some(rules)) = (
+        world.get_resource::<Blocks>(),
+        world.get_resource::<BlockRules<B>>(),
+    ) else {
         return;
     };
     let rules = &rules.0;
     let table = RandomTickTable::new(definitions.states(), |state| rules.random_ticks(state));
     let footprints = Footprints::new(definitions.states(), |state| rules.reach(state));
     let mut index = RandomTickIndex::new(table.clone());
-    for section_index in &dimensions {
+    let mut dimensions = world.query::<&SectionIndex>();
+    let mut ticking = world.query::<Has<EntityTicking>>();
+    for section_index in dimensions.iter(world) {
         for (pos, entity, blocks) in section_index.loaded() {
-            let random_ticked = ticking.get(entity).unwrap_or(false);
+            let random_ticked = ticking.get(world, entity).unwrap_or(false);
             index.insert(pos, &PalettedSection(&blocks.0.0), random_ticked);
         }
     }
-    commands.insert_resource(index);
+    world.insert_resource(index);
+    let mut simulation = world.resource_mut::<BlockSimulation>();
     simulation.random_table = Some(table);
     simulation.footprints = footprints;
 }
