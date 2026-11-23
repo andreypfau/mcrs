@@ -24,10 +24,12 @@ sources:
   - pr:744
   - pr:767
   - pr:970
+  - crates/mcrs_minecraft_engine_player_vitals/tests/it/saved_health.rs
+  - pr:1082
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 485b34f36
-  date: 2026-11-19
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import Status from '~/components/Status.astro';
@@ -61,6 +63,8 @@ Use `TravelOnly` for state that belongs to the connection and not to the save. T
 
 The server uses this registry to save and carry player components only.
 
+Player health uses this registry too. The engine's codec saves `Vitals` under the existing `Health`, `AbsorptionAmount`, `HurtTime` and `DeathTime` keys; those values no longer live in `PlayerFileState`. Loading clamps health to the range from zero to the current maximum and replaces a non-finite value with that maximum.[^pr1082]
+
 ## Save another shape, or write the codec yourself
 
 `register_persisted` stores the component in the form that serde gives it. When the file needs another form, register a saved form with `register_persisted_as::<T, F>(keys, scope)`. The form `F` has `Serialize` and `Deserialize` and implements `PersistedForm<T>`, which converts it both ways. The engine saves the game mode of a player this way, as the integer `playerGameType` of the player file:
@@ -93,3 +97,4 @@ Next: [Dimensions are separate worlds](/docs/en/plugins/dimensions/) explains wh
 [^pr744]: <Status pr={744} state="works" /> Saves worlds and players, and adds the registry of persisted player components.
 [^pr767]: <Status pr={767} state="works" /> Gives each capture its cause, and adds the vanilla inventory plugin that uses it.
 [^pr970]: <Status pr={970} state="works" /> Tracks the pose of players and adds the state of the shift key.
+[^pr1082]: <Status pr={1082} state="works" /> Saves player vitals through the persisted registry.

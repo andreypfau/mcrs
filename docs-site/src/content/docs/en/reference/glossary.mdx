@@ -13,10 +13,33 @@ sources:
   - docs/clean-room.md
   - docs/physics-architecture.md
   - AGENTS.md
+  - crates/mcrs_minecraft_physics/src/body_grid.rs
+  - crates/mcrs_minecraft_physics/src/tile_bodies.rs
+  - crates/mcrs_minecraft_engine_brain/src/player_table.rs
+  - crates/mcrs_minecraft_entity_key/src/entity_uuid.rs
+  - crates/mcrs_minecraft_entity_key/src/writer_key.rs
+  - crates/mcrs_minecraft_damage/src/vitals.rs
+  - crates/mcrs_minecraft_damage/src/defence.rs
+  - crates/mcrs_minecraft_engine_damage/src/damage_plugin.rs
+  - crates/mcrs_minecraft_engine_damage/src/apply_hits.rs
+  - crates/mcrs_minecraft_volume/src/lib.rs
+  - crates/mcrs_minecraft_engine_server/src/runner.rs
+  - tools/captures.json
+  - issue:388
+  - README.md
+  - crates/mcrs_minecraft_server/src/lib.rs
+  - crates/mcrs_molang/src/lib.rs
+  - crates/mcrs_molang_wgsl/src/lib.rs
+  - crates/mcrs_minecraft_entity_render/src/impostor_atlas.rs
+  - crates/mcrs_minecraft_render/src/arenas.rs
+  - crates/mcrs_minecraft_render/src/cull.rs
+  - crates/mcrs_minecraft_render/src/hiz.rs
+  - crates/mcrs_minecraft_client/src/dev/knobs.rs
+  - crates/mcrs_minecraft_client/src/dev/mod.rs
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
-  date: 2026-11-18
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -58,12 +81,13 @@ Some of the scaling terms, such as shard, cell and tile, come from the design in
 | Stage, ladder | A stage is a step that turns chunk data into the next level outside the tick, for example generation or light. A ladder is the chain of levels that a chunk climbs, which in Minecraft are requested, generated, lit and active. | - |
 | Tile | A tile is a square of columns, and it is the unit of entity interest and of entity work. One cell owns each tile. | - |
 | Tile delta, tile stream | A tile delta is the entity events of one tile in one tick. A tile stream is a snapshot followed by deltas in tick order. | Entity tracker updates, loosely. |
-| Tier | A tier is an update speed. Near subjects update in a fast tier and far subjects in a slow tier. | Paper entity activation range, loosely. |
-| Cap, budget | The cap is the largest number of subjects that one client can see. The budget is the largest number of bytes per second spent on entities. | - |
+| Tier | A tier is a player-update speed. Nearby players update in a fast tier and distant players in a slow tier. Mobs use type-based tracking separately. | - |
+| Cap, budget | The cap limits the players one client sees, and the budget limits bytes per second spent on players. Mobs count toward neither. | - |
 | Subject, viewer | A subject is an entity that is seen, and a viewer is a client that sees it. Both terms come from [`replication.md`](https://github.com/andreypfau/mcrs/blob/main/docs/replication.md). | - |
 | Section, column | A section is 16x16x16 blocks, and a column is a stack of sections. | Minestom `Chunk`, which holds `Section`s. |
-| Row | A row is the server record of an entity in a dense per-tile column. Mobs are rows. Moving entities that are not living, such as items and falling blocks, are Bevy entities with components instead. | - |
-| Entity key, order key | The entity key holds the id of an entity, its UUID, its source of new UUIDs, its random stream and its tile. The UUID is also the order key. | - |
+| Row | A row is one record in a particular table, such as a body-grid row or an AI player-table row. These tables are views for their consumers. Players and mobs are Bevy entities with components; a row does not own their health. | - |
+| Entity UUID, writer key | `EntityUuid` is the stable UUID used to order entities. `WriterKey` identifies a source of writes. Damage requests sort by target UUID, writer key, write tick and sequence. A Bevy `Entity` id is local to a world and is a different kind of id. | - |
+| Vitals, defence | `Vitals` is the shared health state of a player or mob. `Defence` holds the inputs that reduce or reject a hit. [Read player data](/docs/en/plugins/players/#health-damage-and-death) describes the damage pipeline. | - |
 | Brain, goals, wait | The brain is the mob AI stage, and its kernel wakes only the mobs that a timer or a fact names. Goals are picked by tile, and waits replace per-tick checks. | Paper mob goals (`Mob`, `Goal`), loosely. |
 | Volume | A volume is one API for blocks, heights and biomes. Worldgen, the client and the kernels all use it. | Minestom `Block.Getter`, loosely. |
 | Collision table | The collision table holds the shapes and state flags of blocks for the physics kernel. | - |
@@ -100,4 +124,4 @@ Some of the scaling terms, such as shard, cell and tile, come from the design in
 | Molang | Molang is an expression language of Bedrock for animations and conditions. The `mcrs_molang` compiler has a batch backend and a WGSL backend. | - |
 | Impostor | An impostor is a far mob that is drawn as a baked sprite. | - |
 | Arena, group table, GPU cull, depth pyramid | Arenas are memory arenas for quads, models and faces, the group table is a table of section groups, GPU cull is culling on the GPU, and the depth pyramid serves two-pass occlusion. | - |
-| Hot | Hot is a client measurement knob, `MCRS_HOT`, that keeps the fast CPU cores awake. It is not the same as hot space. | - |
+| Hot | Hot is a native client measurement knob, `MCRS_HOT`, under the `dev` feature. It keeps one CPU core spinning. It is not the same as hot space. | - |

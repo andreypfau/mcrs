@@ -3,7 +3,7 @@ title: "Rust для Java-разработчика: минимум"
 description: Та часть Rust, которая нужна для плагинов mcrs, в сравнении с Java, и где читать дальше.
 sidebar:
   order: 3
-translated_from: 79dd5940a
+translated_from: 9eac02a81
 ---
 
 import Status from '~/components/Status.astro';
@@ -24,7 +24,7 @@ import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 | `match` | `switch`, обязанный покрыть все случаи |
 | Замыкание (closure) `\|x\| ...` | Лямбда |
 | `Vec`, `HashMap`, `String` и `&str` | `List`, `Map`, `String` |
-| `#[derive(Clone)]` | Сгенерированный код копирования и equals |
+| `#[derive(Clone)]` | Сгенерированный код для копирования значения через `.clone()` |
 | `&T` и `&mut T` | Много читателей или один писатель, проверяется при компиляции |
 | Модули, `use`, `Cargo.toml` | Пакеты, импорты, `build.gradle` |
 
@@ -146,12 +146,12 @@ app.add_observer(|mut e: On<PlayerChatEvent>| {
 
 ## Что читать дальше
 
-- В книге [The Rust Programming Language](https://doc.rust-lang.org/book/) прочитайте главы про владение, enum и `match`, обработку ошибок и трейты.
-- В [Rust by Example](https://doc.rust-lang.org/rust-by-example/) собраны короткие запускаемые примеры.
+- В книге [Язык программирования Rust](https://doc.rust-lang.org/book/) прочитайте главы про владение, enum и `match`, обработку ошибок и трейты.
+- В [Rust на примерах](https://doc.rust-lang.org/rust-by-example/) собраны короткие запускаемые примеры.
 - [Rustlings](https://github.com/rust-lang/rustlings) - набор небольших упражнений.
 - [Руководство Cargo](https://doc.rust-lang.org/cargo/guide/) рассказывает про `Cargo.toml` и зависимости.
-- [Bevy learn](https://bevy.org/learn/) и [примеры ECS](https://github.com/bevyengine/bevy/tree/main/examples/ecs) знакомят с Bevy.
-- [Unofficial Bevy Cheat Book](https://bevy-cheatbook.github.io/) может отставать. В mcrs используется Bevy 0.20, где типы называются `Message`, `MessageReader` и `On<E>`, а в старых текстах названия могут быть другими.
+- [Учебные материалы Bevy](https://bevy.org/learn/) и [примеры ECS](https://github.com/bevyengine/bevy/tree/main/examples/ecs) знакомят с Bevy.
+- [Неофициальная шпаргалка Bevy](https://bevy-cheatbook.github.io/) может отставать. В mcrs используется Bevy 0.20, где типы называются `Message`, `MessageReader` и `On<E>`, а в старых текстах названия могут быть другими.
 - На [docs.rs для bevy_ecs](https://docs.rs/bevy_ecs/0.20.1/bevy_ecs/) есть точные сигнатуры.
 
 <Aside type="caution" title="WIP">

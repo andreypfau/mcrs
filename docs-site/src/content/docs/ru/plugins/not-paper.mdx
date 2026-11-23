@@ -3,7 +3,7 @@ title: Это не Paper API
 description: "В mcrs нет Bukkit-подобного API и загрузчика плагинов: код пишется на Rust и собирается в собственный серверный бинарник, как в Minestom."
 sidebar:
   order: 1
-translated_from: b9bf112d8
+translated_from: 9eac02a81
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -31,6 +31,8 @@ import { Aside } from '@astrojs/starlight/components';
 | Ванильный геймплей как отключаемые плагины | Сделано | <Status issue={282} /> |
 | Перехватить и отменить строку чата | `PlayerChatEvent`, его может отменить наблюдатель. `CommandEvent` делает то же для строки команды | <Status pr={636} state="works" /> |
 | Зарегистрировать свою команду | `add_command` с типизированным деревом команд | <Status pr={579} state="works" /> |
+| Запрашивать мобов в своей системе | Мобы - сущности Bevy с движением и атрибутами; поддерживаемый мозг добавляет необязательный компонент ИИ | <Status pr={1077} state="works" /> |
+| Менять правила урона и возрождения | Фильтруйте `PendingHits`, читайте `Damaged` и `Died` или пишите `RespawnRequest`; подробности на странице [Чтение данных игрока](/docs/ru/plugins/players/#здоровье-урон-и-смерть) | <Status pr={1082} state="works" /> |
 
 Точка входа - [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs). Он создает приложение и добавляет `MinecraftServerPlugins`, [группу плагинов](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/src/lib.rs) сервера.
 

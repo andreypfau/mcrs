@@ -59,10 +59,27 @@ sources:
   - pr:1025
   - pr:1024
   - pr:1046
+  - crates/mcrs_minecraft_item_stack/src/attack_animation.rs
+  - crates/mcrs_minecraft_item_stack/src/interact_animation.rs
+  - crates/mcrs_minecraft_item_stack/src/piercing_weapon.rs
+  - crates/mcrs_minecraft_vanilla_inventory/src/drop_swing.rs
+  - crates/mcrs_minecraft_vanilla_death/src/drop_inventory.rs
+  - crates/mcrs_minecraft_vanilla_death/src/drop_held_stacks.rs
+  - crates/mcrs_minecraft_player_holders/src/enchantment_effects.rs
+  - crates/mcrs_minecraft_server/tests/it/death_drops.rs
+  - pr:1063
+  - pr:1064
+  - pr:1084
+  - crates/mcrs_minecraft_swing/src/lib.rs
+  - crates/mcrs_minecraft_predicate/src/component_holder.rs
+  - crates/mcrs_minecraft_replication/src/entity_codec.rs
+  - crates/mcrs_minecraft_engine/src/swing.rs
+  - crates/mcrs_minecraft_item_stack/src/saved.rs
+  - crates/mcrs_minecraft_item_stack/src/wire_value.rs
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 485b34f36
-  date: 2026-11-19
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import Status from '~/components/Status.astro';
@@ -112,7 +129,7 @@ The plugin allocates its source in `build`, keeps it in the resource `ArenaRules
 
 ## Open a menu of your own
 
-A menu is data. `MenuLayout` in `mcrs_minecraft_inventory_menu`, a crate without Bevy, lists the entries of a menu, and each entry points to a slot of one part. `MenuType` comes from `mcrs_minecraft_menu_key::menu_keys`. `MenuLayout::of(MenuType::Generic9x3)` gives a chest with three rows: 27 entries of part 0 (`GENERIC_CONTAINER`), then the 36 player slots as part 1 (`GENERIC_PLAYER`). `MenuLayout::new(kind, entries, routes)` builds any other layout, where a route says where a shift-click moves a stack. It returns `None` above 128 entries or for a route outside the menu.[^pr977]
+A menu is data. `MenuLayout` in `mcrs_minecraft_inventory_menu`, a crate without Bevy, lists the entries of a menu, and each entry points to a slot of one part. `MenuType` comes from `mcrs_minecraft_menu_key::menu_keys`. `MenuLayout::of(MenuType::Generic9x3)` returns `Some(layout)` for a chest with three rows: 27 entries of part 0 (`GENERIC_CONTAINER`), then the 36 player slots as part 1 (`GENERIC_PLAYER`). `MenuLayout::new(kind, entries, routes)` builds any other layout, where a route says where a shift-click moves a stack. It returns `None` above 128 entries or for a route outside the menu.[^pr977]
 
 `MenuCommandsExt` opens a menu on the player with `open_menu` or `open_titled_menu`. Both take the layout, the holders of the parts in `MenuParts` and the button entries in `MenuButtons`. The shop of the example opens over a new holder with 27 slots and one offer.
 
@@ -134,6 +151,16 @@ A server has no such single world. Its plugin `VanillaItemEntityPlugin` adds a d
 
 So the players, their slot policies, `RequestCheck` and `EntryPressed` live in the dimension world of each player. Register your plugin with `app.add_dimension_plugin(ArenaRulesPlugin)`. Every dimension world builds a clone of it after the dimension builders, so its `build` allocates a source and adds the observers in that world. The plugin must be `Clone`, as both plugins of the example are. With `add_plugins` it lands in the main app, where its observers never see a player. Trigger your own events, such as `EnterGame`, in the world of the player too. [Dimensions are separate worlds](/docs/en/plugins/dimensions/) explains `add_dimension_plugin`. No test of the repository runs these plugins in a server yet.
 
+## Inventory on death
+
+`VanillaDeathDropsPlugin` reads `Died` and drops the main inventory, then the off hand and armour from feet to head. Stacks with a vanishing enchantment effect are deleted. `keep_inventory` or spectator mode preserves these slots. The plugin reads the dimension's current game rules; disable it to replace this policy.[^pr1084]
+
+Cursor and crafting-grid stacks drop later, when the dead player is hidden after the death delay, leaves, or respawns, whichever happens first. This also happens with `keep_inventory` enabled. These drops do not go through an inventory click request, so `RequestCheck` is not their cancellation hook. [Read player data](/docs/en/plugins/players/#health-damage-and-death) covers the death and respawn messages.
+
+## Hand drops and arm swings
+
+A successful vanilla hand-drop request emits `SwingPlayer` for the main hand, with the default whack animation and a base duration of 6 ticks. Tracking observers receive the swing packet; late viewers receive no replay.[^pr1064] The [player guide](/docs/en/plugins/players/#send-an-arm-swing) explains the mcrs client's current limitation. Item stacks also have typed `AttackAnimation`, `InteractAnimation` and `PiercingWeapon` components. Their codecs and predicates work without an engine; the swing cooldown kernel is `mcrs_minecraft_swing`.[^pr1063]
+
 ## The client and what is left
 
 The mcrs client takes clicks in its inventory screen.[^129] It draws the eight generic container screens with item tooltips, drag previews and double clicks, so a player sees a menu your plugin opens.[^130] In creative mode the inventory key opens the creative screen with tabs, scrolling, search and stack clicks.[^131] The remaining screen limits are on [The client today](/docs/en/client/overview/#what-is-missing). The player inventory issue still covers agreement with a vanilla client and persistence across a rejoin.[^521]
@@ -141,10 +168,13 @@ The mcrs client takes clicks in its inventory screen.[^129] It draws the eight g
 Next: [Paper to mcrs](/docs/en/plugins/paper-to-mcrs/) has the table of Paper events and what mcrs has for them. [Intercept chat](/docs/en/plugins/chat-event/) shows the other events a plugin can cancel.
 
 [^pr767]: <Status pr={767} state="works" /> Adds the vanilla inventory plugin and the `InventoryInput` message.
-[^pr846]: <Status pr={846} state="works" /> Adds the slot policy of the player inventory and `RequestCheck`, where an observer can deny an inventory request.
+[^pr846]: <Status pr={846} state="works" /> Adds the slot policy for the player inventory and `RequestCheck`, where an observer can deny an inventory request.
 [^pr977]: <Status pr={977} state="works" /> Describes a menu as data and opens it with button entries over any holder.
 [^pr988]: <Status pr={988} state="works" /> Gives each plugin a request source of its own and adds the take rule of the armour slots.
 [^129]: <Status issue={129} /> Tracks the clicks of the mcrs client, which <Status pr={1004} state="works" /> finished for the inventory screen.
 [^130]: <Status issue={130} /> Tracks the container screens of the mcrs client.
 [^131]: <Status issue={131} /> Tracks the creative inventory screen of the mcrs client.
 [^521]: <Status issue={521} /> Tracks the specification and the plugin of the player inventory.
+[^pr1084]: <Status pr={1084} state="works" /> Adds death drops, including cursor and crafting-grid stacks, and shares `EnchantmentEffects` with the armour take rule.
+[^pr1064]: <Status pr={1064} state="works" /> Replicates player swings for hand drops, attacks and accepted placements.
+[^pr1063]: <Status pr={1063} state="works" /> Adds typed item animation inputs and the pure swing kernel.

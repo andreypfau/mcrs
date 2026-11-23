@@ -14,14 +14,19 @@ sources:
   - docs/minecraft-bevy-sharding-architecture.md
   - examples/README.md
   - examples/dependencies.json
+  - crates/mcrs_minecraft_swing/src/lib.rs
+  - crates/mcrs_minecraft_swing/src/swing_tracker.rs
+  - crates/mcrs_minecraft_damage/src/lib.rs
   - issue:180
   - issue:321
   - issue:287
   - issue:288
+  - docs/swing.md
+  - docs/damage.md
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 79dd5940a
-  date: 2026-11-18
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -33,9 +38,9 @@ mcrs is a repository of {fact('crates')} crates, sorted into seven layers. Each 
 
 | # | Layer | What it holds |
 |---|---|---|
-| 1 | Protocol | ids, positions, NBT, text, keys; the codec traits; framing, compression, encryption; handshake, status, login and configuration packets |
+| 1 | Wire | ids, positions, NBT, text, keys; the codec traits; framing, compression, encryption; handshake, status, login and configuration packets |
 | 2 | Network | the connection state machine, login on both sides, authentication, proxy forwarding, frames encoded once per broadcast |
-| 3 | Game data and rules | registries baked from the data pack, blocks, items, entities, chunks, Anvil saves and their packets; kernels without Bevy for lighting, world generation and block simulation |
+| 3 | Game data and rules | registries baked from the data pack, blocks, items, entities, chunks, Anvil saves and their packets; kernels without Bevy for lighting, world generation, block simulation, arm swings and damage |
 | 4 | Engine | Bevy plugins for worlds, dimensions, chunk sources, players, events and commands, and the drivers of the kernels; no vanilla behaviour by default |
 | 5 | Vanilla | what blocks, items and mobs do, world generation and lighting, as removable plugins |
 | 6 | Rendering | meshing and pipelines over layer 3 data; no network, client or server |
@@ -53,11 +58,13 @@ A kernel is plain Rust that owns the rules of one domain, such as block updates,
 
 A driver runs a kernel. In layer 4 the driver is a Bevy plugin that reads the world, calls the kernel and writes the result back. Bevy stays the scheduler between systems, and mcrs adds no scheduler of its own between them. That decision is in section 13 of [the sharding design note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md). Without Bevy a driver is a loop, which is why a bot, a map tool or a test can use a kernel directly.
 
+For example, `mcrs_minecraft_swing` decides whether an arm swing can start, and `mcrs_minecraft_damage` calculates a hit. Both build without std or Bevy. Their engine plugins connect these rules to components, tick phases and packets.
+
 If you come from Paper, think of a kernel as the logic of a vanilla system with the server object removed, so you can call it from any place. The driver is the part that knows about ticks.
 
 ## What "a set of parts" means today
 
-The project promises "Minecraft as a set of crates". This is how far that goes on 2026-11-18.
+The project aims for "Minecraft as a set of crates". This is how far that goes on 2026-11-23.
 
 In CI, {fact('crates_no_bevy')} packages build without Bevy, and a check in `xtask/src/checks.rs` fails when a crate below layer 4 requires Bevy. {fact('crates_no_std')} packages also build without std, for the target `wasm32v1-none`, and {fact('crates_wasm32')} build for a browser, for the target `wasm32-unknown-unknown`.
 

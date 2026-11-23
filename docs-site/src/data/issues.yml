@@ -4,7 +4,12 @@
 78: { state: works }
 82: { state: wip }
 85: { state: works }
+93: { state: wip }
+95: { state: wip }
 102: { state: partial }
+103: { state: works }
+106: { state: partial }
+116: { state: works }
 129: { state: works }
 130: { state: works }
 131: { state: works }
@@ -19,6 +24,7 @@
 167: { state: wip }
 169: { state: works }
 170: { state: wip }
+173: { state: partial }
 180: { state: wip }
 181: { state: wip }
 182: { state: wip }
@@ -84,11 +90,13 @@
 865: { state: partial }
 867: { state: partial }
 882: { state: partial }
+906: { state: works }
 910: { state: wip }
 995: { state: works }
 999: { state: works }
 1000: { state: works }
 1005: { state: works }
+1009: { state: works }
 1013: { state: works }
 1014: { state: works }
 1017: { state: works }
@@ -108,3 +116,10 @@
 1045: { state: works }
 1048: { state: works }
 1050: { state: works }
+1058: { state: partial }
+1060: { state: works }
+1061: { state: works }
+1067: { state: works }
+1074: { state: wip }
+1076: { state: wip }
+1083: { state: wip }

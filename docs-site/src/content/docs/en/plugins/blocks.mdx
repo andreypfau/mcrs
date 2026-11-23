@@ -39,10 +39,13 @@ sources:
   - pr:862
   - pr:797
   - pr:798
+  - crates/mcrs_minecraft_engine/src/swing.rs
+  - crates/mcrs_minecraft_server/tests/it/swing.rs
+  - pr:1064
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
-  date: 2026-11-18
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import Status from '~/components/Status.astro';
@@ -59,6 +62,8 @@ When a client right-clicks a block face, the engine turns the packet into the pu
 <Example file="crates/mcrs_minecraft_engine/src/use_item_on_request.rs" from="pub struct UseItemOnRequest {" title="The placement request" />
 
 The message is a request and changes nothing by itself. `VanillaBlockPlacePlugin` reads it and checks the reach, the click point, the height limits, an open teleport, the held item, the game mode, the target cell, operator blocks, support and the players in the way. Only a request that passes every check writes a block. For a request within reach and the height limits, the plugin then sends the player the states of the clicked and the adjacent cell, placed or not, so the client does not keep a block that the server does not have.
+
+An accepted placement also emits `SwingPlayer`, using the held item's `InteractAnimation` or the default animation. Tracking observers receive the swing before the block update of the same tick. A replacement placement system can write the same public swing message.[^pr1064]
 
 The vanilla plugin only adds the placement plugin to every dimension world:
 
@@ -135,3 +140,4 @@ Next: [Read player data](/docs/en/plugins/players/).
 [^pr797]: <Status pr={797} state="works" /> Steps the moving entities that are not living as components.
 [^283]: <Status issue={283} /> Public, cancellable events for join, leave, chat, commands, block break, block place and movement.
 [^785]: <Status issue={785} /> Block behaviours from plugins: compose them and let a rule emit an effect.
+[^pr1064]: <Status pr={1064} state="works" /> Sends placement swings to current observers before the block update.

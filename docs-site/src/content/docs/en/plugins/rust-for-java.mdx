@@ -13,10 +13,12 @@ sources:
   - rust-toolchain.toml
   - Cargo.toml
   - issue:321
+  - AGENTS.md
+  - issue:566
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 79dd5940a
-  date: 2026-11-18
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import Status from '~/components/Status.astro';
@@ -37,7 +39,7 @@ You do not need to learn all of Rust to write a plugin. This page shows the part
 | `match` | `switch` that must cover every case |
 | Closure `\|x\| ...` | Lambda |
 | `Vec`, `HashMap`, `String` and `&str` | `List`, `Map`, `String` |
-| `#[derive(Clone)]` | Generated copy and equals code |
+| `#[derive(Clone)]` | Generated code to duplicate a value with `.clone()` |
 | `&T` and `&mut T` | Many readers or one writer, checked at compile time |
 | Modules, `use`, `Cargo.toml` | Packages, imports, `build.gradle` |
 

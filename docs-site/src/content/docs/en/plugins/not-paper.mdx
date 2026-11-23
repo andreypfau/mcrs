@@ -8,6 +8,7 @@ audience: [jvm]
 stability: changing
 tracking: [283, 281, 546, 321, 437]
 sources:
+  - crates/mcrs_minecraft_engine_brain/src/mob_brain_plugin.rs
   - src/main.rs
   - crates/mcrs_minecraft_server/src/lib.rs
   - crates/mcrs_minecraft_chat_server/src/chat_plugin.rs
@@ -19,10 +20,21 @@ sources:
   - issue:282
   - pr:636
   - pr:579
+  - crates/mcrs_minecraft_engine_physics/src/mobs.rs
+  - crates/mcrs_minecraft_engine_damage/src/pending_hits.rs
+  - crates/mcrs_minecraft_engine_player_vitals/src/player_vitals_plugin.rs
+  - pr:1077
+  - pr:1082
+  - issue:283
+  - issue:281
+  - issue:546
+  - issue:321
+  - issue:316
+  - issue:412
 verified:
   snapshot: 26.4-snapshot-7
-  commit: b9bf112d8
-  date: 2026-11-18
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -50,6 +62,8 @@ The table lists what your code can already do, with the issue or the pull reques
 | Vanilla gameplay as removable plugins | Done | <Status issue={282} /> |
 | Intercept and cancel a chat line | `PlayerChatEvent`, which an observer can cancel. `CommandEvent` does the same for a command line | <Status pr={636} state="works" /> |
 | Register your own command | `add_command` with a typed command tree | <Status pr={579} state="works" /> |
+| Query mobs in your own system | Mobs are Bevy entities with motion and attributes; a supported brain adds an optional brain component | <Status pr={1077} state="works" /> |
+| Change damage and respawn rules | Filter `PendingHits`, read `Damaged` and `Died`, or write `RespawnRequest`; see [Read player data](/docs/en/plugins/players/#health-damage-and-death) | <Status pr={1082} state="works" /> |
 
 The entry point is [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs). It creates the app and adds `MinecraftServerPlugins`, [the plugin group](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/src/lib.rs) of the server.
 

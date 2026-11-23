@@ -3,7 +3,7 @@ title: Paper и Minestom в терминах mcrs
 description: Таблица соответствий от понятий Paper, Velocity и Minestom к mcrs и Bevy, с состоянием каждой строки.
 sidebar:
   order: 4
-translated_from: 485b34f36
+translated_from: 9eac02a81
 ---
 
 import Status from '~/components/Status.astro';
@@ -32,14 +32,17 @@ import { Aside } from '@astrojs/starlight/components';
 
 | JVM | mcrs | Состояние | Заметки |
 |---|---|---|---|
-| `Listener`, `@EventHandler` | Наблюдатель `app.add_observer(f)` с `f: fn(On<Event>)` или `MessageReader<M>` для буфера сообщений | <Status issue={283} /> | Публичные события есть только для чата и команд. Наблюдатели пакетов есть как `Received<P>` |
+| `Listener`, `@EventHandler` | Наблюдатель `app.add_observer(f)` с `f: fn(On<Event>)` или `MessageReader<M>` для буфера сообщений | <Status issue={283} /> | Точка расширения зависит от области: у чата и команд есть `cancelled`, у инвентаря `RequestCheck`, у урона набор фильтрации. Наблюдатели пакетов используют `Received<P>` |
 | `setCancelled(true)` | Поле `cancelled` события, которое меняет наблюдатель с параметром `mut` | <Status pr={636} state="partial" /> | Только `PlayerChatEvent` и `CommandEvent`. Общий механизм с откатом предсказания клиента - это <Status issue={283} /> |
 | `AsyncChatEvent` | `PlayerChatEvent { player, text, cancelled }` | <Status pr={636} state="works" /> | `text` - компонент `Text`, а не `String`. Событие срабатывает до рассылки |
 | `EventPriority` | Порядок систем: `.before()`, `.after()`, `SystemSet`, например `TickSet` | <Status issue={323} /> | У наблюдателей приоритета нет. Неупорядоченный конфликт ломает тест |
 | `PlayerJoinEvent`, `PlayerQuitEvent` | Внутренние сообщения шины `InboundPlayerSpawn` и `InboundPlayerDespawn` | <Status issue={283} /> | Публичного события пока нет. Публичные события входа и выхода запланированы |
 | `BlockBreakEvent`, `BlockPlaceEvent` | Публичное сообщение `UseItemOnRequest` для установки и публичный набор `BlockBreakSet`, после которого ставится своя система | <Status issue={283} /> | Отменяемых событий пока нет. Запрос на ломание внутренний, а отклонить установку можно, только заменив `VanillaBlockPlacePlugin`. Подробнее на странице [Встроиться в установку, ломание и дроп блоков](/docs/ru/plugins/blocks/) |
 | `InventoryClickEvent`, `setCancelled(true)` | Наблюдатель `RequestCheck`, который вызывает `deny(Denial { source, code })`, или `Gate` в `SlotPolicy` держателя | <Status pr={846} state="works" /> | Клик приходит как запрос к инвентарю. В отказе указан источник запросов плагина. Клик по кнопке меню приходит как `EntryPressed`. Подробнее на странице [Инвентарь](/docs/ru/plugins/inventory/) |
-| `Bukkit.createInventory`, `openInventory` | Значение `MenuLayout`, например `MenuLayout::of(MenuType::Generic9x3)`, поверх сущности-держателя со `Slots`, открытое через `open_titled_menu` из `MenuCommandsExt` | <Status pr={977} state="works" /> | Записи-кнопки из `MenuButtons` не двигают стек и пишут `EntryPressed`. `close_menu` заменяет `closeInventory`. Клиент mcrs рисует восемь типовых экранов контейнеров и принимает в них клики (<Status issue={130} />). Подробнее на странице [Инвентарь](/docs/ru/plugins/inventory/) |
+| `EntityDamageEvent` | Система в `DamageSet::Filter` меняет или убирает значения `DamageRequest` в `PendingHits` | <Status pr={1078} state="works" /> | Работает для мобов и игроков. `Damaged` сообщает о принятом ударе; подробности на странице [Чтение данных игрока](/docs/ru/plugins/players/#здоровье-урон-и-смерть) |
+| `PlayerDeathEvent` | Читайте `Died`; замените `VanillaDeathDropsPlugin` или `VanillaDeathMessagesPlugin` | <Status pr={1084} state="works" /> | Свой текст смерти пишется как `DeathMessage` в `PlayerDeathSet::Describe`. Дроп и `keep_inventory` разобраны на странице [Инвентарь](/docs/ru/plugins/inventory/#инвентарь-при-смерти) |
+| `PlayerRespawnEvent` | Пишите `RespawnRequest { player, dimension, transform }` в мире игрока | <Status pr={1082} state="works" /> | Для своей точки возрождения замените `VanillaRespawnPlugin`; это запрос, а не отменяемое событие |
+| `Bukkit.createInventory`, `openInventory` | Значение `MenuLayout`, полученное из `MenuLayout::of(MenuType::Generic9x3)` как `Some(layout)`, поверх сущности-держателя со `Slots`, открытое через `open_titled_menu` из `MenuCommandsExt` | <Status pr={977} state="works" /> | Записи-кнопки из `MenuButtons` не двигают стек и пишут `EntryPressed`. `close_menu` заменяет `closeInventory`. Клиент mcrs рисует восемь типовых экранов контейнеров и принимает в них клики (<Status issue={130} />). Подробнее на странице [Инвентарь](/docs/ru/plugins/inventory/) |
 | `ProtocolLib`, слушатели пакетов | `On<Received<P>>` над типизированными игровыми пакетами | <Status state="partial" /> | Типизирована примерно половина пакетов, см. README. Единый путь типизированного приема: <Status issue={57} /> |
 | Дерево `EventNode` в Minestom | Дерева событий нет, есть только наблюдатели и расписания Bevy | <Status state="undecided" /> | Issue нет. Этот паттерн не копируйте |
 
@@ -56,7 +59,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 | JVM | mcrs | Состояние | Заметки |
 |---|---|---|---|
-| `Player`, `Entity` как объекты | Id `Entity` плюс компоненты `Player`, `GameProfile`, `PlayerGameMode`, `Transform` | <Status state="works" doc="crates/mcrs_minecraft_game_mode/src/player_game_mode.rs" /> | У игрока три идентификатора: `Entity` из Bevy, `PlayerSession`, который живет между измерениями, и сетевой id (<Status issue={158} />) |
+| `Player`, `Entity` как объекты | Идентификатор `Entity` и компоненты `Player`, `GameProfile`, `PlayerGameMode`, `Transform`, `Vitals`; мобы тоже сущности | <Status pr={1082} state="works" /> | `Entity` действует в одном мире, `PlayerSession` сохраняется при смене измерения, UUID профиля переживает переподключение, а в пакетах используется отдельный сетевой id (<Status issue={158} />) |
 | `player.sendMessage(Component)` | Сообщение `OutboundPlayerPacket`, собранное через `bus::to` и хелпер `system_chat` | <Status state="partial" /> | Это низкий уровень, и `player.send()` нет |
 | `Bukkit.getOnlinePlayers()` | `Query<&GameProfile, With<Player>>` внутри измерения | <Status state="partial" /> | Игроки живут в мирах измерений, общей коллекции нет (<Status issue={154} />) |
 | `world.getBlockAt(..).setType(..)` | Сообщение `BlockSetRequest` и API томов `WorldView` | <Status state="partial" /> | Работает внутри одного измерения. Единый API доступа к миру - это <Status issue={486} /> |
@@ -72,7 +75,7 @@ import { Aside } from '@astrojs/starlight/components';
 | JVM | mcrs | Состояние | Заметки |
 |---|---|---|---|
 | Brigadier, `registerCommand` | `add_command`, типизированное дерево команд, узлы литералов и аргументов | <Status pr={579} state="works" /> | Эталон - ванильные команды |
-| Tab-дополнение и пакет команд с уровнями | Дерево команд с уровнями прав и пакет команд | <Status issue={285} /> | Issue открыт |
+| Tab-дополнение и пакет команд с уровнями | Дерево команд с уровнями прав и пакет команд | <Status issue={285} /> | См. [Добавить команду](/docs/ru/plugins/commands/) |
 | `hasPermission("x.y")` | `PermissionCheck::Require(CommandLevel::..)`, уровень оператора 0-4 в `PlayerOpLevel` | <Status issue={285} /> | Строковых узлов прав нет, плагина вроде LuckPerms тоже нет |
 | Whitelist, бан-лист | Ресурс бан-листа и команды `/ban` и `/whitelist` | <Status state="works" doc="crates/mcrs_minecraft_server/tests/it/ban.rs" /> | Покрыто тестами `ban.rs` и `whitelist.rs` |
 | Свой тип аргумента | Добавляется только при компиляции, как часть набора команд | <Status issue={285} /> | |
@@ -98,6 +101,6 @@ import { Aside } from '@astrojs/starlight/components';
 
 | JVM | mcrs | Состояние | Заметки |
 |---|---|---|---|
-| MockBukkit | Интеграционные тесты с `PlayServer` и `host_app` в `crates/mcrs_minecraft_server/tests/it/` | <Status issue={266} /> | Около 60 файлов тестов. Тестовое окружение не вынесено в отдельный крейт |
+| MockBukkit | Интеграционные тесты с `PlayServer` и `host_app` в `crates/mcrs_minecraft_server/tests/it/` | <Status issue={266} /> | Тестовое окружение не вынесено в отдельный крейт |
 
 Состояние каждой области показано на странице [Статус](/docs/ru/start/status/).

@@ -8,6 +8,8 @@ audience: [jvm, rust]
 stability: changing
 tracking: [280, 321]
 sources:
+  - crates/mcrs_minecraft_engine/src/coordinator/sub_app_builder.rs
+  - crates/mcrs_minecraft_engine_world/src/world_cells.rs
   - src/main.rs
   - crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs
   - crates/mcrs_minecraft_engine_world/src/world/sub_app.rs
@@ -15,8 +17,8 @@ sources:
   - issue:321
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 19bc615fa
-  date: 2026-11-17
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import Status from '~/components/Status.astro';
@@ -24,6 +26,8 @@ import Example from '~/components/Example.astro';
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 In this tutorial you add a plugin that counts server ticks. mcrs has no plugin loader and no jar files, as [This is not the Paper API](/docs/en/plugins/not-paper/) explains, so "installing a plugin" means adding Rust code to the program that starts the server. Your plugin lives in your own copy of the mcrs repository, next to the server binary.
+
+This tutorial uses the default of one cell and one simulation world per dimension. With several static cells, the server builds the dimension plugin in each cell's world, and its query sees only local entities.
 
 <Aside type="caution" title="WIP">
 Building a plugin in its own project, with mcrs as a git dependency, is not checked. The crates are not published, so this page edits `src/main.rs` inside the clone.[^321] The code comes from test files of the repository, and we did not run these steps outside the repository tests.
