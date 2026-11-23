@@ -217,7 +217,10 @@ impl Anchors {
 
     pub fn is_heap(&self, ty: Ty<'_>) -> bool {
         match ty.kind() {
-            TyKind::Adt(adt, _) => self.heap_types.contains(&adt.did()),
+            TyKind::Adt(adt, args) => {
+                self.heap_types.contains(&adt.did())
+                    && !args.types().next().is_some_and(|item| item.is_unit())
+            }
             _ => false,
         }
     }

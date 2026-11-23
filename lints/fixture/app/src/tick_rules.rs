@@ -62,6 +62,8 @@ fn reuses(mut buffer: Local<Vec<u8>>, scores: Query<&Score>) {
     let taken = std::mem::take(&mut *buffer);
     *buffer = taken;
     drop(Vec::<u8>::new());
+    let units: Vec<()> = scores.iter().map(|_| ()).collect();
+    drop(units);
     drop(async { load() });
 }
 
