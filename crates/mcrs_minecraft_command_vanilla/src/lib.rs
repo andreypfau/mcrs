@@ -8,6 +8,7 @@ mod execute;
 mod execute_view;
 mod gamemode;
 mod kill;
+mod list;
 #[cfg(feature = "locate")]
 mod locate;
 mod mob_hit;

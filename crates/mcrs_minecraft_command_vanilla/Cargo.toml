@@ -43,6 +43,7 @@ mcrs_minecraft_engine_damage.workspace = true
 mcrs_minecraft_engine_mob_attributes.workspace = true
 mcrs_minecraft_numeric.workspace = true
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_entity.workspace = true

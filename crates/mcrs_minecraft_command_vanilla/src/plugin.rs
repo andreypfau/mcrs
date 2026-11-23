@@ -1,13 +1,14 @@
 #[cfg(feature = "locate")]
 use crate::locate;
 use crate::{
-    attribute, ban, damage, data, execute, gamemode, kill, mob_hit, op, summon, teleport, time,
-    whitelist,
+    attribute, ban, damage, data, execute, gamemode, kill, list, mob_hit, op, summon, teleport,
+    time, whitelist,
 };
 use bevy_app::{App, Plugin};
 use bevy_ecs::system::IntoSystem;
 use core::fmt::Display;
 use mcrs_minecraft_command_engine::{AppCommandsExt, Worlds};
+use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuilders;
 
 pub struct VanillaCommandsPlugin;
 
@@ -45,6 +46,10 @@ impl Plugin for VanillaCommandsPlugin {
         report("time", app.add_command(time::build, time::run));
         report("ban", app.add_command(ban::build, ban::run));
         report("op", app.add_command(op::build, op::run));
+        report("list", app.add_command(list::build, list::run));
+        app.world_mut()
+            .get_resource_or_init::<DimensionBuilders>()
+            .add(list::copy_join_limits);
         report(
             "whitelist",
             app.add_command(whitelist::build, whitelist::run),

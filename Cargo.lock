@@ -4890,6 +4890,7 @@ dependencies = [
  "mcrs_minecraft_engine_entity_motion",
  "mcrs_minecraft_engine_mob_attributes",
  "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_server",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_attribute",
