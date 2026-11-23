@@ -135,7 +135,8 @@ impl Plugin for LocalPlayerPlugin {
                         give_sprint_modifier,
                     )
                         .chain()
-                        .in_set(LocalPlayerTick),
+                        .in_set(LocalPlayerTick)
+                        .run_if(not(player_load::player_loading)),
                     send_movement.after(LocalPlayerTick),
                 ),
             )
@@ -416,6 +417,7 @@ mod tests {
         };
 
         session.receive(login(GameMode::Survival));
+        session.end_load();
         session.ticks(held, 1);
         assert_eq!(speed(&session), Some(sprinting));
 
@@ -423,10 +425,12 @@ mod tests {
             player_spawn_info: spawn_info(GameMode::Survival),
             data_to_keep: 0,
         });
+        session.end_load();
         session.ticks(held, 1);
         assert_eq!(speed(&session), Some(sprinting), "after the respawn");
 
         session.receive(login(GameMode::Survival));
+        session.end_load();
         session.ticks(held, 1);
         assert_eq!(speed(&session), Some(sprinting), "after the second login");
     }
