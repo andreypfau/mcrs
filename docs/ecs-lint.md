@@ -131,7 +131,7 @@ outside the system.
 | `exclusive_observer` | Bevy panics on an exclusive observer | an observer with a `&mut World` parameter, from `add_observer` or `observe` |
 | `ungated_system` | "Systems are gated by run conditions" | a tick system with no run condition, and with no `Single`, `Populated`, `If` or `PopulatedMessageReader` parameter |
 | `blocking_in_system` | "The tick never waits" | the reach of a tick system calls `Instant::now`, `SystemTime::now`, `thread::sleep`, a `std::fs` function, a `File` or `TcpStream` method, `Receiver::recv`, `JoinHandle::join` without an `is_finished` check, or a `block_on` |
-| `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace`, `mem::swap` and a `new` or `default` with no arguments do not count. A system with a run condition that fires on an event (§10) is not checked |
+| `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace`, `mem::swap` and a `new` or `default` with no arguments do not count. A system with a run condition that fires on an event (§10) is not checked. A call on an event path does not count: in a `for` loop over messages, removed components or a query with `Changed` or `Added`, or in an `if` on them |
 | `per_frame_insert_resource` | Do not insert a resource on each run | the body of a tick system calls `insert_resource` outside an `if`, a `match`, a loop or a comparing early exit, and no run condition of the system fires on an event (§10) |
 | `marker_toggle` | "State that flips often is a value, not a marker" | the body of a tick system inserts and removes the same unit component |
 | `time_clock_mismatch` | Read the clock of the schedule | a system in a `Fixed*` schedule reads `Res<Time<Real>>` or `Res<Time<Virtual>>` |
@@ -141,7 +141,7 @@ Rules on any function:
 
 | Lint | Rule | Check |
 |------|------|-------|
-| `missed_set_if_neq` | "Write through `set_if_neq`" | an assignment through `Mut`, `ResMut` or `NonSendMut` of a `PartialEq` value, outside a guard. A guard is an `if` with a comparison, a `!`, `is_none` or `is_some` in its condition, or such an `if` that ends with `return`, `continue` or `break` before the assignment. `x = !x` is not checked |
+| `missed_set_if_neq` | "Write through `set_if_neq`" | an assignment through `Mut`, `ResMut` or `NonSendMut` of a `PartialEq` value, outside a guard. A guard is an `if` with a comparison, a `!`, `is_none` or `is_some` in its condition, or such an `if` that ends with `return`, `continue` or `break` before the assignment. `x = !x`, `x = x + n`, `x = x - n` and `wrapping_add` or `wrapping_sub` with a literal that is not zero, and a write after `mem::take`, `mem::replace` or `mem::swap` of the same place are not checked |
 | `borrowed_reborrowable` | Pass a reborrow, not `&mut` | a parameter `&mut` of `Commands`, `EntityCommands`, `Query`, `DeferredWorld`, `EntityMut`, `Mut`, `ResMut` or `NonSendMut`, if the return type does not use its lifetime; `self` and trait methods are not checked |
 | `zst_query` | Filter on a marker | `Query` data that fetches `&T` of a unit component |
 | `insert_message_resource` | Register messages with `add_message` | `init_resource` or `insert_resource` of `Messages<T>` |
@@ -159,8 +159,10 @@ fixed clock there.
 Integration tests and benchmarks are not checked for the rules on systems and for
 `missed_set_if_neq`: their schedules do not run in the game tick. Cargo sets
 `CARGO_TARGET_TMPDIR` only for these targets, and the driver reads it. The other rules apply to
-all targets. Unit tests in `#[cfg(test)]` modules compile with their library, so all rules apply
-to them.
+all targets. The same holds for code under `#[cfg(test)]`: rustc keeps a trace of the `cfg` in
+the HIR, and the driver reads it. A registration under `#[cfg(test)]` does not count as a use of
+the system, so a test app that runs a system without its run condition does not make the system
+ungated.
 
 ## 6. Matching of Bevy items
 
@@ -175,7 +177,7 @@ without a message.
 The `lint` job runs the check `ecs-lint` of `xtask`:
 
 1. It installs the toolchain of `lints/rust-toolchain.toml` and builds the driver.
-2. It runs `cargo check` in `lints/fixture`.
+2. It runs `cargo check --all-targets` in `lints/fixture`.
 3. It runs `cargo check --workspace --all-targets` with `RUSTC_WORKSPACE_WRAPPER` set to the
    driver.
 
@@ -197,7 +199,7 @@ MCRS_LINT_DEBUG=1 cargo check -p <crate>                 # shows each configurat
   The driver records this variable and `MCRS_LINT_DEBUG` in the dependency information, so a
   new value checks the crates again.
 - `lints/fixture` is the test of the linter. Each expected lint has an `#[expect]`, so
-  `cargo check --config 'build.warnings="deny"'` in `lints/fixture` fails on a missing lint and on an
+  `cargo check --all-targets --config 'build.warnings="deny"'` in `lints/fixture` fails on a missing lint and on an
   extra lint. The fixture has two crates, so it also tests the facts files.
 
 ## 9. Cost

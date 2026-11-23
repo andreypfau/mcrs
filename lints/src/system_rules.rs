@@ -13,6 +13,7 @@ use rustc_span::Span;
 
 use crate::anchors::Anchors;
 use crate::anchors::adt_of;
+use crate::anchors::in_cfg_test;
 use crate::anchors::type_arg_of;
 use crate::body_scan::BodyFacts;
 use crate::body_scan::BodyMap;
@@ -71,7 +72,10 @@ pub fn check<'tcx>(
 ) -> Vec<AlwaysChanged> {
     let mut always_changed = Vec::new();
     let mut by_system: FxIndexMap<DefId, Vec<&SystemUse<'tcx>>> = FxIndexMap::default();
-    for system_use in uses {
+    for system_use in uses
+        .iter()
+        .filter(|system_use| !in_cfg_test(cx.tcx, system_use.hir_id))
+    {
         by_system
             .entry(system_use.def)
             .or_default()
@@ -81,7 +85,10 @@ pub fn check<'tcx>(
         always_changed.extend(check_system(cx, def, &uses));
     }
     let mut seen = FxHashSet::default();
-    for observer in observers {
+    for observer in observers
+        .iter()
+        .filter(|observer| !in_cfg_test(cx.tcx, observer.hir_id))
+    {
         let LeafKind::System { def, inputs } = &observer.kind else {
             continue;
         };

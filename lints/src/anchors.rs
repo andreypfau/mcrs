@@ -1,3 +1,7 @@
+use rustc_ast::attr::data_structures::CfgEntry;
+use rustc_hir::Attribute;
+use rustc_hir::HirId;
+use rustc_hir::attrs::AttributeKind;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::DefId;
 use rustc_hir::def_id::LocalDefId;
@@ -33,6 +37,7 @@ pub struct Anchors {
     pub bundle: DefId,
     pub changed: DefId,
     pub added: DefId,
+    pub event_sources: Vec<DefId>,
     pub mut_ref: DefId,
 }
 
@@ -71,6 +76,16 @@ const REBORROWABLE: [&str; 8] = [
     "bevy_ecs::change_detection::Mut",
     "bevy_ecs::change_detection::ResMut",
     "bevy_ecs::change_detection::NonSendMut",
+];
+const EVENT_SOURCES: [&str; 8] = [
+    "bevy_ecs::message::Messages",
+    "bevy_ecs::message::MessageReader",
+    "bevy_ecs::message::MessageMutator",
+    "bevy_ecs::message::MessageIterator",
+    "bevy_ecs::message::MessageMutIterator",
+    "bevy_ecs::lifecycle::RemovedComponents",
+    "bevy_ecs::query::Changed",
+    "bevy_ecs::query::Added",
 ];
 const BLOCKING_FNS: [&str; 5] = [
     "std::thread::sleep",
@@ -139,6 +154,7 @@ impl Anchors {
         let entity_hosts = get_all(&ENTITY_HOSTS);
         let change_tracked = get_all(&CHANGE_TRACKED);
         let reborrowable = get_all(&REBORROWABLE);
+        let event_sources = get_all(&EVENT_SOURCES);
         let time = if find_crate(tcx, "bevy_time").is_some() {
             match (
                 get("bevy_time::Time"),
@@ -197,6 +213,7 @@ impl Anchors {
             bundle: bundle?,
             changed: changed?,
             added: added?,
+            event_sources,
             mut_ref: mut_ref?,
         })
     }
@@ -332,4 +349,26 @@ fn resolve_method(tcx: TyCtxt<'_>, ty: DefId, name: &str) -> Option<DefId> {
             .next()
             .map(|item| item.def_id)
     })
+}
+
+pub fn in_cfg_test(tcx: TyCtxt<'_>, hir_id: HirId) -> bool {
+    std::iter::once(hir_id)
+        .chain(tcx.hir_parent_id_iter(hir_id))
+        .any(|id| {
+            tcx.hir_attrs(id).iter().any(|attr| {
+                matches!(attr, Attribute::Parsed(AttributeKind::CfgTrace(cfgs))
+                    if cfgs.iter().any(|(cfg, _)| requires_test(cfg)))
+            })
+        })
+}
+
+fn requires_test(cfg: &CfgEntry) -> bool {
+    match cfg {
+        CfgEntry::NameValue {
+            name, value: None, ..
+        } => *name == rustc_span::sym::test,
+        CfgEntry::All(entries, _) => entries.iter().any(requires_test),
+        CfgEntry::Any(entries, _) => entries.iter().all(requires_test),
+        _ => false,
+    }
 }

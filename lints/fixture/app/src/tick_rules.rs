@@ -20,6 +20,7 @@ pub struct Counter(pub u8);
 #[derive(Resource, PartialEq)]
 pub struct Switch {
     pub on: bool,
+    pub ticks: u32,
 }
 
 #[derive(Resource)]
@@ -138,8 +139,25 @@ fn inserts_until_present(mut commands: Commands) {
     commands.insert_resource(Counter(0));
 }
 
+fn allocates_per_message(mut notes: MessageReader<Note>) {
+    for _ in notes.read() {
+        let copy: Vec<u8> = std::iter::once(1).collect();
+        drop(copy);
+    }
+}
+
+fn allocates_per_change(scores: Query<&Score, Changed<Score>>) {
+    for score in &scores {
+        let copy: Vec<u8> = std::iter::once(score.0).collect();
+        drop(copy);
+    }
+}
+
 fn toggles_switch(mut switch: ResMut<Switch>) {
     switch.on = !switch.on;
+    switch.ticks = switch.ticks.wrapping_add(1);
+    let was = std::mem::take(&mut switch.on);
+    switch.on = was;
 }
 
 fn joins_finished(mut worker: ResMut<Worker>) {
@@ -198,6 +216,8 @@ pub fn build_tick_rules(app: &mut App) {
             allocates_on_message.run_if(on_message::<Note>.and_then(gate)),
             inserts_until_present.run_if(not(resource_exists::<Counter>)),
             (
+                allocates_per_message,
+                allocates_per_change,
                 toggles_switch,
                 joins_finished,
                 inserts_after_return,
@@ -210,4 +230,21 @@ pub fn build_tick_rules(app: &mut App) {
     .add_observer(exclusive_observer)
     .add_observer(observer);
     messages(app);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn writes_in_test(mut scores: Query<&mut Score>) {
+        for mut score in &mut scores {
+            score.0 = 9;
+        }
+    }
+
+    #[test]
+    fn registers_without_gates() {
+        let mut app = App::new();
+        app.add_systems(Update, (writes_in_test, writes_on_change, reuses));
+    }
 }

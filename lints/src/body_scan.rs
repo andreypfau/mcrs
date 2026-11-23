@@ -1,3 +1,4 @@
+use rustc_ast::LitKind;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::BinOpKind;
 use rustc_hir::Block;
@@ -27,6 +28,7 @@ use rustc_span::Span;
 use crate::anchors::Anchors;
 use crate::anchors::adt_of;
 use crate::anchors::implements;
+use crate::anchors::in_cfg_test;
 use crate::anchors::type_arg_of;
 use crate::collect::Call;
 use crate::collect::call;
@@ -65,6 +67,8 @@ pub fn scan(tcx: TyCtxt<'_>, anchors: &Anchors, test: bool) -> BodyMap {
             compared: 0,
             finished: 0,
             detached: 0,
+            event: 0,
+            moved: Vec::new(),
             test,
             anchors,
             bodies: &mut bodies,
@@ -84,6 +88,8 @@ struct Scanner<'a, 'tcx> {
     compared: usize,
     finished: usize,
     detached: usize,
+    event: usize,
+    moved: Vec<(LocalDefId, String)>,
     test: bool,
     anchors: &'a Anchors,
     bodies: &'a mut BodyMap,
@@ -113,7 +119,7 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
     }
 
     fn visit_block(&mut self, block: &'tcx Block<'tcx>) {
-        let (mut compared, mut finished) = (0, 0);
+        let (mut compared, mut finished, mut event) = (0, 0, 0);
         for stmt in block.stmts {
             self.visit_stmt(stmt);
             let Some(condition) = early_exit(stmt) else {
@@ -128,6 +134,10 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
                 finished += 1;
                 self.finished += 1;
             }
+            if self.mentions_event(condition) {
+                event += 1;
+                self.event += 1;
+            }
         }
         if let Some(expr) = block.expr {
             self.visit_expr(expr);
@@ -135,6 +145,7 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
         self.conditional -= compared;
         self.compared -= compared;
         self.finished -= finished;
+        self.event -= event;
     }
 
     fn visit_expr(&mut self, expr: &'tcx Expr<'tcx>) {
@@ -143,6 +154,8 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
             ExprKind::If(condition, ..) => {
                 let compares = compares(condition);
                 let finished = calls_is_finished(condition);
+                let event = usize::from(self.mentions_event(condition));
+                self.event += event;
                 self.conditional += 1;
                 self.guarded += 1;
                 self.compared += usize::from(compares);
@@ -152,14 +165,18 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
                 self.compared -= usize::from(compares);
                 self.guarded -= 1;
                 self.conditional -= 1;
+                self.event -= event;
             }
-            ExprKind::Match(.., source) => {
+            ExprKind::Match(head, _, source) => {
                 let guards = usize::from(source == MatchSource::Normal);
+                let event = usize::from(self.mentions_event(head));
+                self.event += event;
                 self.conditional += 1;
                 self.guarded += guards;
                 walk_expr(self, expr);
                 self.guarded -= guards;
                 self.conditional -= 1;
+                self.event -= event;
             }
             ExprKind::Loop(..) => {
                 self.conditional += 1;
@@ -167,7 +184,10 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
                 self.conditional -= 1;
             }
             ExprKind::Assign(place, value, _) => {
-                if !self.negates(place, value) {
+                if !self.negates(place, value)
+                    && !self.counts(place, value)
+                    && !self.was_moved(place)
+                {
                     self.check_assign(expr, place);
                 }
                 walk_expr(self, expr);
@@ -193,7 +213,7 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
 
 impl<'tcx> Scanner<'_, 'tcx> {
     fn facts(&mut self) -> &mut BodyFacts {
-        let owner = self.owners.last().copied().unwrap_or(self.root);
+        let owner = self.owner();
         self.bodies.entry(owner).or_default()
     }
 
@@ -276,6 +296,13 @@ impl<'tcx> Scanner<'_, 'tcx> {
         let tcx = self.tcx;
         let anchors = self.anchors;
         self.check_unit_in_bundle(expr, callee, generics);
+        if anchors.moves.contains(&callee)
+            && let Some(ExprKind::AddrOf(_, _, place)) = args.first().map(|arg| arg.kind)
+            && let Some(root) = self.root(place)
+        {
+            let owner = self.owner();
+            self.moved.push((owner, root));
+        }
         if anchors.is_blocking(tcx, callee)
             && !(self.finished > 0 && tcx.item_name(callee).as_str() == "join")
         {
@@ -287,7 +314,10 @@ impl<'tcx> Scanner<'_, 'tcx> {
             self.facts().calls.push(local);
         }
         let empty = args.is_empty() && matches!(tcx.item_name(callee).as_str(), "new" | "default");
-        if !empty && !anchors.moves.contains(&callee) && anchors.is_heap(self.typeck.expr_ty(expr))
+        if self.event == 0
+            && !empty
+            && !anchors.moves.contains(&callee)
+            && anchors.is_heap(self.typeck.expr_ty(expr))
         {
             self.facts().allocs.push(expr.span);
         }
@@ -339,6 +369,86 @@ impl<'tcx> Scanner<'_, 'tcx> {
         }
     }
 
+    fn mentions_event(&self, expr: &'tcx Expr<'tcx>) -> bool {
+        let here = self.typeck.node_type_opt(expr.hir_id).is_some_and(|ty| {
+            ty.walk().any(|arg| {
+                arg.as_type()
+                    .and_then(adt_of)
+                    .is_some_and(|did| self.anchors.event_sources.contains(&did))
+            })
+        });
+        here || match expr.kind {
+            ExprKind::MethodCall(_, receiver, args, _) => {
+                self.mentions_event(receiver) || args.iter().any(|arg| self.mentions_event(arg))
+            }
+            ExprKind::Call(_, args) => args.iter().any(|arg| self.mentions_event(arg)),
+            ExprKind::Binary(_, left, right) => {
+                self.mentions_event(left) || self.mentions_event(right)
+            }
+            ExprKind::Unary(_, inner)
+            | ExprKind::AddrOf(_, _, inner)
+            | ExprKind::DropTemps(inner)
+            | ExprKind::Field(inner, _) => self.mentions_event(inner),
+            ExprKind::Let(binding) => self.mentions_event(binding.init),
+            _ => false,
+        }
+    }
+
+    fn owner(&self) -> LocalDefId {
+        self.owners.last().copied().unwrap_or(self.root)
+    }
+
+    fn root(&self, place: &Expr<'_>) -> Option<String> {
+        let mut current = place;
+        loop {
+            current = match current.kind {
+                ExprKind::Field(inner, _)
+                | ExprKind::Unary(UnOp::Deref, inner)
+                | ExprKind::Index(inner, ..) => inner,
+                ExprKind::Path(_) => {
+                    return self
+                        .tcx
+                        .sess
+                        .source_map()
+                        .span_to_snippet(current.span)
+                        .ok();
+                }
+                _ => return None,
+            };
+        }
+    }
+
+    fn was_moved(&self, place: &Expr<'_>) -> bool {
+        let owner = self.owner();
+        self.root(place).is_some_and(|root| {
+            self.moved
+                .iter()
+                .any(|(moved_owner, moved)| *moved_owner == owner && *moved == root)
+        })
+    }
+
+    fn counts(&self, place: &Expr<'_>, value: &Expr<'_>) -> bool {
+        let source = self.tcx.sess.source_map();
+        let same = |other: &Expr<'_>| {
+            matches!(
+                (source.span_to_snippet(place.span), source.span_to_snippet(other.span)),
+                (Ok(place), Ok(other)) if place == other
+            )
+        };
+        let nonzero = |step: &Expr<'_>| matches!(step.kind, ExprKind::Lit(lit) if matches!(lit.node, LitKind::Int(value, _) if value.get() != 0));
+        match value.kind {
+            ExprKind::Binary(op, left, right) => {
+                matches!(op.node, BinOpKind::Add | BinOpKind::Sub) && same(left) && nonzero(right)
+            }
+            ExprKind::MethodCall(segment, receiver, [step], _) => {
+                matches!(segment.ident.name.as_str(), "wrapping_add" | "wrapping_sub")
+                    && same(receiver)
+                    && nonzero(step)
+            }
+            _ => false,
+        }
+    }
+
     fn negates(&self, place: &'tcx Expr<'tcx>, value: &'tcx Expr<'tcx>) -> bool {
         let ExprKind::Unary(UnOp::Not, inner) = value.kind else {
             return false;
@@ -351,7 +461,11 @@ impl<'tcx> Scanner<'_, 'tcx> {
     }
 
     fn check_assign(&mut self, expr: &'tcx Expr<'tcx>, place: &'tcx Expr<'tcx>) {
-        if self.test || self.compared > 0 || !self.through_change_tracked(place) {
+        if self.test
+            || self.compared > 0
+            || !self.through_change_tracked(place)
+            || in_cfg_test(self.tcx, expr.hir_id)
+        {
             return;
         }
         let ty = self.typeck.expr_ty(place);

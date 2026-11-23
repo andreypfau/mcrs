@@ -732,7 +732,13 @@ fn ecs_lint(ctx: &Context) -> Outcome {
         ctx.exec_in(
             &lints.join("fixture"),
             "cargo",
-            &["check", "--locked", "--config", "build.warnings=\"deny\""],
+            &[
+                "check",
+                "--all-targets",
+                "--locked",
+                "--config",
+                "build.warnings=\"deny\"",
+            ],
             |_| {},
         )?,
         "lints/fixture has a missing or an extra ECS lint",
