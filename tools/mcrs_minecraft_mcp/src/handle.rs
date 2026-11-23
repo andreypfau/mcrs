@@ -198,8 +198,9 @@ pub struct Supervisor {
     watchdog: Option<std::process::ChildStdin>,
 }
 
-const WATCHDOG: &str = "trap '' INT TERM HUP; while read group; do set -- \"$@\" \"$group\"; done; \
-for group; do kill -TERM -\"$group\"; done 2>/dev/null; sleep 5; for group; do kill -KILL -\"$group\"; done 2>/dev/null";
+const WATCHDOG: &str = "trap '' INT TERM HUP; while read run; do set -- \"$@\" \"$run\"; done; \
+for run; do [ -e \"${run#* }/handle.json\" ] && kill -TERM -\"${run%% *}\"; done 2>/dev/null; sleep 5; \
+for run; do [ -e \"${run#* }/handle.json\" ] && kill -KILL -\"${run%% *}\"; done 2>/dev/null";
 
 impl Supervisor {
     pub fn command_line(workdir: PathBuf, session: Option<String>) -> Self {
@@ -267,7 +268,8 @@ impl Supervisor {
             control: launch.control,
         };
         if let Some(watchdog) = &mut self.watchdog {
-            writeln!(watchdog, "{}", handle.pid).map_err(|error| error.to_string())?;
+            writeln!(watchdog, "{} {}", handle.pid, dir.display())
+                .map_err(|error| error.to_string())?;
             std::thread::spawn(move || child.wait());
         }
         let text = serde_json::to_string(&handle).map_err(|error| error.to_string())?;
