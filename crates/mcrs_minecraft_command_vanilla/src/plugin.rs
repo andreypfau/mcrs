@@ -1,7 +1,8 @@
 #[cfg(feature = "locate")]
 use crate::locate;
 use crate::{
-    ban, damage, data, execute, gamemode, kill, mob_hit, op, summon, teleport, time, whitelist,
+    attribute, ban, damage, data, execute, gamemode, kill, mob_hit, op, summon, teleport, time,
+    whitelist,
 };
 use bevy_app::{App, Plugin};
 use bevy_ecs::system::IntoSystem;
@@ -20,7 +21,8 @@ impl Plugin for VanillaCommandsPlugin {
             .add_command_effect(op::apply)
             .add_command_effect(summon::apply)
             .add_command_effect(summon::apply_item)
-            .add_command_effect(mob_hit::apply);
+            .add_command_effect(mob_hit::apply)
+            .add_command_effect(attribute::apply);
         report(
             "execute",
             app.add_modifying_command(execute::build, execute::run, execute::modify),
@@ -32,6 +34,10 @@ impl Plugin for VanillaCommandsPlugin {
         report("summon", app.add_command(summon::build, summon::run));
         report("kill", app.add_command(kill::build, kill::run));
         report("damage", app.add_command(damage::build, damage::run));
+        report(
+            "attribute",
+            app.add_command(attribute::build, attribute::run),
+        );
         report(
             "data",
             app.add_command(data::build, data::find.pipe(data::read).pipe(data::reply)),

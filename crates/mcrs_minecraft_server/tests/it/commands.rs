@@ -309,8 +309,19 @@ fn an_operator_sees_completes_and_runs_a_plugin_command_that_a_guest_cannot() {
     assert_eq!(
         literals,
         [
-            "damage", "data", "echo", "execute", "gamemode", "kill", "locate", "shout", "summon",
-            "teleport", "time", "tp"
+            "attribute",
+            "damage",
+            "data",
+            "echo",
+            "execute",
+            "gamemode",
+            "kill",
+            "locate",
+            "shout",
+            "summon",
+            "teleport",
+            "time",
+            "tp"
         ]
     );
     let (guest, packets) = server.join(GUEST, "Guest");

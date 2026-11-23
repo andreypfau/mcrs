@@ -1,3 +1,4 @@
+mod attribute;
 mod ban;
 mod damage;
 mod data;

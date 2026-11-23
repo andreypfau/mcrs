@@ -14,6 +14,7 @@
 )]
 
 mod anvil_block_states;
+mod attribute_command;
 mod ban;
 mod block_break;
 mod block_entities;
