@@ -10,6 +10,7 @@ use mcrs_minecraft_engine::coordinator::birth_clock::BirthClockPlugin;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
 use mcrs_minecraft_engine_damage::{DamageSet, PendingHits};
+use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
@@ -89,6 +90,11 @@ impl Arena {
         let _ = server.ticks_all(2);
         let alice_player = server.player(alice);
         let bob_player = server.player(bob);
+        server
+            .world()
+            .get_mut::<Transform>(bob_player)
+            .unwrap()
+            .translation = DVec3::new(8.5, 64.0, 10.5);
         Self {
             server,
             alice,
@@ -368,7 +374,10 @@ fn the_server_accepts_or_refuses_an_attack() {
                 .0
                 .z;
             match gait {
-                Gait::Walk => walk_push = Some(pushed),
+                Gait::Walk => {
+                    assert!(pushed > 0.0, "{}: {pushed} <= 0", case.name);
+                    walk_push = Some(pushed);
+                }
                 Gait::Sprint => {
                     let walk = walk_push.expect("the walk row comes first");
                     assert!(pushed > walk, "{}: {pushed} <= {walk}", case.name);
