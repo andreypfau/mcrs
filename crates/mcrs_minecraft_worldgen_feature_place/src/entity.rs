@@ -635,8 +635,8 @@ mod tests {
         assert_eq!(cats.len(), 11);
         let cats = VariantTable::freeze(
             cats.iter().map(|(id, s)| (id.clone(), s.as_slice())),
-            &tagged("cats_spawn_as_black", &[7]),
-            &tagged("", &[]),
+            tagged("cats_spawn_as_black", &[7]),
+            tagged("", &[]),
         )
         .unwrap();
         let in_tag = |tag: &str| SpawnSelector {
@@ -660,8 +660,8 @@ mod tests {
                     std::slice::from_ref(&plain),
                 ),
             ],
-            &tagged("", &[]),
-            &tagged("spawns_cold_variant_farm_animals", &[5]),
+            tagged("", &[]),
+            tagged("spawns_cold_variant_farm_animals", &[5]),
         )
         .unwrap();
         let zombie_nautiluses = VariantTable::freeze(
@@ -675,8 +675,8 @@ mod tests {
                     std::slice::from_ref(&in_tag("spawns_coral_variant_zombie_nautilus")),
                 ),
             ],
-            &tagged("", &[]),
-            &tagged("spawns_coral_variant_zombie_nautilus", &[3]),
+            tagged("", &[]),
+            tagged("spawns_coral_variant_zombie_nautilus", &[3]),
         )
         .unwrap();
         VariantTables {
