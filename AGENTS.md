@@ -211,13 +211,14 @@ add a new use of what is listed here.
 - **No interior mutability or locks.** No `Mutex`, `RwLock`, `RefCell`, `Cell`,
   `OnceCell` holding mutable state, or atomics used as shared state.
 - **No trait objects.** No `dyn` and no `Any`. A heterogeneous set is a generic
-  parameter or an enum. A callback is a `fn` pointer or an id the host resolves.
+  parameter or an enum. A callback that the code stores is a `fn` pointer or an id the host resolves.
 - **How a kernel reads the world.** A kernel takes `&W`, where `W` is bound by the
   smallest traits it uses. One trait covers one aspect. Only the methods that
   define the aspect are required; every other method has a default body that
   returns `None`, `false` or empty. The crate that owns the trait owns the one
-  empty host. A closure seam is `impl Fn`, never `&dyn`. Copy `BodyView` and
-  `NoBodies` in `mcrs_minecraft_physics`.
+  empty host. A closure that a caller passes for one call is `impl Fn`, never `&dyn`.
+  `BodyView` and `NoBodies` in `mcrs_minecraft_physics` show a small trait with its
+  one empty host.
 - **No allocation on a hot path.** Scratch buffers belong to the caller. Borrow
   the input. An error is data, rendered to text at the edge. A hot path that
   claims zero allocations has a test with a counting allocator.
