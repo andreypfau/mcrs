@@ -1,12 +1,9 @@
-use std::iter;
 use std::num::NonZeroU8;
 use std::sync::LazyLock;
 
 use glam::DVec3;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_engine_registries::{test_corpus, test_item_table};
-use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
 use mcrs_minecraft_environment::{AttributeValue, WorldClock};
 use mcrs_minecraft_game_registries::registry_load::test_registries;
@@ -23,10 +20,8 @@ use mcrs_minecraft_loot_condition::{
     WeatherView,
 };
 use mcrs_minecraft_loot_table::{KeyedSeed, LootIssue, LootTables};
-use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt_path::NbtPath;
-use mcrs_minecraft_pose::Pose;
-use mcrs_minecraft_predicate::{ActiveEffect, EntityView, ItemSubject, LocationView};
+use mcrs_minecraft_predicate::{EntityView, ItemSubject, LocationView};
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_voxel::{BlockPos, BlockStateId};
@@ -135,125 +130,13 @@ impl LocationView for Around<'_> {
             .find(|(at, _)| *at == pos)
             .map(|&(_, state)| state)
     }
-
-    fn is_loaded(&self, pos: BlockPos) -> bool {
-        self.block_state(pos).is_some()
-    }
-
-    fn fluid_state(&self, _: BlockPos) -> Option<mcrs_minecraft_block::definition::FluidState> {
-        None
-    }
-
-    fn block_light(&self, _: BlockPos) -> Option<u8> {
-        None
-    }
-
-    fn sky_light(&self, _: BlockPos) -> Option<u8> {
-        None
-    }
-
-    fn sky_light_level(&self) -> Option<f32> {
-        None
-    }
-
-    fn biome(&self, _: BlockPos) -> Option<Id<mcrs_minecraft_biome::Biome>> {
-        None
-    }
-
-    fn inside_structure(
-        &self,
-        _: BlockPos,
-        _: Id<mcrs_minecraft_entity::spawn_condition::Structure>,
-    ) -> Option<bool> {
-        None
-    }
-
-    fn dimension(&self) -> Option<Id<mcrs_minecraft_dimension::Dimension>> {
-        None
-    }
-
-    fn block_entity_data(
-        &self,
-        _: BlockPos,
-        _: &mut mcrs_minecraft_nbt::compound::NbtCompound,
-    ) -> bool {
-        false
-    }
 }
 
 impl EntityView for Around<'_> {
     type Entity = ();
 
-    fn entity_type(&self, (): ()) -> Option<Id<EntityType>> {
-        None
-    }
-
-    fn position(&self, (): ()) -> Option<DVec3> {
-        None
-    }
-
-    fn is_on_ground(&self, (): ()) -> Option<bool> {
-        None
-    }
-
-    fn support_position(&self, (): ()) -> Option<BlockPos> {
-        None
-    }
-
-    fn movement_position(&self, (): ()) -> Option<BlockPos> {
-        None
-    }
-
-    fn reported_movement(&self, (): ()) -> Option<DVec3> {
-        None
-    }
-
-    fn fall_distance(&self, (): ()) -> Option<f64> {
-        None
-    }
-
-    fn saved_data(&self, (): (), _: &mut NbtCompound) -> bool {
-        false
-    }
-
-    fn is_burning(&self, (): ()) -> Option<bool> {
-        None
-    }
-
-    fn pose(&self, (): ()) -> Option<Pose> {
-        None
-    }
-
-    fn is_sprinting(&self, (): ()) -> Option<bool> {
-        None
-    }
-
-    fn is_swimming(&self, (): ()) -> Option<bool> {
-        None
-    }
-
-    fn is_in_water(&self, (): ()) -> Option<bool> {
-        None
-    }
-
     fn is_living(&self, (): ()) -> Option<bool> {
         self.main_hand.map(|_| true)
-    }
-
-    fn is_fall_flying(&self, (): ()) -> Option<bool> {
-        None
-    }
-
-    fn has_flying_ability(&self, (): ()) -> Option<bool> {
-        None
-    }
-
-    fn is_baby(&self, (): ()) -> Option<bool> {
-        None
-    }
-
-    fn active_effect(&self, (): (), _: Id<MobEffect>) -> Option<ActiveEffect> {
-        None
     }
 
     fn equipment(&self, (): (), slot: EquipmentSlot) -> Option<ItemSubject<'_>> {
@@ -262,34 +145,6 @@ impl EntityView for Around<'_> {
             EquipmentSlot::MainHand => ItemSubject::Stack(stack),
             _ => ItemSubject::Empty,
         })
-    }
-
-    fn slot(&self, (): (), _: u16) -> Option<ItemSubject<'_>> {
-        None
-    }
-
-    fn tick_count(&self, (): ()) -> Option<u32> {
-        None
-    }
-
-    fn vehicle(&self, (): ()) -> Option<()> {
-        None
-    }
-
-    fn passengers(&self, (): ()) -> Option<impl Iterator<Item = ()>> {
-        None::<iter::Empty<()>>
-    }
-
-    fn attack_target(&self, (): ()) -> Option<()> {
-        None
-    }
-
-    fn team(&self, (): ()) -> Option<&str> {
-        None
-    }
-
-    fn has_scoreboard_tag(&self, (): (), _: &str) -> Option<bool> {
-        None
     }
 }
 
@@ -317,10 +172,6 @@ impl EnvironmentView for Around<'_> {
 
 impl WeatherView for Around<'_> {
     fn rain_strength(&self) -> Option<f32> {
-        None
-    }
-
-    fn thunder_strength(&self) -> Option<f32> {
         None
     }
 }

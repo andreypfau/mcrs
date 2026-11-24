@@ -7,7 +7,7 @@ use mcrs_minecraft_loot_condition::{ContextParam, LootContext, ParamNotAllowed};
 use mcrs_minecraft_loot_table::{
     LootIssue, LootProblem, LootScratch, LootTableFile, LootTables, RollError,
 };
-use mcrs_minecraft_predicate::NoWorld;
+use mcrs_minecraft_predicate::BlockHost;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registries::Registries;
@@ -484,7 +484,7 @@ fn loot_ctx_012_a_context_without_a_required_parameter_is_refused() {
         let rolled = LOOT.0.roll(
             table,
             &context,
-            &NoWorld,
+            &BlockHost::none(),
             &mut stream(&LOOT.0, block_table(&LOOT.0, stone), 0),
             &mut LootScratch::new(),
             &mut stacks,
@@ -509,7 +509,7 @@ pub fn roll_with_stream(name: &str) -> (Vec<(String, u8)>, XoroshiroRandom) {
         .roll(
             table,
             &context(state("minecraft:stone", &[]), None),
-            &NoWorld,
+            &BlockHost::none(),
             &mut random,
             &mut LootScratch::new(),
             &mut stacks,
@@ -614,8 +614,15 @@ fn a_roll_of_a_block_table_allocates_nothing_after_warm_up() {
         let mut context: LootContext<'_, ()> = context(stone, Some(&fortune));
         context.contents = &contents;
         let before = allocations();
-        loot.roll(table, &context, &NoWorld, &mut random, scratch, stacks)
-            .expect("a block context");
+        loot.roll(
+            table,
+            &context,
+            &BlockHost::none(),
+            &mut random,
+            scratch,
+            stacks,
+        )
+        .expect("a block context");
         allocations() - before
     };
     for case in cases {

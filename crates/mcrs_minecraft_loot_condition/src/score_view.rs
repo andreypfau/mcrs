@@ -1,4 +1,4 @@
-use mcrs_minecraft_predicate::NoWorld;
+use mcrs_minecraft_predicate::BlockHost;
 
 pub trait ScoreView<E> {
     fn score(&self, holder: ScoreHolder<'_, E>, objective: &str) -> Option<i32>;
@@ -10,7 +10,7 @@ pub enum ScoreHolder<'a, E> {
     Name(&'a str),
 }
 
-impl<E> ScoreView<E> for NoWorld {
+impl<F, E> ScoreView<E> for BlockHost<F, E> {
     fn score(&self, _: ScoreHolder<'_, E>, _: &str) -> Option<i32> {
         None
     }
