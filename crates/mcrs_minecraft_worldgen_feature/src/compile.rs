@@ -323,7 +323,7 @@ impl std::fmt::Display for StateQuery<'_> {
 }
 
 pub fn states_of(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     query: StateQuery<'_>,
 ) -> Result<StateMask, FeatureCompileError> {
     let name = query.to_string();
@@ -333,7 +333,7 @@ pub fn states_of(
 }
 
 pub fn state_of(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     state: &BlockState,
 ) -> Result<VoxelId, FeatureCompileError> {
     blocks
@@ -343,7 +343,7 @@ pub fn state_of(
 
 pub fn compile_predicate(
     predicate: &BlockPredicate<Named>,
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<Predicate, FeatureCompileError> {
     let matching = |offset: &Offset, query| {
         Ok::<_, FeatureCompileError>(Predicate::MatchingStates {
@@ -416,7 +416,7 @@ pub fn compile_predicate(
 
 fn compile_predicates(
     predicates: &[BlockPredicate<Named>],
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<Vec<Predicate>, FeatureCompileError> {
     predicates
         .iter()
@@ -426,7 +426,7 @@ fn compile_predicates(
 
 pub fn compile_rule(
     rule: &RuleTest,
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<Rule, FeatureCompileError> {
     Ok(match rule {
         RuleTest::AlwaysTrue => Rule::AlwaysTrue,
@@ -465,7 +465,7 @@ pub fn compile_rule(
 
 fn compile_rules(
     rules: &[RuleTest],
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<Vec<Rule>, FeatureCompileError> {
     rules
         .iter()
@@ -475,7 +475,7 @@ fn compile_rules(
 
 pub fn compile_placement(
     placement: &[PlacementModifier],
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<Vec<Modifier>, FeatureCompileError> {
     placement
         .iter()

@@ -34,10 +34,10 @@ pub struct TreePalette {
     pub creaking_heart: VoxelId,
 }
 
-pub struct DecoratorContext<'a, W> {
+pub struct DecoratorContext<'a, W, S> {
     pub volume: &'a mut W,
     pub tables: &'a TreeTables,
-    pub sink: &'a mut dyn TreeSink<W>,
+    pub sink: &'a mut S,
     logs: Vec<BlockPos>,
     leaves: Vec<BlockPos>,
     roots: Vec<BlockPos>,
@@ -77,11 +77,11 @@ pub(crate) fn java_set_order(positions: &[BlockPos]) -> Vec<BlockPos> {
     table.into_iter().flatten().map(|(_, pos)| pos).collect()
 }
 
-impl<'a, W: WorldGenVolume> DecoratorContext<'a, W> {
+impl<'a, W: WorldGenVolume, S: TreeSink<W>> DecoratorContext<'a, W, S> {
     pub fn new(
         volume: &'a mut W,
         tables: &'a TreeTables,
-        sink: &'a mut dyn TreeSink<W>,
+        sink: &'a mut S,
         logs: &[BlockPos],
         leaves: &[BlockPos],
         roots: &[BlockPos],
@@ -171,7 +171,7 @@ impl CompiledTreeDecorator {
     )]
     pub fn place<W: WorldGenVolume>(
         &self,
-        ctx: &mut DecoratorContext<W>,
+        ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
         rng: &mut WorldgenRandom,
     ) {
         match &self.0 {
@@ -433,7 +433,11 @@ fn by_horizontal<T: Copy>(by_side: &[T; 4], side: Direction) -> Option<T> {
         .find_map(|(each, &value)| (*each == side).then_some(value))
 }
 
-fn hang_vine<W: WorldGenVolume>(ctx: &mut DecoratorContext<W>, pos: BlockPos, side: Direction) {
+fn hang_vine<W: WorldGenVolume>(
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
+    pos: BlockPos,
+    side: Direction,
+) {
     ctx.place_vine(pos, side);
     let mut cursor = pos + IVec3::NEG_Y;
     let mut left = 4;
@@ -445,7 +449,7 @@ fn hang_vine<W: WorldGenVolume>(ctx: &mut DecoratorContext<W>, pos: BlockPos, si
 }
 
 fn hang_moss<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     pos: BlockPos,
     rng: &mut WorldgenRandom,
 ) {
@@ -459,7 +463,7 @@ fn hang_moss<W: WorldGenVolume>(
 }
 
 fn place_circle<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     provider: &StateProvider,
     rng: &mut WorldgenRandom,
     centre: BlockPos,
@@ -485,7 +489,7 @@ fn place_circle<W: WorldGenVolume>(
 }
 
 fn place_beehive<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     rng: &mut WorldgenRandom,
     probability: f32,
 ) {
@@ -530,7 +534,7 @@ fn place_beehive<W: WorldGenVolume>(
 }
 
 fn place_mushrooms_on_standing_tree<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     rng: &mut WorldgenRandom,
     base_y: i32,
 ) {
@@ -560,7 +564,7 @@ fn place_mushrooms_on_standing_tree<W: WorldGenVolume>(
 }
 
 fn place_mushrooms_on_fallen_log<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     rng: &mut WorldgenRandom,
     first: BlockPos,
     last: BlockPos,
@@ -590,20 +594,23 @@ fn place_mushrooms_on_fallen_log<W: WorldGenVolume>(
 }
 
 fn replaceable_with_shelf_mushroom<W: WorldGenVolume>(
-    ctx: &DecoratorContext<W>,
+    ctx: &DecoratorContext<W, impl TreeSink<W>>,
     pos: BlockPos,
 ) -> bool {
     ctx.holds(&ctx.volume.world().replaceable, pos) && !ctx.is_water_or_water_nearby(pos)
 }
 
-fn shelf_mushroom_beside<W: WorldGenVolume>(ctx: &DecoratorContext<W>, pos: BlockPos) -> bool {
+fn shelf_mushroom_beside<W: WorldGenVolume>(
+    ctx: &DecoratorContext<W, impl TreeSink<W>>,
+    pos: BlockPos,
+) -> bool {
     Direction::HORIZONTAL
         .iter()
         .any(|side| ctx.holds(&ctx.tables.palette.shelf_mushrooms, pos + side.normal()))
 }
 
 fn place_shelf_mushroom<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     pos: BlockPos,
     facing: Direction,
     rng: &mut WorldgenRandom,

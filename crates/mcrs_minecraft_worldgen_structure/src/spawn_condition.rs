@@ -53,10 +53,10 @@ pub struct VariantTable {
 impl VariantTable {
     pub fn freeze<'a>(
         entries: impl IntoIterator<Item = (ResourceLocationBuf, &'a [SpawnSelector<Named>])>,
-        structures: &dyn Fn(
+        structures: impl Fn(
             &KeySet<mcrs_minecraft_entity::spawn_condition::Structure>,
         ) -> Result<IdSet, String>,
-        biomes: &dyn Fn(&KeySet<mcrs_minecraft_biome::Biome>) -> Result<IdSet, String>,
+        biomes: impl Fn(&KeySet<mcrs_minecraft_biome::Biome>) -> Result<IdSet, String>,
     ) -> Result<Self, String> {
         let mut table = VariantTable::default();
         for (id, selectors) in entries {

@@ -160,13 +160,13 @@ fn veins_of(
     decorate(
         &program.present(&[0]),
         0..1,
-        &|step, index| program.chain(step, index),
-        &|biome, step, index| program.carries(biome, step, index),
+        |step, index| program.chain(step, index),
+        |biome, step, index| program.carries(biome, step, index),
         &mut region,
         &mut scratch,
         origin,
         seed,
-        &mut |(_, index), region, rng, at, _| {
+        |(_, index), region, rng, at| {
             let Some(Generator::Ore(ore)) = program.generator_at(0, index) else {
                 return false;
             };

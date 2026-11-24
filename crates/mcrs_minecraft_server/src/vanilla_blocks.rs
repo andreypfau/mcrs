@@ -10,9 +10,8 @@ use mcrs_minecraft_engine::block_simulation::{
 };
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::block_drops::{BlockDrops, DroppingBlock};
-use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_item_stack::{Count, ItemStack as StackValue, Kind};
+use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{LootContext, Tool};
@@ -81,12 +80,6 @@ impl BlockDrops for VanillaBlocks {
         let Some(table) = table else {
             return;
         };
-        let tool = block.tool.and_then(|stack| {
-            Some(StackValue::new(
-                Kind(stack.item.number()),
-                Count::new(stack.count)?,
-            ))
-        });
         let Some(mut context) = LootContext::try_new(ContextKeySet::Block) else {
             return;
         };
@@ -96,7 +89,7 @@ impl BlockDrops for VanillaBlocks {
             f64::from(block.at.z) + 0.5,
         ));
         context.block_state = Some(block.state);
-        context.tool = Some(tool.as_ref().map_or(Tool::Empty, Tool::Stack));
+        context.tool = Some(block.tool.as_ref().map_or(Tool::Empty, Tool::Stack));
         context.this_entity = block.breaker;
         let random = self.loot.keyed_stream(KeyedSeed {
             world: block.world_seed,
@@ -123,10 +116,11 @@ impl BlockDrops for VanillaBlocks {
             tracing::warn!("a block table did not roll: {error}");
             return;
         }
-        drops.extend(stacks.into_iter().flatten().filter_map(|stack| {
-            let item = Id::<Item>::checked(stack.kind.0, self.item_count)?;
-            Some(ItemStack::new(item, stack.count.get()))
-        }));
+        drops.extend(
+            stacks.into_iter().flatten().filter_map(|stack| {
+                Id::<Item>::checked(stack.kind.0, self.item_count).map(|_| stack)
+            }),
+        );
     }
 }
 

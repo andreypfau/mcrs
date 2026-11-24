@@ -5,7 +5,7 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 
 use crate::orient::{Orientation, find_collision, move_below_sea_level, orient_box, orient_box_at};
 use crate::piece::{Piece, SmallDoor, StrongholdKind, StrongholdPiece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 use super::{PieceWeight, TableEntry, WeightTable};
 
@@ -15,7 +15,10 @@ const START_Y: i32 = 64;
 const REACH: i32 = 112;
 const SEA_LEVEL_OFFSET: i32 = 10;
 
-pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    _rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     let chunk = ctx.chunk;
     Some((
         IVec3::new(chunk.min_block_x(), 0, chunk.min_block_z()),
@@ -67,7 +70,7 @@ struct Layout {
     start_min: IVec3,
 }
 
-pub fn layout(ctx: &mut Context<'_>, _site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, _site: Site) -> Vec<Piece> {
     use StrongholdKind::*;
     let weights = [
         entry(

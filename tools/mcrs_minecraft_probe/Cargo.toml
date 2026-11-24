@@ -30,7 +30,7 @@ mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_snbt.workspace = true
-mcrs_minecraft_sound.workspace = true
+mcrs_minecraft_sound = { workspace = true, features = ["registry"] }
 mcrs_minecraft_text.workspace = true
 mcrs_voxel.workspace = true
 md-5.workspace = true

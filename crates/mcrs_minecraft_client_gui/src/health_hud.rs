@@ -1,14 +1,13 @@
 use bevy::math::IVec2;
 use bevy::prelude::*;
 use mcrs_minecraft_client_world::food_level::FoodLevel;
-use mcrs_minecraft_client_world::game_mode::LocalGameMode;
 use mcrs_minecraft_client_world::hardcore_mode::HardcoreMode;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 
 use crate::hud_systems::HudSystems;
 use crate::scene::{GuiQuad, GuiScene, GuiSize, sprite};
@@ -81,7 +80,7 @@ fn count_hud_ticks(mut ticks: ResMut<HudTicks>) {
 fn draw_health_hud(
     player: Single<
         (
-            &LocalGameMode,
+            &PlayerGameMode,
             &Vitals,
             &FoodLevel,
             Option<&AttributeInstances>,
@@ -94,7 +93,7 @@ fn draw_health_hud(
     mut scene: ResMut<GuiScene>,
 ) {
     let (mode, vitals, food, attributes, hardcore) = *player;
-    if !matches!(mode.current, GameMode::Survival | GameMode::Adventure)
+    if !matches!(mode.0, GameMode::Survival | GameMode::Adventure)
         || screen.is_some_and(|screen| *screen == Screen::LevelLoading)
     {
         return;

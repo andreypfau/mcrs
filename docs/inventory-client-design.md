@@ -66,7 +66,8 @@ specification.
 | `Slots`, `InSlot`, `SlotPolicy` on the client | as `docs/inventory-design.md` section 2 | the client edge; `PlayerHoldersPlugin` for the policy |
 | `PlayerHolders` on the client | authoritative truth: the three child holders of the local player | `PlayerHoldersPlugin` |
 | `Selected` on the client | authoritative truth: the selected hotbar slot of the local player. It is the same component as on the server. Nothing copies it. | the key and wheel input of the client, the held-slot and login observers of the client world, the spawn of the local player (`player_at`), `restore_holders` (queued at the first login), and a bot through `ControlledClient` |
-| `PlayerGameMode` on the client | materialized derived state: a projection of `LocalGameMode`. The client derives it from the local game mode until the GUI half reads one value. The take filter (INV-SLT-004) and the spectator check read it. | one projection system of the client world, in the fixed tick and in each frame |
+| `PlayerGameMode` on the client | authoritative truth: the game mode of the local player. It is the same component as on the server. Nothing copies it. The take filter (INV-SLT-004) and the spectator check read it. | the login, respawn and game event observers of the client world, and the spawn of the local player (`player_at`, `joined_game`) |
+| `PreviousGameMode` on the client | authoritative truth: the game mode before the last change. It is the same component as in the shared game mode crate. The game mode switcher reads it. | the same observers and spawn as `PlayerGameMode` |
 | `Abilities` on the client | authoritative truth: the abilities of the last `player_abilities` packet or game mode change. Its `instant_build` is the creative flag, which gives infinite materials to a predicted click (CINV-PRD-001) and the creative flag of a gesture. | the observers of `GameModePlugin` in the client world |
 | `Click` | a value; one gesture on one menu entry | the reader that makes it |
 | `MenuInput` | temporal fact: one click, one creative click or one close of a viewer, in the order of the inputs | a bot, a GUI or a screen |
@@ -285,9 +286,9 @@ The data flow of one click in one frame:
 | frame | the screens crate | Derives the hovered slot and the tooltip from the predicted holders. |
 
 A headless client runs the same `Update` schedule with no window, so a bot gets the same order.
-The projection of `PlayerGameMode` runs before `InventoryClientSet::Predict` in the two schedules.
-Each writer of `Selected` writes it directly. The input runs in `RunFixedMainLoop`, and the
-observers run when the packet arrives in `Receive`. Both run before `Predict`.
+Each writer of `Selected` and of `PlayerGameMode` writes it directly. The input runs in
+`RunFixedMainLoop`, and the observers run when the packet arrives in `Receive`. Both run before
+`Predict`.
 
 A prediction uses the same planner and the same commit as the server. Thus a click gives the same
 slots on the two sides when the two sides have the same slots. The client edge stores no predicted

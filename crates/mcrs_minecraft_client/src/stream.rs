@@ -19,14 +19,13 @@ use mcrs_voxel::{BlockPos, ColumnPos, LocalPos, SectionPos};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::tint::{self, BiomeTints};
 use crate::vanilla::VanillaAssets;
-use mcrs_minecraft_client_world::game_mode::LocalGameMode;
 use mcrs_minecraft_client_world::joined_game::CurrentDimension;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::registries::SessionSet;
 use mcrs_minecraft_client_world::session::session_boundary;
 use mcrs_minecraft_dimension::CardinalLight;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
@@ -1613,10 +1612,10 @@ fn place_meshes(
 fn project_camera_section_ready(
     loader: Res<Loader>,
     store: Res<ColumnStore>,
-    modes: Query<&LocalGameMode, With<Player>>,
+    modes: Query<&PlayerGameMode, With<Player>>,
     mut ready: ResMut<CameraSectionReady>,
 ) {
-    let spectator = modes.iter().any(|mode| mode.current == GameMode::Spectator);
+    let spectator = modes.iter().any(|mode| mode.0 == GameMode::Spectator);
     ready.set_if_neq(CameraSectionReady(
         spectator || loader.camera_section_drawable(&store),
     ));

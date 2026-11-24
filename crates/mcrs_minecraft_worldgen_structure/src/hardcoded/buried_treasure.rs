@@ -6,13 +6,16 @@ use mcrs_voxel::BlockPos;
 
 use super::on_top_of_chunk_centre;
 use crate::piece::{BuriedTreasurePiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
-pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    _rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     on_top_of_chunk_centre(ctx, HeightmapName::OceanFloorWg)
 }
 
-pub fn layout(ctx: &mut Context<'_>, _site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, _site: Site) -> Vec<Piece> {
     let offset = BlockPos::new(
         ctx.chunk.min_block_x() + BuriedTreasurePiece::CHUNK_OFFSET,
         BuriedTreasurePiece::LAYOUT_Y,

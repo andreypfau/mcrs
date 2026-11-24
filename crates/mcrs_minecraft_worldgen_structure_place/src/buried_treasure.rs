@@ -21,7 +21,7 @@ pub struct BuriedTreasureBlocks {
 
 impl BuriedTreasureBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let mut open = fixedbitset::FixedBitSet::clone(&world.air_states);

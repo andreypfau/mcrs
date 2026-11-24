@@ -24,7 +24,7 @@ pub struct CompiledSpline {
 }
 
 impl CompiledSpline {
-    pub fn eval<'a>(&self, out: &mut [f32], coords: &dyn Fn(usize) -> Runs<'a>, ext: &SampleGrid) {
+    pub fn eval<'a>(&self, out: &mut [f32], coords: &impl Fn(usize) -> Runs<'a>, ext: &SampleGrid) {
         each_column(out, ext, |run, ix, iz| {
             let read = |k: usize| coords(k).col(ix, iz);
             for (i, slot) in run.iter_mut().enumerate() {
@@ -38,7 +38,7 @@ impl CompiledSpline {
     }
 }
 
-fn sample<'a>(value: &SplineValue, read: &dyn Fn(usize) -> &'a [f32], i: usize) -> f32 {
+fn sample<'a>(value: &SplineValue, read: &impl Fn(usize) -> &'a [f32], i: usize) -> f32 {
     let m = match value {
         SplineValue::Constant(v) => return *v,
         SplineValue::Multipoint(m) => m,
