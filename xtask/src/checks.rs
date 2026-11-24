@@ -717,6 +717,25 @@ fn clippy(ctx: &Context) -> Outcome {
         ctx.exec("cargo", &args)?,
         "clippy reported diagnostics",
         "resolve the diagnostics above",
+    )?;
+    verdict(
+        ctx.exec(
+            "cargo",
+            &[
+                "clippy",
+                "-p",
+                "mcrs_minecraft_client",
+                "--all-targets",
+                "--locked",
+                "--features",
+                "dev",
+                "--",
+                "-D",
+                "warnings",
+            ],
+        )?,
+        "clippy reported diagnostics for the client with its dev feature",
+        "resolve the diagnostics above",
     )
 }
 
