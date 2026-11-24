@@ -48,19 +48,30 @@ pub fn apply_edit(world: &mut World, edit: ServerEdit) {
                 });
             }
         }
-        ServerEdit::StartSprint { ticks } => edit_pace(world, |pace| pace.start_sprint(ticks)),
-        ServerEdit::StopSprint => edit_pace(world, TickPace::stop_sprint),
-        ServerEdit::TickRate { rate } => edit_pace(world, |pace| pace.set_rate(rate)),
-        ServerEdit::Freeze => edit_pace(world, TickPace::freeze),
-        ServerEdit::Unfreeze => edit_pace(world, TickPace::unfreeze),
-        ServerEdit::Step { ticks } => edit_pace(world, |pace| pace.step(ticks)),
-        ServerEdit::StopStep => edit_pace(world, TickPace::stop_step),
+        ServerEdit::StartSprint { .. }
+        | ServerEdit::StopSprint
+        | ServerEdit::TickRate { .. }
+        | ServerEdit::Freeze
+        | ServerEdit::Unfreeze
+        | ServerEdit::Step { .. }
+        | ServerEdit::StopStep => {
+            if let Some(mut pace) = world.get_resource_mut::<TickPace>() {
+                edit_pace(&mut pace, edit);
+            }
+        }
     }
 }
 
-fn edit_pace(world: &mut World, edit: impl FnOnce(&mut TickPace)) {
-    if let Some(mut pace) = world.get_resource_mut::<TickPace>() {
-        edit(&mut pace);
+fn edit_pace(pace: &mut TickPace, edit: ServerEdit) {
+    match edit {
+        ServerEdit::StartSprint { ticks } => pace.start_sprint(ticks),
+        ServerEdit::StopSprint => pace.stop_sprint(),
+        ServerEdit::TickRate { rate } => pace.set_rate(rate),
+        ServerEdit::Freeze => pace.freeze(),
+        ServerEdit::Unfreeze => pace.unfreeze(),
+        ServerEdit::Step { ticks } => pace.step(ticks),
+        ServerEdit::StopStep => pace.stop_step(),
+        ServerEdit::GameRule { .. } | ServerEdit::ClearWeather { .. } => {}
     }
 }
 
