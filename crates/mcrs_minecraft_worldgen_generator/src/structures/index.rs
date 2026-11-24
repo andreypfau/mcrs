@@ -298,12 +298,12 @@ impl StructureIndex {
         }
     }
 
-    fn context<'a>(
+    fn context<'a, 'v>(
         &'a self,
-        view: &'a mut View<'_>,
+        view: &'a mut View<'v>,
         chunk: ColumnPos,
         structure: StructureId,
-    ) -> Context<'a> {
+    ) -> Context<'a, View<'v>> {
         Context {
             frozen: &self.tables.frozen,
             structure: &self.tables.frozen.structures[usize::from(structure.0)],

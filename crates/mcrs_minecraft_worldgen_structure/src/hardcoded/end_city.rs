@@ -8,7 +8,7 @@ use mcrs_minecraft_worldgen_feature::template::{bounding_box, transform};
 use super::lowest_corner_site;
 use crate::frozen::FrozenStructures;
 use crate::piece::{EndCityPiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 const BASE_FLOOR: ResourceLocation<'static> = rl!("minecraft:end_city/base_floor");
 const BASE_ROOF: ResourceLocation<'static> = rl!("minecraft:end_city/base_roof");
@@ -70,11 +70,14 @@ const FAT_TOWER_BRIDGES: [(Rotation, IVec3); 4] = [
     (Rotation::Clockwise180, IVec3::new(8, -1, 12)),
 ];
 
-pub fn site(ctx: &mut Context<'_>, rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     lowest_corner_site(ctx, rng)
 }
 
-pub fn layout(ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, site: Site) -> Vec<Piece> {
     let Stub::Rotated(rotation) = site.stub else {
         return Vec::new();
     };
