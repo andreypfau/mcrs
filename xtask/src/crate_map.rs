@@ -133,9 +133,18 @@ pub fn check(root: &Path) -> Result<String, String> {
 
 pub fn write(root: &Path) -> Result<usize, String> {
     let workspace = Workspace::load(root)?;
+    let crates = crates(&workspace);
+    let problems = problems(
+        crates
+            .iter()
+            .map(|package| (package.name.as_str(), package.description.as_deref())),
+    );
+    if !problems.is_empty() {
+        return Err(problems.join("; "));
+    }
     let path = root.join(MAP_PATH);
     fs::write(&path, render(&workspace)).map_err(|error| format!("{}: {error}", path.display()))?;
-    Ok(crates(&workspace).len())
+    Ok(crates.len())
 }
 
 #[cfg(test)]
