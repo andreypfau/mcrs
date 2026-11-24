@@ -20,7 +20,7 @@ use crate::{block_mask, ignore_blocks, place_positional, state};
 use mcrs_minecraft_block::block_keys::Block;
 
 pub fn ignore_structure_and_air(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<CompiledChain, FeatureCompileError> {
     ignore_blocks(blocks, &[Block::StructureBlock, Block::Air])
 }
@@ -119,7 +119,7 @@ pub struct IglooBlocks {
 }
 
 impl IglooBlocks {
-    pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
+    pub fn compile(blocks: &impl BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(IglooBlocks {
             chain: ignore_blocks(blocks, &[Block::StructureBlock])?,
             snow_block: state(blocks, Block::SnowBlock, &[])?,

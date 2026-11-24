@@ -33,7 +33,7 @@ impl ChestStates {
         }
     }
 
-    pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
+    pub fn compile(blocks: &impl BlockResolver) -> Result<Self, FeatureCompileError> {
         let facing = |name| state(blocks, Block::Chest, &[("facing", name)]);
         Ok(ChestStates {
             facing: [
@@ -48,7 +48,7 @@ impl ChestStates {
 }
 
 pub fn replaceable_by_structures(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     world: &WorldStates,
 ) -> Result<StateMask, FeatureCompileError> {
     let mut mask = fixedbitset::FixedBitSet::clone(&world.air_states);

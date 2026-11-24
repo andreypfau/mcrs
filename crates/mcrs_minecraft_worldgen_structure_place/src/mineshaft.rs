@@ -73,7 +73,7 @@ pub struct MineshaftBlocks {
 
 impl MineshaftBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
         mineshaft_type: MineshaftType,
         blocking: BiomeMask,

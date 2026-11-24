@@ -26,7 +26,6 @@ use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_item::Stacks;
-use mcrs_minecraft_engine_item::stack_capacity;
 use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_inventory_click::ClickPlayer;
@@ -479,7 +478,7 @@ fn slot_locked(stack: &ItemStack) -> bool {
 }
 
 fn capacity(table: &ItemTable, stack: &ItemStack) -> u8 {
-    stack_capacity(table.effective::<MaxStackSize>(stack))
+    Count::capacity(table.effective::<MaxStackSize>(stack))
 }
 
 fn with_count(stack: &ItemStack, count: u8) -> Option<ItemStack> {

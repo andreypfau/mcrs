@@ -887,16 +887,17 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
             decorate(
                 &present,
                 step..step + 1,
-                &|step, index| program.chain(step, index),
-                &|biome, step, index| program.carries(biome, step, index),
+                |step, index| program.chain(step, index),
+                |biome, step, index| program.carries(biome, step, index),
                 region,
                 scratch,
                 origin,
                 seed,
-                &mut |(step, index), region, rng, at, carries| match program
-                    .generator_at(step, index)
-                {
-                    Some(generator) => generator.place(&mut run, region, rng, at, carries),
+                |(step, index), region, rng, at| match program.generator_at(step, index) {
+                    Some(generator) => {
+                        let carries = |biome: u16| program.carries(biome, step, index);
+                        generator.place(&mut run, region, rng, at, &carries)
+                    }
                     None => false,
                 },
             );

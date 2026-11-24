@@ -58,7 +58,7 @@ impl BaseColumn<'_> {
     }
 }
 
-pub struct Context<'a> {
+pub struct Context<'a, W> {
     pub frozen: &'a FrozenStructures,
     pub structure: &'a FrozenStructure,
     pub chunk: ColumnPos,
@@ -66,7 +66,7 @@ pub struct Context<'a> {
     pub height: HeightContext,
     pub accessor_min_y: i32,
     pub accessor_height: i32,
-    pub world: &'a mut dyn SiteWorld,
+    pub world: &'a mut W,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -137,7 +137,7 @@ static FEATURE_JIGSAW: LazyLock<JigsawBlock> = LazyLock::new(|| {
     }
 });
 
-pub fn site(ctx: &mut Context<'_>) -> Option<Site> {
+pub fn site(ctx: &mut Context<'_, impl SiteWorld>) -> Option<Site> {
     let mut rng = LegacyRandom::large_feature(ctx.seed, ctx.chunk.x, ctx.chunk.z);
     let structure = ctx.structure;
     let (position, stub) = match &structure.kind {
@@ -184,7 +184,7 @@ pub fn site(ctx: &mut Context<'_>) -> Option<Site> {
     })
 }
 
-pub fn layout(ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, site: Site) -> Vec<Piece> {
     let structure = ctx.structure;
     match &structure.kind {
         StructureKind::Jigsaw { config, .. } => crate::jigsaw::layout(ctx, config, site)
@@ -219,7 +219,7 @@ pub fn layout(ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
 }
 
 fn jigsaw_site(
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     start_pool: PoolId,
     config: &crate::JigsawConfig,
     rng: &mut LegacyRandom,
