@@ -21,7 +21,7 @@ pub struct EndCityChains {
 }
 
 impl EndCityChains {
-    pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
+    pub fn compile(blocks: &impl BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(EndCityChains {
             overwrite: ignore_blocks(blocks, &[Block::StructureBlock])?,
             keep_air: ignore_blocks(blocks, &[Block::Air, Block::StructureBlock])?,

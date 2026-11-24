@@ -20,7 +20,7 @@ const START_Y: i32 = 50;
 
 pub fn site(
     mineshaft_type: MineshaftType,
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
     rng.next_f64();
@@ -51,7 +51,11 @@ pub fn site(
     Some((start + IVec3::new(0, dy, 0), Stub::Mineshaft(pieces)))
 }
 
-pub fn layout(_mineshaft_type: MineshaftType, ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
+pub fn layout(
+    _mineshaft_type: MineshaftType,
+    ctx: &mut Context<'_, impl SiteWorld>,
+    site: Site,
+) -> Vec<Piece> {
     let Stub::Mineshaft(mut pieces) = site.stub else {
         return Vec::new();
     };
@@ -91,7 +95,7 @@ fn spawner_host_of(
     bounds: BoundingBox,
     direction: Option<Orientation>,
     num_sections: i32,
-    world: &mut dyn SiteWorld,
+    world: &mut impl SiteWorld,
 ) -> Option<ColumnPos> {
     let mut host: Option<ColumnPos> = None;
     for section in 0..num_sections {

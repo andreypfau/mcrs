@@ -24,7 +24,7 @@ pub struct WoodlandMansionBlocks {
 }
 
 impl WoodlandMansionBlocks {
-    pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
+    pub fn compile(blocks: &impl BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(WoodlandMansionBlocks {
             chain: ignore_blocks(blocks, &[Block::StructureBlock])?,
             chest: ChestStates::compile(blocks)?,

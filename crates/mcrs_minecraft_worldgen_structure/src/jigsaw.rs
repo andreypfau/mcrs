@@ -55,18 +55,22 @@ impl PriorityQueue {
     }
 }
 
-struct Assembly<'a> {
+struct Assembly<'a, W> {
     frozen: &'a FrozenStructures,
     config: &'a JigsawConfig,
     aliases: &'a BTreeMap<ResourceLocationBuf, PoolId>,
-    world: &'a mut dyn SiteWorld,
+    world: &'a mut W,
     rng: LegacyRandom,
     pieces: Vec<JigsawPiece>,
     spaces: Vec<FreeSpace>,
     queue: PriorityQueue,
 }
 
-pub fn layout(ctx: &mut Context<'_>, config: &JigsawConfig, site: Site) -> Vec<JigsawPiece> {
+pub fn layout(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    config: &JigsawConfig,
+    site: Site,
+) -> Vec<JigsawPiece> {
     let frozen = ctx.frozen;
     let (accessor_min_y, accessor_height) = (ctx.accessor_min_y, ctx.accessor_height);
     let Stub::Jigsaw { centre, aliases } = site.stub else {
@@ -138,7 +142,7 @@ fn can_attach(source: &PlacedJigsaw<'_>, target: &PlacedJigsaw<'_>) -> bool {
             .is_none_or(|name| source.block.target == *name)
 }
 
-impl Assembly<'_> {
+impl<W: SiteWorld> Assembly<'_, W> {
     fn pool(&self, name: &ResourceLocationBuf) -> Option<PoolId> {
         self.aliases
             .get(name)
