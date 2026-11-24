@@ -45,7 +45,7 @@ use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 #[cfg(feature = "singleplayer")]
 use mcrs_minecraft_client_world::world_list::{WorldList, WorldStoreError};
 use mcrs_minecraft_client_world::{local_player, player};
-#[cfg(feature = "singleplayer")]
+#[cfg(all(feature = "singleplayer", feature = "dev"))]
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_mesh::SECTION_SIZE;

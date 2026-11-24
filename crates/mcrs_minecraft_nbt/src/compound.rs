@@ -179,20 +179,12 @@ impl NbtCompound {
             .map(|r| &r.1)
     }
 
-    pub fn get_short(&self, name: &str) -> Option<i16> {
-        self.get(name).and_then(|tag| tag.extract_short())
-    }
-
     pub fn get_int(&self, name: &str) -> Option<i32> {
         self.get(name).and_then(|tag| tag.extract_int())
     }
 
     pub fn get_long(&self, name: &str) -> Option<i64> {
         self.get(name).and_then(|tag| tag.extract_long())
-    }
-
-    pub fn get_bool(&self, name: &str) -> Option<bool> {
-        self.get(name).and_then(|tag| tag.extract_bool())
     }
 
     pub fn get_string(&self, name: &str) -> Option<&str> {

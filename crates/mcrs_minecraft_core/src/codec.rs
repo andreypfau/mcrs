@@ -288,18 +288,6 @@ where
     Ok(values)
 }
 
-pub fn sized_list<'de, const MIN: usize, const MAX: usize, D, T>(
-    deserializer: D,
-) -> Result<Vec<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    let values = Vec::<T>::deserialize(deserializer)?;
-    list_size::<MIN, MAX>(values.len()).map_err(D::Error::custom)?;
-    Ok(values)
-}
-
 pub fn list_size<const MIN: usize, const MAX: usize>(size: usize) -> Result<(), String> {
     if size < MIN {
         return Err(format!(

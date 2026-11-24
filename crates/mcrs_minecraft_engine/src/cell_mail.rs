@@ -10,7 +10,6 @@ use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::{
@@ -100,8 +99,7 @@ impl Plugin for CellMailPlugin {
             receive_cell_mail
                 .run_if(inbox_holds_messages)
                 .in_set(DimInboxDrain)
-                .before(drain_dim_inbox)
-                .before(add_entity_to_chunk),
+                .before(drain_dim_inbox),
         );
         app.add_systems(
             FixedUpdate,

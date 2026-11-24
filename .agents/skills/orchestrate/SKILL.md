@@ -13,7 +13,7 @@ An agent reports and stops at 200k tokens of context. The main session writes a 
 
 ## Size of a job
 
-- One agent gets one item: one change, one crate or one specification section.
+- One agent gets one item: one change, one crate or one specification section. A change can also touch the one canonical crate of a helper it needs.
 - A brief that contains "and then" is two briefs.
 - A job that builds, runs and measures in a loop is three jobs: the code path, the check, the
   tuning. Each one starts from the commit of the earlier one.
@@ -56,11 +56,12 @@ Worktree and branch: <path>, <branch>. Base commit: <sha>.
 Files: <paths with the line ranges you already know>. Do not inventory them again.
 Read first: <at most two documents, with section names>.
 Rules: load the skills rust-style and efficient-testing. <bevy-ecs when the job designs state.>
+Reuse: <the terms you searched, the crates you read, the item you reuse or "none found">.
 Sources: <implementer: the specification only, never the reference code; a gap is a question to me.>
 Check: cargo nextest run -p <crate>. No workspace-wide run. No benchmark.
 Done when: <the result that someone can observe>. Commit once. Do not push.
 Stop and hand off if: the context passes 200k tokens, the check fails twice for the same
-reason, or the change needs a file that is not in the list.
+reason, or the change needs a file that is not in the list. A helper that a canonical crate lacks is added there, not copied.
 Report: commit, files changed, the tail of the check output, open points. At most 30 lines.
 ```
 

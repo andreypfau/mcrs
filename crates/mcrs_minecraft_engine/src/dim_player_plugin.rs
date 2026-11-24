@@ -30,7 +30,6 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::{
     on_message, resource_exists, resource_exists_and_changed,
 };
-use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -91,8 +90,7 @@ impl Plugin for DimPlayerPlugin {
             receive_transfers
                 .run_if(on_message::<PlayerTransfer>)
                 .in_set(DimInboxDrain)
-                .after(drain_dim_inbox)
-                .before(add_entity_to_chunk),
+                .after(drain_dim_inbox),
         );
         app.add_message::<OrderedPlayer>();
         app.add_systems(
@@ -100,8 +98,7 @@ impl Plugin for DimPlayerPlugin {
             obey_orders
                 .run_if(on_message::<OrderedPlayer>)
                 .in_set(DimInboxDrain)
-                .after(receive_transfers)
-                .before(add_entity_to_chunk),
+                .after(receive_transfers),
         );
         add_join_and_leave(app);
         app.add_systems(

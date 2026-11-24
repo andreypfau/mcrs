@@ -5795,17 +5795,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_minecraft_hotspots"
-version = "0.5.8"
-dependencies = [
- "mcrs_minecraft_anvil",
- "mcrs_minecraft_chunk",
- "mcrs_minecraft_nbt",
- "mcrs_voxel",
- "serde",
-]
-
-[[package]]
 name = "mcrs_minecraft_instrument"
 version = "0.5.8"
 dependencies = [
@@ -7091,22 +7080,6 @@ dependencies = [
  "smallvec",
  "tokio",
  "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "mcrs_minecraft_server_bench"
-version = "0.5.8"
-dependencies = [
- "anyhow",
- "glam",
- "mcrs_minecraft_bench_support",
- "mcrs_minecraft_protocol",
- "mcrs_minecraft_protocol_game",
- "mcrs_voxel",
- "serde",
- "serde_json",
- "tokio",
  "tracing-subscriber",
 ]
 

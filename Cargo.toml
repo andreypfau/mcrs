@@ -13,7 +13,7 @@ test = false
 workspace = true
 
 [workspace]
-members = ["crates/*", "examples/inventory_bot_click", "examples/inventory_minigame", "examples/inventory_save_viewer", "examples/loot_validate", "examples/player_attributes", "examples/status_ping", "examples/worldgen_preview", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_mcp", "tools/mcrs_minecraft_probe", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
+members = ["crates/*", "examples/inventory_bot_click", "examples/inventory_minigame", "examples/inventory_save_viewer", "examples/loot_validate", "examples/player_attributes", "examples/status_ping", "examples/worldgen_preview", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_mcp", "tools/mcrs_minecraft_probe", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
 
 [workspace.package]
 version = "0.5.8"

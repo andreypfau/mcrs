@@ -34,8 +34,7 @@ use mcrs_minecraft_save::PlayerDat;
 use mcrs_minecraft_save::read_player_dat;
 use mcrs_minecraft_save::write_player_dat;
 use mcrs_minecraft_vanilla_inventory::EnderItems;
-use mcrs_minecraft_vanilla_inventory::PlayerItemFilePlugin;
-use mcrs_minecraft_vanilla_inventory::WornEquipment;
+use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 
 const UUID: u128 = 0x1234;
 
@@ -54,7 +53,7 @@ fn app(dir: &std::path::Path) -> App {
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
         .add_plugins(PlayerPersistencePlugin)
         .insert_resource(test_item_table())
-        .add_plugins((ItemPlugin::default(), PlayerItemFilePlugin))
+        .add_plugins((ItemPlugin::default(), InventoryPersistencePlugin))
         .insert_resource(WorldSave(dir.to_owned()));
     app
 }
@@ -401,10 +400,8 @@ fn a_player_file_with_every_key_writes_back_as_the_same_compound() {
     assert!(world.get::<UnreadablePlayerDat>(player).is_none());
     assert_eq!(world.get::<PlayerFileState>(player).unwrap().score, 12);
     assert_eq!(world.get::<Selected>(player), Some(&Selected(0)));
-    assert_eq!(world.get::<Slots>(player).unwrap().occupied().count(), 3);
+    assert_eq!(world.get::<Slots>(player).unwrap().occupied().count(), 5);
     assert_eq!(world.get::<EnderItems>(player).unwrap().0.len(), 1);
-    let worn = world.get::<WornEquipment>(player).unwrap();
-    assert!(worn.chest.is_some() && worn.offhand.is_some() && worn.mainhand.is_none());
 
     write_player(app.world_mut(), player, CaptureCause::Autosave);
     let rewritten = read_player_dat(&dir, profile().id).unwrap().unwrap();

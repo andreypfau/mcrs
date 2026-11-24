@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_item_stack"
-description = "Item stack values: the kind, the count, the component patch and the item component types"
+description = "The item stack value of kind, count and typed component patch, with every item component type and its saved and hashed forms"
 version.workspace = true
 edition.workspace = true
 

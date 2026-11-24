@@ -6,6 +6,7 @@ For people: start at https://mc.rs/docs/ (to read the source of the site, see `d
 
 | File | About | Read if you |
 |---|---|---|
+| `crates.md` | generated map of every crate with its description. Regenerate it with `cargo run -p xtask -- crate-map` | write a helper or a value type |
 | `clean-room.md` | who may read what, and what the repository may contain | send any PR |
 | `spec/` | behavior of the game as rules with IDs. Start with `spec/README.md` | write or implement a specification |
 | `minecraft-bevy-sharding-architecture.md` | principles of the Bevy server: compatibility levels, sharding, ticks, determinism | change the engine design |

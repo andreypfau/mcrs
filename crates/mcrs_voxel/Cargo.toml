@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_voxel"
-description = "Block, section, column and local positions and the block state id of a voxel world"
+description = "Owns the block, section, local and column positions and the block state id of a voxel world; the chunk position type is ColumnPos"
 version.workspace = true
 edition.workspace = true
 

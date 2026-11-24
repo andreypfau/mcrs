@@ -12,6 +12,7 @@ pub enum Check {
     Wasm32,
     NoStd,
     Keys,
+    CrateMap,
 }
 
 impl Check {
@@ -29,6 +30,7 @@ impl Check {
             Check::Wasm32 => "wasm32",
             Check::NoStd => "no-std",
             Check::Keys => "keys",
+            Check::CrateMap => "crate-map",
         }
     }
 
@@ -88,7 +90,7 @@ impl Trigger {
                 "before a push: the commit checks; ci runs clippy, the tests and the builds"
             }
             Trigger::Lint => {
-                "in CI on every pull request and every push to main: the commit checks over the whole branch, the key sources regenerated when an input of the generator changed, then the ECS lints of the workspace"
+                "in CI on every pull request and every push to main: the commit checks over the whole branch, the crate map, the key sources regenerated when an input of the generator changed, then the ECS lints of the workspace"
             }
             Trigger::Clippy => "in CI on every pull request and every push to main: clippy",
             Trigger::Test => {
@@ -132,7 +134,7 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     match trigger {
         Trigger::Edit => &[Fmt],
         Trigger::Commit | Trigger::Push => &[Comments, Parity, Fmt],
-        Trigger::Lint => &[Comments, Parity, Fmt, Keys, EcsLint],
+        Trigger::Lint => &[Comments, Parity, Fmt, Keys, CrateMap, EcsLint],
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
         Trigger::Portability => &[NoBevy, Layers, ExampleDependencies, Wasm32, NoStd],

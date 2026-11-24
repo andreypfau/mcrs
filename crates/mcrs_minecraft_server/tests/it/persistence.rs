@@ -44,7 +44,7 @@ use mcrs_minecraft_region_disk::{RegionDisk, region_dir};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_save::{WorldGenSettings, write_world_gen_settings};
-use mcrs_minecraft_vanilla_inventory::PlayerItemFilePlugin;
+use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_worldgen_structure::hardcoded::ocean_monument;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
@@ -278,7 +278,7 @@ fn slot_stack(slot: i8, id: &str, count: i32) -> NbtTag {
 fn an_inventory_crosses_a_dimension_change() {
     let mut app = host_app::make_host_app();
     app.add_persistence_plugin(ItemPersistencePlugin)
-        .add_persistence_plugin(PlayerItemFilePlugin);
+        .add_persistence_plugin(InventoryPersistencePlugin);
     app.add_dimension_plugin(ChatPlugin);
     install_item_table(app.world_mut(), test_item_table()).unwrap();
     let mut server = PlayServer::start_in(

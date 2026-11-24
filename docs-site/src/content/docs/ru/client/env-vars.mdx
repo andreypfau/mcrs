@@ -69,7 +69,7 @@ import Status from '~/components/Status.astro';
 | `MCRS_SCREENSHOT_DIR` | `screenshots` | Папка нативных скриншотов; относительный путь отсчитывается от рабочего каталога. |
 | `MCRS_SCENE_DIR`, `MCRS_SCENE_RECORD` | нет | Только нативный клиент с `scene`. Каталог для съемки сцены без окна и запись клиента ванили, из которой берутся сущности. |
 
-Клиент читает их в `crates/mcrs_minecraft_client/src/config.rs`, `dev/knobs.rs` и `scene_capture.rs`. Нативная сборка по умолчанию включает `singleplayer` и `dev`.
+Клиент читает их в `crates/mcrs_minecraft_client/src/config.rs`, `dev/knobs.rs` и `scene_capture.rs`. Нативная сборка по умолчанию включает `singleplayer`. Для переменных `dev` нужна сборка с `--features dev`.
 
 ## Настройка библиотеки
 

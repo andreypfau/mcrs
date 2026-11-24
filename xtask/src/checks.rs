@@ -51,7 +51,7 @@ const NO_STD_PACKAGES: [&str; 20] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 143] = [
+const NO_BEVY_PACKAGES: [&str; 142] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -85,7 +85,6 @@ const NO_BEVY_PACKAGES: [&str; 143] = [
     "mcrs_minecraft_goal_world",
     "mcrs_minecraft_goals",
     "mcrs_minecraft_mob_control",
-    "mcrs_minecraft_server_bench",
     "mcrs_mob_bench",
     "mcrs_minecraft_client_ticks",
     "mcrs_minecraft_collision_table",
@@ -401,6 +400,7 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         Check::NoBevy => no_bevy(ctx),
         Check::Layers => layers(ctx),
         Check::ExampleDependencies => crate::example_dependencies::check(&ctx.root),
+        Check::CrateMap => crate::crate_map::check(&ctx.root),
         Check::NoStd => build_for(
             ctx,
             "wasm32v1-none",
@@ -414,7 +414,8 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
 
 const OWN_FEATURES: [&str; 2] = ["--config", "resolver.feature-unification=\"selected\""];
 
-const WASM32_CLIENT_FEATURES: [&[&str]; 2] = [&[], &["--no-default-features"]];
+const WASM32_CLIENT_FEATURES: [&[&str]; 3] =
+    [&[], &["--no-default-features"], &["--features", "dev"]];
 
 fn wasm32(ctx: &Context) -> Outcome {
     build_for(
@@ -716,6 +717,25 @@ fn clippy(ctx: &Context) -> Outcome {
         ctx.exec("cargo", &args)?,
         "clippy reported diagnostics",
         "resolve the diagnostics above",
+    )?;
+    verdict(
+        ctx.exec(
+            "cargo",
+            &[
+                "clippy",
+                "-p",
+                "mcrs_minecraft_client",
+                "--all-targets",
+                "--locked",
+                "--features",
+                "dev",
+                "--",
+                "-D",
+                "warnings",
+            ],
+        )?,
+        "clippy reported diagnostics for the client with its dev feature",
+        "resolve the diagnostics above",
     )
 }
 
@@ -934,6 +954,7 @@ mod tests {
                 name: "x".to_owned(),
                 dir: "crates/x".to_owned(),
                 edition: "2024".to_owned(),
+                description: None,
                 dependencies: Vec::new(),
             }],
         };

@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_static_registry"
-description = "Static registries as enums of their entries, numbered by protocol id"
+description = "The StaticEntry trait and the helpers that number the entries of a static registry by protocol id"
 version.workspace = true
 edition.workspace = true
 
