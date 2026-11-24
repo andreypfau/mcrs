@@ -41,7 +41,7 @@ The layer numbers are those of `AGENTS.md`.
 
 | Crate | Layer | Bevy | Owns | Depends on |
 |-|-|-|-|-|
-| `mcrs_minecraft_item_stack` | 3, data | feature `bevy`: derives only | `ItemStack`, `PatchEntry`, `Kind`, `Count`, one type for each component type, the codecs of the spec section 6 | wire, NBT, SNBT, text, registry ids |
+| `mcrs_minecraft_item_stack` | 3, data | feature `bevy`: derives only | `ItemStack`, `PatchEntry`, `Kind`, `Count`, one type for each component type, the codecs of the spec section 6 | wire, NBT, SNBT, text, profile, entity attribute, resource, voxel, banner pattern, sound, trim, all without their `registry` feature |
 | `mcrs_minecraft_item_table` | 3, data | feature `bevy`: one resource derive | `ItemTable`, `Prototype`; the bake from the data pack | `mcrs_minecraft_item_stack`, registries |
 | `mcrs_minecraft_inventory_transaction` | 3, rules | none | the planner of an atomic request | nothing (`core` and `alloc`) |
 | `mcrs_minecraft_engine_item` | 4, engine | required | the entity form, hooks, commands, read tools, the request command, `Equipped` | the three crates above, `bevy_ecs`, `bevy_app`, `bevy_math` |
@@ -51,19 +51,27 @@ The layer numbers are those of `AGENTS.md`.
 | `mcrs_minecraft_item_key` | 3, data | none | the enum `Item` and the item tag keys | registries, resource |
 | `mcrs_minecraft_potion` | 3, data | none | the enum `Potion` and the potion tag keys | registries, resource |
 | `mcrs_minecraft_map_decoration` | 3, data | none | the enum `MapDecorationType` | registries |
-| `mcrs_minecraft_banner_pattern` | 3, data | none | `BannerPattern`, its keys and its tag keys | resource |
+| `mcrs_minecraft_banner_pattern` | 3, data | none | `BannerPattern`, its keys and its tag keys; `mcrs_minecraft_item_stack` embeds it | resource, wire; registries behind the feature `registry` |
 | `mcrs_minecraft_decorated_pot_pattern` | 3, data | none | `DecoratedPotPattern` and its keys | resource |
 | `mcrs_minecraft_block_transformer` | 3, data | none | `BlockTransformer` and its keys | block predicate, sound, registries, resource |
 | `mcrs_minecraft_instrument` | 3, data | none | `Instrument<I>`, its keys and its tag keys | sound, text, resource |
 | `mcrs_minecraft_jukebox_song` | 3, data | none | `JukeboxSong<I>` and its keys | sound, text, resource |
 | `mcrs_minecraft_painting_variant` | 3, data | none | `PaintingVariant<I>`, its keys and its tag keys; no crate depends on it yet | text, resource |
-| `mcrs_minecraft_trim` | 3, data | none | `TrimMaterial<I>`, `TrimPattern<I>` and their keys; no crate depends on it yet | text, resource |
+| `mcrs_minecraft_trim` | 3, data | none | `TrimMaterial<I>`, `TrimPattern<I>` and their keys; `mcrs_minecraft_item_stack` embeds both | text, resource |
 
 - Each layer 3 crate starts as `#![no_std]` with `alloc`. If a dependency forbids it, the crate
   states which one.
-- `I` is the type parameter of the text (`TextTypes` of the text crate). The target is that
-  `mcrs_minecraft_item_stack` depends on the five crates from `mcrs_minecraft_banner_pattern` to
-  `mcrs_minecraft_trim`. Today it depends on none of them. Issue #1114 closes this gap.
+- `I` is the type parameter of the text (`TextTypes` of the text crate).
+- `mcrs_minecraft_item_stack` depends on `mcrs_minecraft_banner_pattern`, `mcrs_minecraft_sound`
+  and `mcrs_minecraft_trim`. A component holds their value types, and the stack crate has no copy.
+  The sound event value is `SoundEventValue` of `mcrs_minecraft_sound`. Both crates keep their
+  registry declarations behind the feature `registry`. The stack crate does not enable it, so it
+  does not depend on `mcrs_minecraft_registries`. Each crate that loads the registries enables it.
+- `mcrs_minecraft_item_stack` does not depend on `mcrs_minecraft_instrument`,
+  `mcrs_minecraft_jukebox_song` or `mcrs_minecraft_painting_variant`. No component embeds a value of
+  the last two. The instrument component keeps `InlineInstrument`: the registry type holds its
+  sound as a `Ref` with a shared pointer and validated numbers, and the stack crate holds a dense
+  sound id.
 - The target is that the protocol crates depend on `mcrs_minecraft_item_stack` only.
   `mcrs_minecraft_protocol_game` still depends on `mcrs_minecraft_item`. Issue #1114 closes this gap.
 - A proxy or a tool takes `mcrs_minecraft_item_stack` alone. A bot adds the table and the engine
@@ -268,8 +276,8 @@ reads use `unsafe`. Each block states its condition.
 in these steps. Each step is one pull request and ends with the old path deleted.
 
 1. Delete the old two-field `ItemStack` and its three users. Make `Count` hold 1 to 99.
-2. Make `mcrs_minecraft_item_stack` depend on the registry value crates. Replace each `Inline*`
-   type with a reference to the type of the registry crate.
+2. Done, except the instrument. Make `mcrs_minecraft_item_stack` depend on the registry value
+   crates. Replace each `Inline*` type with a reference to the type of the registry crate.
 3. Move `mcrs_minecraft_protocol_game` to the wire stack of `mcrs_minecraft_item_stack`. Delete
    `ProtoStack`, the old hashed stack and the bytes bridge between the two models.
 4. Move `mcrs_minecraft_block_entity`, `mcrs_minecraft_vanilla_inventory` and the loot tables off
