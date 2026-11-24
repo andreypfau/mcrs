@@ -31,8 +31,8 @@ impl Plugin for PlayerVitalsPlugin {
         app.add_systems(
             FixedUpdate,
             fill_player_invulnerability
-                .in_set(TickSet::Simulate)
-                .before(DamageSet::Collect),
+                .after(TickSet::ClientInput)
+                .before(DamageSet::PacketCollect),
         );
         app.add_systems(
             FixedUpdate,

@@ -84,6 +84,11 @@ impl Plugin for EntityPhysicsPlugin {
                 hit_crowds.run_if(has_crowds).in_set(DamageSet::Collect),
                 apply_entity_writes
                     .run_if(has_writes)
+                    .in_set(TickSet::Simulate)
+                    .after(DamageSet::PacketReport)
+                    .before(MotionPass),
+                apply_entity_writes
+                    .run_if(has_writes)
                     .in_set(TickSet::WorldWrite)
                     .after(DamageSet::Report),
             ),

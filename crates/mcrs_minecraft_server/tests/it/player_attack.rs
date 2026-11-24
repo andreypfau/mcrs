@@ -45,7 +45,7 @@ fn cancel_hits(mut pending: ResMut<PendingHits>, cancelled: Query<(), With<Cance
 }
 
 fn cancel_plugin(app: &mut App) {
-    app.add_systems(FixedUpdate, cancel_hits.in_set(DamageSet::Filter));
+    app.add_systems(FixedUpdate, cancel_hits.in_set(DamageSet::PacketFilter));
 }
 
 #[derive(Resource, Default)]
@@ -133,11 +133,50 @@ impl Arena {
         (pig.entity, wire_id(pig.id).0)
     }
 
+    fn target(&mut self, target: Target, near: DVec3) -> (Entity, i32) {
+        match target {
+            Target::Bob { pvp, .. } => {
+                self.server
+                    .world()
+                    .resource_mut::<GameRules>()
+                    .set(GameRule::Pvp, i32::from(pvp));
+                let session = self.server.session_of(self.bob).unwrap();
+                (self.bob_player, player_network_id(session))
+            }
+            Target::Herself => {
+                let session = self.server.session_of(self.alice).unwrap();
+                (self.alice_player, player_network_id(session))
+            }
+            Target::Pig(summoned) => self.summon_pig(near, summoned),
+            Target::DyingPig => {
+                let pig = self.summon_pig(near, Summoned::NoAi);
+                self.server.world().get_mut::<Vitals>(pig.0).unwrap().health = 1.0;
+                pig
+            }
+            Target::FarPig => self.summon_pig(DVec3::new(14.5, 64.0, 15.5), Summoned::NoAi),
+            Target::InvulnerablePig => {
+                let pig = self.summon_pig(near, Summoned::NoAi);
+                self.server
+                    .world()
+                    .get_mut::<Defence>(pig.0)
+                    .unwrap()
+                    .invulnerable = true;
+                pig
+            }
+            Target::CancelledPig => {
+                let pig = self.summon_pig(near, Summoned::NoAi);
+                self.server.world().entity_mut(pig.0).insert(Cancelled);
+                pig
+            }
+            Target::UnknownId => (self.summon_pig(near, Summoned::NoAi).0, i32::MAX),
+        }
+    }
+
     fn health(&mut self, entity: Entity) -> f32 {
         self.server.world().get::<Vitals>(entity).unwrap().health
     }
 
-    fn attack(&mut self, id: i32) -> Vec<PacketPayload> {
+    fn attack(&mut self, target: Entity, id: i32) -> Attack {
         self.server.queue(
             self.alice,
             &ServerboundAttack {
@@ -145,7 +184,20 @@ impl Arena {
             },
         );
         let session = self.server.session_of(self.bob).unwrap();
-        sent_to(session, self.server.ticks_all(3))
+        let before = *self.server.world().get::<Vitals>(target).unwrap();
+        let mut packets = Vec::new();
+        let mut after_hit = None;
+        for _ in 0..3 {
+            packets.extend(self.server.ticks_all(1));
+            let now = *self.server.world().get::<Vitals>(target).unwrap();
+            if after_hit.is_none() && now.health != before.health {
+                after_hit = Some(now);
+            }
+        }
+        Attack {
+            seen: sent_to(session, packets),
+            after_hit,
+        }
     }
 
     fn start_sprint(&mut self) {
@@ -172,6 +224,11 @@ impl Arena {
                 )
             })
     }
+}
+
+struct Attack {
+    seen: Vec<PacketPayload>,
+    after_hit: Option<Vitals>,
 }
 
 fn decoded<P: Packet + for<'a> Decode<'a>>(packets: &[PacketPayload]) -> Vec<P> {
@@ -203,12 +260,12 @@ fn assert_pushed_away(
         .unwrap()
         .translation;
     let away = (at - alice).with_y(0.0).normalize();
-    let lift = match summoned {
-        Summoned::NoAiOnGround => 0.4,
-        Summoned::NoAi => 0.0,
-        Summoned::Ai => 0.36080000519752503,
+    let (horizontal, lift) = match summoned {
+        Summoned::NoAiOnGround => (DEFAULT_KNOCKBACK, 0.4),
+        Summoned::NoAi => (DEFAULT_KNOCKBACK, 0.0),
+        Summoned::Ai => (0.2184000286221508, 0.2751840104494096),
     };
-    let expected = away * DEFAULT_KNOCKBACK + DVec3::Y * lift;
+    let expected = away * horizontal + DVec3::Y * lift;
     assert!(
         pushed.abs_diff_eq(expected, 1.0E-4),
         "{name}: ATK-KB-005 sends the velocity directly after the knockback: {pushed} != {expected}"
@@ -233,6 +290,7 @@ enum Target {
     Bob { pvp: bool, gait: Gait },
     Herself,
     Pig(Summoned),
+    DyingPig,
     InvulnerablePig,
     FarPig,
     CancelledPig,
@@ -244,26 +302,44 @@ struct Case {
     attacker: GameMode,
     target: Target,
     lost: f32,
+    ends: Ends,
 }
 
-const CASES: [Case; 13] = [
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Ends {
+    Unchecked,
+    Hurt,
+    Dying,
+}
+
+const CASES: [Case; 14] = [
     Case {
         name: "a pig with NoAI and OnGround hit by an empty hand at full strength",
         attacker: GameMode::Survival,
         target: Target::Pig(Summoned::NoAiOnGround),
         lost: 1.0,
+        ends: Ends::Hurt,
     },
     Case {
         name: "a pig with AI at rest hit by an empty hand at full strength",
         attacker: GameMode::Survival,
         target: Target::Pig(Summoned::Ai),
         lost: 1.0,
+        ends: Ends::Hurt,
     },
     Case {
         name: "a pig with NoAI and no OnGround hit by an empty hand at full strength",
         attacker: GameMode::Survival,
         target: Target::Pig(Summoned::NoAi),
         lost: 1.0,
+        ends: Ends::Hurt,
+    },
+    Case {
+        name: "a pig with one health point killed by an empty hand",
+        attacker: GameMode::Survival,
+        target: Target::DyingPig,
+        lost: 1.0,
+        ends: Ends::Dying,
     },
     Case {
         name: "a player with pvp off",
@@ -273,6 +349,7 @@ const CASES: [Case; 13] = [
             gait: Gait::Walk,
         },
         lost: 0.0,
+        ends: Ends::Unchecked,
     },
     Case {
         name: "a player with pvp on",
@@ -282,6 +359,7 @@ const CASES: [Case; 13] = [
             gait: Gait::Walk,
         },
         lost: 1.0,
+        ends: Ends::Unchecked,
     },
     Case {
         name: "a player with pvp on hit by a sprint attack",
@@ -291,50 +369,82 @@ const CASES: [Case; 13] = [
             gait: Gait::Sprint,
         },
         lost: 1.0,
+        ends: Ends::Unchecked,
     },
     Case {
         name: "an invulnerable pig hit in survival",
         attacker: GameMode::Survival,
         target: Target::InvulnerablePig,
         lost: 0.0,
+        ends: Ends::Unchecked,
     },
     Case {
         name: "an invulnerable pig hit in creative",
         attacker: GameMode::Creative,
         target: Target::InvulnerablePig,
         lost: 1.0,
+        ends: Ends::Hurt,
     },
     Case {
         name: "a pig hit by a spectator",
         attacker: GameMode::Spectator,
         target: Target::Pig(Summoned::NoAi),
         lost: 0.0,
+        ends: Ends::Unchecked,
     },
     Case {
         name: "a pig out of reach",
         attacker: GameMode::Survival,
         target: Target::FarPig,
         lost: 0.0,
+        ends: Ends::Unchecked,
     },
     Case {
         name: "a pig whose hit a filter cancels",
         attacker: GameMode::Survival,
         target: Target::CancelledPig,
         lost: 0.0,
+        ends: Ends::Unchecked,
     },
     Case {
         name: "the attacker herself",
         attacker: GameMode::Survival,
         target: Target::Herself,
         lost: 0.0,
+        ends: Ends::Unchecked,
     },
     Case {
         name: "an id that names no entity",
         attacker: GameMode::Survival,
         target: Target::UnknownId,
         lost: 0.0,
+        ends: Ends::Unchecked,
     },
 ];
+
+fn assert_ends(case: &Case, after_hit: Option<Vitals>) {
+    match case.ends {
+        Ends::Unchecked => {}
+        Ends::Hurt => {
+            let vitals = after_hit.expect("the hit changes the health");
+            assert_eq!(
+                (vitals.hurt_time, vitals.damage_cooldown),
+                (9, 19),
+                "{}: ATK-ORD-005 counts the hit down in its tick",
+                case.name
+            );
+        }
+        Ends::Dying => {
+            let vitals = after_hit.expect("the hit changes the health");
+            assert_eq!(
+                vitals.death_time,
+                Some(1),
+                "{}: ATK-ORD-005 counts the death in its tick",
+                case.name
+            );
+        }
+    }
+}
 
 #[test]
 fn the_server_accepts_or_refuses_an_attack() {
@@ -344,39 +454,7 @@ fn the_server_accepts_or_refuses_an_attack() {
     for (index, case) in CASES.iter().enumerate() {
         arena.set_mode(arena.alice_player, case.attacker);
         let near = DVec3::new(5.5 + index as f64, 64.0, 10.5);
-        let (target, id) = match case.target {
-            Target::Bob { pvp, .. } => {
-                arena
-                    .server
-                    .world()
-                    .resource_mut::<GameRules>()
-                    .set(GameRule::Pvp, i32::from(pvp));
-                let session = arena.server.session_of(arena.bob).unwrap();
-                (arena.bob_player, player_network_id(session))
-            }
-            Target::Herself => {
-                let session = arena.server.session_of(arena.alice).unwrap();
-                (arena.alice_player, player_network_id(session))
-            }
-            Target::Pig(summoned) => arena.summon_pig(near, summoned),
-            Target::FarPig => arena.summon_pig(DVec3::new(14.5, 64.0, 15.5), Summoned::NoAi),
-            Target::InvulnerablePig => {
-                let pig = arena.summon_pig(near, Summoned::NoAi);
-                arena
-                    .server
-                    .world()
-                    .get_mut::<Defence>(pig.0)
-                    .unwrap()
-                    .invulnerable = true;
-                pig
-            }
-            Target::CancelledPig => {
-                let pig = arena.summon_pig(near, Summoned::NoAi);
-                arena.server.world().entity_mut(pig.0).insert(Cancelled);
-                pig
-            }
-            Target::UnknownId => (arena.summon_pig(near, Summoned::NoAi).0, i32::MAX),
-        };
+        let (target, id) = arena.target(case.target, near);
         let _ = arena.server.ticks_all(10);
         let before = arena.health(target);
 
@@ -387,7 +465,10 @@ fn the_server_accepts_or_refuses_an_attack() {
             arena.start_sprint();
         }
         let _ = arena.alice_disconnected();
-        let to_bob = arena.attack(id);
+        let Attack {
+            seen: to_bob,
+            after_hit,
+        } = arena.attack(target, id);
         let hurt = decoded::<ClientboundDamageEvent>(&to_bob).len();
 
         assert_eq!(before - arena.health(target), case.lost, "{}", case.name);
@@ -398,6 +479,7 @@ fn the_server_accepts_or_refuses_an_attack() {
             "{}",
             case.name
         );
+        assert_ends(case, after_hit);
         if let Target::Pig(summoned) = case.target
             && case.lost > 0.0
         {

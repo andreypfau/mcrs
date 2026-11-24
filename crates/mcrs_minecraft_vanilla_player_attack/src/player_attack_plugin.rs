@@ -35,7 +35,7 @@ impl Plugin for PlayerAttackPlugin {
                 FixedUpdate,
                 knock_back
                     .run_if(has_attack_knockbacks.or_else(on_message::<Damaged>))
-                    .in_set(DamageSet::Report),
+                    .in_set(DamageSet::PacketReport),
             );
     }
 }

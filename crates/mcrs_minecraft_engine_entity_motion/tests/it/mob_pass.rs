@@ -263,10 +263,10 @@ fn a_dying_mob_expires_on_the_twentieth_tick() {
     let vitals = app.world().get::<Vitals>(zombie).copied();
     assert_eq!(
         vitals.and_then(|vitals| vitals.death_time),
-        Some(0),
-        "the hit kills the mob after its step"
+        Some(1),
+        "the hit kills the mob before its step, which counts the death"
     );
-    for _ in 1..20 {
+    for _ in 2..20 {
         tick(&mut app);
         assert_eq!(app.world().resource::<Expired>().entries(), []);
     }

@@ -36,6 +36,18 @@ impl Plugin for DamagePlugin {
         app.configure_sets(
             FixedUpdate,
             (
+                DamageSet::PacketCollect,
+                DamageSet::PacketFilter,
+                DamageSet::PacketApply,
+                DamageSet::PacketReport,
+            )
+                .chain()
+                .after(TickSet::ClientInput)
+                .before(TickSet::Simulate),
+        );
+        app.configure_sets(
+            FixedUpdate,
+            (
                 DamageSet::Collect,
                 DamageSet::Filter,
                 DamageSet::Apply,
@@ -55,6 +67,9 @@ impl Plugin for DamagePlugin {
                     .run_if(has_vitals_work)
                     .in_set(TickSet::Simulate)
                     .before(MotionPass),
+                apply_hits
+                    .run_if(has_pending_hits)
+                    .in_set(DamageSet::PacketApply),
                 apply_hits.run_if(has_pending_hits).in_set(DamageSet::Apply),
             ),
         );
