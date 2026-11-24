@@ -14,24 +14,25 @@ use crate::operators;
 
 pub fn build(workdir: &Path, targets: &[&str]) -> Result<String, String> {
     let start = Instant::now();
-    let mut args = vec!["build", "--release"];
+    let mut builds: Vec<&[&str]> = Vec::new();
     for target in targets {
         match *target {
-            "server" => args.extend(["-p", "mcrs", "--bin", "mcrs"]),
-            "client" => args.extend([
+            "server" => builds.push(&["-p", "mcrs", "--bin", "mcrs"]),
+            "client" => builds.push(&[
                 "-p",
                 "mcrs_minecraft_client",
                 "--bin",
                 "mcrs_minecraft_client",
                 "--features",
-                "mcrs_minecraft_client/control",
+                "control",
             ]),
             other => return Err(format!("unknown target {other}: use server or client")),
         }
     }
-    if !targets.is_empty() {
+    for args in builds {
         let output = Command::new("cargo")
             .current_dir(workdir)
+            .args(["build", "--release"])
             .args(args)
             .output()
             .map_err(|error| error.to_string())?;
