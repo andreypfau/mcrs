@@ -17,7 +17,7 @@ use mcrs_minecraft_loot_condition::{
 };
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_predicate::{DamageSource, PredicateScratch};
+use mcrs_minecraft_predicate::{BlockHost, DamageSource, PredicateScratch};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
@@ -40,7 +40,7 @@ pub fn empty_context<'a>() -> LootContext<'a, ()> {
 
 fn passes(condition: &Condition, context: &LootContext<'_, ()>) -> bool {
     condition.test(
-        inputs(&VANILLA, context),
+        inputs(&VANILLA, context, &BlockHost::none()),
         &mut XoroshiroRandom::new(42),
         &mut PredicateScratch::default(),
     )
@@ -147,7 +147,7 @@ fn loot_cnd_a_condition_without_its_parameter() {
     for (rule, json, passes, after) in cases {
         let mut random = fresh();
         let result = condition(json).test(
-            inputs(&VANILLA, &context),
+            inputs(&VANILLA, &context, &BlockHost::none()),
             &mut random,
             &mut PredicateScratch::default(),
         );

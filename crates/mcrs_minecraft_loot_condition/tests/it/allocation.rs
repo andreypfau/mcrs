@@ -3,7 +3,7 @@ use mcrs_minecraft_entity::damage_type::DamageType;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item_stack::{Count, ItemStack};
 use mcrs_minecraft_loot_condition::Tool;
-use mcrs_minecraft_predicate::{DamageSource, PredicateScratch};
+use mcrs_minecraft_predicate::{BlockHost, DamageSource, PredicateScratch};
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_test_alloc::allocations;
@@ -42,7 +42,8 @@ fn loot_cnd_a_test_without_saved_data_allocates_nothing_after_warm_up() {
     });
     let mut random = XoroshiroRandom::new(42);
     let mut scratch = PredicateScratch::default();
-    let inputs = inputs(&VANILLA, &context);
+    let world = BlockHost::none();
+    let inputs = inputs(&VANILLA, &context, &world);
     assert!(tree.test(inputs, &mut random, &mut scratch));
     let before = allocations();
     let passed = tree.test(inputs, &mut random, &mut scratch);

@@ -9,7 +9,7 @@ use mcrs_minecraft_loot_condition::{
     ConditionBaker, ConditionProblem, ContextParam, FloatProvider, FloatProviderFile, IntProvider,
     IntProviderFile, LootContext, LootInputs, MemberKind, NamedEntries, NamedIssue, bounded,
 };
-use mcrs_minecraft_predicate::{NoWorld, PredicateScratch};
+use mcrs_minecraft_predicate::{BlockHost, PredicateScratch};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registries::Registries;
@@ -20,14 +20,15 @@ pub static VANILLA: LazyLock<NamedEntries> = LazyLock::new(|| {
     NamedEntries::bake(&test_corpus().0.0, test_registries(), test_item_table()).0
 });
 
-pub fn inputs<'i, 'c>(
+pub fn inputs<'i, 'c, W>(
     named: &'i NamedEntries,
     context: &'i LootContext<'c, ()>,
-) -> LootInputs<'i, 'c, (), NoWorld> {
+    world: &'i W,
+) -> LootInputs<'i, 'c, (), W> {
     LootInputs {
         named,
         context,
-        world: &NoWorld,
+        world,
     }
 }
 
@@ -69,7 +70,7 @@ fn float(json: &str) -> FloatProvider {
 
 fn read_int(json: &str, context: &LootContext<'_, ()>, random: &mut XoroshiroRandom) -> i32 {
     int(json).read(
-        inputs(&VANILLA, context),
+        inputs(&VANILLA, context, &BlockHost::none()),
         random,
         &mut PredicateScratch::default(),
     )
@@ -77,7 +78,7 @@ fn read_int(json: &str, context: &LootContext<'_, ()>, random: &mut XoroshiroRan
 
 fn read_float(json: &str, context: &LootContext<'_, ()>, random: &mut XoroshiroRandom) -> f32 {
     float(json).read(
-        inputs(&VANILLA, context),
+        inputs(&VANILLA, context, &BlockHost::none()),
         random,
         &mut PredicateScratch::default(),
     )
@@ -409,7 +410,7 @@ fn int_problems(
     });
     assert_eq!(
         provider.read(
-            inputs(providers, &empty_context()),
+            inputs(providers, &empty_context(), &BlockHost::none()),
             &mut fresh(),
             &mut PredicateScratch::default()
         ),
@@ -535,7 +536,7 @@ fn loot_ctx_014_a_cycle_and_a_missing_key_are_faults() {
         });
         let context = empty_context();
         let passed = condition.test(
-            inputs(providers, &context),
+            inputs(providers, &context, &BlockHost::none()),
             &mut fresh(),
             &mut PredicateScratch::default(),
         );
@@ -600,7 +601,7 @@ fn loot_ctx_017_a_key_refers_to_one_baked_entry() {
         assert_eq!(problems, [], "{json}");
         let context = empty_context();
         let read = provider.read(
-            inputs(providers, &context),
+            inputs(providers, &context, &BlockHost::none()),
             &mut fresh(),
             &mut PredicateScratch::default(),
         );

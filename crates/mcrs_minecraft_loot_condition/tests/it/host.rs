@@ -6,8 +6,9 @@ use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_loot_condition::{
-    ClockView, EnvironmentView, ScoreHolder, ScoreView, StorageView, WeatherView,
+    ClockView, EnvironmentView, NbtNumber, ScoreHolder, ScoreView, StorageView, WeatherView,
 };
+use mcrs_minecraft_nbt_path::NbtPath;
 use mcrs_minecraft_predicate::{EntityView, ItemSubject, LocationView};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_voxel::{BlockPos, BlockStateId};
@@ -79,7 +80,11 @@ impl ScoreView<Mob> for Mobs<'_> {
     }
 }
 
-impl StorageView for Mobs<'_> {}
+impl StorageView for Mobs<'_> {
+    fn storage_number(&self, _: ResourceLocation<'_>, _: &NbtPath) -> Option<NbtNumber> {
+        None
+    }
+}
 
 impl EnvironmentView for Mobs<'_> {
     fn environment_value(

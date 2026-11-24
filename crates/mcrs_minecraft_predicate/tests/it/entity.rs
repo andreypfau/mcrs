@@ -5,7 +5,7 @@ use mcrs_minecraft_item_stack::{Count, ItemStack, Kind};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_predicate::{
-    ActiveEffect, BakedEntityPredicate, EntityPredicate, EntityView, LocationView, NoWorld,
+    ActiveEffect, BakedEntityPredicate, BlockHost, EntityPredicate, EntityView, LocationView,
     PredicateIssue, PredicateScratch,
 };
 use mcrs_minecraft_registries::{Named, Resolve};
@@ -501,10 +501,10 @@ fn a_test_without_its_host_value_fails_pred_gen_004() {
         r#"{"slots": {"contents": {}}}"#,
     ];
     for json in passing {
-        assert!(passes(json, &NoWorld, Some(())), "{json}");
+        assert!(passes(json, &BlockHost::none(), Some(())), "{json}");
     }
     for json in failing {
-        assert!(!passes(json, &NoWorld, Some(())), "{json}");
+        assert!(!passes(json, &BlockHost::none(), Some(())), "{json}");
     }
 }
 

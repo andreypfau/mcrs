@@ -4,6 +4,8 @@ use std::sync::LazyLock;
 use glam::DVec3;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_engine_registries::{test_corpus, test_item_table};
+use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_environment::{AttributeValue, WorldClock};
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item::enchantment::Enchantment;
@@ -14,9 +16,11 @@ use mcrs_minecraft_item_stack::{
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot::loot::LootTable;
 use mcrs_minecraft_loot_condition::{
-    ClockView, EnvironmentView, LootContext, ScoreView, StorageView, Tool, WeatherView,
+    ClockView, EnvironmentView, LootContext, NbtNumber, ScoreHolder, ScoreView, StorageView, Tool,
+    WeatherView,
 };
 use mcrs_minecraft_loot_table::{KeyedSeed, LootIssue, LootTables};
+use mcrs_minecraft_nbt_path::NbtPath;
 use mcrs_minecraft_predicate::{EntityView, ItemSubject, LocationView};
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
@@ -144,12 +148,36 @@ impl EntityView for Around<'_> {
     }
 }
 
-impl<E> ScoreView<E> for Around<'_> {}
+impl<E> ScoreView<E> for Around<'_> {
+    fn score(&self, _: ScoreHolder<'_, E>, _: &str) -> Option<i32> {
+        None
+    }
+}
 
-impl StorageView for Around<'_> {}
+impl StorageView for Around<'_> {
+    fn storage_number(&self, _: ResourceLocation<'_>, _: &NbtPath) -> Option<NbtNumber> {
+        None
+    }
+}
 
-impl EnvironmentView for Around<'_> {}
+impl EnvironmentView for Around<'_> {
+    fn environment_value(
+        &self,
+        _: EnvironmentAttribute,
+        _: Option<DVec3>,
+    ) -> Option<AttributeValue> {
+        None
+    }
+}
 
-impl WeatherView for Around<'_> {}
+impl WeatherView for Around<'_> {
+    fn rain_strength(&self) -> Option<f32> {
+        None
+    }
+}
 
-impl ClockView for Around<'_> {}
+impl ClockView for Around<'_> {
+    fn total_ticks(&self, _: Id<WorldClock>) -> Option<i64> {
+        None
+    }
+}
