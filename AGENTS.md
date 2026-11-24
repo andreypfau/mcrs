@@ -181,7 +181,7 @@ and give any materialization exactly one owner and a stated cost model.
 - A simulation partition is a **shard**, never a thread and never a "region". A
   shard step is a library call on a kernel without Bevy.
 
-An exception to any of these is justified by a measurement in the pull request.
+An exception to any of these is justified by a measurement in the pull request. Put the measurement in the pull request body. Do not add a tracked file for it.
 
 ## Crossing a boundary
 
