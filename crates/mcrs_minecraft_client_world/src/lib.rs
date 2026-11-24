@@ -37,6 +37,7 @@ pub mod registries;
 pub mod request_respawn;
 pub mod respawn_screen;
 pub mod screen;
+pub mod scripted_input;
 pub mod session;
 pub mod sign;
 #[cfg(test)]

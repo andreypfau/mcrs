@@ -19,7 +19,7 @@ use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_heightmap::{MotionHeightmap, SolidHeightmap, SurfaceHeightmap};
 use mcrs_voxel::BlockPos;
 
-use crate::spawn_blocks::{ColumnHeights, SpawnBlocks, lower_face_centre};
+use crate::spawn_blocks::{SpawnBlocks, SpawnColumnHeights, lower_face_centre};
 
 const MAX_SEARCH_RADIUS: u32 = 15;
 
@@ -41,6 +41,19 @@ pub(crate) enum ArrivedSpawn {
     Elsewhere,
     Waiting,
     At(Transform),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SpawnColumns {
+    pub(crate) low: ColumnPos,
+    pub(crate) high: ColumnPos,
+}
+
+impl SpawnColumns {
+    pub(crate) fn columns(self) -> impl Iterator<Item = ColumnPos> {
+        let Self { low, high } = self;
+        (low.z..=high.z).flat_map(move |z| (low.x..=high.x).map(move |x| ColumnPos::new(x, z)))
+    }
 }
 
 #[derive(SystemParam)]
@@ -97,35 +110,51 @@ impl SpawnSite<'_, '_> {
         if !self.is_own(target) {
             return ArrivedSpawn::Elsewhere;
         }
-        let spawn = spawn_block(saved);
-        if !self.is_loaded(spawn) {
+        if !self.is_loaded() {
             return ArrivedSpawn::Waiting;
         }
+        let spawn = spawn_block(saved);
         ArrivedSpawn::At(Transform {
             translation: self.adjusted(spawn),
             rotation: spawn_rotation(saved),
         })
     }
 
+    pub(crate) fn join_columns(&self) -> SpawnColumns {
+        let spawn = spawn_block(self.saved.as_deref());
+        let radius = i32::try_from(self.search_radius()).unwrap_or(0);
+        SpawnColumns {
+            low: ColumnPos::from(BlockPos::new(
+                spawn.x.saturating_sub(radius),
+                0,
+                spawn.z.saturating_sub(radius),
+            )),
+            high: ColumnPos::from(BlockPos::new(
+                spawn.x.saturating_add(radius),
+                0,
+                spawn.z.saturating_add(radius),
+            )),
+        }
+    }
+
+    pub(crate) fn join_position(&self) -> Option<DVec3> {
+        self.is_loaded()
+            .then(|| self.adjusted(spawn_block(self.saved.as_deref())))
+    }
+
     fn is_own(&self, dimension: &RunningDimension) -> bool {
         self.own.as_deref().map(|own| own.0) == Some(dimension.label)
     }
 
-    fn is_loaded(&self, spawn: BlockPos) -> bool {
+    fn is_loaded(&self) -> bool {
         let Ok((_, _, index)) = self.dimension.single() else {
             return false;
         };
-        let radius = i32::try_from(self.search_radius()).unwrap_or(0);
-        let xs = [
-            spawn.x.saturating_sub(radius),
-            spawn.x.saturating_add(radius),
-        ];
-        let zs = [
-            spawn.z.saturating_sub(radius),
-            spawn.z.saturating_add(radius),
-        ];
-        xs.into_iter()
-            .all(|x| zs.into_iter().all(|z| self.heights(index, x, z).is_some()))
+        self.join_columns().columns().all(|column| {
+            index
+                .get(&column)
+                .is_some_and(|slot| self.columns.contains(slot.entity))
+        })
     }
 
     fn respawn_dimension(&self, saved: Option<&SavedSpawn>) -> Option<&RunningDimension> {
@@ -137,12 +166,19 @@ impl SpawnSite<'_, '_> {
         wanted.or_else(|| running.iter().find(|found| found.key == OVERWORLD))
     }
 
+    pub(crate) fn join_reads_columns(&self) -> bool {
+        self.default_mode() != GameMode::Spectator
+    }
+
+    fn default_mode(&self) -> GameMode {
+        self.default_mode
+            .as_deref()
+            .map_or(GameMode::default(), |mode| mode.0)
+    }
+
     fn adjusted(&self, spawn: BlockPos) -> DVec3 {
         let centre = lower_face_centre(spawn);
-        let mode = self
-            .default_mode
-            .as_deref()
-            .map_or(GameMode::default(), |mode| mode.0);
+        let mode = self.default_mode();
         if mode == GameMode::Spectator {
             return centre;
         }
@@ -182,12 +218,12 @@ impl SpawnSite<'_, '_> {
         u32::try_from(radius).unwrap_or(0).min(MAX_SEARCH_RADIUS)
     }
 
-    fn heights(&self, index: &ColumnIndex, x: i32, z: i32) -> Option<ColumnHeights> {
+    fn heights(&self, index: &ColumnIndex, x: i32, z: i32) -> Option<SpawnColumnHeights> {
         let column = index.get(&ColumnPos::from(BlockPos::new(x, 0, z)))?;
         let (motion, surface, floor) = self.columns.get(column.entity).ok()?;
         let local_x = usize::try_from(x & 15).ok()?;
         let local_z = usize::try_from(z & 15).ok()?;
-        Some(ColumnHeights {
+        Some(SpawnColumnHeights {
             motion: motion.0.get(local_x, local_z),
             surface: surface.0.get(local_x, local_z),
             ocean_floor: floor.0.get(local_x, local_z),

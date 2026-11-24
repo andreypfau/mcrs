@@ -92,6 +92,9 @@ pub(crate) fn dim_inputs_pending(inputs: Res<DimInputs>) -> bool {
 pub fn route_dim_inputs(mut inputs: ResMut<DimInputs>, mut routed: MessageWriter<RoutedInput>) {
     for (&dim, pending) in &mut inputs.0 {
         if !pending.is_empty() {
+            pending
+                .serverbound
+                .sort_unstable_by_key(|packet| (packet.arrival, packet.session.0));
             routed.write(mem::replace(pending, RoutedInput::new(dim)));
         }
     }

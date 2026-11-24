@@ -143,9 +143,14 @@ The reach check has five parts. Each part has these inputs and outputs:
 |------|--------|---------|
 | knowledge state | as `client-knowledge.md`, CK-PART-001 | the values that the client can have at each knowledge point |
 | intake | the serverbound packets of one client | each action at the end of its action tick (RCH-TCK-002), or a verdict with the reason `over_limit` (RCH-TCK-003) |
-| check | one action, the eye set, the look set, the target region, the range, the tolerances | one verdict |
+| check | one action; the eye set, the look set, the target and the range; the tolerances; the baseline inputs | one verdict |
 | verdict | the output of the check or of the intake | data for the reaction and for other readers |
 | reaction | one verdict | clientbound packets, the effect of the action, or nothing |
+
+The target is a region, or one of the values `unknown_target` and `not_in_view` (RCH-TGT-004,
+RCH-TGT-007). The eye set, the look set, the target and the range can each be an unknown value.
+The baseline inputs are the eye of the player and the box of the target on the server, which
+RCH-VRD-004 uses. Sections 4 to 7 give each input before the check runs.
 
 The check reads only its inputs. It reads no state of the server, of the connection, of the
 intake or of the reaction. Only the intake counts the actions of a client tick. The verdict has
@@ -211,9 +216,16 @@ Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### RCH-ACT-003: An abort is not checked
 
-The check does not check `player_action` action 2 (abort). The vanilla client sends an abort for
-the old block when it changes to another block, and when it stops while it has no target. Thus an
-abort can come at any distance. An abort out of reach still ends the dig (BRK-SRV-016 of
+The check does not check `player_action` action 2 (abort). The vanilla client sends an abort in
+each of these cases:
+
+- It starts on another block, or the item in the main hand changed on the same block. The abort
+  has the old block position and the new face, and a start follows it.
+- The attack key is up, or the target of the client tick is not a block. The face is down.
+- A screen opens.
+- It applies a teleport.
+
+Thus an abort can come at any distance. An abort out of reach still ends the dig (BRK-SRV-016 of
 `block-breaking.md`).
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: R5.
@@ -232,29 +244,40 @@ Provenance: `design`. Kind: semantic. Confidence: high.
 
 The vanilla client does these steps in each client tick, in this order:
 
-1. It applies the clientbound packets that arrived.
+1. When a scroll of the mouse wheel changed the selected slot, it sends `set_carried_item`.
 2. It does the pick. The pick uses the position of the player at the end of the previous client
-   tick, with each teleport of step 1. It uses the current rotation and the eye height of the
-   current pose.
-3. It handles the inputs. It sends the actions of this tick, each with the target of step 2.
-4. It ticks the player. This step selects the pose and moves the player.
-5. It sends the move packet, when MVC-PKT-002 of `movement-checks.md` selects one, and then
-   `client_tick_end`.
+   tick, with each teleport that the client applied after it. It uses the current rotation and the
+   eye height of the current pose.
+3. It handles the inputs. A hotbar key changes the selected slot first. Then the client sends the
+   actions of this tick, each with the target of step 2.
+4. It ticks the entities: the player, its vehicle and the other entities. This step selects the
+   pose and moves the player.
+5. It sends `player_input`, the sprint command and the move packet, when MVC-PKT-002 of
+   `movement-checks.md` selects them. A passenger sends the rotation in each client tick.
+6. It sends `client_tick_end`.
+
+The client applies the clientbound packets that arrived at the start of a frame, before each client
+tick of that frame. A frame has 0 to 10 client ticks. The client applies no packet between two
+client ticks of one frame.
 
 Thus each action of a client tick comes before the move packet of that tick (MVC-PKT-010). The
 server finds the action tick of an action by the `client_tick_end` that follows it. The client
-turns the player only in a frame, and no frame comes between step 2 and step 5. Thus the rotation
-of step 2 is the rotation that the client reports in step 5. The target of a frame does not drive
-an action (CBK-TGT-001 of `client-block-breaking.md`).
+turns the player in a frame, after the client ticks of that frame. Thus, while the player does not
+ride and the camera is the player, the rotation of step 2 is the rotation that the client reports
+in step 5. RCH-LOOK-001 states the other cases. The target of a frame does not drive an action
+(CBK-TGT-001 of `client-block-breaking.md`).
 
-Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: R1.
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: R1. The
+recording `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance/lan/e23_sprint_while_using.txt`
+agrees with the order of an action, the move packet and `client_tick_end`.
 
 ### RCH-TCK-002: The check waits for the end of the action tick
 
-The intake keeps each action until the first move packet or `client_tick_end` after the action.
-The check of the action runs then, and the reaction applies the verdict. Thus an accepted action
-takes effect after the move packet of its client tick. The verdicts of one client tick keep the
-order of their actions.
+The intake keeps each action until the `client_tick_end` of its client tick. A move packet does not
+end the wait. The check of the action runs then, and the reaction applies the verdict. Thus an
+accepted action takes effect after the move packet of its client tick. The intake knows the count of
+the actions of the client tick before the check runs for one of them (RCH-TCK-003). The verdicts of
+one client tick keep the order of their actions.
 
 Provenance: `design`. Kind: semantic. Confidence: high.
 
@@ -282,18 +305,38 @@ Provenance: `design`, third-party. Kind: semantic. Confidence: medium.
 ### RCH-EYE-001: The base position
 
 The base position is the position of the player at the pick of the action tick `k`. RCH-TCK-001
-step 2 states it. The server takes it from the first source of this list that applies:
+step 2 states it. The client takes the eye of the pick from its own position at the end of client
+tick `k − 1`, and not from a position that it reported. The server takes the base position from the
+first source of this list that applies:
 
-1. The movement reader runs. The base position is the position that it accepted for the end of
-   client tick `k − 1` (MVC-PRED-012 of `movement-checks.md`).
-2. Client tick `k − 1` has a position packet. The base position is the position of that packet
-   (CK-SIL-003 of `client-knowledge.md`).
+1. Client tick `k − 1` has a position packet, and the movement reader runs. The base position is
+   the position that the movement reader accepted for the end of that client tick (MVC-PRED-009 and
+   MVC-PRED-012 of `movement-checks.md`).
+2. Client tick `k − 1` has a position packet, and the movement reader does not run. The base
+   position is the position of that packet (CK-SIL-003 of `client-knowledge.md`).
 3. Client tick `k − 1` is a silent tick. The base position is each point at most 2.0E-4 blocks
-   from the reference position (CK-SIL-001, CK-SIL-002).
+   from the reference position (CK-SIL-001, CK-SIL-002). This source applies also when the movement
+   reader runs.
+
+In source 3, the check does not use the first candidate of MVC-PRED-012. MVC-PRED-010 keeps a
+candidate up to `2.0E-4 + offset_threshold` from the reference position. The position of the client
+is at most 2.0E-4 from it. Thus the first candidate can be 1.2E-3 from the position of the client,
+which is more than `box_tolerance`.
 
 A teleport can come after client tick `k − 1` and before the action. When the client accepts it,
 the base position is the position that the teleport gives (`teleport-confirmation.md`). The move
 packet of client tick `k` comes after the action. Its position is not the base position.
+
+Example: the reference position is `(0, 64, 0)`. In the silent tick `k − 1`, the client moves to
+`(0, 64, 1.5E-4)`. The first candidate of the movement reader is `(0, 64, −1.1E-3)`, and
+MVC-PRED-010 keeps it. The player stands, looks along `+z` and attacks a zombie whose box starts at
+`z = 3.0`. `R_e` is 3.0. The client measures 2.99985 to the box, which is less than `R_e`, so it
+sends `attack` (CBK-TGT-010). In RCH-CMP-001, the region `B` starts at `z = 2.9995`.
+
+| Eye set | Smallest entry distance into `B` | Bound `R_e + distance_tolerance` | Result |
+|---------|----------------------------------|----------------------------------|--------|
+| the first candidate only | 3.0006 | 3.0005 | refused, `out_of_range` |
+| source 3 | 2.9993 | 3.0005 | passes |
 
 Provenance: `design`, third-party. Kind: semantic. Confidence: medium. Experiment: R1.
 
@@ -348,7 +391,14 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 
 The rotation of the pick is the rotation of the move packet of the action tick, when that packet
 has a rotation. Otherwise, it is the last rotation that the client reported before the action.
-The client reports each change of the rotation (MVC-PKT-002 of `movement-checks.md`).
+The client reports each change of the rotation (MVC-PKT-002 of `movement-checks.md`). The accept of
+a teleport reports a rotation too (MVC-PKT-020), and so does the rotation that the client sends when
+it applies `player_rotation`.
+
+When the active item of the pick is an attack range item (RCH-RNG-002), the pick uses the pitch of
+this rule and the head yaw. The head yaw is the yaw at the end of the player step of client tick
+`k − 1`. Thus the look set holds the yaw of this rule and the last yaw that the client reported up
+to the end of client tick `k − 1`. While the player rides, RCH-LOOK-002 applies.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: R1.
 
@@ -391,8 +441,13 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Experiment: R3.
 ### RCH-TGT-002: The pick radius
 
 The client grows the box of each entity by its pick radius before the test. The pick radius is
-1.0 for an entity of the tag `#minecraft:redirectable_projectile`. It is 0 for each other entity.
-The check grows the entity region by the same radius.
+1.0 for these entities:
+
+- an entity of the tag `#minecraft:redirectable_projectile`, except an arrow in the ground;
+- a shulker bullet.
+
+It is 0 for each other entity. The check grows the entity region by the same radius. The pick with
+an attack range item does not use the pick radius (RCH-CMP-002).
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium.
 
@@ -466,15 +521,24 @@ The edition policy (issue #655) gives the base values. The base values of the Ja
 and 4.5 (`attributes.md`). In creative mode, the server adds the two modifiers of ATR-SRC-003 of
 `attributes.md`. The check adds no range for creative mode itself.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested_black_box_confirmed`. The recordings in
+`tools/mcrs_minecraft_client_recorder/recordings/pose/` show the base values 4.5 and 3 in
+`update_attributes`. Kind: semantic. Confidence: medium.
 
 ### RCH-RNG-002: The item of the pick and the item of the attack
 
-The pick uses the active item: the item in use, or else the item in the main hand. When that item
-is an attack range item, the pick uses its values. The pick comes before a change of the selected
-slot in the same client tick (ATK-PKT-001 of `player-attack.md`). Before the client sends `attack`, it tests the distance with
-the attack range item of the main hand after that change. The check uses each item that the
-client can have at each of these two times.
+The pick uses the active item: the item in use, or else the item in the main hand. A spectator has
+no active item. When that item is an attack range item, the pick uses its values. That pick ends at
+the first block outline on its segment. When it hits no entity and no block within `R_b`, the
+client uses the pick without the item, with `R_b` and `R_e`.
+
+A scroll of the mouse wheel changes the selected slot before the pick. A hotbar key changes it after
+the pick and before the actions (RCH-TCK-001). Before the client sends `attack`, it tests the item
+of the main hand after that change. When that item is an attack range item, the client sends
+`attack` only when the distance from the eye to the hit point is from `min − m` to `max + m`, both
+included. This test also applies to a hit of the pick without the item. When that item is not an
+attack range item, the client does no test. The check uses each item that the client can have at
+each of these two times.
 
 Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: R6.
 
@@ -518,8 +582,8 @@ This rule applies to `attack` when an item of RCH-RNG-002 is an attack range ite
 entity region, and `m` the margin. The attack passes when an eye `e` in `E` and a look `v` in `L`
 obey each of these conditions:
 
-1. Grow `B` by the pick radius, `m` and `box_tolerance`. The ray from `e` along `v` meets it at a
-   ray distance from `min` to `max + w(v)`.
+1. Grow `B` by `m` and `box_tolerance`. The ray from `e` along `v` meets it at a
+   ray distance from `min − distance_tolerance` to `max + w(v) + distance_tolerance`.
 2. `n(e, B) ≤ max + m + distance_tolerance`.
 3. `f(e, B) ≥ min − m − distance_tolerance`.
 
@@ -590,10 +654,14 @@ goes from the corner `lo` to the corner `hi`. `x_a` is the coordinate of a point
 2. Surface test. One box of `U` obeys both of these conditions:
    - on each axis `a`, `lo_a − p ≤ P_a ≤ hi_a + p`;
    - on one axis `a` or more, `|P_a − lo_a| ≤ p` or `|P_a − hi_a| ≤ p`.
-3. Face test. Take the boxes of `U` and the boxes of the second shape of RCH-TGT-006, not grown.
-   Let `a` be the axis of face `f`. Let `σ` be +1 for the faces up, south and east, and −1 for the
-   faces down, north and west. Let `c` be `hi_a` of a box when `σ` is +1, and `lo_a` otherwise. One
-   of these boxes obeys `σ × (e_a − c) ≥ −box_tolerance`.
+3. Face test. Let `a` be the axis of face `f`. Let `σ` be +1 for the faces up, south and east,
+   and −1 for the faces down, north and west. For a box, let `c` be `hi_a` when `σ` is +1, and
+   `lo_a` otherwise. One of these conditions is true:
+   - One box of `U` obeys the surface test, `|P_a − c| ≤ p` and `σ × (e_a − c) ≥ −box_tolerance`.
+     Thus `P` is on face `f` of that box.
+   - One box of the second shape of RCH-TGT-006, not grown, obeys `σ × (e_a − c) ≥ −box_tolerance`.
+     The ray meets that box grown by `box_tolerance` at an entry distance less than
+     `t + distance_tolerance`.
 
 The surface test and the face test use the boxes of `U`, not the boxes of `O`. The boxes of an
 outline shape are exact data, and the client puts its hit point on the surface of one of them. A box
@@ -624,8 +692,11 @@ other case is this:
 - The look of RCH-LOOK-003 has a length that differs from 1 by less than 1.0E-6. Thus `t` is less
   than `R_b × (1 + 1.0E-6) + 1.1E-7`. For each `R_b` up to 64, that is less than
   `R_b + distance_tolerance`.
-- The ray goes into the box through face `f` (CBK-TGT-007, CBK-TGT-008). Thus `e` is on the outer
-  side of the plane of that face, and `σ × (e_a − c) ≥ 0`.
+- The face `f` comes from the outline shape or from the second shape (CBK-TGT-007, CBK-TGT-008).
+  From the outline shape, the ray goes into the box of `H` through face `f`. Thus `H` is on face `f`
+  of that box, and `e` is on the outer side of its plane, so `σ × (e_a − c) ≥ 0`. From the second
+  shape, the ray goes into a box of that shape through face `f`, at a ray distance less than
+  `|H − e|`. The second condition of the face test then holds.
 
 Example: the block at `Q = (0, 64, 0)` is a full block. Thus `U` holds the box from `(0, 64, 0)` to
 `(1, 65, 1)`. The eye is `e = (0.5, 64.5, −2.0)`, with the yaw 0 and the pitch 0, so
@@ -636,7 +707,10 @@ packet has the face north and the cursor `(0.5, 0.5, 0.0)`. Thus `P` is `(0.5, 6
 |------|--------|--------|
 | ray | `t = 2.0`, `2.0 < 4.5 + 0.0005`; distance from the ray 0 | passes |
 | surface | `0 − p ≤ 0.5 ≤ 1 + p`, `64 − p ≤ 64.5 ≤ 65 + p`, `0 − p ≤ 0.0 ≤ 1 + p`; `|P_z − lo_z| = 0` | passes |
-| face | axis `z`, `σ = −1`, `c = 0`; `−1 × (−2.0 − 0) = 2.0 ≥ −0.0005` | passes |
+| face | axis `z`, `σ = −1`, `c = 0`; `\|P_z − c\| = 0 ≤ p`; `−1 × (−2.0 − 0) = 2.0 ≥ −0.0005` | passes |
+
+The same packet with the face up fails the face test: on the axis `y`, `c` is 65, and
+`|P_y − c| = 0.5` is more than `p`. A full block has no second shape.
 
 The same test against the boxes of `O` puts `P` 0.0005 from the nearest surface, at `z = −0.0005`.
 That is more than `p`, so a surface test with `O` refuses this placement. With the eye at
@@ -666,8 +740,8 @@ The hit distance of a candidate is the smallest value of this list, over each pa
 passes that comparison:
 
 - for RCH-CMP-001, the entry distance `d(e, v, B)`, with `B` of RCH-CMP-001;
-- for RCH-CMP-002, the smallest ray distance `t` from `min` to `max + w(v)` at which the ray from
-  `e` along `v` is in the region of its condition 1. The rule uses each set of values of
+- for RCH-CMP-002, the smallest ray distance `t` in the interval of its condition 1 at which the
+  ray from `e` along `v` is in the region of that condition. The rule uses each set of values of
   RCH-RNG-003 that passes.
 
 The first entity is the candidate with the smallest hit distance. When two candidates have the same
@@ -681,8 +755,10 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ### RCH-TOL-001: The box and distance tolerances
 
-`box_tolerance` grows each target region, except in the surface test of RCH-CMP-005.
-`distance_tolerance` adds to each bound of a distance.
+`box_tolerance` grows each target region, except in the surface test and the face test of
+RCH-CMP-005. `distance_tolerance` widens each bound of a distance: it adds to each upper bound, and
+it subtracts from each lower bound. The interval of the ray distance in condition 1 of RCH-CMP-002
+is an example.
 These tolerances cover the rounding difference between the client and the check. They do not cover
 latency. The eye set and the target region cover latency.
 
@@ -778,7 +854,9 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 ### RCH-RCT-002: The client after a refusal
 
 The acknowledgement alone makes the vanilla client restore each block that it predicted for the
-sequence. The `block_update` packets give it the state of the server. The `container_set_slot`
+sequence. When a restored block collides with the player, the client puts the player back at its
+position at the time of the prediction. It does not do this when a teleport came after the
+prediction. The `block_update` packets give it the state of the server. The `container_set_slot`
 packet gives it the stack of the server, when the client changed that stack in its prediction.
 
 The vanilla client applies steps 3 and 4 of ATK-KB-002 of `player-attack.md` to itself when it
@@ -804,11 +882,14 @@ targets.
 
 Let `d` be the nearest distance from the eye to the box of the target. The vanilla server accepts
 the reach of an attack when `min − m − 3.0 ≤ d ≤ max + m + 3.0`. The values come from the attack
-range item of the main hand. Without such an item, `min` is 0, `max` is `R_e` and `m` is 0. The
-server computes `d` with a square root. Both bounds are inclusive. The tests of ATK-PKT-002 and of
-ATK-PKT-003 steps 1 and 2 come first.
+range item of the main hand. Without such an item, `min` is 0, `max` is `R_e` rounded to binary32
+and `m` is 0. The server computes `d` with a square root. Both bounds are inclusive. The tests of
+ATK-PKT-002 and of ATK-PKT-003 steps 1 and 2 come first.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: R8.
+The trace `tools/mcrs_minecraft_probe/traces/reach_vanilla_bounds.json` agrees with this rule. In survival mode and without an item, an attack on a pig
+whose box is 5.95 blocks from the eye hits the pig. At 6.05 blocks, the attack has no effect.
+
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high.
 
 ### RCH-VAN-002: An interaction with an entity
 
@@ -816,7 +897,10 @@ Let `d` be the nearest distance from the eye to the box of the target. The vanil
 the reach of `interact` when `d²` is less than `(R_e + 3.0)²`. It does not test the location of the
 packet. The entity must exist, and its block position must be inside the world border.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: R8.
+The trace `tools/mcrs_minecraft_probe/traces/reach_vanilla_bounds.json` agrees with this rule. In survival mode, `interact` on a minecart with a chest
+whose box is 5.95 blocks from the eye opens its menu. At 6.05 blocks, the server opens no menu.
+
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high.
 
 ### RCH-VAN-003: A dig action
 
@@ -833,7 +917,8 @@ medium.
 The vanilla server tests `use_item_on` in this order:
 
 1. The nearest distance from the eye to the block cube of `Q` is less than `R_b + 1.0`
-   (PLC-RCH-001 of `block-placing.md`).
+   (PLC-RCH-001 of `block-placing.md`). With the base values, the limit is 5.5 in survival mode and
+   6.0 in creative mode.
 2. The cursor point is less than 1.0000001 from the center of the block cube on each axis
    (PLC-CUR-001).
 
@@ -841,8 +926,9 @@ When a test fails, the placer gets only the acknowledgement. When both tests pas
 on with the rules of `block-placing.md`. It then sends `block_update` for `Q` and for the position
 next to the face.
 
-Provenance: `source_suggested`, from PLC-RCH-001 and PLC-CUR-001. Kind: semantic. Confidence:
-medium.
+Provenance: `source_suggested_black_box_confirmed`, from PLC-RCH-001 and PLC-CUR-001. The trace
+`tools/mcrs_minecraft_probe/traces/reach_placement.json` shows the limit of test 1 in both game modes.
+Kind: semantic. Confidence: high.
 
 ### RCH-VAN-005: What the vanilla server does not test
 
@@ -854,12 +940,17 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### RCH-VAN-006: An open menu
 
-The vanilla server keeps the menu of a block open while the block cube is within `R_b + 4.0` of the
-eye. For a menu of an entity, it keeps it open while the box of the entity is
-within `R_e + 4.0` of the eye. Otherwise, it closes the menu. The server of mcrs keeps this rule,
-with its own positions.
+The vanilla server keeps the menu of a block open while the nearest distance from the eye to the
+block cube is less than `R_b + 4.0`, and the same block or block entity is at the position. For a
+menu of an entity, it keeps it open while the nearest distance from the eye to the box of the
+entity is less than `R_e + 4.0`, and the entity is alive. Otherwise, it closes the menu. The server
+of mcrs keeps this rule, with its own positions.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: R8.
+The trace `tools/mcrs_minecraft_probe/traces/reach_vanilla_bounds.json` agrees with the rule for a block. In survival mode, the menu of a chest stays open at
+8.4 blocks, and the server closes it at 8.6 blocks.
+
+Provenance: `source_suggested_black_box_confirmed` for a block menu, `source_suggested` for an
+entity menu. Kind: semantic. Confidence: medium.
 
 ## 13. Invariants
 
@@ -1005,7 +1096,7 @@ the direction.
 
 These experiments have not run. Each rule that names one of them is not confirmed until the
 experiment runs. Each experiment uses a vanilla client and the proxy of
-`tools/mcrs_minecraft_client_recorder`, except R8, which uses `tools/vanilla-server`. Each
+`tools/mcrs_minecraft_client_recorder`. Each
 experiment records the target of the pick in each client tick with the capture of
 `client-entities.md`, section 0.2.
 
@@ -1018,5 +1109,4 @@ experiment records the target of the pick in each client tick with the capture o
 | R5 | Break a block, change the face, change to another block, and look away during a dig. Do the same in creative mode. | Actions 0, 1 and 3 come only for the block of the pick of the same client tick. Action 2 comes for the old block at any distance. | RCH-ACT-003, RCH-CMP-004 |
 | R6 | Give an item the component `attack_range` with `min_reach` 2.0 and `max_reach` 4.5. Attack at 1.0, 3.5 and 5.0 blocks while the player walks. Change the selected slot in the tick of an attack. | The client sends `attack` only when the conditions of RCH-CMP-002 are true for its eye and look. The pick uses the item before the slot change. | RCH-RNG-002, RCH-RNG-003, RCH-RNG-004, RCH-CMP-002 |
 | R7 | Ride a boat that turns, and attack a zombie and use a chest. | The eye of the pick is in the set of RCH-EYE-003. The yaw of the pick differs from the reported yaw by the turn of the boat in that client tick. | RCH-EYE-003, RCH-LOOK-002 |
-| R8 | On the vanilla server, attack, interact, dig and place at distances around the bounds of section 12. Open a chest and walk away. | The vanilla server accepts and refuses at the bounds of RCH-VAN-001 to RCH-VAN-004. It closes the menu at the bound of RCH-VAN-006. | RCH-VAN-001, RCH-VAN-002, RCH-VAN-006 |
 | R9 | Send a sprint attack and a placement that a server refuses with the reaction of RCH-RCT-001. | The client restores the block and the stack. Its velocity after the attack has steps 3 and 4 of ATK-KB-002. | RCH-RCT-002 |

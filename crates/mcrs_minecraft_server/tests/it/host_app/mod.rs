@@ -43,8 +43,8 @@ use mcrs_minecraft_engine_world::world::sub_app::{
 };
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_light_engine::block_light::{BlockLightRegistry, block_light_registry};
-use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
+use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
@@ -287,6 +287,15 @@ impl PlayServer {
     }
 
     pub fn queue<P: Packet + Encode>(&mut self, anchor: Entity, packet: &P) {
+        self.queue_arrived(anchor, packet, Instant::now());
+    }
+
+    pub fn queue_arrived<P: Packet + Encode>(
+        &mut self,
+        anchor: Entity,
+        packet: &P,
+        arrival: Instant,
+    ) {
         let mut data = Vec::new();
         packet.encode(&mut data).unwrap();
         let data = Bytes::from(data);
@@ -320,6 +329,8 @@ impl PlayServer {
                     id: P::ID,
                     trigger,
                     data,
+                    acknowledged_tick: 0,
+                    arrival,
                 },
             );
         assert!(sent.is_ok(), "the dimension takes the packet");
@@ -394,6 +405,37 @@ pub fn admit_with_file(
     arrival: &Arrival<'_>,
     file: &PersistedSnapshot,
 ) -> Entity {
+    let mut snapshot = file.clone();
+    for (key, tag) in joining_snapshot(arrival).iter() {
+        snapshot.insert(key, tag.clone());
+    }
+    admit_snapshot(app, dim, arrival, snapshot)
+}
+
+pub fn admit_unplaced(app: &mut App, dim: Entity, arrival: &Arrival<'_>) -> Entity {
+    let mut snapshot = joining_snapshot(arrival);
+    snapshot.remove("Pos");
+    admit_snapshot(app, dim, arrival, snapshot)
+}
+
+fn joining_snapshot(arrival: &Arrival<'_>) -> PersistedSnapshot {
+    PersistedSnapshot::joining_player(
+        arrival.uuid,
+        arrival.name.into(),
+        arrival.position,
+        Vec2::ZERO,
+        Some(crate::support::client_info_with_view_distance(
+            arrival.view_distance,
+        )),
+    )
+}
+
+fn admit_snapshot(
+    app: &mut App,
+    dim: Entity,
+    arrival: &Arrival<'_>,
+    snapshot: PersistedSnapshot,
+) -> Entity {
     let session = app
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
@@ -410,19 +452,6 @@ pub fn admit_with_file(
         ))
         .id();
     app.world_mut().spawn(HostAnchorRef(anchor));
-    let joining = PersistedSnapshot::joining_player(
-        arrival.uuid,
-        arrival.name.into(),
-        arrival.position,
-        Vec2::ZERO,
-        Some(crate::support::client_info_with_view_distance(
-            arrival.view_distance,
-        )),
-    );
-    let mut snapshot = file.clone();
-    for (key, tag) in joining.iter() {
-        snapshot.insert(key, tag.clone());
-    }
     submit_to(
         app,
         dim,

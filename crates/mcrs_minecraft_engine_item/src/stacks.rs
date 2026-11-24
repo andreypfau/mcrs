@@ -3,6 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::SystemParam;
+use bevy_ecs::world::World;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemComponent;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -14,6 +15,9 @@ use mcrs_minecraft_item_table::Prototype;
 
 use crate::ComponentState;
 use crate::StackRows;
+use crate::cells::Cells;
+use crate::item_components::ItemComponents;
+use crate::row::Row;
 use crate::row::RowKey;
 use crate::row::bit;
 use crate::row::bits;
@@ -69,10 +73,17 @@ impl<'w> Stacks<'w, '_> {
         let prototype = self.table.prototype(kind);
         let columns = self.rows.columns();
         let cells = columns.cells(stack)?;
-        let value = (columns.rows().iter()).fold(ItemStack::new(kind, count), |value, row| {
-            row.diff(&cells, prototype, value)
-        });
-        Some(value)
+        Some(value_of(columns.rows(), &cells, prototype, kind, count))
+    }
+
+    #[must_use]
+    pub fn value_in(world: &World, stack: Entity) -> Option<ItemStack> {
+        let kind = *world.get::<Kind>(stack)?;
+        let count = *world.get::<Count>(stack)?;
+        let prototype = world.get_resource::<ItemTable>()?.prototype(kind);
+        let rows = world.get_resource::<ItemComponents>()?.rows();
+        let cells = Cells::in_world(world, stack, rows)?;
+        Some(value_of(rows, &cells, prototype, kind, count))
     }
 
     #[must_use]
@@ -123,4 +134,16 @@ impl<'w> Stacks<'w, '_> {
     pub fn row_hash(&mut self, stack: Entity) -> Option<u64> {
         self.rows.row_hash(stack)
     }
+}
+
+fn value_of(
+    rows: &[Row],
+    cells: &Cells,
+    prototype: Option<&'static Prototype>,
+    kind: Kind,
+    count: Count,
+) -> ItemStack {
+    (rows.iter()).fold(ItemStack::new(kind, count), |value, row| {
+        row.diff(cells, prototype, value)
+    })
 }

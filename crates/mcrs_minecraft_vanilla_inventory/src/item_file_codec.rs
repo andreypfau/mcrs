@@ -1,6 +1,5 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::system::In;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::persisted_registry::PersistScope;
@@ -110,43 +109,20 @@ fn registry_names<'world>(
     Ok(RegistryNames::new(registries, table))
 }
 
-fn stack_values(In(stacks): In<Vec<Entity>>, mut reader: Stacks) -> Vec<Option<ItemStack>> {
-    stacks
-        .into_iter()
-        .map(|stack| reader.to_value(stack))
-        .collect()
-}
-
-fn read_stack_values(
-    world: &mut World,
-    stacks: Vec<Entity>,
-    key: &'static str,
-) -> Result<Vec<Option<ItemStack>>, PersistedError> {
-    world
-        .run_system_cached_with(stack_values, stacks)
-        .map_err(|error| encode_error(key, error))
-}
-
 fn capture_inventory(
-    world: &mut World,
+    world: &World,
     holder: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
     let Some(slots) = world.get::<Slots>(holder) else {
         return Ok(None);
     };
-    let placed: Vec<(u8, Entity)> = (0..slots.len().min(INVENTORY_SLOTS))
-        .filter_map(|index| Some((u8::try_from(index).ok()?, slots.get(index)?)))
-        .collect();
-    let values = read_stack_values(
-        world,
-        placed.iter().map(|(_, stack)| *stack).collect(),
-        INVENTORY,
-    )?;
+    let placed = (0..slots.len().min(INVENTORY_SLOTS))
+        .filter_map(|index| Some((u8::try_from(index).ok()?, slots.get(index)?)));
     let names = registry_names(world, INVENTORY)?;
     let mut list = Vec::new();
-    for ((slot, _), stack) in placed.into_iter().zip(values) {
-        let Some(stack) = stack else {
+    for (slot, stack) in placed {
+        let Some(stack) = Stacks::value_in(world, stack) else {
             continue;
         };
         let saved = write_saved_with_slot(&SlotStack { slot, stack }, &names)
@@ -189,7 +165,7 @@ fn apply_inventory(world: &mut World, holder: Entity, tag: &NbtTag) -> Result<()
 }
 
 fn capture_ender_items(
-    world: &mut World,
+    world: &World,
     holder: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -225,7 +201,7 @@ fn apply_ender_items(
 }
 
 fn capture_equipment(
-    world: &mut World,
+    world: &World,
     holder: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {

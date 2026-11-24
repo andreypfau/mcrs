@@ -149,7 +149,9 @@ fn dimension<'a>(
     })
 }
 
-fn saved_data(entry: &GeneratedBlockEntity) -> Result<NbtCompound, mcrs_minecraft_nbt::Error> {
+pub(crate) fn saved_data(
+    entry: &GeneratedBlockEntity,
+) -> Result<NbtCompound, mcrs_minecraft_nbt::Error> {
     let mut compound = mcrs_minecraft_nbt::to_nbt_compound(entry)?;
     if compound.get("components").is_none() {
         compound.put_component("components", NbtCompound::new());

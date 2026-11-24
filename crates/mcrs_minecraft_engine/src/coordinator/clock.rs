@@ -1,6 +1,7 @@
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
+use mcrs_minecraft_engine_world::tick_pace::tick_runs_normally;
 use mcrs_minecraft_environment::{
     AdvanceTime, ClockEdit, ClockTime, WorldClock, WorldClockSystems, WorldClocks,
 };
@@ -24,7 +25,8 @@ pub struct WorldClockHostPlugin;
 impl Plugin for WorldClockHostPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameTime>();
-        app.add_systems(FixedUpdate, advance_game_time);
+        app.add_systems(FixedUpdate, advance_game_time.run_if(tick_runs_normally));
+        app.configure_sets(FixedUpdate, WorldClockSystems.run_if(tick_runs_normally));
         app.add_systems(
             FixedUpdate,
             send_every_clock
@@ -36,13 +38,6 @@ impl Plugin for WorldClockHostPlugin {
     }
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "advances the game time by one on every fixed tick"
-    )
-)]
 #[cfg_attr(
     mcrs_lint,
     expect(

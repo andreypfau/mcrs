@@ -123,7 +123,8 @@ impl ColumnStoreLink {
         self.generation = Generation::World;
     }
 
-    pub(crate) fn generates(&self) -> bool {
+    #[must_use]
+    pub fn generates(&self) -> bool {
         self.generation == Generation::World
     }
 

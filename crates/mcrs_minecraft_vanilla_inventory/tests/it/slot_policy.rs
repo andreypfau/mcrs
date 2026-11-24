@@ -25,6 +25,7 @@ use mcrs_minecraft_vanilla_inventory::VanillaInventoryRequests;
 use crate::fixture::DIRT;
 use crate::fixture::STONE;
 use crate::fixture::capture;
+use crate::fixture::depart;
 use crate::fixture::dropped;
 use crate::fixture::gameplay_app;
 use crate::fixture::holders;
@@ -97,6 +98,7 @@ fn close_by(world: &mut World, player: Entity, path: ClosePath) {
             world.run_schedule(FixedUpdate);
         }
         ClosePath::Capture(cause) => {
+            depart(world, player, cause);
             capture(world, player, cause);
         }
     }

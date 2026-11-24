@@ -5,7 +5,7 @@ use bevy_app::Update;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_minecraft_engine::bus::InboundPlayerDespawn;
-use mcrs_minecraft_engine::despawn_inbound_player::despawn_inbound_player;
+use mcrs_minecraft_engine::despawn_inbound_player::InboundPlayerDespawnSet;
 use mcrs_minecraft_engine_damage::DamageSet;
 use mcrs_minecraft_engine_damage::Died;
 use mcrs_minecraft_engine_damage::RespawnRequest;
@@ -40,7 +40,7 @@ impl Plugin for DeathDropsPlugin {
                 Update,
                 drop_held_at_departure
                     .run_if(on_message::<InboundPlayerDespawn>)
-                    .before(despawn_inbound_player),
+                    .in_set(InboundPlayerDespawnSet::Drop),
             );
     }
 }

@@ -6,8 +6,9 @@ use mcrs_minecraft_command_argument::KeywordError;
 use mcrs_minecraft_command_argument::TimeError;
 use mcrs_minecraft_command_argument_block::BlockError;
 use mcrs_minecraft_command_argument_entity::EntityError;
+use mcrs_minecraft_nbt_path::NbtPathError;
 use mcrs_minecraft_snbt::SnbtError;
-use mcrs_minecraft_text::Text;
+use mcrs_minecraft_text::{IntoText, Text};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -19,6 +20,7 @@ pub enum ArgumentError {
     Block(BlockError),
     Time(TimeError),
     Nbt(SnbtError),
+    NbtPath(NbtPathError),
 }
 
 impl fmt::Display for ArgumentError {
@@ -31,6 +33,7 @@ impl fmt::Display for ArgumentError {
             ArgumentError::Block(error) => fmt::Display::fmt(error, f),
             ArgumentError::Time(error) => fmt::Display::fmt(error, f),
             ArgumentError::Nbt(error) => fmt::Display::fmt(error, f),
+            ArgumentError::NbtPath(error) => fmt::Display::fmt(error, f),
         }
     }
 }
@@ -87,6 +90,12 @@ impl From<SnbtError> for ArgumentError {
     }
 }
 
+impl From<NbtPathError> for ArgumentError {
+    fn from(error: NbtPathError) -> Self {
+        ArgumentError::NbtPath(error)
+    }
+}
+
 impl From<TimeError> for ArgumentError {
     fn from(error: TimeError) -> Self {
         ArgumentError::Time(error)
@@ -103,6 +112,7 @@ impl ErrorText for ArgumentError {
             ArgumentError::Block(error) => error.text(input),
             ArgumentError::Time(error) => error.text(input),
             ArgumentError::Nbt(error) => snbt_text(input, *error),
+            ArgumentError::NbtPath(error) => error.to_string().into_text(),
         }
     }
 }

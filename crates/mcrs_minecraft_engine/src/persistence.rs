@@ -27,6 +27,7 @@ use crate::background_writer::{BackgroundWriter, WriteJob};
 use crate::bus::OutboundPlayerReleased;
 use crate::carried_attributes::CarriedAttributes;
 use crate::client_info::ClientInfo;
+use crate::client_on_ground::ClientOnGround;
 use crate::cold_columns::SaveRequest;
 use crate::coordinator::clock::GameTime;
 use crate::game_mode::ListedGameMode;
@@ -62,6 +63,7 @@ const CARRIED_ATTRIBUTES_KEYS: &[&str] = &["mcrs:attributes"];
 const SPRINTING_KEYS: &[&str] = &["mcrs:sprinting"];
 const SHIFT_KEY_KEYS: &[&str] = &["mcrs:shift_key"];
 const UUID_KEYS: &[&str] = &["UUID"];
+const ON_GROUND_KEYS: &[&str] = &["OnGround"];
 const HEALTH_KEY: &str = "Health";
 const VITALS_KEYS: &[&str] = &[HEALTH_KEY, "AbsorptionAmount", "HurtTime", "DeathTime"];
 
@@ -72,6 +74,7 @@ impl Plugin for PlayerPersistencePlugin {
         app.register_persisted_codec(POSE_KEYS, PersistScope::Persisted, capture_pose, apply_pose)
             .register_persisted_codec(UUID_KEYS, PersistScope::Persisted, capture_uuid, apply_uuid)
             .register_persisted::<PlayerFileState>(player_state_keys(), PersistScope::Persisted)
+            .register_persisted::<ClientOnGround>(ON_GROUND_KEYS, PersistScope::Persisted)
             .register_persisted_as::<PlayerGameMode, GameType>(
                 GAME_TYPE_KEYS,
                 PersistScope::Persisted,
@@ -146,7 +149,7 @@ impl PersistedForm<Transform> for Pose {
 }
 
 fn capture_pose(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -186,7 +189,7 @@ fn apply_pose(world: &mut World, player: Entity, tag: &NbtTag) -> Result<(), Per
 }
 
 fn capture_uuid(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -228,7 +231,7 @@ fn ticks(saved: i16) -> u8 {
 }
 
 fn capture_vitals(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -385,7 +388,7 @@ struct ReadAbilities {
 }
 
 fn capture_abilities(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -436,7 +439,7 @@ fn apply_abilities(world: &mut World, player: Entity, tag: &NbtTag) -> Result<()
 }
 
 fn capture_dimension(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -694,6 +697,16 @@ impl PersistedSnapshot {
         self.put_logged(POSE_KEYS, &Pose::from_value(&transform));
     }
 
+    pub fn insert_rotation(&mut self, rotation: Rotation) {
+        self.put_logged(
+            POSE_KEYS,
+            &Pose {
+                pos: None,
+                rotation: Some([rotation.yaw(), rotation.pitch()]),
+            },
+        );
+    }
+
     pub fn profile(&self) -> Option<GameProfile> {
         self.get_logged(PROFILE_KEYS)
     }
@@ -807,15 +820,14 @@ pub fn apply_join_snapshot(world: &mut World, player: Entity, snapshot: &Persist
 }
 
 pub fn save_player(
-    world: &mut World,
+    world: &World,
     player: Entity,
     cause: CaptureCause,
 ) -> Result<PlayerDat, PersistedError> {
-    let Some(registry) = world.remove_resource::<PersistedRegistry>() else {
+    let Some(registry) = world.get_resource::<PersistedRegistry>() else {
         return Err(PersistedError::NoRegistry);
     };
     let snapshot = registry.capture_file(world, player, cause);
-    world.insert_resource(registry);
     let mut root = mcrs_minecraft_nbt::compound::NbtCompound::new();
     for (key, tag) in snapshot? {
         root.put(key, tag);
@@ -829,7 +841,7 @@ pub fn save_player(
 }
 
 fn player_file(
-    world: &mut World,
+    world: &World,
     player: Entity,
     cause: CaptureCause,
 ) -> Option<(PathBuf, Uuid, PlayerDat)> {
@@ -1070,6 +1082,26 @@ pub(crate) mod tests {
             keys.iter().all(|key| !key.starts_with("mcrs:")),
             "session state in the file: {keys:?}"
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_player_file_holds_the_live_ground_flag() {
+        let dir = temp_world();
+        let mut app = app(&dir);
+        let player = app
+            .world_mut()
+            .spawn((
+                profile(),
+                Transform::default(),
+                PlayerFileState::default(),
+                ClientOnGround(true),
+            ))
+            .id();
+
+        let dat = save_player(app.world_mut(), player, CaptureCause::Autosave).unwrap();
+
+        assert_eq!(dat.get("OnGround"), Some(&NbtTag::Byte(1)));
         let _ = std::fs::remove_dir_all(dir);
     }
 

@@ -1,0 +1,31 @@
+[package]
+name = "mcrs_minecraft_client_control"
+description = "A local socket that reads the state of a Minecraft client and drives its input, one text line in and one JSON line out"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_log.workspace = true
+bevy_math.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_chat.workspace = true
+mcrs_minecraft_chat_client.workspace = true
+mcrs_minecraft_client_world.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_entity_visual.workspace = true
+mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_volume.workspace = true
+mcrs_voxel.workspace = true

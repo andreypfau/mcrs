@@ -3,6 +3,7 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_command_engine::{AppCommandsExt, RegistrationError, system_message};
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::muxer::online_count::send_online_count;
+use mcrs_minecraft_engine::server_edit::announce_tick_state;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
@@ -28,7 +29,8 @@ impl Plugin for WorldCommandsPlugin {
             Update,
             report_sprint
                 .run_if(sprint_reported)
-                .after(send_online_count),
+                .after(send_online_count)
+                .before(announce_tick_state),
         );
     }
 }

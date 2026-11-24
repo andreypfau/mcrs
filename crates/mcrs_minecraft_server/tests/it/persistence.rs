@@ -1,12 +1,13 @@
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use bevy_app::{App, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::query::With;
-use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
+use bevy_ecs::world::WorldId;
 use bevy_math::DVec3;
 use mcrs_engine_store::{DiskStore, VersionedChunk};
 use mcrs_minecraft_anvil::piece::{GridTag, MonumentBuildingTag};
@@ -321,17 +322,21 @@ fn an_inventory_crosses_a_dimension_change() {
     let arrived = server
         .player_in(end, anchor)
         .expect("the player is in the End");
-    let world = server.world_in(end);
-    let registry = world.remove_resource::<PersistedRegistry>().unwrap();
-    let saved = registry
+    let world: &World = server.world_in(end);
+    let saved = world
+        .resource::<PersistedRegistry>()
         .capture_file(world, arrived, CaptureCause::Autosave)
         .unwrap();
-    world.insert_resource(registry);
     assert_eq!(saved.get("Inventory"), Some(&NbtTag::List(items)));
 }
 
-#[derive(Resource, Default)]
-struct Captured(Vec<CaptureCause>);
+static CAPTURED: Mutex<Vec<(WorldId, CaptureCause)>> = Mutex::new(Vec::new());
+
+fn captured_in(world: &World) -> Vec<CaptureCause> {
+    let captured = CAPTURED.lock().unwrap();
+    let in_world = captured.iter().filter(|(id, _)| *id == world.id());
+    in_world.map(|(_, cause)| *cause).collect()
+}
 
 #[derive(Clone)]
 struct CauseRecorderPlugin;
@@ -348,11 +353,11 @@ impl Plugin for CauseRecorderPlugin {
 }
 
 fn record_cause(
-    world: &mut World,
+    world: &World,
     _: Entity,
     cause: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
-    world.get_resource_or_init::<Captured>().0.push(cause);
+    CAPTURED.lock().unwrap().push((world.id(), cause));
     Ok(None)
 }
 
@@ -397,17 +402,11 @@ fn a_dimension_change_and_a_leave_capture_the_player_with_their_cause() {
     server.submit_to(end, ToDim::Despawn(InboundPlayerDespawn { session }));
     server.ticks_all(2);
 
-    let causes = |server: &mut PlayServer, dim| {
-        server
-            .world_in(dim)
-            .get_resource::<Captured>()
-            .map(|captured| captured.0.clone())
-    };
     assert_eq!(
-        causes(&mut server, overworld),
-        Some(vec![CaptureCause::DimensionChange])
+        captured_in(server.world_in(overworld)),
+        vec![CaptureCause::DimensionChange]
     );
-    assert_eq!(causes(&mut server, end), Some(vec![CaptureCause::Leave]));
+    assert_eq!(captured_in(server.world_in(end)), vec![CaptureCause::Leave]);
     drop(server);
     let _ = std::fs::remove_dir_all(save_dir);
 }
@@ -435,11 +434,10 @@ fn a_leave_without_a_world_save_still_captures_the_player() {
     server.submit_to(overworld, ToDim::Despawn(InboundPlayerDespawn { session }));
     server.ticks_all(2);
 
-    let captured = server
-        .world_in(overworld)
-        .get_resource::<Captured>()
-        .map(|captured| captured.0.clone());
-    assert_eq!(captured, Some(vec![CaptureCause::Leave]));
+    assert_eq!(
+        captured_in(server.world_in(overworld)),
+        vec![CaptureCause::Leave]
+    );
 }
 
 const SEED: i64 = 4;

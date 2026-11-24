@@ -1,5 +1,6 @@
 use crate::error::{ArgumentError, CommandSyntaxError};
 use crate::nbt_compound_argument::NbtCompoundArgument;
+use crate::nbt_path_argument::NbtPathArgument;
 use crate::vanilla_lookup::VanillaLookup;
 use core::fmt;
 use mcrs_command::{
@@ -55,6 +56,7 @@ pub enum VanillaArgument {
     Timeline(TimelineArgument),
     PlayerName(PlayerNameArgument),
     NbtCompound(NbtCompoundArgument),
+    NbtPath(NbtPathArgument),
 }
 
 macro_rules! variant_conversions {
@@ -105,6 +107,7 @@ variant_conversions! {
     Timeline(TimelineArgument)
     PlayerName(PlayerNameArgument)
     NbtCompound(NbtCompoundArgument)
+    NbtPath(NbtPathArgument)
 }
 
 fn check<S, A: Argument<S>>(
@@ -157,6 +160,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             VanillaArgument::Timeline(argument) => check(argument, reader, source),
             VanillaArgument::PlayerName(argument) => check(argument, reader, source),
             VanillaArgument::NbtCompound(argument) => check(argument, reader, source),
+            VanillaArgument::NbtPath(argument) => check(argument, reader, source),
         }
     }
 
@@ -192,7 +196,8 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             | VanillaArgument::Rotation(_)
             | VanillaArgument::ResourceLocationBuf(_)
             | VanillaArgument::ColumnPos(_)
-            | VanillaArgument::NbtCompound(_) => {}
+            | VanillaArgument::NbtCompound(_)
+            | VanillaArgument::NbtPath(_) => {}
         }
     }
 }
@@ -207,7 +212,7 @@ fn limits<T: Copy>(range: &NumberRange<T>, any: (T, T)) -> (T, T) {
     (range.min.unwrap_or(any.0), range.max.unwrap_or(any.1))
 }
 
-const UNIT_ARGUMENTS: [VanillaArgument; 13] = [
+const UNIT_ARGUMENTS: [VanillaArgument; 14] = [
     VanillaArgument::Vec3(Vec3Argument),
     VanillaArgument::Rotation(RotationArgument),
     VanillaArgument::ResourceLocationBuf(ResourceLocationArgument),
@@ -221,6 +226,7 @@ const UNIT_ARGUMENTS: [VanillaArgument; 13] = [
     VanillaArgument::Heightmap(HeightmapArgument),
     VanillaArgument::BlockPredicate(BlockPredicateArgument),
     VanillaArgument::NbtCompound(NbtCompoundArgument),
+    VanillaArgument::NbtPath(NbtPathArgument),
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -411,6 +417,7 @@ impl WireArgument for VanillaArgument {
                 ParserProperties::String(StringMode::Word),
             ),
             VanillaArgument::NbtCompound(_) => (parser::NBT_COMPOUND_TAG, ParserProperties::None),
+            VanillaArgument::NbtPath(_) => (parser::NBT_PATH, ParserProperties::None),
         };
         Ok(ArgumentParser {
             id: parser_id(key)?,
@@ -559,6 +566,7 @@ mod tests {
             "minecraft:heightmap",
             "minecraft:block_predicate",
             "minecraft:nbt_compound_tag",
+            "minecraft:nbt_path",
         ];
         arguments.extend(UNIT_ARGUMENTS.into_iter().zip(unit_names));
         for (argument, name) in arguments {

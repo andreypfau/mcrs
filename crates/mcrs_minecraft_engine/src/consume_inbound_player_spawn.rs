@@ -14,20 +14,24 @@ use crate::game_profile::GameProfile;
 use crate::minecraft_entity::EntityBundle;
 use crate::network_id;
 use crate::op_level::AnnouncedOpLevel;
+use crate::persisted_registry::PersistedSnapshot;
 use crate::persistence;
 use crate::player_bundle::PlayerBundle;
 use crate::publish_player_tiles::AnnounceJoin;
 use crate::teleport::TeleportState;
+use crate::world_state::SavedSpawn;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Commands, Query, Res, With};
+use bevy_ecs::prelude::{Commands, Query, Res, SystemSet, With};
 use bevy_ecs::world::World;
+use bevy_math::DVec3;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
-use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::session::Owner;
+use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, InDimension};
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_entity_key::EntityUuid;
@@ -41,6 +45,13 @@ use tracing::{debug, info};
 
 const VIEW_DISTANCE_FALLBACK: u8 = 2;
 
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InboundPlayerSpawnSet;
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
@@ -54,6 +65,8 @@ pub(crate) fn consume_inbound_player_spawn(
     mut announced_levels: MessageWriter<OpLevelAnnounced>,
     time: Res<GameTime>,
     game_rules: Option<Res<GameRules>>,
+    saved_spawn: Option<Res<SavedSpawn>>,
+    pace: Option<Res<TickPace>>,
 ) {
     for spawn in reader.read() {
         let Some((dim, dim_key, dimension_type)) = dims.iter().next() else {
@@ -63,7 +76,7 @@ pub(crate) fn consume_inbound_player_spawn(
             tracing::error!(session = ?spawn.session, "the join snapshot has no profile; the player is not spawned");
             continue;
         };
-        let transform = spawn.snapshot.transform().unwrap_or_default();
+        let transform = join_transform(&spawn.snapshot, saved_spawn.as_deref());
         let client_info = spawn.snapshot.client_info();
         let view_distance = spawn.snapshot.view_distance().map_or_else(
             || PlayerViewDistance {
@@ -145,6 +158,7 @@ pub(crate) fn consume_inbound_player_spawn(
             op_level,
             arrival.position_packet(login_teleport_id),
             game_mode::abilities(default_game_mode.0, PlayerFlying(false)),
+            pace.as_deref(),
             |packet| {
                 packet_writer.write(packet);
             },
@@ -156,6 +170,18 @@ pub(crate) fn consume_inbound_player_spawn(
             level: op_level,
         });
         attached.write(OutboundPlayerAttached { session });
+    }
+}
+
+fn join_transform(snapshot: &PersistedSnapshot, saved_spawn: Option<&SavedSpawn>) -> Transform {
+    if let Some(transform) = snapshot.transform() {
+        return transform;
+    }
+    let [x, y, z] = saved_spawn.map_or([0; 3], |spawn| spawn.0.pos);
+    let [yaw, pitch] = snapshot.rotation().ok().flatten().unwrap_or_default();
+    Transform {
+        translation: DVec3::new(f64::from(x) + 0.5, f64::from(y), f64::from(z) + 0.5),
+        rotation: Rotation::new(yaw, pitch),
     }
 }
 

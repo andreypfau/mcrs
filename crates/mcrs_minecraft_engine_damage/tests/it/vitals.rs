@@ -39,8 +39,8 @@ fn a_lethal_hit_dies_once_and_the_counters_run_down_on_the_hit_mob_only() {
     let vitals = app.world().get::<Vitals>(doomed).copied();
     assert_eq!(
         vitals.map(|vitals| (vitals.hurt_time, vitals.damage_cooldown, vitals.death_time)),
-        Some((5, 15, Some(5))),
-        "five ticks after the hit tick"
+        Some((4, 14, Some(6))),
+        "the hit tick and five ticks after it count down"
     );
     let idle_after = app
         .world()

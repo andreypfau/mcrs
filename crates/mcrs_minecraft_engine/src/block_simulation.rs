@@ -16,6 +16,7 @@ use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite, VoxelUpdateSet};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
@@ -343,6 +344,7 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
 struct RandomTicking<'w> {
     speed: Res<'w, RandomTickSpeed>,
     seed: Option<Res<'w, WorldSeed>>,
+    pace: Option<Res<'w, TickPace>>,
 }
 
 #[derive(SystemParam)]
@@ -481,7 +483,8 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
 
     let rules = &kernel.rules.0;
     let table = simulation.random_table.get_or_insert_default();
-    let speed = random.speed.0;
+    let runs_normally = random.pace.as_deref().is_none_or(TickPace::runs_normally);
+    let speed = if runs_normally { random.speed.0 } else { 0 };
     let seed = *simulation.random_seed.get_or_insert_with(|| {
         let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
         let key = dimension_key.map_or("", |key| key.as_str());
@@ -540,6 +543,9 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 .marks
                 .broadcast(&volume.view, streams, &mut outlets.changes);
             broadcast_cut = out.writes.len();
+            if !runs_normally {
+                continue;
+            }
         }
         let input = PhaseInput {
             inbound: messages,

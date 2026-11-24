@@ -67,7 +67,6 @@ impl Plugin for EntityPhysicsPlugin {
                         .and_then(resource_exists_and_changed::<CurrentRegistries>),
                 ),
                 find_crowd_damage_type.run_if(resource_exists_and_changed::<CurrentRegistries>),
-                apply_entity_writes.run_if(has_writes),
                 spawn_mob_entities
                     .run_if(on_message::<MobSpawnRequest>.or_else(has_waiting_spawns)),
                 ApplyDeferred,
@@ -83,6 +82,14 @@ impl Plugin for EntityPhysicsPlugin {
                     .in_set(MotionPass)
                     .after(MotionEffects),
                 hit_crowds.run_if(has_crowds).in_set(DamageSet::Collect),
+                apply_entity_writes
+                    .run_if(has_writes)
+                    .in_set(TickSet::Simulate)
+                    .before(MotionPass),
+                apply_entity_writes
+                    .run_if(has_writes)
+                    .in_set(TickSet::WorldWrite)
+                    .after(DamageSet::Report),
             ),
         );
         app.configure_sets(

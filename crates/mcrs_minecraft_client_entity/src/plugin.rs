@@ -16,7 +16,7 @@ use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::client_tables::{ClientTables, build_client_tables, clear_client_tables};
 use crate::entity_damaged::EntityDamaged;
-use crate::entity_light::write_entity_light;
+use crate::entity_light::{resample_relit_entities, write_entity_light};
 use crate::fuse::burn_fuses;
 use crate::motion_tick::{MotionTick, advance_motion_tick};
 use crate::network_entities::{NetworkEntities, clear_network_entities};
@@ -92,7 +92,8 @@ impl Plugin for ClientEntityPlugin {
                 PostUpdate,
                 (
                     project_simulated_positions.before(EntityLightSystems),
-                    write_entity_light
+                    (write_entity_light, resample_relit_entities)
+                        .chain()
                         .in_set(EntityLightSystems)
                         .run_if(resource_exists::<ColumnStore>),
                 ),

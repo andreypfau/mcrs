@@ -17,7 +17,7 @@ pub(crate) struct PendingSpawnSearch;
 pub(crate) const PENDING_SPAWN_SEARCH_KEYS: &[&str] = &["mcrs:pending_spawn_search"];
 
 pub(crate) fn capture_pending_spawn_search(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {

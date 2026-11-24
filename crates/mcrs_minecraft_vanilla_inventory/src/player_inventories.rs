@@ -31,8 +31,8 @@ impl PlayerInventories<'_, '_> {
             inventory,
             selected.map_or(0, |selected| selected.0),
             Some(holders),
-            &self.holder_slots,
-            &mut self.stacks,
+            |holder| self.holder_slots.get(holder).ok(),
+            |stack| self.stacks.to_value(stack),
         ))
     }
 }

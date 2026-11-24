@@ -14,6 +14,7 @@
 )]
 
 mod anvil_block_states;
+mod attribute_command;
 mod ban;
 mod block_break;
 mod block_entities;
@@ -60,6 +61,7 @@ mod op_level;
 mod own_attributes;
 mod persistence;
 mod play_state_delivery;
+mod player_attack;
 mod player_file;
 mod player_pose;
 mod probe_bans;
@@ -74,6 +76,7 @@ mod support;
 mod swing;
 mod teleport_confirmation;
 mod tick_determinism;
+mod tick_freeze;
 mod view_distance;
 mod whitelist;
 mod world_cells;

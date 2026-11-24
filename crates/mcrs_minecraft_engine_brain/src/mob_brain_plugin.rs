@@ -23,6 +23,7 @@ use mcrs_minecraft_brain::AiDelay;
 use mcrs_minecraft_brain::MobBrain;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed as StageSeed;
+use mcrs_minecraft_engine_damage::DamageSet;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_physics::Mob;
@@ -89,6 +90,7 @@ where
             (
                 MobBrainSet::Prepare
                     .after(TickSet::ClientInput)
+                    .after(DamageSet::PacketReport)
                     .before(TickSet::Simulate)
                     .run_if(ready.clone()),
                 MobBrainSet::Stage.in_set(TickSet::Simulate).run_if(ready),

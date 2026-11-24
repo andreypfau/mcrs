@@ -1,4 +1,4 @@
-use crate::{list, selected, tag};
+use crate::{list, path, selected, tag};
 
 const ROOT: &str = r#"{
     a: {b: [1, 2, 3], c: {d: 1b}},
@@ -84,5 +84,24 @@ fn loot_mod_049_match_compares_lists_by_membership_and_length() {
             Vec::new()
         };
         assert_eq!(selected, expected, "{pattern} against {value}");
+    }
+}
+
+#[test]
+fn cmd_data_004_a_selection_stops_at_the_end_of_the_node_that_selects_nothing() {
+    let root = tag("{Pos: [0.5d, -10.7d, 0.5d], NoGravity: 1b, Tags: [\"a\", \"b\"]}");
+    let cases: &[(&str, Option<&str>)] = &[
+        ("Pos[0]", None),
+        ("Tags[]", None),
+        ("Pos[5].x", Some("Pos[5]")),
+        ("a.b.c", Some("a")),
+        ("{NoGravity: 0b}", Some("{NoGravity: 0b}")),
+        ("{NoGravity: 1b}.Pos[1].x", Some("{NoGravity: 1b}.Pos[1].x")),
+    ];
+    for &(text, expected) in cases {
+        let mut selected = Vec::new();
+        let found = path(text).try_select(&root, &mut selected);
+        let reported = found.err().map(|nothing| &text[..nothing.end]);
+        assert_eq!(reported, expected, "{text}");
     }
 }

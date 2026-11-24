@@ -26,5 +26,6 @@ bitflags::bitflags! {
         const WATER = 1 << 22;
         const GRASS_BLOCK = 1 << 23;
         const DOOR = 1 << 24;
+        const LIQUID_BLOCK = 1 << 25;
     }
 }

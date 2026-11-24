@@ -21,6 +21,8 @@ pub mod lan;
 pub mod metrics;
 mod outbound;
 pub mod packet_io;
+mod ping_limits;
+mod play_pings;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 mod proxy_header;
 mod shared_frames;
@@ -42,6 +44,8 @@ pub use crate::forwarding_secret::{
 #[cfg(not(target_family = "wasm"))]
 pub use crate::outbound::OutboundReceiver;
 pub use crate::packet_io::{Inbound, MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
+pub use crate::ping_limits::PingLimits;
+pub use crate::play_pings::PlayPings;
 pub use crate::shared_frames::{SharedAppend, SharedFrames};
 #[cfg(not(target_family = "wasm"))]
 pub use crate::writer_wakes::WriterWakes;

@@ -13,7 +13,7 @@ use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionAnchors, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::channels::{MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY};
-use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_network::{Instant, ServerSideConnection};
 
 fn build_world() -> World {
     let mut world = World::new();
@@ -81,6 +81,8 @@ fn packet(session: PlayerSession, id: i32) -> InboundPlayerPacket {
         id,
         data: Bytes::new(),
         trigger: None,
+        acknowledged_tick: 0,
+        arrival: Instant::now(),
     }
 }
 
