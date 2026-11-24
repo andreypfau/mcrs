@@ -87,18 +87,18 @@ impl Trigger {
         }
     }
 
-    pub fn raise(self, commands: &mut Commands, entity: Entity, data: Bytes) {
-        (self.raise)(commands, entity, data, None);
+    pub fn raise(self, mut commands: Commands, entity: Entity, data: Bytes) {
+        (self.raise)(&mut commands, entity, data, None);
     }
 
     pub fn raise_arrived(
         self,
-        commands: &mut Commands,
+        mut commands: Commands,
         entity: Entity,
         data: Bytes,
         arrival: Instant,
     ) {
-        (self.raise)(commands, entity, data, Some(arrival));
+        (self.raise)(&mut commands, entity, data, Some(arrival));
     }
 }
 
@@ -126,7 +126,7 @@ mod loop_plugin {
     use bevy_app::{App, Plugin, Update};
     use bevy_ecs::entity::Entity;
     use bevy_ecs::prelude::Commands;
-    use bevy_ecs::system::{Query, Res, ResMut};
+    use bevy_ecs::system::{Populated, Res, ResMut};
     use tracing::warn;
 
     pub(crate) struct EventLoopPlugin;
@@ -146,8 +146,15 @@ mod loop_plugin {
         feature = "telemetry-tracy",
         tracing::instrument(name = "network::process_received_packet", skip_all)
     )]
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::blocking_in_system,
+            reason = "the hand-off stamp measures wall-clock time for the stalled-writer check, which must not depend on the game clock"
+        )
+    )]
     pub fn run_event_loop(
-        mut query: Query<(
+        mut query: Populated<(
             Entity,
             &mut ServerSideConnection,
             &mut InboundPacketRate,
@@ -174,7 +181,7 @@ mod loop_plugin {
                         }
                         match dispatcher.dispatch(state, pkt.id, &pkt.payload) {
                             Ok(Some(trigger)) => trigger.raise_arrived(
-                                &mut commands,
+                                commands.reborrow(),
                                 entity,
                                 pkt.payload,
                                 pkt.timestamp,

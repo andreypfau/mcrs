@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_item"
-description = "Items, item data components, the component patch, the persistent item stack, enchantments and armour trims"
+description = "Item definitions and the item table, data components, ComponentPatch, wire and hashed stack forms, and the ItemStack of an item id and a count"
 version.workspace = true
 edition.workspace = true
 

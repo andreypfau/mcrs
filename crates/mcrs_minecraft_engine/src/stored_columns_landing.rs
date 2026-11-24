@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{
-    Commands, Component, Has, Local, ParamSet, Query, ResMut, Resource, Single, With,
+    Commands, Component, Has, Local, ParamSet, Query, Res, ResMut, Resource, Single, With,
 };
 use mcrs_engine_store::{ChunkVersion, StoreOutput};
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
@@ -29,6 +29,10 @@ pub struct TakenFromStore;
 
 #[derive(Resource, Default, Debug)]
 pub struct PendingColumnFacts(pub FxHashMap<(Entity, ColumnPos), (ColumnStructures, ColumnRecord)>);
+
+pub(crate) fn column_facts_pending(pending: Res<PendingColumnFacts>) -> bool {
+    !pending.0.is_empty()
+}
 
 pub(crate) fn attach_column_facts(
     mut pending: ResMut<PendingColumnFacts>,
@@ -66,9 +70,12 @@ pub(crate) fn fetch_loading_columns(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only for a column that the store returns in this tick, and the landed sections move into the section entities"
+    )
 )]
 pub(crate) fn land_stored_columns(
     dim: Single<(Entity, &mut SectionIndex), With<Dimension>>,
@@ -132,7 +139,7 @@ pub(crate) fn land_stored_columns(
                     chunk.chunk,
                     &mut stages,
                     &positions,
-                    &mut commands,
+                    commands.reborrow(),
                     &mut pending_heightmaps,
                     landed_ticks.as_deref_mut(),
                 );
@@ -182,7 +189,7 @@ fn land_column(
     stored: StoredColumn,
     stages: &mut SectionStages,
     positions: &Query<(&SectionPos, Has<EntityTicking>)>,
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     pending_heightmaps: &mut PendingColumnHeightmaps,
     landed_ticks: Option<&mut LandedTicks>,
 ) {
@@ -241,7 +248,8 @@ fn land_column(
         .into_iter()
         .filter(|entry| landed_rows.contains(&(entry.position().y >> SectionPos::BITS)))
         .collect();
-    spawn_block_entities(commands, InDimension(landing.dim), block_entities);
+    let dim = InDimension(landing.dim);
+    spawn_block_entities(commands.reborrow(), dim, block_entities);
     let mut raw_by_row: std::collections::BTreeMap<i32, Vec<_>> = std::collections::BTreeMap::new();
     for entry in unknown_block_entities {
         if let Some(y) = entry.get_int("y") {
@@ -292,7 +300,7 @@ mod tests {
 
     use mcrs_minecraft_resource::ResourceLocationBuf;
 
-    use bevy_ecs::message::Messages;
+    use bevy_ecs::message::MessageRegistry;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
     use mcrs_engine_store::VersionedChunk;
@@ -331,7 +339,7 @@ mod tests {
         const ROWS: i32 = 3;
         let column = ColumnPos::new(1, 2);
         let mut world = World::new();
-        world.init_resource::<Messages<SectionStageChanged>>();
+        MessageRegistry::register_message::<SectionStageChanged>(&mut world);
         world.init_resource::<PendingColumnHeightmaps>();
         world.init_resource::<PendingColumnFacts>();
         let mut index = SectionIndex::new();

@@ -9,6 +9,34 @@ stability: changing
 tracking: [180, 181, 182]
 sources:
   - docs-site/src/data/status.yml
+  - docs-site/src/data/issues.yml
+  - docs-site/src/data/facts.yml
+  - tools/fixtures.json
+  - tools/vanilla-oracle/build.gradle
+  - tools/vanilla-client/README.md
+  - assets/minecraft/version.json
+  - xtask/src/checks.rs
+  - crates/mcrs_minecraft_protocol/src/packets/table.rs
+  - crates/mcrs_minecraft_protocol_game/src/table.rs
+  - crates/mcrs_minecraft_protocol_game/tests/it/packet_tables.rs
+  - crates/mcrs_minecraft_command_engine/src/command_tree.rs
+  - crates/mcrs_minecraft_server/tests/it/op_level.rs
+  - crates/mcrs_minecraft_worldgen_generator/src/tests/biome_parity.rs
+  - crates/mcrs_minecraft_server/benches/worldgen_throughput.rs
+  - crates/mcrs_minecraft_server/tests/it/mob_ai.rs
+  - crates/mcrs_minecraft_server/tests/it/mob_replication.rs
+  - crates/mcrs_minecraft_server/tests/it/death_drops.rs
+  - crates/mcrs_minecraft_server/tests/it/death_messages.rs
+  - crates/mcrs_minecraft_engine_damage/tests/it/hit_order.rs
+  - crates/mcrs_minecraft_vanilla_swing/tests/it/main.rs
+  - crates/mcrs_minecraft_client/tests/it/screen_clicks.rs
+  - crates/mcrs_minecraft_client/tests/it/creative_screen_clicks.rs
+  - crates/mcrs_minecraft_client_gui/src/menu_item_tooltip.rs
+  - crates/mcrs_minecraft_client_gui/src/health_hud.rs
+  - crates/mcrs_minecraft_client_gui/src/death_screen_plugin.rs
+  - crates/mcrs_minecraft_client_gui/src/sign_text.rs
+  - crates/mcrs_minecraft_client/src/name_tag.rs
+  - crates/mcrs_minecraft_client/src/web.rs
   - README.md
   - issue:180
   - issue:412
@@ -16,8 +44,8 @@ sources:
   - issue:437
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import Status from '~/components/Status.astro';

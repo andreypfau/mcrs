@@ -6,29 +6,38 @@ sidebar:
 kind: how-to
 audience: [rust, jvm]
 stability: wip
-tracking: [321, 287, 288]
+tracking: [321, 287]
 sources:
+  - crates/mcrs_minecraft_network/src/server.rs
+  - crates/mcrs_minecraft_network/Cargo.toml
+  - crates/mcrs_minecraft_protocol/Cargo.toml
+  - crates/mcrs_minecraft_protocol/src/frame.rs
+  - crates/mcrs_minecraft_protocol/src/decode.rs
+  - crates/mcrs_minecraft_assets/Cargo.toml
+  - AGENTS.md
   - rust-toolchain.toml
   - xtask/src/checks.rs
   - crates/mcrs_minecraft_core/src/version.rs
-  - crates/mcrs_minecraft_game_rule/src/lib.rs
+  - examples/README.md
+  - examples/dependencies.json
   - issue:321
   - issue:287
   - issue:288
+  - issue:437
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 
 import { Aside } from '@astrojs/starlight/components';
 import Status from '~/components/Status.astro';
 
-You can use an mcrs crate in your own Rust project today through a git dependency with a pinned commit and a nightly compiler. The crates are not on crates.io. Nobody has checked this route outside the repository on a clean machine yet, so read this page as the plan and its known limits.
+You can use an mcrs crate in your own Rust project today through a git dependency with a pinned commit and a nightly compiler. The crates are not on crates.io. This docs check did not test the route in a clean external project, so the setup below remains WIP with known limits.
 
 <Aside type="caution" title="WIP">
-Publishing the protocol, network and game data crates waits for a decision.[^321] The question is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Library examples, each with a test of its dependency tree, are planned.[^287][^288]
+Publishing the protocol, network and game data crates waits for a decision.[^321] The question is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Six library examples under `examples/` each have a test of their dependency tree.[^288] Minimal server, lobby and arena examples are planned.[^287]
 </Aside>
 
 ## 1. Add a git dependency with a pinned rev
@@ -44,17 +53,17 @@ Do not write `branch = "main"`. The `main` branch moves to the next game snapsho
 
 ## 2. Install a nightly compiler
 
-The repository pins `nightly-2026-09-02` in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml). Cargo reads that file only in the directory where you run it, so the pin does not follow a git dependency. Install a nightly yourself and pin it in your project, ideally the same date.
+The repository pins `nightly-2026-09-02` in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml). This pin does not follow a git dependency. Install a nightly yourself and pin it in your project, ideally the same date.
 
-Nobody has checked whether the lower layers also build on stable. The stated goal is that the protocol, network and game data crates build on stable, which means that today they do not all do it.[^321]
+Stable compiler support for the lower layers has not been verified here. It is part of the publishing question, so use the pinned nightly for this route.[^321]
 
 ## 3. Leave Bevy out
 
-The crates are grouped into layers, from the wire protocol at layer 1 up to the applications at layer 7. Below layer 4, Bevy is an optional feature, so `default-features = false` in the dependency line above keeps it out of your build.
+The crates are grouped into layers, from the wire protocol at layer 1 up to the applications at layer 7. The wire, data and rules crates are intended to work without Bevy. For `mcrs_minecraft_protocol`, `default-features = false` in the dependency line above leaves its optional Bevy integration off.
 
 CI checks {fact('crates_no_bevy')} package names with `cargo check --no-default-features`. The list is `NO_BEVY_PACKAGES` in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), and the [crate map](/docs/en/crates/overview/) marks each of them.
 
-Layer 4 and above need Bevy. In the lower layers the known exception is `mcrs_minecraft_assets`, which according to the README still needs Bevy even with default features off.
+Layer 4 uses Bevy to schedule the rules. The higher layers contain both pure behavior crates and Bevy plugins, so check the crate's manifest. Below the engine, `mcrs_minecraft_assets` still requires Bevy even with default features off.
 
 ## 4. Check what you pulled in
 
@@ -68,11 +77,11 @@ If Bevy shows up for a crate from the no-Bevy list, that is a bug in mcrs, so pl
 
 ## What does not work yet
 
-You cannot publish or package the crates. `cargo package` fails for a crate that reads files outside its own folder at build time. Two known cases are `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`, and `crates/mcrs_minecraft_game_rule/src/lib.rs`, which reads a file from `assets/mcrs/`. A git dependency works because Cargo checks out the whole repository. This blocks publishing.[^321]
+The crates are not all ready to publish or package. A crate that reads files outside its own folder at build time needs those files to be packaged too. Known cases are `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`, and the Bevy integration in `crates/mcrs_minecraft_network/src/server.rs`, which embeds `assets/mcrs/server-icon.png`. A git dependency works because Cargo checks out the whole repository.[^321]
 
-The same issue lists error types as the second blocker. The public API of the protocol and network crates returns `anyhow` errors in several places, so a caller cannot tell an incomplete frame from a broken one without matching on the text.
+Several public protocol and network APIs still return `anyhow` errors. Framing already has a typed `FrameError` with `is_incomplete()`, and `PacketDecoder::try_next_packet()` returns `Ok(None)` when it needs more bytes. A caller can distinguish an incomplete frame from a malformed one without matching error text.
 
-There is no example project to copy. The first small one is [Parse SNBT in your own project](/docs/en/crates/hello-nbt/), and it is itself untested outside the workspace.
+The programs under [`examples/`](https://github.com/andreypfau/mcrs/tree/main/examples) are workspace members and take their dependencies with `workspace = true`, so they need the repository's workspace. The smallest tutorial is [Parse SNBT in your own project](/docs/en/crates/hello-nbt/). Its external-project setup was not retested in this docs check either.
 
 The API is not stable. Types change with every game snapshot, so pin a rev and read the changes before you move it.
 
@@ -82,5 +91,5 @@ mcrs has no artifact on Maven Central and no plugin jar that you drop into a fol
 
 [^321]: <Status issue={321} /> Tracks the work that lets the protocol, network and game data crates be published.
 [^287]: <Status issue={287} /> Plans the minimal server, lobby and arena examples.
-[^288]: <Status issue={288} /> Plans the examples as workspace members, each with a dependency-tree test.
+[^288]: <Status issue={288} /> Workspace members under `examples/`, each with a dependency-tree test.
 [^437]: <Status issue={437} /> The decision against a facade or an API crate: the public surface is the crates and plugins.

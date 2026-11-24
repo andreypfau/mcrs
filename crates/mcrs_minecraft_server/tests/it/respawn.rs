@@ -2,7 +2,9 @@ use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_damage::Vitals;
+use mcrs_minecraft_engine::SavedSpawn;
 use mcrs_minecraft_engine::bus::PacketPayload;
+use mcrs_minecraft_engine::column_store::ColumnStoreLink;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_game_rule::GameRule;
@@ -11,12 +13,13 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::serverbound::{
     ClientCommandAction, ServerboundChatCommand, ServerboundClientCommand,
 };
+use mcrs_minecraft_save::RespawnData;
 use mcrs_minecraft_server::{
     VanillaEntityAttributesPlugin, VanillaEntityPhysicsPlugin, VanillaRespawnPlugin,
 };
 
-use crate::commands::load_stone_column;
-use crate::host_app::{self, PlayServer, sent_to};
+use crate::commands::{load_stone_column, load_stone_column_at};
+use crate::host_app::{self, Arrival, PlayServer, sent_to};
 
 const PLAYER: Uuid = Uuid::from_u128(1);
 
@@ -180,6 +183,91 @@ fn the_login_shows_the_death_screen_unless_immediate_respawn_is_on() {
             shown,
             Some(!immediate_respawn),
             "the death screen flag of the login is the negation of immediate_respawn={immediate_respawn}"
+        );
+    }
+}
+
+struct HoldCase {
+    name: &'static str,
+    spawn_x: i32,
+    radius: i32,
+    first: &'static [[i32; 2]],
+    rest: &'static [[i32; 2]],
+    entered: DVec3,
+}
+
+#[test]
+fn a_player_without_a_saved_position_waits_for_the_spawn_columns_and_enters_on_the_surface() {
+    for case in [
+        HoldCase {
+            name: "one spawn column",
+            spawn_x: 0,
+            radius: 0,
+            first: &[],
+            rest: &[[0, 0]],
+            entered: DVec3::new(0.5, 64.0, 0.5),
+        },
+        HoldCase {
+            name: "spawn column between loaded corners",
+            spawn_x: 1,
+            radius: 15,
+            first: &[[-1, -1], [1, -1], [-1, 0], [1, 0]],
+            rest: &[[0, -1], [0, 0]],
+            entered: DVec3::new(1.5, 64.0, 0.5),
+        },
+    ] {
+        let mut app = host_app::make_host_app();
+        app.add_plugins((
+            VanillaEntityPhysicsPlugin,
+            VanillaEntityAttributesPlugin,
+            VanillaRespawnPlugin,
+        ));
+        let mut server = PlayServer::start(app, &[], 0);
+        let dim = server.dim;
+        server
+            .world()
+            .resource_mut::<GameRules>()
+            .set(GameRule::RespawnRadius, case.radius);
+        server.world().insert_resource(SavedSpawn(RespawnData {
+            pos: [case.spawn_x, 0, 0],
+            ..RespawnData::default()
+        }));
+        server
+            .world()
+            .resource_mut::<ColumnStoreLink>()
+            .generate_through_world();
+        let arrival = Arrival {
+            uuid: PLAYER,
+            name: "player",
+            position: DVec3::ZERO,
+            view_distance: 2,
+        };
+        let anchor = host_app::admit_unplaced(&mut server.app, dim, &arrival);
+        let session = server.session_of(anchor).unwrap();
+        for [x, z] in case.first {
+            load_stone_column_at(&mut server, *x, *z);
+        }
+        let mut sent = server.ticks_all(3);
+        let before_columns = server.player_in(dim, anchor);
+
+        for [x, z] in case.rest {
+            load_stone_column_at(&mut server, *x, *z);
+        }
+        sent.extend(server.ticks_all(3));
+
+        let player = server.player_in(dim, anchor);
+        let at = player.map(|player| server.world().get::<Transform>(player).unwrap().translation);
+        let first_told = sent_to(session, sent)
+            .into_iter()
+            .find_map(|packet| match packet {
+                PacketPayload::PlayerPosition(position) => Some(position.position),
+                _ => None,
+            });
+        assert_eq!(
+            (before_columns.is_some(), at, first_told),
+            (false, Some(case.entered), Some(case.entered)),
+            "{}: SAVE-PLAYER-001 and PLD-RSP-007: the join waits for every spawn column, then enters on the stone and sends no earlier position",
+            case.name
         );
     }
 }

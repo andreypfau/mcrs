@@ -263,9 +263,26 @@ pub(crate) fn frame_ready(
     frame.is_some() && pipelines.tint_ready(tint.as_deref()) && pipelines.ready(&cache)
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy render system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the system checks the pipeline cache every frame for failed deferred pipelines"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the pipelines are queued only when the terrain first appears or when improved transparency switches on"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the wall clock measures once how long the deferred path takes to become ready, for one log line"
+    )
 )]
 pub(crate) fn prepare_deferred_pipelines(
     mut pipelines: ResMut<DeferredPipelines>,

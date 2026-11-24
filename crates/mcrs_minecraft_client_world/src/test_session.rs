@@ -56,6 +56,7 @@ use crate::local_motion::LocalMotion;
 use crate::local_player::LocalPlayerPlugin;
 use crate::movement_input::MovementInput;
 use crate::player::player_at;
+use crate::player_load::PlayerLoad;
 
 pub(crate) const FLOOR_TOP: f64 = 16.0;
 pub(crate) const OWN_PLAYER: i32 = 7;
@@ -87,7 +88,7 @@ pub(crate) fn receive<P: Packet + Encode>(app: &mut App, connection: Entity, pac
         .dispatch(P::STATE, P::ID, &data)
         .unwrap()
         .unwrap();
-    trigger.raise(&mut app.world_mut().commands(), connection, data.into());
+    trigger.raise(app.world_mut().commands(), connection, data.into());
     app.world_mut().flush();
 }
 
@@ -152,6 +153,13 @@ impl TestSession {
 
     pub(crate) fn receive<P: Packet + Encode>(&mut self, packet: P) {
         receive(&mut self.app, self.connection, packet);
+    }
+
+    pub(crate) fn end_load(&mut self) {
+        self.app
+            .world_mut()
+            .entity_mut(self.player)
+            .insert(PlayerLoad::Loaded);
     }
 
     pub(crate) fn ticks(&mut self, input: MovementInput, ticks: usize) {
@@ -270,7 +278,7 @@ pub(crate) fn joined(mut app: App) -> Joined {
                 .ok()
         })
         .expect("the client joins");
-    finish_configuration(&mut app.world_mut().commands(), connection);
+    finish_configuration(app.world_mut().commands(), connection);
     app.world_mut().flush();
     app.update();
     let _finished = server.next_frame();

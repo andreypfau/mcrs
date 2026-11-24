@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_registry_catalog"
-description = "The entries of every static registry"
+description = "The STATIC_REGISTRIES table: the entry locations of every static registry"
 version.workspace = true
 edition.workspace = true
 

@@ -4,6 +4,7 @@ use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::render_resource::BindGroup;
 use bevy::render::renderer::{RenderAdapter, RenderDevice};
 use bevy::render::{Render, RenderApp, RenderSystems};
+use mcrs_minecraft_render::sky::ExtractedSky;
 use mcrs_minecraft_render::{LightTint, RenderPath, WorldPass};
 
 use crate::colour;
@@ -53,11 +54,21 @@ impl Plugin for LightVolumeRenderPlugin {
             .add_systems(
                 Render,
                 (
-                    colour::prepare_colour_pipelines.in_set(RenderSystems::Prepare),
-                    (volume::apply_volume_commands, volume::write_volume_terms)
+                    colour::prepare_colour_pipelines
+                        .run_if(colour::colour_pipelines_unsettled)
+                        .in_set(RenderSystems::Prepare),
+                    (
+                        volume::apply_volume_commands.run_if(resource_exists::<volume::Volume>),
+                        volume::write_volume_terms
+                            .run_if(resource_exists::<volume::Volume>)
+                            .run_if(resource_exists::<ExtractedSky>),
+                    )
                         .chain()
                         .in_set(RenderSystems::Prepare),
-                    (volume::fit_volume, publish_tint)
+                    (
+                        volume::fit_volume.run_if(resource_exists_and_changed::<VolumeSettings>),
+                        publish_tint.run_if(resource_exists_and_changed::<volume::Volume>),
+                    )
                         .chain()
                         .in_set(RenderSystems::PrepareBindGroups),
                 ),

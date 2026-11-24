@@ -103,11 +103,6 @@ impl Turn {
     pub const CLOCKWISE_90: Turn = Turn::new(Mirror::None, Rotation::Clockwise90);
     pub const HALF: Turn = Turn::new(Mirror::None, Rotation::Clockwise180);
     pub const COUNTERCLOCKWISE_90: Turn = Turn::new(Mirror::None, Rotation::Counterclockwise90);
-    pub const MIRRORED: Turn = Turn::new(Mirror::FrontBack, Rotation::None);
-    pub const MIRRORED_CLOCKWISE_90: Turn = Turn::new(Mirror::FrontBack, Rotation::Clockwise90);
-    pub const MIRRORED_HALF: Turn = Turn::new(Mirror::FrontBack, Rotation::Clockwise180);
-    pub const MIRRORED_COUNTERCLOCKWISE_90: Turn =
-        Turn::new(Mirror::FrontBack, Rotation::Counterclockwise90);
 
     pub const fn new(mirror: Mirror, rotation: Rotation) -> Self {
         Turn { mirror, rotation }

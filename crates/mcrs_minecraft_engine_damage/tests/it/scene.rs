@@ -2,11 +2,13 @@ use bevy_app::App;
 use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
+use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::LogLevel;
 use bevy_ecs::schedule::MultiThreadedExecutor;
 use bevy_ecs::schedule::ScheduleBuildSettings;
 use bevy_ecs::schedule::SingleThreadedExecutor;
+use bevy_ecs::system::ResMut;
 use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
 use glam::DVec3;
@@ -16,6 +18,7 @@ use mcrs_minecraft_damage::HitRecord;
 use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_damage::DamagePlugin;
 use mcrs_minecraft_engine_damage::DamageRequest;
+use mcrs_minecraft_engine_damage::DamageSet;
 use mcrs_minecraft_engine_damage::Damaged;
 use mcrs_minecraft_engine_damage::PendingHits;
 use mcrs_minecraft_engine_entity_motion::MotionState;
@@ -49,6 +52,8 @@ pub(crate) fn app(executor: Executor) -> App {
             .chain(),
     );
     app.add_plugins(DamagePlugin);
+    app.init_resource::<PassHits>();
+    app.add_systems(FixedUpdate, write_pass_hits.in_set(DamageSet::Collect));
     app.edit_schedule(FixedUpdate, |schedule| {
         match executor {
             Executor::Single => schedule.set_executor(SingleThreadedExecutor::default()),
@@ -95,6 +100,19 @@ pub(crate) fn request(
 
 pub(crate) fn push(app: &mut App, request: DamageRequest) {
     app.world_mut().resource_mut::<PendingHits>().push(request);
+}
+
+#[derive(Resource, Default)]
+struct PassHits(Vec<DamageRequest>);
+
+fn write_pass_hits(mut hits: ResMut<PassHits>, mut pending: ResMut<PendingHits>) {
+    for request in hits.0.drain(..) {
+        pending.push(request);
+    }
+}
+
+pub(crate) fn push_in_pass(app: &mut App, request: DamageRequest) {
+    app.world_mut().resource_mut::<PassHits>().0.push(request);
 }
 
 pub(crate) fn tick(app: &mut App) {

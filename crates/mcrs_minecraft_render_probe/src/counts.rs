@@ -53,6 +53,13 @@ impl ReportedCounts {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the render counters are atomics that change detection does not see, so the copy runs on every frame"
+    )
+)]
 pub(super) fn report_counts(counts: Res<FrameCounts>, reported: Res<ReportedCounts>) {
     let copy = |to: &AtomicU32, from: &AtomicU32| {
         to.store(from.load(Ordering::Relaxed), Ordering::Relaxed);
@@ -132,10 +139,7 @@ pub(super) fn copy_args(
     encoder.copy_buffer_to_buffer(args, 0, &readback.0, 0, readback.0.size());
 }
 
-pub(super) fn read_draw_args(readback: Option<Res<ArgsReadback>>, triangles: Res<DrawnTriangles>) {
-    let Some(readback) = readback else {
-        return;
-    };
+pub(super) fn read_draw_args(readback: Res<ArgsReadback>, triangles: Res<DrawnTriangles>) {
     if !triangles.0.gate.claim_map() {
         return;
     }

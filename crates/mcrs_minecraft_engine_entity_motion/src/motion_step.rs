@@ -117,7 +117,10 @@ impl MotionStep<'_, '_> {
         tick: u64,
         crowding: &Crowding,
     ) {
-        self.regrids.stepped = self.ticks.this_run();
+        let this_run = self.ticks.this_run();
+        if self.regrids.stepped != this_run {
+            self.regrids.stepped = this_run;
+        }
         let pass = &PassInput {
             world,
             tables,
@@ -220,7 +223,15 @@ fn step<W: CollisionWorld>(
         .filter(|cache| loaded(cache, start.position));
     let changed = match cache {
         Some(cache) => {
-            let changed = simulate(&at, &cache, motion, &mut outcome, pass, scratch, actions);
+            let changed = simulate(
+                &at,
+                &cache,
+                motion,
+                outcome.reborrow(),
+                pass,
+                scratch,
+                actions,
+            );
             if let Some(expiry) = expire(&at, motion, vitals) {
                 pass.expired.scope(|queue| queue.push(expiry));
             }
@@ -341,7 +352,7 @@ fn simulate<W: CollisionWorld>(
     at: &Stepping<'_>,
     cache: &SectionCache<'_, W>,
     motion: &mut EntityState,
-    outcome: &mut Mut<'_, StepOutcome>,
+    mut outcome: Mut<'_, StepOutcome>,
     pass: &PassInput<'_, W>,
     scratch: &mut Scratch,
     actions: &mut Vec<BlockAction>,

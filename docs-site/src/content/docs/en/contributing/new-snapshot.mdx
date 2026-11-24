@@ -12,8 +12,8 @@ sources:
   - tools/captures.json
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 485b34f36
+  date: 2026-11-19
 ---
 import { fact } from '~/lib/facts.mjs';
 import { Aside } from '@astrojs/starlight/components';
@@ -31,8 +31,8 @@ The version id is the only argument, for example <code dir="auto">{fact('snapsho
 | Path | What the command writes there |
 |---|---|
 | `assets/minecraft/version.json` | The only statement of the version, copied byte for byte from the client jar. A test fails when a Rust, TOML or Gradle source file repeats one of its values. |
-| `crates/mcrs_minecraft_client_jar/src/release.json` | The descriptor of the client jar. |
-| `assets/mcrs/reports/` | Reports from the game: `registries.json`, `packets.json`, `datapack.json` and `names.json`. |
+| `crates/mcrs_minecraft_client_jar/src/` | `release.json`, the descriptor of the client jar. `font_hint.json`, where the font files sit inside the jar. `index_objects.json`, the font and title background files of the game's asset index. |
+| `assets/mcrs/reports/` | Reports from the game: `registries.json`, `packets.json`, `datapack.json`, `names.json` and `creative_tabs.json`, the stacks of each tab of the creative inventory. |
 | `assets/mcrs/block_definition`, `item_definition` and `registry_definition` | The block, item and registry definitions, replaced with what the dump from the game wrote. |
 | The generated registry key sources | Regenerated keys. Never edit them by hand. |
 

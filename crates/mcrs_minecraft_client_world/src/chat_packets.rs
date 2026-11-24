@@ -43,7 +43,7 @@ pub(crate) fn on_commands(
     ) {
         Ok(graph) => tree.0 = graph,
         Err(error) => client::close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             client::ConnectionEnd::Lost(format!("the command tree is invalid: {error}")),
         ),
@@ -158,7 +158,7 @@ pub(crate) fn on_player_chat(
     };
     if packet.global_index.0 != chat.player_chats {
         client::close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             client::ConnectionEnd::Lost("multiplayer.disconnect.bad_chat_index".to_owned()),
         );

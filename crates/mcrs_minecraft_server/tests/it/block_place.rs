@@ -38,8 +38,8 @@ use mcrs_minecraft_server::{
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
-use crate::commands::chats;
 use crate::host_app::{self, PlayServer};
+use crate::support::chats;
 
 const PLACER: Uuid = Uuid::from_u128(1);
 const STONE: Kind = Kind(1);

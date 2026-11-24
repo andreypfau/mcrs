@@ -1,7 +1,7 @@
 use glam::DVec3;
 use mcrs_minecraft_environment::AttributeValue;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
-use mcrs_minecraft_predicate::NoWorld;
+use mcrs_minecraft_predicate::BlockHost;
 
 pub trait EnvironmentView {
     fn environment_value(
@@ -11,7 +11,7 @@ pub trait EnvironmentView {
     ) -> Option<AttributeValue>;
 }
 
-impl EnvironmentView for NoWorld {
+impl<F, E> EnvironmentView for BlockHost<F, E> {
     fn environment_value(
         &self,
         _: EnvironmentAttribute,

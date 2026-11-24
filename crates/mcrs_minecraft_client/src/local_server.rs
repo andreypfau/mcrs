@@ -100,6 +100,13 @@ fn ready_to_open(waiting: Res<WaitingOpen>, running: Option<Res<LocalServerThrea
     waiting.0.is_some() && running.is_none()
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the server build allocates only on the frame that opens a local world"
+    )
+)]
 fn open_local_world(
     (settings, running): (Res<Settings>, Option<Res<LocalServerThread>>),
     mut waiting: ResMut<WaitingOpen>,
@@ -272,9 +279,16 @@ fn build_server(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the username moves into the join request, which is written once when the local server starts"
+    )
+)]
 fn join_local_server(
     mut server: ResMut<LocalServerThread>,
-    mut local: ResMut<LocalServer>,
+    local: ResMut<LocalServer>,
     settings: Res<Settings>,
     view_distance: Option<Res<RequestedViewDistance>>,
     mut joins: MessageWriter<JoinRequest>,
@@ -289,7 +303,9 @@ fn join_local_server(
         profile_id: Some(server.host),
         view_distance: view_distance.map_or(VIEW_DISTANCE_DEFAULT, |requested| requested.0),
     });
-    local.phase = LocalServerPhase::Running;
+    local
+        .map_unchanged(|local| &mut local.phase)
+        .set_if_neq(LocalServerPhase::Running);
 }
 
 fn stop_local_server(mut server: ResMut<LocalServerThread>, local: ResMut<LocalServer>) {

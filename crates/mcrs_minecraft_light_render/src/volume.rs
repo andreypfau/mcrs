@@ -244,6 +244,7 @@ pub(crate) struct VolumeBook {
     pending: HashMap<IVec3, Vec<Lane>>,
     refused: HashSet<IVec3>,
     touched: HashSet<IVec3>,
+    texels: Vec<(UVec3, [u32; 2])>,
     followed: Option<IVec3>,
     quarters: [u32; 2],
 }
@@ -264,6 +265,7 @@ impl VolumeBook {
             pending: HashMap::default(),
             refused: HashSet::default(),
             touched: HashSet::default(),
+            texels: Vec::new(),
             followed: None,
             quarters: [0; 2],
         }
@@ -507,15 +509,19 @@ impl VolumeBook {
         jobs
     }
 
-    fn take_touched(&mut self) -> Vec<(UVec3, [u32; 2])> {
-        let touched = std::mem::take(&mut self.touched);
-        let Some(pages) = self.pages else {
-            return Vec::new();
-        };
-        touched
-            .into_iter()
-            .filter_map(|section| Some((pages.index(section)?, self.entry(section).texel())))
-            .collect()
+    fn take_touched(&mut self) -> std::vec::Drain<'_, (UVec3, [u32; 2])> {
+        let mut texels = std::mem::take(&mut self.texels);
+        texels.clear();
+        if let Some(pages) = self.pages {
+            texels.extend(
+                self.touched.iter().filter_map(|&section| {
+                    Some((pages.index(section)?, self.entry(section).texel()))
+                }),
+            );
+        }
+        self.touched.clear();
+        self.texels = texels;
+        self.texels.drain(..)
     }
 
     #[cfg(test)]
@@ -834,12 +840,11 @@ pub(crate) fn fit_volume(
     render_queue: Res<RenderQueue>,
     cache: Res<PipelineCache>,
 ) {
-    if volume.is_some_and(|volume| volume.settings == *settings) {
-        return;
+    if !volume.is_some_and(|volume| volume.settings == *settings) {
+        let volume = Volume::new(*settings, &device, &render_queue, &cache);
+        queue.restart(volume.radius);
+        commands.insert_resource(volume);
     }
-    let volume = Volume::new(*settings, &device, &render_queue, &cache);
-    queue.restart(volume.radius);
-    commands.insert_resource(volume);
 }
 
 pub(crate) fn apply_volume_commands(
@@ -900,11 +905,10 @@ pub(crate) fn write_volume_terms(
         min_section_y: volume.book.pages.map_or(0, |pages| pages.min_section_y),
         _pad: 0,
     };
-    if volume.terms_written == Some(terms) {
-        return;
+    if volume.terms_written != Some(terms) {
+        queue.write_buffer(&volume.terms, 0, bytemuck::bytes_of(&terms));
+        volume.terms_written = Some(terms);
     }
-    queue.write_buffer(&volume.terms, 0, bytemuck::bytes_of(&terms));
-    volume.terms_written = Some(terms);
 }
 
 #[cfg(test)]
@@ -1143,7 +1147,7 @@ mod tests {
             }
         );
         let page = book.pages.unwrap().index(section).unwrap();
-        assert_eq!(book.take_touched(), [(page, [0, 0])]);
+        assert_eq!(book.take_touched().collect::<Vec<_>>(), [(page, [0, 0])]);
 
         let other = section + IVec3::X;
         book.dirty(other, lanes_of(1));
@@ -1163,7 +1167,7 @@ mod tests {
 
     fn touched_pages(book: &mut VolumeBook) -> HashMap<IVec3, [u32; 2]> {
         let pages = book.pages.unwrap();
-        let by_page: HashMap<UVec3, [u32; 2]> = book.take_touched().into_iter().collect();
+        let by_page: HashMap<UVec3, [u32; 2]> = book.take_touched().collect();
         let mut sections = HashMap::default();
         for x in -16..16 {
             for y in pages.min_section_y..pages.min_section_y + pages.rows as i32 {
@@ -1251,7 +1255,7 @@ mod tests {
 
         book.follow(camera + IVec3::new(0, 5, 0), 2);
         assert!(
-            book.take_touched().is_empty(),
+            book.take_touched().next().is_none(),
             "a move inside the column changes nothing"
         );
         book.dirty(IVec3::new(-5, 0, 0), lanes_of(1));
@@ -1360,7 +1364,7 @@ mod tests {
         book.reset(-4, 8);
         assert!(book.pool.is_empty() && book.atlas.is_empty() && book.pending.is_empty());
         assert!(book.refused.is_empty() && book.followed.is_none());
-        assert!(book.take_touched().is_empty());
+        assert!(book.take_touched().next().is_none());
         assert_eq!(book.pages.map(|pages| pages.extent().y), Some(8));
         assert_eq!(book.entry(section), NEUTRAL);
         assert_eq!(book.brick(far), Some(0), "the pool is empty again");

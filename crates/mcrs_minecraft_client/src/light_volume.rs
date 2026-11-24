@@ -68,7 +68,7 @@ impl Plugin for LightVolumePlugin {
                 Update,
                 (
                     feed_light_volume.run_if(resource_exists::<ColumnStore>),
-                    report_unsettled,
+                    report_unsettled.run_if(unsettled),
                 )
                     .chain()
                     .in_set(ClientTerrainSet::Build),
@@ -469,9 +469,12 @@ impl LightVolumeFeed {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "every buffer stays empty, so it does not allocate, on a tick with no column change and no section to light"
+    )
 )]
 fn feed_light_volume(
     mut feed: ResMut<LightVolumeFeed>,
@@ -525,14 +528,12 @@ fn feed_light_volume(
     feed.push_dirty(&colours, &queue);
 }
 
-fn report_unsettled(
-    feed: Res<LightVolumeFeed>,
-    queue: Res<VolumeQueue>,
-    mut unsettled: MessageWriter<Unsettled>,
-) {
-    if !(feed.idle() && queue.idle()) {
-        unsettled.write(Unsettled);
-    }
+fn unsettled(feed: Res<LightVolumeFeed>, queue: Res<VolumeQueue>) -> bool {
+    !(feed.idle() && queue.idle())
+}
+
+fn report_unsettled(mut unsettled: MessageWriter<Unsettled>) {
+    unsettled.write(Unsettled);
 }
 
 #[cfg(test)]
@@ -776,10 +777,13 @@ mod tests {
         }
     }
 
-    fn publish_changes(mut store: ResMut<ColumnStore>, mut changes: MessageWriter<ColumnChange>) {
-        let mut drained = Vec::new();
+    fn publish_changes(
+        mut store: ResMut<ColumnStore>,
+        mut changes: MessageWriter<ColumnChange>,
+        mut drained: Local<Vec<ColumnChange>>,
+    ) {
         store.bypass_change_detection().drain_changes(&mut drained);
-        changes.write_batch(drained);
+        changes.write_batch(drained.drain(..));
     }
 
     fn glowstone() -> BlockStateId {
@@ -837,7 +841,12 @@ mod tests {
             ))
             .init_resource::<CameraOrigin>()
             .init_resource::<LightVolumeFeed>()
-            .add_systems(Update, (publish_changes, feed_light_volume).chain());
+            .add_systems(
+                Update,
+                (publish_changes, feed_light_volume)
+                    .chain()
+                    .run_if(resource_exists::<ColumnStore>),
+            );
         app
     }
 
@@ -945,7 +954,10 @@ mod tests {
         assert_eq!(bricks(&joined), rows_of(&row(-1..=2), -1..=3));
         assert_eq!(dirtied(&joined), rows_of(&row(-1..=1), 0..=3));
 
-        app.world_mut().resource_mut::<CameraOrigin>().section = IVec3::new(3, 1, 0);
+        app.world_mut()
+            .resource_mut::<CameraOrigin>()
+            .map_unchanged(|origin| &mut origin.section)
+            .set_if_neq(IVec3::new(3, 1, 0));
         let moved = settle(&mut app);
         assert!(
             !moved

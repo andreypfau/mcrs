@@ -2,7 +2,7 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::Query;
+use bevy_ecs::system::Populated;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
 use mcrs_minecraft_entity::SPRINT_MODIFIER;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
@@ -28,7 +28,7 @@ impl Plugin for SprintAttributePlugin {
 }
 
 fn give_sprint_modifier(
-    mut players: Query<(&PlayerSprinting, &mut AttributeInstances), Changed<PlayerSprinting>>,
+    mut players: Populated<(&PlayerSprinting, &mut AttributeInstances), Changed<PlayerSprinting>>,
 ) {
     for (sprinting, mut instances) in &mut players {
         let edit = if sprinting.0 {

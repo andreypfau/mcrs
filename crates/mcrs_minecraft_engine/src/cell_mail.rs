@@ -6,10 +6,10 @@ use bevy_ecs::message::{MessageReader, MessageWriter, Messages};
 use bevy_ecs::prelude::{Query, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::{
@@ -99,19 +99,21 @@ impl Plugin for CellMailPlugin {
             receive_cell_mail
                 .run_if(inbox_holds_messages)
                 .in_set(DimInboxDrain)
-                .before(drain_dim_inbox)
-                .before(add_entity_to_chunk),
+                .before(drain_dim_inbox),
         );
         app.add_systems(
             FixedUpdate,
             apply_halo_changes
+                .run_if(halo_changes_pending)
                 .in_set(TickSet::DomainInput)
                 .after(StoredColumnLandSet)
                 .after(ColdStageLandSet),
         );
         app.add_systems(
             FixedPostUpdate,
-            collect_halo_changes.in_set(VoxelUpdateSet::NetworkSync),
+            collect_halo_changes
+                .in_set(VoxelUpdateSet::NetworkSync)
+                .run_if(on_message::<BlockPlaced>),
         );
     }
 }
@@ -120,6 +122,24 @@ fn inbox_holds_messages(inbox: Res<CellInbox>) -> bool {
     !inbox.0.is_empty()
 }
 
+fn halo_changes_pending(halo: Res<HaloBlockChanges>) -> bool {
+    !halo.0.is_empty()
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "spawns the players that cross from another cell with their persisted components, which needs the whole world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only when a player crosses from another cell, and its run condition skips the ticks without mail"
+    )
+)]
 fn receive_cell_mail(world: &mut World) {
     let Some(mut inbox) = world.get_resource_mut::<CellInbox>() else {
         return;
@@ -195,9 +215,6 @@ fn apply_halo_changes(
     dimensions: Query<Entity, With<Dimension>>,
     mut halo: ResMut<HaloBlockChanges>,
 ) {
-    if halo.0.is_empty() {
-        return;
-    }
     let Ok(dimension) = dimensions.single() else {
         return;
     };

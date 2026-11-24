@@ -2,11 +2,11 @@ use bevy_ecs::schedule::ScheduleLabel;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Add;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::{Local, Query, Res, ResMut};
+use bevy_ecs::system::{Local, Populated, Query, Res, ResMut};
 use bevy_ecs::world::World;
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
@@ -18,6 +18,20 @@ pub struct PendingConnections {
     visiting: Vec<Entity>,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "runs the outbound flush schedule, which needs the whole world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the flush schedule must run at the end of every fixed tick, because its own systems decide what to write"
+    )
+)]
 pub fn run_outbound_flush(world: &mut World) {
     world.run_schedule(OutboundFlush);
 }
@@ -38,8 +52,8 @@ use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_network::inbound_rate::{InboundPacketRate, InboundRateLimit};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, Malformed, PacketDispatcher, PacketKind};
 use mcrs_minecraft_network::{
-    ConnectionState, Instant, RawConnection, ServerSideConnection, SharedAppend, SharedFrames,
-    WriterWakes,
+    ConnectionState, Instant, PingLimits, PlayPings, RawConnection, ServerSideConnection,
+    SharedAppend, SharedFrames, WriterWakes,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::{Encode, Packet, WritePacket, anyhow};
@@ -60,13 +74,18 @@ use crate::muxer::probes::Probes;
 use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionAnchors, SessionPlacement};
 use mcrs_minecraft_engine_world::world::channels::MAX_HELD_SERVERBOUND;
-use mcrs_minecraft_move_validate::{Action, MoveGuard, Report, Verdict};
+use mcrs_minecraft_move_validate::{Acknowledged, Action, MoveGuard, Report, Serverbound, Verdict};
 use std::time::Duration;
 
-pub fn attach_outbound_queue(add: On<Add<ServerSideConnection>>, mut commands: Commands) {
+pub fn attach_outbound_queue(
+    add: On<Add<ServerSideConnection>>,
+    limits: Option<Res<PingLimits>>,
+    mut commands: Commands,
+) {
+    let probes = Probes::new(limits.as_deref().copied().unwrap_or_default());
     commands
         .entity(add.entity)
-        .insert((OutboundQueue::default(), Probes::default()));
+        .insert((OutboundQueue::default(), probes));
 }
 
 #[derive(Default)]
@@ -75,6 +94,21 @@ pub struct OutboundScratch {
     buffer: PacketBuffer,
 }
 
+pub(crate) fn messages_pending<M: Message>(messages: Res<Messages<M>>) -> bool {
+    !messages.is_empty()
+}
+
+pub(crate) fn inbound_held(sessions: Query<&PendingInbound>) -> bool {
+    sessions.iter().any(|pending| !pending.0.is_empty())
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates the wire entries only for a player list update, which a join or a leave sends"
+    )
+)]
 pub fn bridge_outbound(
     mut messages: ResMut<Messages<OutboundPlayerPacket>>,
     anchors: Res<SessionAnchors>,
@@ -105,14 +139,20 @@ pub fn bridge_outbound(
         };
         for &connection in rest {
             push_to_connection(
-                &mut queues,
+                queues.reborrow(),
                 &mut telemetry,
                 &mut pending,
                 connection,
                 packet.clone(),
             );
         }
-        push_to_connection(&mut queues, &mut telemetry, &mut pending, last, packet);
+        push_to_connection(
+            queues.reborrow(),
+            &mut telemetry,
+            &mut pending,
+            last,
+            packet,
+        );
     }
 }
 
@@ -200,7 +240,7 @@ impl WritePacket for PacketBuffer {
 }
 
 fn push_to_connection(
-    queues: &mut Query<&mut OutboundQueue>,
+    mut queues: Query<'_, '_, &mut OutboundQueue>,
     telemetry: &mut BridgeTelemetry,
     pending: &mut PendingConnections,
     connection: Entity,
@@ -244,6 +284,20 @@ const MAX_UNSENT_BYTES: usize = 256 * 1024 * 1024;
     feature = "telemetry-tracy",
     tracing::instrument(name = "network::dispatch_encode", skip_all)
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the move guard measures the client timeout in real time, which the game clock does not follow"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates the wire entries only for a player list update, which a join or a leave sends"
+    )
+)]
 pub fn dispatch_encode(
     mut players: Writers,
     mut commands: Commands,
@@ -256,10 +310,10 @@ pub fn dispatch_encode(
     every.extend(players.iter().map(|(entity, ..)| entity));
     pending.connections.clear();
     dispatch_listed(
-        &mut players,
+        players.reborrow(),
         &mut every,
         &mut pending.connections,
-        &mut commands,
+        commands.reborrow(),
         &mut telemetry,
         &mut frames,
         &mut wakes,
@@ -284,10 +338,10 @@ pub fn dispatch_pending(
     visiting.sort_unstable();
     visiting.dedup();
     dispatch_listed(
-        &mut players,
+        players.reborrow(),
         visiting,
         connections,
-        &mut commands,
+        commands.reborrow(),
         &mut telemetry,
         &mut frames,
         &mut wakes,
@@ -296,15 +350,11 @@ pub fn dispatch_pending(
     visiting.clear();
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the two flushes share every resource of the write"
-)]
 fn dispatch_listed(
-    players: &mut Writers,
+    mut players: Writers<'_, '_>,
     listed: &mut Vec<Entity>,
     left_behind: &mut Vec<Entity>,
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     telemetry: &mut BridgeTelemetry,
     frames: &mut SharedFrames,
     wakes: &mut WriterWakes,
@@ -314,7 +364,7 @@ fn dispatch_listed(
         let Ok((entity, queue, mut conn, ..)) = players.get_mut(entity) else {
             return false;
         };
-        let writable = ready_to_write(entity, &mut conn, commands, telemetry, wakes);
+        let writable = ready_to_write(entity, &mut conn, commands.reborrow(), telemetry, wakes);
         if writable {
             count_recipients(&queue, frames);
         }
@@ -331,11 +381,12 @@ fn dispatch_listed(
                 LayerOne {
                     now: probes.since_origin(Instant::now()),
                     guard: &mut probes.guard,
+                    pings: &mut probes.pings,
                     flush,
                 }
             });
         if let Some(layer_one) = &layer_one
-            && layer_one.guard.overdue(layer_one.now)
+            && layer_one.pings.overdue(layer_one.now)
         {
             let reason = Text::translate("disconnect.timeout", []);
             conn.disconnect(ConnectionState::Game, reason).ok();
@@ -370,7 +421,7 @@ fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
 fn ready_to_write(
     entity: Entity,
     conn: &mut ServerSideConnection,
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     telemetry: &mut BridgeTelemetry,
     wakes: &mut WriterWakes,
 ) -> bool {
@@ -407,6 +458,7 @@ fn ready_to_write(
 
 struct LayerOne<'a> {
     guard: &'a mut MoveGuard,
+    pings: &'a mut PlayPings,
     now: Duration,
     flush: Flush,
 }
@@ -419,19 +471,21 @@ fn write_queue(
     frames: &mut SharedFrames,
     mut layer_one: Option<LayerOne<'_>>,
 ) {
-    let last_change = layer_one
-        .as_ref()
-        .and_then(|_| queue.iter().rposition(|queued| queued.changes_prediction()));
-    for (index, queued) in queue.drain().enumerate() {
+    if let Some(LayerOne { pings, now, .. }) = layer_one.as_mut()
+        && queue.total_len() > 0
+    {
+        write_ping(raw, pings.ping(*now));
+    }
+    for queued in queue.drain() {
         trace!(
             target: "mcrs_minecraft_engine::bridge",
             conn = ?entity,
             kind = ?queued.kind(),
             "dispatch_encode"
         );
-        if let Some(LayerOne { guard, now, .. }) = layer_one.as_mut() {
+        if let Some(LayerOne { guard, pings, .. }) = layer_one.as_mut() {
             if queued.changes_prediction() {
-                write_probe(raw, guard.change(*now));
+                guard.change(pings.tick());
             } else {
                 match &queued {
                     QueuedPacket::Payload(PacketPayload::PlayerPosition(teleport)) => {
@@ -440,7 +494,6 @@ fn write_queue(
                     QueuedPacket::Payload(PacketPayload::Respawn(_)) => guard.respawned(),
                     _ => {}
                 }
-                guard.wrote();
             }
         }
         {
@@ -483,24 +536,25 @@ fn write_queue(
                 }
             }
         }
-        if let Some(LayerOne { guard, now, .. }) = layer_one.as_mut()
-            && last_change == Some(index)
-        {
-            write_probe(raw, guard.close_changes(*now));
-        }
     }
-    if let Some(LayerOne { guard, now, flush }) = layer_one
+    if let Some(LayerOne {
+        guard,
+        pings,
+        now,
+        flush,
+    }) = layer_one
         && flush == Flush::EndOfTick
     {
-        write_probe(raw, guard.end_server_tick(now));
+        guard.end_server_tick(now);
+        write_ping(raw, pings.end_tick(now));
     }
 }
 
-fn write_probe(raw: &mut RawConnection, probe: Option<i32>) {
-    if let Some(id) = probe
+fn write_ping(raw: &mut RawConnection, ping: Option<i32>) {
+    if let Some(id) = ping
         && let Err(error) = raw.append(&ClientboundPing { id })
     {
-        warn!("a probe did not encode: {error:#}");
+        warn!("a ping did not encode: {error:#}");
     }
 }
 
@@ -587,6 +641,8 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::SystemChat(p) => sink.write_packet_fallible(&p),
         PacketPayload::CommandSuggestions(p) => sink.write_packet_fallible(&p),
         PacketPayload::SetTime(p) => sink.write_packet_fallible(&p),
+        PacketPayload::TickingState(p) => sink.write_packet_fallible(&p),
+        PacketPayload::TickingStep(p) => sink.write_packet_fallible(&p),
         PacketPayload::SetHealth(p) => sink.write_packet_fallible(&p),
         PacketPayload::HurtAnimation(p) => sink.write_packet_fallible(&p),
         PacketPayload::PlayerCombatKill(p) => sink.write_packet_fallible(&p),
@@ -618,7 +674,7 @@ pub fn bridge_inbound_to_channel(
             continue;
         };
         if let (Some(trigger), Some(connection)) = (msg.trigger, connection) {
-            trigger.raise(&mut commands, connection.entity(), msg.data.clone());
+            trigger.raise(commands.reborrow(), connection.entity(), msg.data.clone());
         }
         if !route_serverbound(placement, &mut pending, &mut dim_inputs, msg)
             && let Some(connection) = connection
@@ -697,8 +753,15 @@ pub fn forward_pending_inbound(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates the refusal cause only when a client is disconnected for an invalid move"
+    )
+)]
 pub fn bridge_inbound(
-    mut conns: Query<(
+    mut conns: Populated<(
         Entity,
         &mut ServerSideConnection,
         &mut InboundPacketRate,
@@ -712,8 +775,8 @@ pub fn bridge_inbound(
     mut dim_inputs: ResMut<DimInputs>,
     mut telemetry: ResMut<BridgeTelemetry>,
     mut dispatcher: ResMut<PacketDispatcher>,
+    mut reports: Local<Vec<Report>>,
 ) {
-    let mut reports: Vec<Report> = Vec::new();
     let rate_limit = rate_limit.as_deref().copied().unwrap_or_default();
     for (entity, mut conn, mut rate, anchor_ref, state, mut probes) in conns.iter_mut() {
         if *state != ConnectionState::Game {
@@ -740,14 +803,12 @@ pub fn bridge_inbound(
                                 break;
                             }
                         };
-                    let action = match (pkt.verdict, probes.as_deref_mut()) {
-                        (Some(Verdict::Disconnect(refused)), _) => Action::Disconnect(refused),
-                        (Some(Verdict::Pass(checked)), Some(probes)) => {
-                            let now = probes.since_origin(pkt.timestamp);
-                            probes.guard.serverbound(&checked, now, &mut reports)
-                        }
-                        _ => Action::Forward,
-                    };
+                    let action = check_play(
+                        pkt.verdict,
+                        probes.as_deref_mut(),
+                        pkt.timestamp,
+                        &mut reports,
+                    );
                     for report in reports.drain(..) {
                         trace!(conn = ?entity, ?report, "a movement check reports");
                     }
@@ -773,7 +834,7 @@ pub fn bridge_inbound(
                     }
                     if let Some(trigger) = trigger {
                         trigger.raise_arrived(
-                            &mut commands,
+                            commands.reborrow(),
                             entity,
                             pkt.payload.clone(),
                             pkt.timestamp,
@@ -794,6 +855,10 @@ pub fn bridge_inbound(
                                 id: pkt.id,
                                 data: pkt.payload,
                                 trigger,
+                                acknowledged_tick: probes
+                                    .as_deref()
+                                    .map_or(0, |probes| probes.pings.acknowledged_tick()),
+                                arrival: pkt.timestamp,
                             },
                         )
                     {
@@ -814,10 +879,37 @@ pub fn bridge_inbound(
     }
 }
 
+fn check_play(
+    verdict: Option<Verdict>,
+    probes: Option<&mut Probes>,
+    arrival: Instant,
+    reports: &mut Vec<Report>,
+) -> Action {
+    let (checked, probes) = match (verdict, probes) {
+        (Some(Verdict::Disconnect(refused)), _) => return Action::Disconnect(refused),
+        (Some(Verdict::Pass(checked)), Some(probes)) => (checked, probes),
+        _ => return Action::Forward,
+    };
+    if let Serverbound::Pong(id) = checked.packet
+        && probes.pings.answer(id)
+    {
+        return Action::Drop;
+    }
+    let now = probes.since_origin(arrival);
+    let acknowledged = Acknowledged {
+        tick: probes.pings.acknowledged_tick(),
+        sent_at: probes.pings.acknowledged_sent_at(),
+    };
+    probes
+        .guard
+        .serverbound(&checked, now, acknowledged, reports)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use bevy_ecs::entity::Entity;
+    use bevy_ecs::message::MessageRegistry;
     use bevy_ecs::system::{IntoSystem, System};
     use bevy_ecs::world::World;
 
@@ -841,8 +933,8 @@ mod tests {
 
     fn world() -> World {
         let mut world = World::new();
-        world.init_resource::<Messages<OutboundPlayerAttached>>();
-        world.init_resource::<Messages<InboundPlayerPacket>>();
+        MessageRegistry::register_message::<OutboundPlayerAttached>(&mut world);
+        MessageRegistry::register_message::<InboundPlayerPacket>(&mut world);
         world.init_resource::<DimInputs>();
         world.init_resource::<SessionAnchors>();
         world
@@ -854,6 +946,8 @@ mod tests {
             id,
             data: Bytes::new(),
             trigger: None,
+            acknowledged_tick: 0,
+            arrival: Instant::now(),
         }
     }
 

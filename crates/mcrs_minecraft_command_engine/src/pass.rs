@@ -17,7 +17,7 @@ use bevy_ecs::prelude::With;
 use bevy_ecs::query::QueryState;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
-use bevy_ecs::world::World;
+use bevy_ecs::world::{Mut, World};
 use mcrs_command::{End, Limits, Resume, SourceLists, Stage};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_engine::PlayerBody;
@@ -60,57 +60,69 @@ pub(crate) fn commands_pending(
     !queue.is_empty() || handoffs.is_some_and(|handoffs| !handoffs.is_empty())
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "command handlers run as systems against the whole dimension world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on ticks with pending command lines, and each command line allocates its own parse and output"
+    )
+)]
 pub(crate) fn run_commands<S: CommandSet>(world: &mut World) {
-    let Some(mut buffers) = world.remove_resource::<PassBuffers>() else {
-        return;
-    };
-    let Some(here) = world.get_resource::<DimensionLabel>().map(|label| label.0) else {
-        world.insert_resource(buffers);
-        return;
-    };
-    let limits = world
-        .get_resource::<CommandLimits>()
-        .copied()
-        .unwrap_or_default()
-        .0;
-    if let Some(mut received) = world.get_resource_mut::<CommandQueue>() {
-        std::mem::swap(&mut *received, &mut buffers.queue);
-    }
-    let handoffs: Vec<CommandHandoff> = world
-        .get_resource_mut::<Messages<CommandHandoff>>()
-        .map(|mut handoffs| handoffs.drain().collect())
-        .unwrap_or_default();
-    collect_targets(world, &mut buffers, here);
-    let mut run = Run {
-        world,
-        here,
-        limits,
-        stages: &mut buffers.stages,
-        lists: &mut buffers.lists,
-        deferred: &mut buffers.deferred,
-    };
-    for handoff in handoffs {
-        run.handoff::<S>(handoff);
-    }
-    for queued in buffers.queue.lines.drain(..) {
-        let line = run.line::<S>(queued);
-        if line.capacity() > 0 {
-            buffers.queue.spare.push(line);
+    world.try_resource_scope(|world, mut buffers: Mut<PassBuffers>| {
+        let Some(here) = world.get_resource::<DimensionLabel>().map(|label| label.0) else {
+            return;
+        };
+        let buffers = &mut *buffers;
+        let limits = world
+            .get_resource::<CommandLimits>()
+            .copied()
+            .unwrap_or_default()
+            .0;
+        if let Some(mut received) = world.get_resource_mut::<CommandQueue>() {
+            std::mem::swap(&mut *received, &mut buffers.queue);
         }
-    }
-    for queued in buffers.queue.suggestions.drain(..) {
-        let answered = run
-            .world
-            .run_system_cached_with(answer_suggestion::<S>, &queued);
-        if let Err(error) = answered {
-            tracing::error!("a suggestion request was not answered: {error}");
+        let handoffs: Vec<CommandHandoff> = world
+            .get_resource_mut::<Messages<CommandHandoff>>()
+            .map(|mut handoffs| handoffs.drain().collect())
+            .unwrap_or_default();
+        collect_targets(world, buffers, here);
+        let mut run = Run {
+            world,
+            here,
+            limits,
+            stages: &mut buffers.stages,
+            lists: &mut buffers.lists,
+            deferred: &mut buffers.deferred,
+        };
+        for handoff in handoffs {
+            run.handoff::<S>(handoff);
         }
-        settle(run.world);
-    }
-    if let Some(mut received) = world.get_resource_mut::<CommandQueue>() {
-        received.spare.append(&mut buffers.queue.spare);
-    }
-    world.insert_resource(buffers);
+        for queued in buffers.queue.lines.drain(..) {
+            let line = run.line::<S>(queued);
+            if line.capacity() > 0 {
+                buffers.queue.spare.push(line);
+            }
+        }
+        for queued in buffers.queue.suggestions.drain(..) {
+            let answered = run
+                .world
+                .run_system_cached_with(answer_suggestion::<S>, &queued);
+            if let Err(error) = answered {
+                tracing::error!("a suggestion request was not answered: {error}");
+            }
+            settle(run.world);
+        }
+        if let Some(mut received) = world.get_resource_mut::<CommandQueue>() {
+            received.spare.append(&mut buffers.queue.spare);
+        }
+    });
 }
 
 struct Run<'a> {
@@ -223,7 +235,9 @@ impl Run<'_> {
         let Some(mut running) = self.world.get_resource_mut::<RunningCommand>() else {
             return line;
         };
-        running.line = line;
+        if running.line != line {
+            running.line = line;
+        }
         self.stages.clear();
         self.stages.extend_from_slice(running.chain.stages());
         self.deferred.clear();

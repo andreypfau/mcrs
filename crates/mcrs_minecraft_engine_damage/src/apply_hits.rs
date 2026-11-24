@@ -1,6 +1,7 @@
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::query::{Or, With};
+use bevy_ecs::system::InMut;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
@@ -66,6 +67,12 @@ fn position((motion, _, transform): Place) -> Option<DVec3> {
         .or(transform.map(|transform| transform.translation))
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ApplyOrder {
+    Queue,
+    Target,
+}
+
 #[derive(Default)]
 pub(crate) struct ApplyScratch {
     order: Vec<HitOrder>,
@@ -83,6 +90,7 @@ pub(crate) struct Reports<'a, 'd, 'e> {
     reason = "a system takes each resource that it reads"
 )]
 pub(crate) fn apply_hits(
+    InMut(apply_order): InMut<ApplyOrder>,
     mut pending: ResMut<PendingHits>,
     types: Res<DamageTypeRules>,
     clock: Option<Res<BirthClock>>,
@@ -112,7 +120,9 @@ pub(crate) fn apply_hits(
             index,
         });
     }
-    order.sort_unstable();
+    if *apply_order == ApplyOrder::Target {
+        order.sort_unstable();
+    }
     let mut reports = Reports {
         damaged,
         died,
@@ -124,7 +134,7 @@ pub(crate) fn apply_hits(
             &pending.requests,
             &types,
             tick,
-            &mut targets,
+            targets.reborrow(),
             dead,
             &mut reports,
         );
@@ -140,7 +150,7 @@ fn apply_group(
     requests: &[DamageRequest],
     types: &DamageTypeRules,
     tick: Option<u64>,
-    targets: &mut Targets,
+    mut targets: Targets<'_, '_>,
     dead: &mut Vec<GridRow>,
     reports: &mut Reports<'_, '_, '_>,
 ) {

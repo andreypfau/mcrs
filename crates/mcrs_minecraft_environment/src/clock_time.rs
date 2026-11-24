@@ -1,14 +1,15 @@
+use mcrs_minecraft_core::codec::is_default;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClockTime {
     pub total_ticks: i64,
-    #[serde(default, skip_serializing_if = "is_zero")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub partial_tick: f32,
     #[serde(default = "default_rate", skip_serializing_if = "is_one")]
     pub rate: f32,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub paused: bool,
 }
 
@@ -16,16 +17,8 @@ fn default_rate() -> f32 {
     1.0
 }
 
-fn is_zero(value: &f32) -> bool {
-    *value == 0.0
-}
-
 fn is_one(value: &f32) -> bool {
     *value == 1.0
-}
-
-fn is_false(value: &bool) -> bool {
-    !*value
 }
 
 impl Default for ClockTime {

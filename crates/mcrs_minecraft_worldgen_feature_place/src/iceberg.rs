@@ -160,9 +160,12 @@ fn generate_cut_out<W: WorldGenVolume>(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one carved block"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one carved block"
+    )
 )]
 fn carve<W: WorldGenVolume>(
     cfg: &CompiledIceberg,
@@ -200,9 +203,12 @@ fn carve<W: WorldGenVolume>(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one iceberg block"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one iceberg block"
+    )
 )]
 fn generate_block<W: WorldGenVolume>(
     cfg: &CompiledIceberg,

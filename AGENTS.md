@@ -173,10 +173,31 @@ and give any materialization exactly one owner and a stated cost model.
 - **The empty tick has a budget.** Systems are gated by run conditions.
 - Global mutable state has one writer in the main app and reaches dimension
   sub-apps as a read-only snapshot.
+- A fact that the server and the client both hold is one component in the shared
+  crate. The client writes that component from packets and input. A client crate
+  adds only what the server has no use for: prediction state, last-sent values,
+  interface state. A system that copies a client type into a shared component is
+  a defect. `mcrs_minecraft_inventory_client` follows this rule with `Slots`.
 - A simulation partition is a **shard**, never a thread and never a "region". A
   shard step is a library call on a kernel without Bevy.
 
-An exception to any of these is justified by a measurement in the pull request.
+An exception to any of these is justified by a measurement in the pull request. Put the measurement in the pull request body. Do not add a tracked file for it.
+
+## Crossing a boundary
+
+Each boundary has one mechanism. Do not add another.
+
+- Main app to a dimension sub-app, and back: a field of `DimInput` and a field of
+  `DimOutput` (`SubAppWorld<DimInput, DimOutput>`). Nothing else crosses.
+- Main world to render world: a small `Copy` setting uses Bevy `ExtractResource`.
+  A buffer moves in an extract system that takes `ResMut<MainWorld>`, as
+  `extract_entities` does in `mcrs_minecraft_entity_render`.
+- Background work to a world: a task that a system polls with `check_ready`, as
+  `mcrs_minecraft_client_world` does for columns. A stage that runs inline or on a
+  thread uses `Link` of `mcrs_engine_link`.
+- A new `Arc<Mutex<..>>` queue between worlds is not allowed. A real cross-thread
+  seam, such as a GPU map callback or a thread of another runtime, stays behind one
+  named type with `#[expect(..., reason = "...")]`.
 
 ## Ownership, locks, dispatch and allocation
 
@@ -190,7 +211,14 @@ add a new use of what is listed here.
 - **No interior mutability or locks.** No `Mutex`, `RwLock`, `RefCell`, `Cell`,
   `OnceCell` holding mutable state, or atomics used as shared state.
 - **No trait objects.** No `dyn` and no `Any`. A heterogeneous set is a generic
-  parameter or an enum. A callback is a `fn` pointer or an id the host resolves.
+  parameter or an enum. A callback that the code stores is a `fn` pointer or an id the host resolves.
+- **How a kernel reads the world.** A kernel takes `&W`, where `W` is bound by the
+  smallest traits it uses. One trait covers one aspect. Only the methods that
+  define the aspect are required; every other method has a default body that
+  returns `None`, `false` or empty. The crate that owns the trait owns the one
+  empty host. A closure that a caller passes for one call is `impl Fn`, never `&dyn`.
+  `BodyView` and `NoBodies` in `mcrs_minecraft_physics` show a small trait with its
+  one empty host.
 - **No allocation on a hot path.** Scratch buffers belong to the caller. Borrow
   the input. An error is data, rendered to text at the edge. A hot path that
   claims zero allocations has a test with a counting allocator.
@@ -240,6 +268,12 @@ this file wins.
 - Verify what a command or a test can decide yourself; do not ask the owner to.
 - One way to do one thing. A migration ends with the old path deleted, in the PR
   that moves its last caller. At most three migrations are open at once.
+- A design note that adds a second model beside a first one names the pull request
+  that deletes the first.
+- Before you write a helper, a value type or a test fixture, read `docs/crates.md`
+  and search the workspace for it. Use the one that exists. When the canonical
+  crate lacks it, add it there, never a local copy. Delete a duplicate that you
+  find in code you touch in the same change.
 - Commit messages are plain, domain-focused Conventional Commits. No task name
   and no private planning id in code, tests, comments or commits.
 

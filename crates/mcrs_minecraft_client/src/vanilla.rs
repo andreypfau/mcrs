@@ -328,10 +328,6 @@ impl Rate {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 fn draw_progress(
     fetch: Res<Fetch>,
     font: Option<Res<LoadingFont>>,

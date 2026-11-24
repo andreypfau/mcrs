@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_jukebox_song"
-description = "The value of the jukebox song registry"
+description = "The JukeboxSong value of the jukebox song registry: its sound event, description, length in seconds and comparator output."
 version.workspace = true
 edition.workspace = true
 

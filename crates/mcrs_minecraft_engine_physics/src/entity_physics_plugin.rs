@@ -4,6 +4,7 @@ use bevy_app::Plugin;
 use bevy_ecs::schedule::ApplyDeferred;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemCondition;
+use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::common_conditions::resource_exists;
 use bevy_ecs::schedule::common_conditions::resource_exists_and_changed;
 use mcrs_minecraft_block::definition::Blocks;
@@ -29,9 +30,11 @@ use crate::entity_writes::apply_entity_writes;
 use crate::entity_writes::has_writes;
 use crate::mob_changes::MobChanges;
 use crate::mob_changes::clear_mob_changes;
+use crate::mob_changes::has_mob_changes;
 use crate::mob_index::MobIndex;
 use crate::mob_index::forget_mob;
 use crate::mob_spawn::WaitingSpawns;
+use crate::mob_spawn::has_waiting_spawns;
 use crate::mob_spawn::spawn_mob_entities;
 use crate::mob_spawn_request::MobSpawnRequest;
 use crate::physics_tables::build_tables;
@@ -64,8 +67,8 @@ impl Plugin for EntityPhysicsPlugin {
                         .and_then(resource_exists_and_changed::<CurrentRegistries>),
                 ),
                 find_crowd_damage_type.run_if(resource_exists_and_changed::<CurrentRegistries>),
-                apply_entity_writes.run_if(has_writes),
-                spawn_mob_entities,
+                spawn_mob_entities
+                    .run_if(on_message::<MobSpawnRequest>.or_else(has_waiting_spawns)),
                 ApplyDeferred,
             )
                 .chain()
@@ -79,6 +82,14 @@ impl Plugin for EntityPhysicsPlugin {
                     .in_set(MotionPass)
                     .after(MotionEffects),
                 hit_crowds.run_if(has_crowds).in_set(DamageSet::Collect),
+                apply_entity_writes
+                    .run_if(has_writes)
+                    .in_set(TickSet::Simulate)
+                    .before(MotionPass),
+                apply_entity_writes
+                    .run_if(has_writes)
+                    .in_set(TickSet::WorldWrite)
+                    .after(DamageSet::Report),
             ),
         );
         app.configure_sets(
@@ -87,6 +98,11 @@ impl Plugin for EntityPhysicsPlugin {
                 .in_set(TickSet::Project)
                 .before(clear_mob_changes),
         );
-        app.add_systems(FixedUpdate, clear_mob_changes.in_set(TickSet::Project));
+        app.add_systems(
+            FixedUpdate,
+            clear_mob_changes
+                .run_if(has_mob_changes)
+                .in_set(TickSet::Project),
+        );
     }
 }

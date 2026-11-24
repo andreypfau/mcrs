@@ -21,7 +21,7 @@ pub(crate) fn respawn(
 ) {
     let (viewer, player_holders, menus) = *player;
     if menus.open().is_some() && !shows_inventory_menu(menus) {
-        leave_container_menu(viewer, player_holders, &holders, &mut commands);
+        leave_container_menu(viewer, player_holders, &holders, commands.reborrow());
     }
     if let Some(menu) = menus.iter().next() {
         commands.entity(menu).remove::<RemoteMenu>();

@@ -15,17 +15,6 @@ pub enum BedrockText {
     Rawtext(BedrockRawtext),
 }
 
-impl BedrockText {
-    pub fn to_json_string(&self) -> Result<String, serde_json::Error> {
-        match self {
-            Self::String(s) => serde_json::to_string(&BedrockRawtext {
-                rawtext: vec![BedrockRawtextComponent::Text { text: s.clone() }],
-            }),
-            Self::Rawtext(r) => serde_json::to_string(r),
-        }
-    }
-}
-
 #[must_use]
 pub fn has_translate<I: TextTypes>(text: &Text<I>) -> bool {
     match &text.content {

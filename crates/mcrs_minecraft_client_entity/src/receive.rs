@@ -153,7 +153,7 @@ fn on_remove_entities(
     }
 }
 
-fn clear_entities(entities: &mut NetworkEntities, commands: &mut Commands) {
+fn clear_entities(entities: &mut NetworkEntities, mut commands: Commands<'_, '_>) {
     for entity in entities.drain() {
         commands.entity(entity).despawn();
     }
@@ -164,7 +164,7 @@ fn on_login(
     mut entities: ResMut<NetworkEntities>,
     mut commands: Commands,
 ) {
-    clear_entities(&mut entities, &mut commands);
+    clear_entities(&mut entities, commands.reborrow());
 }
 
 fn on_respawn(
@@ -172,7 +172,7 @@ fn on_respawn(
     mut entities: ResMut<NetworkEntities>,
     mut commands: Commands,
 ) {
-    clear_entities(&mut entities, &mut commands);
+    clear_entities(&mut entities, commands.reborrow());
 }
 
 fn on_rotate_head(
@@ -217,9 +217,13 @@ fn on_set_entity_data(
             stack.as_mut(),
             motion.as_mut(),
         ) {
-            (FUSE_INDEX, MetaDataValue::VarInt(ticks), Some(fuse), _, _) => fuse.0 = ticks.0,
+            (FUSE_INDEX, MetaDataValue::VarInt(ticks), Some(fuse), _, _) => {
+                fuse.set_if_neq(Fuse(ticks.0));
+            }
             (ITEM_STACK_INDEX, MetaDataValue::Slot(item), _, Some(stack), _) => {
-                stack.0 = item.clone();
+                if stack.0 != *item {
+                    stack.0 = item.clone();
+                }
             }
             (
                 entity_data_index::NO_GRAVITY,
@@ -374,17 +378,18 @@ fn on_ticking_state(
     event: On<Received<ClientboundTickingState>>,
     mut ticking: ResMut<ServerTicking>,
 ) {
-    if let Some(packet) = event.packet() {
+    if let Some(packet) = event.packet()
+        && (ticking.tick_rate != packet.tick_rate || ticking.frozen != packet.frozen)
+    {
         ticking.tick_rate = packet.tick_rate;
         ticking.frozen = packet.frozen;
     }
 }
 
-fn on_ticking_step(
-    event: On<Received<ClientboundTickingStep>>,
-    mut ticking: ResMut<ServerTicking>,
-) {
+fn on_ticking_step(event: On<Received<ClientboundTickingStep>>, ticking: ResMut<ServerTicking>) {
     if let Some(packet) = event.packet() {
-        ticking.steps = u32::try_from(packet.steps.0).unwrap_or(0);
+        ticking
+            .map_unchanged(|ticking| &mut ticking.steps)
+            .set_if_neq(u32::try_from(packet.steps.0).unwrap_or(0));
     }
 }

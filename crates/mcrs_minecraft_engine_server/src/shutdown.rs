@@ -3,6 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::query::With;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Local, Query, ResMut};
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::muxer::disconnect::Departing;
@@ -23,7 +24,7 @@ impl Plugin for ShutdownPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<ShutdownRequest>();
         app.init_resource::<WorldStateWriter>();
-        app.add_systems(Update, shutdown_system);
+        app.add_systems(Update, shutdown_system.run_if(shutdown_requested));
     }
 }
 
@@ -56,10 +57,13 @@ pub(crate) enum ShutdownPhase {
     Done,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each access is its own parameter"
-)]
+fn shutdown_requested(requests: MessageReader<ShutdownRequest>, mut seen: Local<bool>) -> bool {
+    if !requests.is_empty() {
+        *seen = true;
+    }
+    *seen
+}
+
 pub(crate) fn shutdown_system(
     requests: MessageReader<ShutdownRequest>,
     mut phase: Local<ShutdownPhase>,

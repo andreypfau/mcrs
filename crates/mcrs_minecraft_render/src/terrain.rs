@@ -173,15 +173,12 @@ pub(super) fn init_terrain(
 }
 
 pub(super) fn write_lightmap(
-    terrain: Option<Res<Terrain>>,
-    sky: Option<Res<ExtractedSky>>,
+    If(terrain): If<Res<Terrain>>,
+    If(sky): If<Res<ExtractedSky>>,
     brightness: Res<Brightness>,
     queue: Res<RenderQueue>,
     mut last: Local<Option<([[f32; 4]; 3], f32)>>,
 ) {
-    let (Some(terrain), Some(sky)) = (terrain, sky) else {
-        return;
-    };
     let lights = [
         sky.uniform.ambient,
         sky.uniform.sky_light,

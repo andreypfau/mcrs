@@ -13,7 +13,7 @@ test = false
 workspace = true
 
 [workspace]
-members = ["crates/*", "examples/inventory_bot_click", "examples/inventory_minigame", "examples/inventory_save_viewer", "examples/loot_validate", "examples/player_attributes", "examples/status_ping", "examples/worldgen_preview", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_probe", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
+members = ["crates/*", "examples/inventory_bot_click", "examples/inventory_minigame", "examples/inventory_save_viewer", "examples/loot_validate", "examples/player_attributes", "examples/status_ping", "examples/worldgen_preview", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_mcp", "tools/mcrs_minecraft_probe", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
 
 [workspace.package]
 version = "0.5.8"
@@ -26,6 +26,7 @@ equivalent = "1.0.2"
 fixedbitset = "0.5.7"
 hashbrown = "0.16.1"
 fancy-regex = "0.16"
+regex = "1.12"
 derive-where = "1.6.1"
 serde_path_to_error = "0.1.20"
 bevy_ecs = { version = "0.20.1", features = ["debug"] }
@@ -215,6 +216,7 @@ mcrs_minecraft_vanilla_block_place = { path = "crates/mcrs_minecraft_vanilla_blo
 mcrs_minecraft_vanilla_attributes = { path = "crates/mcrs_minecraft_vanilla_attributes" }
 mcrs_minecraft_vanilla_inventory = { path = "crates/mcrs_minecraft_vanilla_inventory" }
 mcrs_minecraft_vanilla_swing = { path = "crates/mcrs_minecraft_vanilla_swing" }
+mcrs_minecraft_vanilla_player_attack = { path = "crates/mcrs_minecraft_vanilla_player_attack" }
 mcrs_minecraft_vanilla_respawn = { path = "crates/mcrs_minecraft_vanilla_respawn" }
 mcrs_minecraft_vanilla_death = { path = "crates/mcrs_minecraft_vanilla_death" }
 mcrs_minecraft_player_holders = { path = "crates/mcrs_minecraft_player_holders" }
@@ -238,6 +240,7 @@ mcrs_minecraft_engine_player_vitals = { path = "crates/mcrs_minecraft_engine_pla
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_client_world = { path = "crates/mcrs_minecraft_client_world" }
+mcrs_minecraft_client_control = { path = "crates/mcrs_minecraft_client_control" }
 mcrs_minecraft_client_entity = { path = "crates/mcrs_minecraft_client_entity" }
 mcrs_minecraft_client_gui = { path = "crates/mcrs_minecraft_client_gui" }
 mcrs_minecraft_client_options = { path = "crates/mcrs_minecraft_client_options" }
@@ -282,14 +285,14 @@ mcrs_minecraft_probe = { path = "tools/mcrs_minecraft_probe" }
 wtransport = "0.7.2"
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(getrandom_backend, values("wasm_js"))', 'cfg(web_sys_unstable_apis)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(getrandom_backend, values("wasm_js"))', 'cfg(web_sys_unstable_apis)', 'cfg(mcrs_lint)'] }
 
 [workspace.lints.clippy]
 allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
 too_many_lines = "warn"
 excessive_nesting = "warn"
-too_many_arguments = "warn"
+too_many_arguments = "allow"
 disallowed_types = "warn"
 disallowed_macros = "warn"
 disallowed_methods = "warn"

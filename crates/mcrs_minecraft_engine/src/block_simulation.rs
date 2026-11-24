@@ -5,7 +5,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Has, Query, With};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::common_conditions::{not, resource_exists};
+use bevy_ecs::schedule::common_conditions::{not, on_message, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition, SystemSet};
 use bevy_ecs::system::{Local, Res, ResMut, SystemParam};
 use bevy_ecs::world::World;
@@ -16,6 +16,7 @@ use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite, VoxelUpdateSet};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
@@ -111,7 +112,7 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
                 index_random_ticks::<B>.run_if(
                     resource_exists::<Blocks>.and_then(not(resource_exists::<RandomTickIndex>)),
                 ),
-                drop_broken_blocks::<B>,
+                drop_broken_blocks::<B>.run_if(on_message::<BlockBroken>),
                 run_block_simulation::<B>,
             )
                 .chain()
@@ -120,7 +121,9 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
         app.configure_sets(FixedUpdate, BlockSimulationSet.in_set(TickSet::WorldWrite));
         app.add_systems(
             FixedPostUpdate,
-            remove_replaced_block_entities.in_set(VoxelUpdateSet::NetworkSync),
+            remove_replaced_block_entities
+                .in_set(VoxelUpdateSet::NetworkSync)
+                .run_if(on_message::<BlockPlaced>),
         );
     }
 }
@@ -341,6 +344,7 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
 struct RandomTicking<'w> {
     speed: Res<'w, RandomTickSpeed>,
     seed: Option<Res<'w, WorldSeed>>,
+    pace: Option<Res<'w, TickPace>>,
 }
 
 #[derive(SystemParam)]
@@ -374,9 +378,19 @@ impl DropOutlet<'_> {
     clippy::too_many_lines,
     reason = "the sync point, the four phases and the hand-off of their output are one ordered step"
 )]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "each parameter is a distinct part of the world that the step reads or writes"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "advances the scheduled and random block ticks of every loaded column each tick"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the broadcast marks allocate only for a section whose blocks change in this tick, and the update entries move into the outbound packet"
+    )
 )]
 fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'static>(
     mut requests: MessageReader<BlockSetRequest>,
@@ -469,7 +483,8 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
 
     let rules = &kernel.rules.0;
     let table = simulation.random_table.get_or_insert_default();
-    let speed = random.speed.0;
+    let runs_normally = random.pace.as_deref().is_none_or(TickPace::runs_normally);
+    let speed = if runs_normally { random.speed.0 } else { 0 };
     let seed = *simulation.random_seed.get_or_insert_with(|| {
         let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
         let key = dimension_key.map_or("", |key| key.as_str());
@@ -528,6 +543,9 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 .marks
                 .broadcast(&volume.view, streams, &mut outlets.changes);
             broadcast_cut = out.writes.len();
+            if !runs_normally {
+                continue;
+            }
         }
         let input = PhaseInput {
             inbound: messages,
@@ -603,10 +621,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.ledgers = ledgers;
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each message, resource and query is its own parameter"
-)]
 fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
     mut harvests: MessageReader<BlockBroken>,
     world: WorldView,
@@ -672,6 +686,20 @@ fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "runs once, because its run condition stops it as soon as the index exists"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "the observers of `EntityTicking` and of section despawns read the index, so it must exist before any later command applies"
+    )
+)]
 fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(world: &mut World) {
     let (Some(definitions), Some(rules)) = (
         world.get_resource::<Blocks>(),

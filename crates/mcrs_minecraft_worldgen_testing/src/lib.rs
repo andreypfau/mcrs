@@ -201,27 +201,6 @@ pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocationB
         .collect()
 }
 
-pub fn parse_all<T: DeserializeOwned>(dir: &str) -> Vec<(PathBuf, T)> {
-    let mut parsed = Vec::new();
-    let mut failures = Vec::new();
-    for path in json_files(&corpus_path(dir)) {
-        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        match serde_json::from_slice::<T>(&bytes) {
-            Ok(value) => parsed.push((path, value)),
-            Err(e) => failures.push(format!("{}: {e}", path.display())),
-        }
-    }
-    assert!(
-        failures.is_empty(),
-        "{} of {} files in {dir} failed to parse:\n{}",
-        failures.len(),
-        failures.len() + parsed.len(),
-        failures.join("\n")
-    );
-    assert!(!parsed.is_empty(), "no files found in {dir}");
-    parsed
-}
-
 pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocationBuf) -> T {
     let path = format!("{}/worldgen/{folder}/{}.json", id.namespace(), id.path());
     let bytes = packs()

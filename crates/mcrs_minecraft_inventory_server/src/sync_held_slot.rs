@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::query::Changed;
 use bevy_ecs::system::Query;
@@ -16,10 +17,9 @@ pub(crate) fn sync_held_slot(
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (&Owner(session), selected, mut sent) in &mut players {
-        if sent.0 == selected.0 {
+        if !sent.set_if_neq(SentSelected(selected.0)) {
             continue;
         }
-        sent.0 = selected.0;
         packets.write(to(
             session,
             PacketPayload::SetHeldSlot(ClientboundSetHeldSlot {

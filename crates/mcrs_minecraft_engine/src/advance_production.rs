@@ -15,9 +15,19 @@ use crate::column_store::ColumnStoreLink;
 use crate::column_streams::ColumnStreams;
 use crate::foreign_views::ForeignViews;
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "drains the column store answers, which arrive from another thread without a change in the world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the halo changes move out of the production state each run, and the loaded section data moves on to the column store and the light engine"
+    )
 )]
 pub(crate) fn advance_production(
     mut production: ResMut<ColumnProduction>,

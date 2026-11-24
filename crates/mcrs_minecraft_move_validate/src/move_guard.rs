@@ -1,28 +1,22 @@
+use core::cmp::Ordering;
 use std::collections::VecDeque;
 use std::time::Duration;
 
-use crate::probes::{Answer, Probes};
-use crate::{Action, ChangeState, ChangeView, Checked, Disconnect, Finding, Report, Serverbound};
+use crate::{
+    Acknowledged, Action, ChangeState, ChangeView, Checked, Disconnect, Finding, Report,
+    Serverbound,
+};
 
 const TICK_DRIFT: Duration = Duration::from_millis(500);
-const MAX_ACK_DELAY: Duration = Duration::from_secs(60);
 const CLIENT_TICK: Duration = Duration::from_millis(50);
 const SILENT_LIMIT: u32 = 20;
 const LOAD_TICKS: u32 = 60;
 
-#[derive(Clone, Copy, Debug)]
-struct Bracket {
-    before: u64,
-    after: Option<u64>,
-}
-
 #[derive(Clone, Debug, Default)]
 pub struct MoveGuard {
-    probes: Probes,
-    probe_last: bool,
-    changes: VecDeque<Bracket>,
+    change_ticks: VecDeque<u64>,
     first_change: u64,
-    answered_at_tick: u64,
+    acknowledged_at_client_tick: u64,
     client_tick: u64,
     moved: bool,
     positioned: bool,
@@ -39,35 +33,17 @@ impl MoveGuard {
         Self::default()
     }
 
-    pub fn change(&mut self, now: Duration) -> Option<i32> {
-        let probe = self.probes.newest().is_none().then(|| self.send_probe(now));
-        let before = self.probes.newest().unwrap_or_default();
-        self.changes.push_back(Bracket {
-            before,
-            after: None,
-        });
-        self.probe_last = false;
-        probe
+    pub fn change(&mut self, sent_tick: u64) {
+        self.change_ticks.push_back(sent_tick);
     }
 
-    pub fn close_changes(&mut self, now: Duration) -> Option<i32> {
-        let open = self
-            .changes
-            .back()
-            .is_some_and(|change| change.after.is_none());
-        open.then(|| self.send_probe(now))
-    }
-
-    pub fn wrote(&mut self) {
-        self.probe_last = false;
-    }
-
-    pub fn end_server_tick(&mut self, now: Duration) -> Option<i32> {
+    pub fn end_server_tick(&mut self, now: Duration) {
         self.server_ticks = self.server_ticks.saturating_add(1);
         if self.server_ticks >= LOAD_TICKS {
             self.loaded = true;
         }
-        (!self.probe_last).then(|| self.send_probe(now))
+        self.balance
+            .get_or_insert_with(|| now.saturating_sub(TICK_DRIFT));
     }
 
     pub fn teleport_sent(&mut self, id: i32) {
@@ -80,17 +56,12 @@ impl MoveGuard {
         self.silent_ticks = 0;
     }
 
-    #[must_use]
-    pub fn overdue(&self, now: Duration) -> bool {
-        self.probes.waits_longer(now, MAX_ACK_DELAY)
-    }
-
     pub fn changes(&self) -> impl Iterator<Item = ChangeView> {
         (self.first_change..)
-            .zip(&self.changes)
-            .map(|(change, bracket)| ChangeView {
+            .zip(&self.change_ticks)
+            .map(|(change, &sent_tick)| ChangeView {
                 change,
-                state: self.state(*bracket),
+                state: self.state(sent_tick),
             })
     }
 
@@ -98,6 +69,7 @@ impl MoveGuard {
         &mut self,
         checked: &Checked,
         now: Duration,
+        acknowledged: Acknowledged,
         reports: &mut Vec<Report>,
     ) -> Action {
         let client_tick = self.client_tick.saturating_add(1);
@@ -130,16 +102,12 @@ impl MoveGuard {
             }
             Serverbound::PlayerInput if !self.loaded => return Action::Drop,
             Serverbound::PlayerLoaded => self.loaded = true,
-            Serverbound::Pong(id) => {
-                match self.probes.answer(id) {
-                    Answer::Oldest => {}
-                    Answer::Skipped => report(Finding::SkippedAnswer),
-                    Answer::Unknown => report(Finding::UnknownAnswer),
-                }
+            Serverbound::Pong(_) => {
+                report(Finding::UnknownAnswer);
                 return Action::Drop;
             }
             Serverbound::ClientTickEnd => {
-                if self.end_client_tick(now) {
+                if self.end_client_tick(now, acknowledged) {
                     report(Finding::TickRate);
                 }
                 if self.silent_ticks >= SILENT_LIMIT {
@@ -152,35 +120,11 @@ impl MoveGuard {
         Action::Forward
     }
 
-    fn send_probe(&mut self, now: Duration) -> i32 {
-        let id = self.probes.send(now);
-        let probe = self.probes.newest().unwrap_or_default();
-        for change in self.changes.iter_mut().rev() {
-            if change.after.is_some() {
-                break;
-            }
-            change.after = Some(probe);
-        }
-        self.balance
-            .get_or_insert_with(|| now.saturating_sub(TICK_DRIFT));
-        self.probe_last = true;
-        id
+    fn state(&self, sent_tick: u64) -> ChangeState {
+        change_state(sent_tick, self.acknowledged_at_client_tick)
     }
 
-    fn state(&self, bracket: Bracket) -> ChangeState {
-        if bracket
-            .after
-            .is_some_and(|after| after < self.answered_at_tick)
-        {
-            ChangeState::Applied
-        } else if bracket.before < self.answered_at_tick {
-            ChangeState::Window
-        } else {
-            ChangeState::NotApplied
-        }
-    }
-
-    fn end_client_tick(&mut self, now: Duration) -> bool {
+    fn end_client_tick(&mut self, now: Duration, acknowledged: Acknowledged) -> bool {
         self.client_tick = self.client_tick.saturating_add(1);
         let counted = self.loaded && self.pending_teleport.is_none();
         if self.positioned {
@@ -191,13 +135,13 @@ impl MoveGuard {
         self.moved = false;
         self.positioned = false;
 
-        while let Some(&front) = self.changes.front()
+        while let Some(&front) = self.change_ticks.front()
             && self.state(front) == ChangeState::Applied
         {
-            self.changes.pop_front();
+            self.change_ticks.pop_front();
             self.first_change = self.first_change.saturating_add(1);
         }
-        self.answered_at_tick = self.probes.answered();
+        self.acknowledged_at_client_tick = acknowledged.tick;
 
         let Some(balance) = self.balance.as_mut() else {
             return false;
@@ -207,9 +151,15 @@ impl MoveGuard {
         if too_fast {
             *balance = balance.saturating_sub(CLIENT_TICK);
         }
-        if let Some(answered) = self.probes.newest_answered_at() {
-            *balance = (*balance).max(answered.saturating_sub(TICK_DRIFT));
-        }
+        *balance = (*balance).max(acknowledged.sent_at.saturating_sub(TICK_DRIFT));
         too_fast
+    }
+}
+
+fn change_state(sent_tick: u64, acknowledged_tick: u64) -> ChangeState {
+    match acknowledged_tick.cmp(&sent_tick) {
+        Ordering::Greater => ChangeState::Applied,
+        Ordering::Equal => ChangeState::Window,
+        Ordering::Less => ChangeState::NotApplied,
     }
 }

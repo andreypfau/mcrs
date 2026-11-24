@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use bevy_ecs::resource::Resource;
@@ -100,7 +101,7 @@ fn merge_pair(
         Target::Second => (pair.second, pair.first, first),
     };
     if let Ok(mut count) = stacks.p1().get_mut(target) {
-        *count = total;
+        count.set_if_neq(total);
     }
     if let Ok((mut item, _)) = items.get_mut(target) {
         item.absorb(absorbed);

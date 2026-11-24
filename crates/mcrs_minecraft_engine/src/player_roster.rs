@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::With;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::{Query, Res, ResMut};
+use bevy_ecs::system::{Populated, Res, ResMut};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
@@ -36,7 +36,7 @@ impl ForeignPlayers {
 #[derive(Resource, Default)]
 pub(crate) struct OwnPlayers(pub(crate) Vec<RosterRow>);
 
-type RosterQuery<'w, 's> = Query<
+type RosterQuery<'w, 's> = Populated<
     'w,
     's,
     (
@@ -49,6 +49,13 @@ type RosterQuery<'w, 's> = Query<
     With<Player>,
 >;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the roster moves to the coordinator by value on each tick, and the profile keeps the name as a `String`, so each row clones it"
+    )
+)]
 pub(crate) fn report_own_players(
     label: Res<DimensionLabel>,
     players: RosterQuery,

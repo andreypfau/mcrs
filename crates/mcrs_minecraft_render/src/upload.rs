@@ -62,31 +62,22 @@ impl Uploads {
 }
 
 #[derive(Resource)]
-pub(super) struct Staging(Mutex<Belts>);
-
-struct Belts {
+pub(super) struct Staging {
     belt: StagingBelt,
     texels: TexelStaging,
 }
 
 impl Staging {
     pub fn new(device: &RenderDevice, upload: usize) -> Self {
-        Self(Mutex::new(Belts {
+        Self {
             belt: StagingBelt::new(device.wgpu_device().clone(), upload as u64),
             texels: TexelStaging::default(),
-        }))
+        }
     }
 }
 
-pub(super) fn recall_staging(staging: Option<Res<Staging>>) {
-    if let Some(staging) = staging {
-        staging
-            .0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .belt
-            .recall();
-    }
+pub(super) fn recall_staging(If(mut staging): If<ResMut<Staging>>) {
+    staging.belt.recall();
 }
 
 pub(super) struct Pending {
@@ -133,7 +124,7 @@ impl Placement {
 #[derive(SystemParam)]
 pub(super) struct UploadParams<'w> {
     pub terrain: Option<ResMut<'w, Terrain>>,
-    staging: Option<Res<'w, Staging>>,
+    staging: Option<ResMut<'w, Staging>>,
     uploads: Res<'w, Uploads>,
     device: Res<'w, RenderDevice>,
     queue: Res<'w, RenderQueue>,
@@ -161,8 +152,7 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
         return;
     };
     let terrain = terrain.as_mut();
-    let mut belts = staging.0.lock().unwrap_or_else(PoisonError::into_inner);
-    let Belts { belt, texels } = &mut *belts;
+    let Staging { belt, texels } = staging.as_mut();
     texels.reset();
     let mut staged = Staged {
         encoder,

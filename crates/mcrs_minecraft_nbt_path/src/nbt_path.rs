@@ -6,6 +6,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 
 use crate::nbt_path_operation_error::NbtPathOperationError;
 use crate::node::Node;
+use crate::nothing_found::NothingFound;
 use crate::selected_tag::SelectedTag;
 
 const DEPTH_LIMIT: usize = 512;
@@ -13,21 +14,30 @@ const DEPTH_LIMIT: usize = 512;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NbtPath {
     nodes: Vec<Node>,
+    ends: Vec<usize>,
 }
 
 impl NbtPath {
-    pub(crate) const fn new(nodes: Vec<Node>) -> NbtPath {
-        NbtPath { nodes }
+    pub(crate) const fn new(nodes: Vec<Node>, ends: Vec<usize>) -> NbtPath {
+        NbtPath { nodes, ends }
     }
 
     pub fn select<'t>(&self, root: &'t NbtTag, out: &mut Vec<SelectedTag<'t>>) {
+        self.try_select(root, out).unwrap_or_default();
+    }
+
+    pub fn try_select<'t>(
+        &self,
+        root: &'t NbtTag,
+        out: &mut Vec<SelectedTag<'t>>,
+    ) -> Result<(), NothingFound> {
         let Some((last, middle)) = self.nodes.split_last() else {
-            return;
+            return Ok(());
         };
         let mut current: Vec<&NbtTag> = Vec::new();
         current.push(root);
         let mut next: Vec<&NbtTag> = Vec::new();
-        for node in middle {
+        for (node, &end) in middle.iter().zip(&self.ends) {
             for tag in current.drain(..) {
                 node.select(tag, |selected| {
                     if let SelectedTag::Tag(selected) = selected {
@@ -35,11 +45,20 @@ impl NbtPath {
                     }
                 });
             }
+            if next.is_empty() {
+                return Err(NothingFound { end });
+            }
             mem::swap(&mut current, &mut next);
         }
+        let before = out.len();
         for tag in current {
             last.select(tag, |selected| out.push(selected));
         }
+        if out.len() == before {
+            let end = self.ends.last().copied().unwrap_or_default();
+            return Err(NothingFound { end });
+        }
+        Ok(())
     }
 
     pub fn get_or_create<'t>(

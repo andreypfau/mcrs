@@ -83,6 +83,7 @@ mcrs_minecraft_item_stack = { workspace = true, optional = true }
 mcrs_minecraft_item_table = { workspace = true, optional = true }
 mcrs_minecraft_player_holders.workspace = true
 mcrs_minecraft_inventory_client.workspace = true
+mcrs_minecraft_client_control = { workspace = true, optional = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 mcrs_minecraft_save.workspace = true
@@ -113,7 +114,7 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
 web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
 
 [features]
-default = ["singleplayer", "dev"]
+default = ["singleplayer"]
 pbr = ["bevy/bevy_pbr"]
 singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_server_settings", "dep:mcrs_minecraft_vanilla_worldgen", "dep:mcrs_minecraft_worldgen"]
 dev = ["dep:mcrs_minecraft_engine_inventory_menu", "dep:mcrs_minecraft_inventory_menu", "dep:mcrs_minecraft_menu_key", "dep:mcrs_minecraft_text", "dep:mcrs_minecraft_engine_item", "dep:mcrs_minecraft_item_stack", "dep:mcrs_minecraft_item_table"]
@@ -122,10 +123,12 @@ webgl2 = ["bevy/webgl2"]
 scene = ["dep:uuid"]
 dynamic_linking = ["bevy/dynamic_linking"]
 telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server?/telemetry-tracy"]
+control = ["dep:mcrs_minecraft_client_control"]
 test-support = ["dep:mcrs_minecraft_engine_item", "dep:mcrs_minecraft_item_stack", "dep:mcrs_minecraft_item_table"]
 
 [dev-dependencies]
 mcrs_minecraft_client = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_client_control.workspace = true
 mcrs_minecraft_container_click.workspace = true
 mcrs_minecraft_engine_inventory_menu.workspace = true
 mcrs_minecraft_engine_item.workspace = true

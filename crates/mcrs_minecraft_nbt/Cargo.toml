@@ -1,5 +1,6 @@
 [package]
 name = "mcrs_minecraft_nbt"
+description = "NBT tags and the Nbt type, serde serializers and deserializers, the three encodings, compression and the read budget"
 version.workspace = true
 edition.workspace = true
 

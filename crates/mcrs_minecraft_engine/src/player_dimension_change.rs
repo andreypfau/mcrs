@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::With;
-use bevy_ecs::world::World;
+use bevy_ecs::world::{EntityRef, World};
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -34,27 +34,25 @@ pub(crate) fn depart_players(world: &mut World, departures: &mut Vec<Departure>)
     if requests.is_empty() && ordered.is_empty() {
         return;
     }
-    let own = world
-        .query_filtered::<&ResourceKeyBuf<DimensionKey>, With<Dimension>>()
-        .single(world)
-        .ok()
-        .cloned();
-    let written = requests.into_iter().filter_map(|request| {
-        if own.as_ref() == Some(&request.to) {
-            tracing::error!(to = %request.to, "a dimension change names its own dimension");
-            return None;
-        }
-        Some(DepartureRequest {
-            player: request.player,
-            to: request.to,
-            arrival: Arrival::absolute(request.transform),
+    let written: Vec<DepartureRequest> = requests
+        .into_iter()
+        .filter_map(|request| {
+            if is_own_dimension(world, &request.to) {
+                tracing::error!(to = %request.to, "a dimension change names its own dimension");
+                return None;
+            }
+            Some(DepartureRequest {
+                player: request.player,
+                to: request.to,
+                arrival: Arrival::absolute(request.transform),
+            })
         })
-    });
+        .collect();
     for DepartureRequest {
         player,
         to,
         arrival,
-    } in written.chain(ordered)
+    } in written.into_iter().chain(ordered)
     {
         match depart(world, player, to, arrival) {
             Ok(departure) => departures.push(departure),
@@ -63,6 +61,22 @@ pub(crate) fn depart_players(world: &mut World, departures: &mut Vec<Departure>)
             }
         }
     }
+}
+
+pub fn check_departure(player: EntityRef<'_>) -> Result<PlayerSession, DimensionChangeError> {
+    let Some(&Owner(session)) = player.get::<Owner>() else {
+        return Err(DimensionChangeError::NoPlayer);
+    };
+    CarriedPlayer::check(player)?;
+    Ok(session)
+}
+
+#[must_use]
+pub fn is_own_dimension(world: &World, to: &ResourceKeyBuf<DimensionKey>) -> bool {
+    world
+        .try_query_filtered::<&ResourceKeyBuf<DimensionKey>, With<Dimension>>()
+        .and_then(|mut own| own.single(world).ok().map(|own| own == to))
+        .unwrap_or(false)
 }
 
 fn depart(
@@ -74,9 +88,7 @@ fn depart(
     let mut leaving = world
         .get_entity_mut(player)
         .map_err(|_| DimensionChangeError::NoPlayer)?;
-    let Some(&Owner(session)) = leaving.get::<Owner>() else {
-        return Err(DimensionChangeError::NoPlayer);
-    };
+    let session = check_departure(leaving.as_readonly())?;
     let listed = leaving
         .get::<Replicated>()
         .zip(leaving.get::<ListedGameMode>())
@@ -101,6 +113,13 @@ fn depart(
     })
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "places an arriving player with all its carried components, which needs the whole world"
+    )
+)]
 pub(crate) fn receive_transfers(world: &mut World) {
     let Some(mut messages) = world.get_resource_mut::<Messages<PlayerTransfer>>() else {
         return;

@@ -12,13 +12,16 @@ pub(crate) fn find_crowd_damage_type(
     mut found: ResMut<CrowdDamageType>,
     registries: Res<CurrentRegistries>,
 ) {
-    found.0 = registries
+    let id = registries
         .id_of(
             DAMAGE_TYPE.location(),
             damage_type_keys::CRAMMING.location(),
         )
         .map(u32::from);
-    if found.0.is_none() {
+    if found.0 != id {
+        found.0 = id;
+    }
+    if id.is_none() {
         tracing::error!("the registries hold no damage type `cramming`; crowds take no damage");
     }
 }

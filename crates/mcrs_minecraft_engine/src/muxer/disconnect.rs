@@ -51,17 +51,17 @@ pub fn on_player_disconnect(
     };
     process_disconnect(
         host_anchor_ref.0,
-        &mut sessions,
+        sessions.reborrow(),
         &mut dim_channels,
-        &mut commands,
+        commands.reborrow(),
     );
 }
 
 pub fn process_disconnect(
     host_anchor: Entity,
-    sessions: &mut LeavingSessions,
+    mut sessions: LeavingSessions,
     dim_channels: &mut DimInputs,
-    commands: &mut Commands,
+    mut commands: Commands,
 ) {
     let Ok((session, mut placement, connection, profile)) = sessions.get_mut(host_anchor) else {
         return;

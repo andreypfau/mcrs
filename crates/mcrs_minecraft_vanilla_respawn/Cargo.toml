@@ -5,7 +5,6 @@ version.workspace = true
 edition.workspace = true
 
 [lib]
-test = false
 doctest = false
 
 [lints]
@@ -28,10 +27,15 @@ mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_pose.workspace = true
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_voxel.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }

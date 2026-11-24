@@ -457,6 +457,20 @@ type Outputs<'w, 's> = (
     CreativeScreenEdit<'w>,
 );
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "records the screen and the open menu on each frame so that it resets the gesture state on each change"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only when the player copies or cuts the selected search text"
+    )
+)]
 fn click_in_menu(
     mut gestures: Gestures,
     pointer: ScreenPointer,
@@ -556,7 +570,7 @@ fn click_in_menu(
             });
         }
         if let Some(mut screen) = screen {
-            *screen = Screen::None;
+            screen.set_if_neq(Screen::None);
         }
         *last_screen = Screen::None;
         if let Ok(mut cursor) = cursor.single_mut() {

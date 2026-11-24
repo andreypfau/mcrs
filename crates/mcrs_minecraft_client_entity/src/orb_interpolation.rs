@@ -79,7 +79,7 @@ impl OrbInterpolation {
 }
 
 pub(crate) fn step_orb_interpolations(
-    mut orbs: Query<(
+    mut orbs: Populated<(
         Ref<Age>,
         &mut Motion,
         &mut MotionState,
@@ -99,7 +99,9 @@ pub(crate) fn step_orb_interpolations(
         state
             .map_unchanged(|state| &mut state.0.body.position)
             .set_if_neq(next.position);
-        motion.current.yaw = next.yaw;
-        motion.current.pitch = next.pitch;
+        if motion.current.yaw != next.yaw || motion.current.pitch != next.pitch {
+            motion.current.yaw = next.yaw;
+            motion.current.pitch = next.pitch;
+        }
     }
 }

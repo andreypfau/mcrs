@@ -34,7 +34,7 @@ pub(crate) fn close_menu(
         outbox.0.push(Outgoing::Close(ServerboundContainerClose {
             container_id: VarInt(RemoteMenu::INVENTORY),
         }));
-        clear_first_slot(player_holders.craft_result, &holders, &mut commands);
+        clear_first_slot(player_holders.craft_result, &holders, commands.reborrow());
         return;
     }
     if let Ok(remote) = remotes.get(open) {
@@ -42,5 +42,5 @@ pub(crate) fn close_menu(
             container_id: VarInt(remote.container_id()),
         }));
     }
-    leave_container_menu(viewer, player_holders, &holders, &mut commands);
+    leave_container_menu(viewer, player_holders, &holders, commands.reborrow());
 }

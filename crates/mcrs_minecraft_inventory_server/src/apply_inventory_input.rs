@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::change_detection::Mut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
@@ -57,7 +58,7 @@ fn apply_input(world: &mut World, id: usize) {
                     if HOTBAR.contains(&u16::from(slot))
                         && let Some(mut sent) = world.get_mut::<SentSelected>(player)
                     {
-                        sent.0 = slot;
+                        sent.set_if_neq(SentSelected(slot));
                     }
                 }
                 Ok(())
@@ -80,7 +81,9 @@ fn mark_closed_by_client(world: &mut World, player: Entity) {
     if menus.iter().next() == Some(open) {
         return;
     }
-    if let Some(mut sync) = world.get_mut::<MenuSync>(open) {
+    if let Some(mut sync) = world.get_mut::<MenuSync>(open)
+        && sync.close_origin != CloseOrigin::Client
+    {
         sync.close_origin = CloseOrigin::Client;
     }
 }

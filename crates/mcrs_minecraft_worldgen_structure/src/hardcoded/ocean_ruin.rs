@@ -185,9 +185,12 @@ fn all_positions(rng: &mut LegacyRandom, origin: IVec3) -> Vec<IVec3> {
         .collect()
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one placement"
+    )
 )]
 fn add_piece(
     config: &OceanRuinConfig,

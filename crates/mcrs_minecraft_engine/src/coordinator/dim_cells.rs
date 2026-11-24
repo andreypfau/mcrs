@@ -796,6 +796,34 @@ fn changed<R: Resource + Clone>(host: &World) -> Option<R> {
         .map(|resource| R::clone(&*resource))
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "drives the dimension sub-apps, which need the whole host world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "ticks every dimension cell once per host tick"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the cells tick in parallel on the task pool, and the host tick ends only after every cell has ticked"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the routed input of the tick is split per cell and moves into the input of each cell"
+    )
+)]
 pub fn tick_dimensions(world: &mut World) {
     let globals = Globals::read(world);
     let routed: Vec<RoutedInput> = world

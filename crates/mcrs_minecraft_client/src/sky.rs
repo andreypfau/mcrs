@@ -318,10 +318,6 @@ struct FrameClocks<'w> {
     fixed: Option<Res<'w, Time<Fixed>>>,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and writer is its own parameter"
-)]
 fn evaluate_sky(
     environment: Res<SkyEnvironment>,
     frame_clocks: FrameClocks,
@@ -329,7 +325,7 @@ fn evaluate_sky(
     render_distance: Res<RenderDistance>,
     camera: Single<&GlobalTransform, With<PlayerCamera>>,
     mut frame: ResMut<SkyFrame>,
-    mut clear: ResMut<ClearColor>,
+    clear: ResMut<ClearColor>,
     mut world_fog: ResMut<WorldFog>,
     mut ticks: Local<Vec<i64>>,
 ) {
@@ -359,9 +355,14 @@ fn evaluate_sky(
         &mut frame,
     );
     let fog = environment.fog(&frame, render_distance.0, camera.forward().x);
-    frame.fog = fog;
+    frame
+        .reborrow()
+        .map_unchanged(|frame| &mut frame.fog)
+        .set_if_neq(fog);
     let [red, green, blue] = fog.color;
-    clear.0 = Color::srgb(red, green, blue);
+    clear
+        .map_unchanged(|clear| &mut clear.0)
+        .set_if_neq(Color::srgb(red, green, blue));
     world_fog.set_if_neq(WorldFog {
         color: fog.color,
         environmental: fog.environmental,
@@ -369,6 +370,13 @@ fn evaluate_sky(
     });
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the sky uniform follows the world clocks and the camera on each frame, and the render world must drop the sky on the frame that the main world loses its environment"
+    )
+)]
 fn extract_sky(
     mut commands: Commands,
     sources: Extract<(Option<Res<SkyEnvironment>>, Option<Res<SkyTextures>>)>,
@@ -376,7 +384,7 @@ fn extract_sky(
     clocks: Extract<Res<WorldClocks>>,
     only: Extract<Option<Res<SkyDrawsOnly>>>,
     clouds: Extract<Res<Clouds>>,
-    extracted: Option<Res<ExtractedSky>>,
+    extracted: Option<ResMut<ExtractedSky>>,
 ) {
     let (Some(environment), Some(textures)) = (sources.0.as_ref(), sources.1.as_ref()) else {
         if extracted.is_some() {
@@ -391,12 +399,16 @@ fn extract_sky(
     if **clouds == Clouds::Off {
         effects.remove(SkyEffects::CLOUDS);
     }
-    commands.insert_resource(ExtractedSky {
+    let sky = ExtractedSky {
         uniform: environment.uniform(&frame, environment.drift(&clocks)),
         effects,
         celestials: textures.celestials.id(),
         clouds: textures.clouds.id(),
-    });
+    };
+    match extracted {
+        Some(mut extracted) => *extracted = sky,
+        None => commands.insert_resource(sky),
+    }
 }
 
 fn cloud_drift(ticks: f64) -> f32 {

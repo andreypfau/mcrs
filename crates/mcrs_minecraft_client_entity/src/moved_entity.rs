@@ -18,11 +18,11 @@ pub(crate) struct MovedEntity {
 }
 
 fn set_field<T, V: PartialEq>(
-    component: &mut Mut<T>,
+    component: Mut<'_, T>,
     field: impl FnOnce(&mut T) -> &mut V,
     value: V,
 ) {
-    component.reborrow().map_unchanged(field).set_if_neq(value);
+    component.map_unchanged(field).set_if_neq(value);
 }
 
 impl MovedEntityItem<'_, '_> {
@@ -50,11 +50,19 @@ impl MovedEntityItem<'_, '_> {
             (Some(_), Some(orb)) => orb.start(current, end, rotation),
             (Some(state), None) => {
                 if let Some(end) = end {
-                    set_field(state, |state| &mut state.0.body.position, end);
+                    set_field(state.reborrow(), |state| &mut state.0.body.position, end);
                 }
                 if let Some(rotation) = rotation {
-                    self.motion.current.yaw = rotation.yaw;
-                    self.motion.current.pitch = rotation.pitch;
+                    set_field(
+                        self.motion.reborrow(),
+                        |motion| &mut motion.current.yaw,
+                        rotation.yaw,
+                    );
+                    set_field(
+                        self.motion.reborrow(),
+                        |motion| &mut motion.current.pitch,
+                        rotation.pitch,
+                    );
                 }
             }
             (None, _) => {
@@ -67,22 +75,46 @@ impl MovedEntityItem<'_, '_> {
     pub(crate) fn snap(&mut self, placement: Placement, previous_position: DVec3) {
         if let Some(state) = self.simulated.as_mut() {
             set_field(
-                state,
+                state.reborrow(),
                 |state| &mut state.0.body.position,
                 placement.position,
             );
-            self.motion.current.yaw = placement.yaw;
-            self.motion.current.pitch = placement.pitch;
+            set_field(
+                self.motion.reborrow(),
+                |motion| &mut motion.current.yaw,
+                placement.yaw,
+            );
+            set_field(
+                self.motion.reborrow(),
+                |motion| &mut motion.current.pitch,
+                placement.pitch,
+            );
         } else {
-            self.motion.current = placement;
+            set_field(
+                self.motion.reborrow(),
+                |motion| &mut motion.current,
+                placement,
+            );
         }
-        self.motion.previous = Placement::new(previous_position, placement.yaw, placement.pitch);
+        set_field(
+            self.motion.reborrow(),
+            |motion| &mut motion.previous,
+            Placement::new(previous_position, placement.yaw, placement.pitch),
+        );
     }
 
     pub(crate) fn set_on_ground(&mut self, on_ground: bool) {
         match self.simulated.as_mut() {
-            Some(state) => set_field(state, |state| &mut state.0.body.flags.on_ground, on_ground),
-            None => self.motion.on_ground = on_ground,
+            Some(state) => set_field(
+                state.reborrow(),
+                |state| &mut state.0.body.flags.on_ground,
+                on_ground,
+            ),
+            None => set_field(
+                self.motion.reborrow(),
+                |motion| &mut motion.on_ground,
+                on_ground,
+            ),
         }
     }
 
@@ -96,8 +128,12 @@ impl MovedEntityItem<'_, '_> {
 
     pub(crate) fn set_velocity(&mut self, value: DVec3) {
         match (self.simulated.as_mut(), self.velocity.as_mut()) {
-            (Some(state), _) => set_field(state, |state| &mut state.0.body.velocity, value),
-            (None, Some(velocity)) => set_field(velocity, |velocity| &mut velocity.value, value),
+            (Some(state), _) => {
+                set_field(state.reborrow(), |state| &mut state.0.body.velocity, value)
+            }
+            (None, Some(velocity)) => {
+                set_field(velocity.reborrow(), |velocity| &mut velocity.value, value)
+            }
             (None, None) => {}
         }
     }

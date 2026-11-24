@@ -1,5 +1,6 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_damage::Vitals;
@@ -40,6 +41,10 @@ pub struct Swung {
     pub hand: Hand,
     pub animation: SwingAnimationKind,
     pub duration: i32,
+}
+
+pub(crate) fn has_mob_changes(changes: Res<MobChanges>) -> bool {
+    !changes.spawned.is_empty() || !changes.swings.is_empty()
 }
 
 pub(crate) fn clear_mob_changes(mut changes: ResMut<MobChanges>) {

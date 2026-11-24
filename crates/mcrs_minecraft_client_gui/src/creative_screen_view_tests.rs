@@ -269,7 +269,9 @@ fn the_creative_screen_draws_the_tabs_the_background_and_the_slots_of_the_select
     ];
     for row in rows {
         let mut app = creative_app();
-        *app.world_mut().resource_mut::<Screen>() = Screen::Menu;
+        app.world_mut()
+            .resource_mut::<Screen>()
+            .set_if_neq(Screen::Menu);
         draw(&mut app);
         creative(&mut app, |screen, content| {
             screen.select(
@@ -369,7 +371,9 @@ fn the_open_clears_the_search_and_the_scroll_and_keeps_the_tab() {
     assert_eq!(state.search_box().text(), "st", "no open while hidden");
     assert!(state.scroll() > 0.0, "the search result scrolls");
 
-    *app.world_mut().resource_mut::<Screen>() = Screen::Menu;
+    app.world_mut()
+        .resource_mut::<Screen>()
+        .set_if_neq(Screen::Menu);
     draw(&mut app);
     let state = &app.world().resource::<CreativeScreenState>();
     assert_eq!(state.selected().index(), SEARCH, "the open keeps the tab");
@@ -385,9 +389,13 @@ fn the_open_clears_the_search_and_the_scroll_and_keeps_the_tab() {
         "a frame of a shown screen is not an open"
     );
 
-    *app.world_mut().resource_mut::<Screen>() = Screen::None;
+    app.world_mut()
+        .resource_mut::<Screen>()
+        .set_if_neq(Screen::None);
     draw(&mut app);
-    *app.world_mut().resource_mut::<Screen>() = Screen::Menu;
+    app.world_mut()
+        .resource_mut::<Screen>()
+        .set_if_neq(Screen::Menu);
     draw(&mut app);
     let state = &app.world().resource::<CreativeScreenState>();
     assert_eq!(state.search_box().text(), "", "each open clears the search");
@@ -396,11 +404,16 @@ fn the_open_clears_the_search_and_the_scroll_and_keeps_the_tab() {
 #[test]
 fn a_steady_frame_over_a_tab_draws_its_title_without_allocation() {
     let mut app = creative_app();
-    *app.world_mut().resource_mut::<Screen>() = Screen::Menu;
+    app.world_mut()
+        .resource_mut::<Screen>()
+        .set_if_neq(Screen::Menu);
     draw(&mut app);
     let (_, colored_blocks) = TABS[1].sprite("unselected");
     let world = app.world_mut();
-    world.resource_mut::<GuiScene>().cursor = colored_blocks.center();
+    world
+        .resource_mut::<GuiScene>()
+        .map_unchanged(|resource| &mut resource.cursor)
+        .set_if_neq(colored_blocks.center());
     let system = world.register_system(draw_creative_screen);
     let frame = |world: &mut World| {
         let mut scene = world.resource_mut::<GuiScene>();
@@ -451,9 +464,12 @@ fn a_drag_over_the_hotbar_previews_the_split_and_the_rest_of_the_carried_stack()
         size: 3,
     });
     world.insert_resource(drag);
-    *world.resource_mut::<Screen>() = Screen::Menu;
+    world.resource_mut::<Screen>().set_if_neq(Screen::Menu);
     let cursor = IVec2::new(400, 230);
-    world.resource_mut::<GuiScene>().cursor = cursor;
+    world
+        .resource_mut::<GuiScene>()
+        .map_unchanged(|resource| &mut resource.cursor)
+        .set_if_neq(cursor);
     draw(&mut app);
     let scene = app.world().resource::<GuiScene>();
     let corners: Vec<IVec2> = (1..4)

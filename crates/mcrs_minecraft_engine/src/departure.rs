@@ -1,6 +1,6 @@
 use bevy_ecs::message::Message;
 use bevy_ecs::query::With;
-use bevy_ecs::world::{EntityWorldMut, World};
+use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -52,10 +52,7 @@ pub(crate) type Carriable = (
 );
 
 impl CarriedPlayer {
-    pub(crate) fn take(
-        player: &mut EntityWorldMut<'_>,
-        cause: CaptureCause,
-    ) -> Result<Self, DimensionChangeError> {
+    pub(crate) fn check(player: EntityRef<'_>) -> Result<(), DimensionChangeError> {
         if !(player.contains::<Player>()
             && player.contains::<EntityUuid>()
             && player.contains::<Transform>()
@@ -69,17 +66,23 @@ impl CarriedPlayer {
         {
             return Err(DimensionChangeError::NoArrivalState);
         }
+        Ok(())
+    }
+
+    pub(crate) fn take(
+        player: &mut EntityWorldMut<'_>,
+        cause: CaptureCause,
+    ) -> Result<Self, DimensionChangeError> {
+        Self::check(player.as_readonly())?;
         let id = player.id();
         let swing = player.get::<PlayerSwing>().copied();
         let unreadable = player.contains::<UnreadablePlayerDat>();
         let (snapshot, departed_at) = player.world_scope(|world| {
-            let Some(registry) = world.remove_resource::<PersistedRegistry>() else {
+            let Some(registry) = world.get_resource::<PersistedRegistry>() else {
                 error!("player transfer has no persisted-component registry");
                 return Err(DimensionChangeError::NoArrivalState);
             };
-            let snapshot = registry.capture(world, id, cause);
-            world.insert_resource(registry);
-            let snapshot = snapshot.map_err(|err| {
+            let snapshot = registry.capture(world, id, cause).map_err(|err| {
                 error!(?id, "player transfer state not captured: {err}");
                 DimensionChangeError::NoArrivalState
             })?;

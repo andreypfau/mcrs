@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_instrument"
-description = "The value of the instrument registry"
+description = "The Instrument value of the instrument registry: its sound event, use duration, range, description and durability damage."
 version.workspace = true
 edition.workspace = true
 

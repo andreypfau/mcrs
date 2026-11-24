@@ -478,9 +478,12 @@ impl<'a> FluidField<'a> {
         Some(fluid_state)
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one pressure computation"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one pressure computation"
+        )
     )]
     fn pressure(
         &self,

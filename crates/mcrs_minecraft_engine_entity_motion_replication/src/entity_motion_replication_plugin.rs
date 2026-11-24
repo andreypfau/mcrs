@@ -24,7 +24,11 @@ use crate::hold_unseen::hold_unseen;
 use crate::mob_news::MobNews;
 use crate::mob_news::has_mob_changes;
 use crate::mob_news::take_mob_news;
+use crate::network_ids::NetworkIds;
+use crate::network_ids::forget_network_id;
+use crate::network_ids::remember_network_id;
 use crate::publish_mob_attributes::publish_mob_attributes;
+use crate::publish_motion::has_motion_work;
 use crate::publish_motion::publish_motion;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -38,12 +42,15 @@ impl Plugin for EntityMotionReplicationPlugin {
         app.init_resource::<Assigned>();
         app.init_resource::<Departures>();
         app.init_resource::<MobNews>();
+        app.init_resource::<NetworkIds>();
         app.init_resource::<MobChanges>();
         app.init_resource::<TileEvents>();
         app.add_message::<AttributeChanged>();
         app.add_message::<Damaged>();
         app.add_observer(hold_unseen);
         app.add_observer(depart);
+        app.add_observer(remember_network_id);
+        app.add_observer(forget_network_id);
         app.configure_sets(
             FixedUpdate,
             MotionPublish.in_set(TickSet::Project).after(MobPublish),
@@ -64,7 +71,7 @@ impl Plugin for EntityMotionReplicationPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                publish_motion,
+                publish_motion.run_if(has_motion_work),
                 publish_mob_attributes.run_if(on_message::<AttributeChanged>),
             )
                 .chain()

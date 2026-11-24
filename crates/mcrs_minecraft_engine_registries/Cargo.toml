@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_engine_registries"
-description = "Loads the registries, blocks and items of an app from its pack files, walks it to playing, and hands the snapshot to each dimension world"
+description = "The RegistryLoadPlugin: loads the registries and items from the pack files, walks the app to playing, and hands the snapshot to each dimension world"
 version.workspace = true
 edition.workspace = true
 

@@ -3,7 +3,7 @@ use std::hint::black_box;
 use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
-use mcrs_minecraft_move_validate::{Checked, MoveGuard, Verdict, check_serverbound};
+use mcrs_minecraft_move_validate::{Acknowledged, Checked, MoveGuard, Verdict, check_serverbound};
 use mcrs_minecraft_protocol::packets::table::game_serverbound::NAMES;
 use mcrs_minecraft_protocol::packets::table::row_of;
 use std::time::Duration;
@@ -46,25 +46,19 @@ fn layer_1(c: &mut Criterion) {
         .iter()
         .filter_map(|(id, body)| checked(*id, body))
         .collect();
-    let pong = id("pong");
     let mut guard = MoveGuard::new();
     let mut reports = Vec::new();
     let mut now = Duration::ZERO;
+    let mut tick = 0;
     c.bench_function("layer 1, three writes and five packets of one tick", |b| {
         b.iter(|| {
             now += Duration::from_millis(50);
-            let probes = [
-                guard.change(now),
-                guard.close_changes(now),
-                guard.end_server_tick(now),
-            ];
-            for probe in probes.into_iter().flatten() {
-                if let Some(answer) = checked(pong, &probe.to_be_bytes()) {
-                    black_box(guard.serverbound(&answer, now, &mut reports));
-                }
-            }
+            tick += 1;
+            guard.change(tick);
+            guard.end_server_tick(now);
+            let acknowledged = Acknowledged { tick, sent_at: now };
             for packet in &packets {
-                black_box(guard.serverbound(black_box(packet), now, &mut reports));
+                black_box(guard.serverbound(black_box(packet), now, acknowledged, &mut reports));
             }
             reports.clear();
         });

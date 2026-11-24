@@ -41,7 +41,13 @@ impl Plugin for ChatScreenPlugin {
             .add_systems(PreUpdate, chat_keys.after(InputSystems))
             .add_systems(
                 Update,
-                project_lines.after(mcrs_minecraft_client_world::chat::log_messages),
+                project_lines
+                    .after(mcrs_minecraft_client_world::chat::log_messages)
+                    .run_if(
+                        resource_exists_and_changed::<Chat>
+                            .or_else(resource_exists_and_changed::<ClientLanguage>)
+                            .or_else(resource_exists_and_changed::<GuiAtlas>),
+                    ),
             );
     }
 }
@@ -210,6 +216,13 @@ fn opening(
     })
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only when the chat opens or closes"
+    )
+)]
 fn chat_keys(
     mut keys: ChatKeys,
     mut state: ChatState,
@@ -245,7 +258,7 @@ fn chat_keys(
     if let Some((initial, style)) = opened {
         state.input.0.open(&initial, style, &cx);
         state.input.0.scroll_input(rect, &width);
-        *state.screen = Screen::Chat;
+        state.screen.set_if_neq(Screen::Chat);
         grab(&mut cursor, false);
         keys.keyboard.clear();
         *keys.input_dragging = false;
@@ -371,7 +384,7 @@ fn close(state: &mut ChatState, closed: Closed, sends: &mut MessageWriter<SendCh
     chat.draft = mcrs_minecraft_chat_client::keeps_draft(screen.input(), Some(&closed), unsent)
         .then(|| screen.input().to_owned());
     state.lines.0.reset_scroll();
-    *state.screen = Screen::None;
+    state.screen.set_if_neq(Screen::None);
 }
 
 fn input_mouse(

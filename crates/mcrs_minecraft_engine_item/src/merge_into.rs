@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::In;
@@ -56,7 +57,7 @@ pub(crate) fn merge_into(
         let Ok((mut count, slot)) = counts.get_mut(target) else {
             continue;
         };
-        *count = next;
+        count.set_if_neq(next);
         if let (Some(changes), Some(slot)) = (changes.as_mut(), slot) {
             changes.write(SlotChanged {
                 slot: slot.slot_ref(),

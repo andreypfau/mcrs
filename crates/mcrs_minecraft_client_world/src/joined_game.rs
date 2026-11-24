@@ -55,9 +55,14 @@ pub(crate) fn add_observers(app: &mut App) {
         .add_observer(on_set_entity_data);
 }
 
-fn refuse_packet(commands: &mut Commands, connection: Entity, name: &str, error: anyhow::Error) {
+fn refuse_packet(
+    mut commands: Commands<'_, '_>,
+    connection: Entity,
+    name: &str,
+    error: anyhow::Error,
+) {
     close_connection_later(
-        commands,
+        commands.reborrow(),
         connection,
         ConnectionEnd::Lost(format!(
             "the server sent a {name} the client cannot read: {error:#}"
@@ -124,7 +129,12 @@ fn on_login(
                 commands.run_system_cached_with(restore_holders, (player, PlayerItems::default()));
             }
         }
-        Err(error) => refuse_packet(&mut commands, event.entity, ClientboundLogin::NAME, error),
+        Err(error) => refuse_packet(
+            commands.reborrow(),
+            event.entity,
+            ClientboundLogin::NAME,
+            error,
+        ),
     }
 }
 
@@ -143,7 +153,12 @@ fn on_respawn(
                 .entity(event.entity)
                 .insert(CurrentDimension::of(&respawn.player_spawn_info));
         }
-        Err(error) => refuse_packet(&mut commands, event.entity, ClientboundRespawn::NAME, error),
+        Err(error) => refuse_packet(
+            commands.reborrow(),
+            event.entity,
+            ClientboundRespawn::NAME,
+            error,
+        ),
     }
 }
 
@@ -166,7 +181,7 @@ fn on_set_entity_data(
     };
     if let Err(error) = checked {
         refuse_packet(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             ClientboundSetEntityData::NAME,
             error,
@@ -278,7 +293,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             trigger.raise(
-                &mut self.app.world_mut().commands(),
+                self.app.world_mut().commands(),
                 self.connection,
                 data.into(),
             );

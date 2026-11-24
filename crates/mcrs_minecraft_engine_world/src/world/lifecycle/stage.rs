@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{Component, Entity, Message, MessageWriter, Query};
 use bevy_ecs::system::SystemParam;
 use mcrs_voxel::SectionPos;
@@ -74,7 +75,7 @@ impl SectionStages<'_, '_> {
         if from == to {
             return;
         }
-        *stage = to;
+        stage.set_if_neq(to);
         self.changes.write(SectionStageChanged {
             section,
             pos: *pos,

@@ -1,11 +1,12 @@
 use bevy_app::{App, FixedUpdate, Plugin};
-use bevy_ecs::change_detection::DetectChanges;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::lifecycle::Discard;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{
-    Added, Changed, Component, Has, Local, On, Or, Query, Ref, Resource, Single, With, Without,
+    Added, Changed, Component, Has, Local, On, Or, Populated, Query, Resource, Single, With,
+    Without, on_message,
 };
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition, SystemSet};
 use bevy_ecs::system::{Res, ResMut};
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
 use bytes::Bytes;
@@ -70,18 +71,26 @@ impl Plugin for ColumnStreamPlugin {
             FixedUpdate,
             (
                 (
-                    take_column_requests,
+                    take_column_requests.run_if(column_requests_pending),
                     report_player_views,
                     land_viewed_columns,
                     requeue_unlit_columns,
-                    raise_wanted_columns,
+                    raise_wanted_columns.run_if(columns_queued),
                 )
                     .chain()
                     .before(ChunkSpawnSet),
                 project_ready_columns
+                    .run_if(
+                        on_message::<SectionStageChanged>
+                            .or_eager(on_message::<SectionRelit>)
+                            .or_eager(columns_awaited),
+                    )
                     .after(raise_wanted_columns)
                     .before(ColumnLightGate),
-                (take_lit_columns, publish_ready_columns)
+                (
+                    take_lit_columns.run_if(on_message::<ColumnLightSettled>),
+                    publish_ready_columns.run_if(columns_ready),
+                )
                     .chain()
                     .after(ColumnLightGate),
             )
@@ -188,6 +197,22 @@ impl ColumnStreams {
     }
 }
 
+fn column_requests_pending(requests: Res<ColumnRequests>) -> bool {
+    !requests.0.is_empty()
+}
+
+fn columns_queued(dims: Query<&ColumnStreams>) -> bool {
+    dims.iter().any(|streams| !streams.queued.is_empty())
+}
+
+fn columns_ready(dims: Query<&ColumnStreams>) -> bool {
+    dims.iter().any(|streams| !streams.ready.is_empty())
+}
+
+fn columns_awaited(dims: Query<&ColumnStreams>) -> bool {
+    dims.iter().any(|streams| !streams.awaited.is_empty())
+}
+
 fn take_column_requests(
     mut requests: ResMut<ColumnRequests>,
     streams: Option<Single<&mut ColumnStreams>>,
@@ -210,7 +235,7 @@ fn take_column_requests(
 }
 
 pub(crate) fn report_player_views(
-    mut players: Query<
+    mut players: Populated<
         (
             &mut SentChunkView,
             &Transform,
@@ -228,7 +253,7 @@ pub(crate) fn report_player_views(
     mut views: MessageWriter<PlayerView>,
     mut positions: MessageWriter<ViewerPosition>,
 ) {
-    for (mut sent_view, transform, distance, in_dim, owner) in &mut players {
+    for (sent_view, transform, distance, in_dim, owner) in &mut players {
         positions.write(ViewerPosition {
             session: owner.0,
             position: transform.translation,
@@ -244,10 +269,12 @@ pub(crate) fn report_player_views(
             min_section_y,
             min_section_y + type_config.section_count as i32 - 1,
         );
-        if sent_view.0 == Some(view) {
+        if !sent_view
+            .map_unchanged(|sent| &mut sent.0)
+            .set_if_neq(Some(view))
+        {
             continue;
         }
-        sent_view.0 = Some(view);
         views.write(PlayerView {
             session: owner.0,
             view: Some(view),
@@ -288,9 +315,12 @@ fn light_change(column: ColumnPos, light_data: LightData<'static>) -> ColumnChan
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes its params as arguments"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only for a column that is ready in this tick, and the encoded packet moves into the outbound column message"
+    )
 )]
 pub(crate) fn land_viewed_columns(
     mut store: ResMut<ColumnStoreLink>,
@@ -345,13 +375,10 @@ pub(crate) fn land_viewed_columns(
 }
 
 fn requeue_unlit_columns(
-    mut dims: Query<(&mut ColumnStreams, Ref<ColumnLoading>)>,
+    mut dims: Populated<(&mut ColumnStreams, &ColumnLoading), Changed<ColumnLoading>>,
     mut unlit: Local<Vec<ColumnPos>>,
 ) {
     for (mut streams, loading) in &mut dims {
-        if !loading.is_changed() {
-            continue;
-        }
         unlit.extend(
             streams
                 .pending
@@ -406,10 +433,6 @@ fn sections_landed(
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes its params as arguments"
-)]
 fn project_ready_columns(
     dims: Option<
         Single<(
@@ -563,9 +586,12 @@ fn encode_ready(
     }));
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes its params as arguments"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only for a column that is ready in this tick, and the encoded packet moves into the outbound column message"
+    )
 )]
 fn publish_ready_columns(
     mut dims: Query<(&ColumnIndex, &mut ColumnStreams, Has<HasSkyLight>)>,

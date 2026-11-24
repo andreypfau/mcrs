@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_anvil"
-description = "mcrs_minecraft_anvil"
+description = "Anvil region files and chunk records: RegionFile, parse_chunk, write_chunk, and the saved ticks, structure starts and retrogen data"
 version.workspace = true
 edition.workspace = true
 

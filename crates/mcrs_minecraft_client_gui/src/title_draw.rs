@@ -60,6 +60,13 @@ pub(crate) struct TitleTexts {
     lines: Vec<TitleText>,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "caches the notice and version lines, so it allocates only when the GUI size changes"
+    )
+)]
 pub(crate) fn draw(
     mut state: ResMut<TitleScreenState>,
     atlas: Option<Res<GuiAtlas>>,

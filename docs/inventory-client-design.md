@@ -168,18 +168,14 @@ the client.
 ## 4.3 `mcrs_minecraft_vanilla_inventory` (layer 5), changes
 
 ```rust
-pub struct PlayerItemFilePlugin;
 #[derive(Component)] pub struct EnderItems(pub Vec<SlotStack>);
-#[derive(Component)] pub struct WornEquipment { /* one field for each equipment slot */ }
 ```
 
 | Name | Contract |
 |-|-|
 | `VanillaInventoryPlugin` | Adds `PlayerHoldersPlugin` when the app has no `PlayerHoldersPlugin`. The rest is unchanged. |
 | `InventoryPersistencePlugin` | Also registers the codec of `EnderItems`. |
-| `PlayerItemFilePlugin` | Registers the codecs of `EnderItems`, `SelectedItemSlot`, `Inventory` and `equipment` on the engine holders. An app adds this plugin or `InventoryPersistencePlugin`. |
 | `EnderItems` | The ender chest stacks of a player file, as values. |
-| `WornEquipment` | The worn stacks of a player file, as values. |
 
 ## 4.4 Names of the later pull requests **(proposal)**
 

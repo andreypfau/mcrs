@@ -33,6 +33,7 @@ use crate::player_load::{self, PlayerLoad};
 use crate::player_view::{PendingTeleports, PlayerViewPlugin, ServerTeleport};
 use crate::request_respawn::{self, RequestRespawn};
 use crate::respawn_screen;
+use crate::scripted_input::ScriptedInput;
 use crate::walk::walk;
 
 pub const TICKS_PER_SECOND: f64 = 20.0;
@@ -100,6 +101,7 @@ impl Plugin for LocalPlayerPlugin {
             app.add_plugins(PlayerViewPlugin);
         }
         app.init_resource::<MovementInput>()
+            .init_resource::<ScriptedInput>()
             .add_message::<PlayerKilled>()
             .add_message::<RequestRespawn>()
             .add_observer(attribute_packets::on_login)
@@ -133,13 +135,15 @@ impl Plugin for LocalPlayerPlugin {
                         give_sprint_modifier,
                     )
                         .chain()
-                        .in_set(LocalPlayerTick),
+                        .in_set(LocalPlayerTick)
+                        .run_if(not(player_load::player_loading)),
                     send_movement.after(LocalPlayerTick),
                 ),
             )
             .add_systems(
                 Update,
                 request_respawn::send_respawn_requests
+                    .run_if(on_message::<request_respawn::RequestRespawn>)
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush),
             );
@@ -166,6 +170,13 @@ fn apply_server_teleport(
     velocity.0 = state.body.velocity;
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "`apply_server_teleport` has already marked the motion and the transform changed, so a comparison saves nothing"
+    )
+)]
 fn accept_teleports(
     mut commands: Commands,
     player: Single<
@@ -208,12 +219,15 @@ fn accept_teleports(
             look: transform.rotation.into(),
         });
         last_sent.place(transform.translation, transform.rotation);
-        old_transform.0 = *transform;
+        if old_transform.0 != *transform {
+            old_transform.0 = *transform;
+        }
     }
 }
 
 fn send_movement(
     input: Res<MovementInput>,
+    scripted: Res<ScriptedInput>,
     player: Single<
         (
             &PhysicsTransform,
@@ -233,10 +247,11 @@ fn send_movement(
     }
 
     let (transform, motion, mut last_sent, mut last_input, mut load) = player.into_inner();
-    if *load == PlayerLoad::Loaded && last_input.0 != Some(*input) {
-        last_input.0 = Some(*input);
+    let input = input.or(scripted.movement);
+    if *load == PlayerLoad::Loaded && last_input.0 != Some(input) {
+        last_input.0 = Some(input);
         connection.write_packet(&ServerboundPlayerInput {
-            input: input_flags(*input),
+            input: input_flags(input),
         });
     }
     let body_flags = motion.0.body.flags;
@@ -277,11 +292,13 @@ fn input_flags(input: MovementInput) -> PlayerInputFlags {
 
 fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), With<Player>>) {
     let (transform, mut old_transform) = player.into_inner();
-    old_transform.0 = *transform;
+    if old_transform.0 != *transform {
+        old_transform.0 = *transform;
+    }
 }
 
 fn give_sprint_modifier(
-    mut players: Query<(&Sprint, &mut AttributeInstances), (With<Player>, Changed<Sprint>)>,
+    mut players: Populated<(&Sprint, &mut AttributeInstances), (With<Player>, Changed<Sprint>)>,
 ) {
     for (sprint, mut instances) in &mut players {
         let edit = if sprint.active {
@@ -352,7 +369,8 @@ mod tests {
             app.world_mut()
                 .get_mut::<Sprint>(player)
                 .expect("the player sprints")
-                .active = active;
+                .map_unchanged(|sprint| &mut sprint.active)
+                .set_if_neq(active);
             app.update();
         };
 
@@ -399,6 +417,7 @@ mod tests {
         };
 
         session.receive(login(GameMode::Survival));
+        session.end_load();
         session.ticks(held, 1);
         assert_eq!(speed(&session), Some(sprinting));
 
@@ -406,10 +425,12 @@ mod tests {
             player_spawn_info: spawn_info(GameMode::Survival),
             data_to_keep: 0,
         });
+        session.end_load();
         session.ticks(held, 1);
         assert_eq!(speed(&session), Some(sprinting), "after the respawn");
 
         session.receive(login(GameMode::Survival));
+        session.end_load();
         session.ticks(held, 1);
         assert_eq!(speed(&session), Some(sprinting), "after the second login");
     }

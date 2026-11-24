@@ -57,8 +57,13 @@ impl Plugin for WorldTextPlugin {
                 (
                     prepare_text
                         .in_set(RenderSystems::Prepare)
-                        .after(write_frame_view),
-                    prepare_text_bind_groups.in_set(RenderSystems::PrepareBindGroups),
+                        .after(write_frame_view)
+                        .run_if(resource_exists::<TextPass>)
+                        .run_if(resource_exists::<WorldText>),
+                    prepare_text_bind_groups
+                        .in_set(RenderSystems::PrepareBindGroups)
+                        .run_if(resource_exists::<TextPass>)
+                        .run_if(resource_exists::<WorldText>),
                 ),
             )
             .add_systems(Core3d, draw_world_text.in_set(WorldPass::Overlay));
@@ -210,6 +215,13 @@ fn prepare_text(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the system writes a cached bind group only after it finds the entry missing or stale, so each write is a change"
+    )
+)]
 fn prepare_text_bind_groups(
     pass: Option<ResMut<TextPass>>,
     text: Option<Res<WorldText>>,

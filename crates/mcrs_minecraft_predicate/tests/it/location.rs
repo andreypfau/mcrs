@@ -4,7 +4,7 @@ use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_item::component::predicate::BlockPredicate;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_predicate::{
-    BakedBlockPredicate, BakedLocationPredicate, LocationPredicate, LocationView, NoWorld,
+    BakedBlockPredicate, BakedLocationPredicate, BlockHost, LocationPredicate, LocationView,
     PredicateScratch,
 };
 use mcrs_minecraft_registries::{Declaration, Registries, Resolve};
@@ -390,6 +390,6 @@ fn a_test_without_its_value_fails_pred_gen_004_and_pred_gen_005() {
         (r#"{"position": {"x": {"min": 0.0}}, "block": {}}"#, false),
     ];
     for (json, expected) in cases {
-        assert_eq!(passes(json, &NoWorld), expected, "{json}");
+        assert_eq!(passes(json, &BlockHost::none()), expected, "{json}");
     }
 }

@@ -1,7 +1,7 @@
 use glam::DVec3;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_numeric as numeric;
-use mcrs_minecraft_pose::Pose;
+use mcrs_minecraft_pose::{Dimensions, Pose};
 
 use crate::angle;
 use crate::client_entity::ClientEntity;
@@ -140,37 +140,30 @@ impl FrameValues {
 }
 
 #[must_use]
-pub fn eye_height(entity: &ClientEntity, data: &SyncedData) -> f64 {
-    if entity.kind == EntityType::Player {
-        let dimensions = data.pose.player_dimensions().scaled(data.scale as f32);
-        return f64::from(dimensions.eye_height);
-    }
-    let Some(type_data) = entity.type_data() else {
-        return 0.0;
-    };
-    let size = if data.baby {
-        type_data.baby_scale.unwrap_or(1.0)
+pub fn dimensions(entity: &ClientEntity, data: &SyncedData) -> Option<Dimensions> {
+    let dimensions = if entity.kind == EntityType::Player {
+        data.pose.player_dimensions()
     } else {
-        1.0
+        let type_data = entity.type_data()?;
+        let size = if data.baby {
+            type_data.baby_scale.unwrap_or(1.0)
+        } else {
+            1.0
+        };
+        Dimensions::scalable(type_data.width * size, type_data.height * size)
+            .with_eye_height(type_data.eye_height * size)
     };
-    f64::from(type_data.eye_height * size) * data.scale
+    Some(dimensions.scaled(data.scale as f32))
+}
+
+#[must_use]
+pub fn eye_height(entity: &ClientEntity, data: &SyncedData) -> f64 {
+    dimensions(entity, data).map_or(0.0, |dimensions| f64::from(dimensions.eye_height))
 }
 
 #[must_use]
 pub fn box_height(entity: &ClientEntity, data: &SyncedData) -> f64 {
-    if entity.kind == EntityType::Player {
-        let dimensions = data.pose.player_dimensions().scaled(data.scale as f32);
-        return f64::from(dimensions.height);
-    }
-    let Some(type_data) = entity.type_data() else {
-        return 0.0;
-    };
-    let size = if data.baby {
-        type_data.baby_scale.unwrap_or(1.0)
-    } else {
-        1.0
-    };
-    f64::from(type_data.height * size) * data.scale
+    dimensions(entity, data).map_or(0.0, |dimensions| f64::from(dimensions.height))
 }
 
 impl RenderInputs<'_> {

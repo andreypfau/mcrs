@@ -64,9 +64,13 @@ impl Plugin for ProbePlugin {
                     counts::init_args_readback
                         .in_set(RenderSystems::Prepare)
                         .run_if(not(resource_exists::<ArgsReadback>)),
-                    counts::read_draw_args.in_set(RenderSystems::Cleanup),
+                    counts::read_draw_args
+                        .in_set(RenderSystems::Cleanup)
+                        .run_if(resource_exists::<ArgsReadback>),
                     counts::report_counts.in_set(RenderSystems::Cleanup),
-                    probe::read.in_set(RenderSystems::Cleanup),
+                    probe::read
+                        .in_set(RenderSystems::Cleanup)
+                        .run_if(resource_exists::<probe::Queries>),
                 ),
             )
             .add_systems(Core3d, probe::begin_frame.in_set(WorldPass::Upload));

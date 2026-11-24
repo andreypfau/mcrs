@@ -1,0 +1,20 @@
+[workspace]
+
+[package]
+name = "mcrs_lint"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[package.metadata.rust-analyzer]
+rustc_private = true
+
+[[bin]]
+name = "mcrs-lint-driver"
+path = "src/mcrs_lint_driver.rs"
+test = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

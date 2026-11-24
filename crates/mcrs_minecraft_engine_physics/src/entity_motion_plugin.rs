@@ -5,6 +5,8 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::query::With;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::SystemCondition;
+use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::common_conditions::resource_exists;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
@@ -41,7 +43,12 @@ impl Plugin for EntityMotionPlugin {
         app.init_resource::<BirthClock>();
         app.add_message::<BlockPlaced>();
         app.configure_sets(FixedUpdate, MotionPass.in_set(TickSet::Simulate));
-        app.add_systems(FixedUpdate, stir_tiles.in_set(TickSet::DomainInput));
+        app.add_systems(
+            FixedUpdate,
+            stir_tiles
+                .run_if(on_message::<BlockPlaced>.or_else(tiles_stirred))
+                .in_set(TickSet::DomainInput),
+        );
         app.add_systems(
             FixedUpdate,
             step_motion
@@ -56,6 +63,10 @@ fn stir_tiles(mut placed: MessageReader<BlockPlaced>, mut stirred: ResMut<Stirre
         .read()
         .map(|block| TileKey::at(block.block_pos.as_dvec3()));
     stirred.replace(tiles);
+}
+
+fn tiles_stirred(stirred: Res<StirredTiles>) -> bool {
+    !stirred.is_empty()
 }
 
 fn step_motion(

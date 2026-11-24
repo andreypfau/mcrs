@@ -16,6 +16,7 @@ use crate::local_motion::LocalMotion;
 use crate::local_player::Sprint;
 use crate::movement_input::MovementInput;
 use crate::player::Player;
+use crate::scripted_input::ScriptedInput;
 
 #[derive(Default)]
 pub(crate) struct WalkBuffers {
@@ -25,6 +26,7 @@ pub(crate) struct WalkBuffers {
 
 pub(crate) fn walk(
     input: Res<MovementInput>,
+    scripted: Res<ScriptedInput>,
     columns: Res<ColumnStore>,
     tables: Res<ClientPhysicsTables>,
     mut buffers: Local<WalkBuffers>,
@@ -45,7 +47,7 @@ pub(crate) fn walk(
     let tables = tables.tables();
     let world = ClientBlocks::new(&*columns, tables);
     let player_input = PlayerInput {
-        keys: keys(*input),
+        keys: keys(input.or(scripted.movement)),
         rotation: Orientation::facing(transform.rotation.yaw(), transform.rotation.pitch()),
         facts: PlayerFacts {
             spectator: game_mode.is_some_and(|mode| mode.current == GameMode::Spectator),
@@ -107,6 +109,7 @@ mod tests {
     fn logged_in(position: DVec3, game_mode: GameMode) -> TestSession {
         let mut session = TestSession::new(position);
         session.receive(login(game_mode));
+        session.end_load();
         session
     }
 
@@ -320,6 +323,54 @@ mod tests {
         }
 
         #[test]
+        fn the_player_stays_in_place_until_its_column_arrives_and_then_stands_on_it() {
+            let start = DVec3::new(8.5, FLOOR_TOP, 2.5);
+            let session = TestSession::new(start);
+            let player = session.player;
+            let Joined {
+                mut app,
+                server: _server,
+                connection,
+            } = joined(session.app);
+            let spawn_column = ColumnPos::new(0, 0);
+            let column = {
+                let mut columns = app.world_mut().resource_mut::<ColumnStore>();
+                let column = columns.get(spawn_column).unwrap().as_ref().clone();
+                columns.remove(spawn_column);
+                column
+            };
+            receive(&mut app, connection, login(GameMode::Survival));
+            receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
+            for _ in 0..5 {
+                app.world_mut().run_schedule(FixedUpdate);
+            }
+            let position = |app: &App| {
+                app.world()
+                    .get::<PhysicsTransform>(player)
+                    .unwrap()
+                    .translation
+            };
+            assert_eq!(position(&app), start, "the player waits for its column");
+
+            app.world_mut()
+                .resource_mut::<ColumnStore>()
+                .insert(spawn_column, column);
+            for _ in 0..3 {
+                app.world_mut().run_schedule(FixedUpdate);
+            }
+            assert_eq!(position(&app), start, "the player stands on the floor");
+            assert!(
+                app.world()
+                    .get::<LocalMotion>(player)
+                    .unwrap()
+                    .0
+                    .body
+                    .flags
+                    .on_ground
+            );
+        }
+
+        #[test]
         fn a_dropped_player_lands_and_its_move_packet_carries_the_ground_flag() {
             let session = TestSession::new(DVec3::ZERO);
             let player = session.player;
@@ -329,6 +380,7 @@ mod tests {
                 connection,
             } = joined(session.app);
             receive(&mut app, connection, login(GameMode::Survival));
+            receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
             receive(
                 &mut app,
                 connection,

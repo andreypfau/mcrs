@@ -3,7 +3,7 @@ use std::mem;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::{Local, ResMut};
+use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use mcrs_engine_cell::CellId;
 use mcrs_engine_link::{Link, Placement};
@@ -88,6 +88,17 @@ pub(crate) fn build_world_generation(
         );
 }
 
+pub(crate) fn generates_worlds(generation: Res<WorldGeneration>) -> bool {
+    !generation.worlds.is_empty()
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the asks allocate only on ticks that ask for columns, and the view list only when the views change, as it moves into the generation link"
+    )
+)]
 pub(crate) fn ask_world_columns(
     mut cells: ResMut<DimCells>,
     mut generation: ResMut<WorldGeneration>,

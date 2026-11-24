@@ -3,6 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::query::With;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::system::{Commands, Local, Query, Res};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
@@ -50,6 +51,7 @@ impl Plugin for BlockPlacePlugin {
         app.add_message::<SwingPlayer>().add_systems(
             FixedUpdate,
             place_blocks
+                .run_if(on_message::<UseItemOnRequest>)
                 .in_set(TickSet::ClientInput)
                 .after(BlockBreakSet),
         );
@@ -81,10 +83,6 @@ type PlacerItem<'a> = (
     Option<&'a Selected>,
 );
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each query, writer and resource is its own parameter"
-)]
 #[expect(
     clippy::too_many_lines,
     reason = "the checks of PLC-ORD-001 run in their order over one request"

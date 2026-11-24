@@ -27,11 +27,12 @@ use mcrs_minecraft_resource::Id;
 
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_client::config::{Knobs, MAX_VIEW_DISTANCE, TerrainLimits};
+use mcrs_minecraft_client::headless::HeadlessClientPlugin;
 #[cfg(feature = "scene")]
 use mcrs_minecraft_client::scene_capture::SceneCapturePlugin;
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{
-    ClientPlugins, ClientTerrainPlugin, config,
+    ClientCorePlugins, ClientPlugins, ClientTerrainPlugin, config,
     game_directory::{GameDirectory, Platform},
     sky, vanilla, window_options,
 };
@@ -39,15 +40,16 @@ use mcrs_minecraft_client_gui::menu_plugin::MenuPlugin;
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_gui::{chat_input, death_screen_plugin, game_mode_switcher, health_hud};
 use mcrs_minecraft_client_world::asset_source::asset_source;
+use mcrs_minecraft_client_world::chat::ClientChatPlugin;
 use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 #[cfg(feature = "singleplayer")]
 use mcrs_minecraft_client_world::world_list::{WorldList, WorldStoreError};
 use mcrs_minecraft_client_world::{local_player, player};
-#[cfg(feature = "singleplayer")]
+#[cfg(all(feature = "singleplayer", feature = "dev"))]
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_mesh::SECTION_SIZE;
-use mcrs_minecraft_network::client::{ClientNetworkPlugin, JoinRequest};
+use mcrs_minecraft_network::client::JoinRequest;
 
 #[cfg(feature = "telemetry-tracy")]
 #[global_allocator]
@@ -93,7 +95,8 @@ pub fn run() -> AppExit {
     });
     #[cfg(target_os = "macos")]
     mcrs_minecraft_client::app_nap::decline();
-    let world = world_folder();
+    let arguments = Arguments::read();
+    let world = arguments.world;
     let game_directory = game_directory();
     let knobs = knobs(game_directory.as_ref());
     let frozen_at = knobs.frozen_time();
@@ -113,6 +116,9 @@ pub fn run() -> AppExit {
         }
     };
 
+    if arguments.headless {
+        return run_headless(&knobs, arguments.control, assets, data_pack);
+    }
     let wgpu = WgpuSettings {
         features: WgpuFeatures::TIMESTAMP_QUERY,
         ..default()
@@ -196,13 +202,6 @@ pub fn run() -> AppExit {
     .add_plugins(
         ClientPlugins(knobs.clone())
             .build()
-            .set(ClientRegistriesPlugin {
-                defer_definitions: true,
-                local_corpus: Some(DirectoryPacks::new(
-                    FileAssetReader::get_base_path().join(&assets),
-                    data_pack.clone(),
-                )),
-            })
             .add_before::<sky::SkyPlugin>(mcrs_minecraft_client_gui::slot_icon::SlotIconPlugin)
             .add_before::<sky::SkyPlugin>(knobs.gui())
             .add(screenshot::ScreenshotPlugin),
@@ -213,7 +212,6 @@ pub fn run() -> AppExit {
             mcrs_minecraft_client_gui::scene::GuiAtlas,
         >)),
     )
-    .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .add_systems(
         Update,
         (log_registry_counts, log_seeded_resources)
@@ -238,10 +236,27 @@ pub fn run() -> AppExit {
 
     let username = knobs.username();
     let local_world = cfg!(feature = "singleplayer") && knobs.server().is_none();
-    app.add_plugins(ClientNetworkPlugin {
-        holds_vanilla_pack: true,
-        play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
+    let join = server_address(&knobs).map(|server| JoinRequest {
+        server,
+        username: username.clone(),
+        profile_id: None,
+        view_distance,
     });
+    app.add_plugins(
+        ClientCorePlugins { join }
+            .set(ClientRegistriesPlugin {
+                defer_definitions: true,
+                local_corpus: Some(DirectoryPacks::new(
+                    FileAssetReader::get_base_path().join(&assets),
+                    data_pack.clone(),
+                )),
+            })
+            .set(ClientChatPlugin {
+                command_history: knobs
+                    .command_history()
+                    .or_else(|| game_directory.as_ref().map(GameDirectory::command_history)),
+            }),
+    );
     #[cfg(feature = "singleplayer")]
     {
         #[cfg(feature = "dev")]
@@ -260,7 +275,7 @@ pub fn run() -> AppExit {
             asset_path: assets.clone(),
             data_pack: data_pack.clone(),
             ops_file: game_directory.as_ref().map(GameDirectory::ops_file),
-            username: username.clone(),
+            username,
             open_to_lan: knobs.open_to_lan(),
             settings: knobs.server_settings(),
             column_traces,
@@ -278,33 +293,11 @@ pub fn run() -> AppExit {
         }
         app.add_plugins(server);
     }
-    if let Some(server) = server_address(&knobs) {
-        let join = JoinRequest {
-            server,
-            username,
-            profile_id: None,
-            view_distance,
-        };
-        app.add_systems(
-            Update,
-            (move |mut requests: MessageWriter<JoinRequest>| {
-                requests.write(join.clone());
-            })
-            .run_if(resource_added::<mcrs_minecraft_block::definition::Blocks>),
-        );
-    }
-    app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin::default());
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
-    app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
     app.add_plugins(game_mode_switcher::GameModeSwitcherPlugin);
     app.add_plugins(health_hud::HealthHudPlugin);
     app.add_plugins(death_screen_plugin::DeathScreenPlugin);
     app.add_plugins(mcrs_minecraft_client_gui::inventory_clicks::InventoryClicksPlugin);
-    app.add_plugins(mcrs_minecraft_client_world::chat::ClientChatPlugin {
-        command_history: knobs
-            .command_history()
-            .or_else(|| game_directory.as_ref().map(GameDirectory::command_history)),
-    });
     app.add_plugins(chat_input::ChatScreenPlugin);
     let preselected = world
         .as_deref()
@@ -347,8 +340,98 @@ pub fn run() -> AppExit {
     }
     #[cfg(feature = "dev")]
     mcrs_minecraft_client::dev::script_flight(&mut app);
+    let control = arguments.control.as_deref();
+    if !add_control(&mut app, control) {
+        return AppExit::error();
+    }
+    #[cfg(all(feature = "control", unix))]
+    if control.is_some() {
+        app.add_plugins(mcrs_minecraft_client::control::MeshedPlugin);
+    }
 
     app.run()
+}
+
+fn run_headless(
+    knobs: &Knobs,
+    control: Option<String>,
+    assets: String,
+    data_pack: PathBuf,
+) -> AppExit {
+    let Some(server) = server_address(knobs) else {
+        eprintln!("--headless needs MCRS_SERVER=<host>:<port>");
+        return AppExit::error();
+    };
+    let mut app = App::new();
+    app.add_plugins(HeadlessClientPlugin {
+        packs: PackRoots {
+            assets,
+            vanilla: data_pack,
+        },
+        join: JoinRequest {
+            server,
+            username: knobs.username(),
+            profile_id: None,
+            view_distance: knobs.view_distance(),
+        },
+    });
+    if !add_control(&mut app, control.as_deref()) {
+        return AppExit::error();
+    }
+    app.run()
+}
+
+fn add_control(app: &mut App, address: Option<&str>) -> bool {
+    let Some(address) = address else {
+        return true;
+    };
+    #[cfg(all(feature = "control", unix))]
+    match mcrs_minecraft_client_control::Control::bind(address) {
+        Ok(control) => {
+            app.insert_resource(control)
+                .add_plugins(mcrs_minecraft_client_control::ControlPlugin);
+            true
+        }
+        Err(error) => {
+            eprintln!("--control {address}: {error}");
+            false
+        }
+    }
+    #[cfg(not(all(feature = "control", unix)))]
+    {
+        let _ = app;
+        eprintln!("--control {address}: this client is built without the feature control");
+        false
+    }
+}
+
+#[derive(Default)]
+struct Arguments {
+    world: Option<PathBuf>,
+    control: Option<String>,
+    headless: bool,
+}
+
+impl Arguments {
+    fn read() -> Self {
+        let mut arguments = Self::default();
+        let mut words = std::env::args_os().skip(1);
+        while let Some(word) = words.next() {
+            match word.to_str() {
+                Some("--headless") => arguments.headless = true,
+                Some("--control") => {
+                    let Some(address) = words.next().and_then(|word| word.into_string().ok())
+                    else {
+                        eprintln!("--control needs a socket path");
+                        std::process::exit(1);
+                    };
+                    arguments.control = Some(address);
+                }
+                _ => arguments.world = Some(world_folder(PathBuf::from(word))),
+            }
+        }
+        arguments
+    }
 }
 
 fn log_monitors(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>) {
@@ -432,13 +515,12 @@ fn preselected_world(world: &Path, game_directory: Option<&GameDirectory>) -> Op
         .map(|name| name.to_string_lossy().into_owned())
 }
 
-fn world_folder() -> Option<PathBuf> {
-    let path = std::env::args_os().nth(1).map(PathBuf::from)?;
+fn world_folder(path: PathBuf) -> PathBuf {
     if !path.is_dir() {
         eprintln!("not a world folder: {}", path.display());
         std::process::exit(1);
     }
-    Some(path)
+    path
 }
 
 fn log_registry_counts(registries: Res<CurrentRegistries>) {

@@ -98,6 +98,46 @@ fn writes_like_vanilla_and_round_trips_its_bytes() {
     assert_eq!(hex(&tag), GOLDEN.pretty_hex);
 }
 
+#[test]
+fn the_text_form_spaces_entries_and_folds_deep_and_long_values() {
+    let long_array = format!(
+        "[I;{}]",
+        (0..200)
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    let deep = format!("{}{}", "[".repeat(66), "]".repeat(66));
+    let cases = [
+        ("[B;1B,2B]", "[B; 1b, 2b]".to_owned()),
+        ("[B;]", "[B;]".to_owned()),
+        ("[L;1L,-2L]", "[L; 1L, -2L]".to_owned()),
+        ("[0.5d,-10.7d]", "[0.5d, -10.7d]".to_owned()),
+        (
+            "{\"1a\":{\"true\":\"it's\"}}",
+            "{1a: {true: \"it's\"}}".to_owned(),
+        ),
+        ("{\"a b\":[],c:{}}", "{\"a b\": [], c: {}}".to_owned()),
+        (
+            long_array.as_str(),
+            format!(
+                "[I; {},<...>]",
+                (0..128)
+                    .map(|n| n.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        ),
+        (
+            deep.as_str(),
+            format!("{}[<...>]{}", "[".repeat(64), "]".repeat(64)),
+        ),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(text_form(&parse_tag(input).unwrap()), expected, "{input}");
+    }
+}
+
 fn validate(input: &str) -> Result<usize, SnbtError> {
     let mut reader = Reader::new(input, 0, Validate);
     reader.read().map(|_| reader.position())

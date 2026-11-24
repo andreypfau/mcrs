@@ -37,9 +37,12 @@ pub(crate) struct SyncScratch {
     bytes: Vec<u8>,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the sync reads the menus, their viewers, the holders, the stacks and the wire names"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the slot list of a full content send moves into the outbound packet"
+    )
 )]
 pub(crate) fn sync_menus(
     mut queue: ResMut<MenuQueue>,

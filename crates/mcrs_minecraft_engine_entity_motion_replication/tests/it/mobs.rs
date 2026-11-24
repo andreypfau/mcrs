@@ -13,8 +13,11 @@ use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_damage::DamageRequest;
 use mcrs_minecraft_engine_damage::Damaged;
 use mcrs_minecraft_engine_damage::PendingHits;
+use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
+use mcrs_minecraft_engine_entity_motion_replication::Appearance;
 use mcrs_minecraft_engine_entity_motion_replication::EntityMotionReplicationPlugin;
+use mcrs_minecraft_engine_entity_motion_replication::NetworkIds;
 use mcrs_minecraft_engine_mob_attributes::AttributeEdit;
 use mcrs_minecraft_engine_mob_attributes::MobAttributesPlugin;
 use mcrs_minecraft_engine_physics::FLOOR;
@@ -29,6 +32,8 @@ use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_physics::swing_mob;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 use mcrs_minecraft_engine_world::entity_ids::EntityIdRange;
+use mcrs_minecraft_engine_world::session::Owner;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_attribute::InstanceEdit;
 use mcrs_minecraft_entity_attribute::InstanceModifier;
@@ -38,10 +43,15 @@ use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::WriterKey;
+use mcrs_minecraft_physics::Body;
+use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_physics::MotionRow;
+use mcrs_minecraft_protocol_game::entity::MobLooks;
 use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSignal;
 use mcrs_minecraft_replication::ReplicationData;
+use mcrs_minecraft_replication::SpawnLook;
 
 const PIG: u128 = 0x006d_6273_0000_0000_0000_0000_0000_0002;
 const FIRST_ID: EntityId = EntityId(2);
@@ -369,4 +379,59 @@ fn an_accepted_mob_swing_publishes_one_swing_signal_and_no_move() {
         }],
         "a stationary mob swing publishes only the signal without an extraneous move"
     );
+    assert_eq!(
+        tick(&mut scene),
+        [],
+        "a stationary mob swing is cleared after publishing and does not repeat"
+    );
+}
+
+fn summon_pig(scene: &mut TestScene) -> Entity {
+    summon(scene, DVec3::new(4.5, f64::from(FLOOR), 4.5))
+}
+
+fn drop_item(scene: &mut TestScene) -> Entity {
+    let body = Body {
+        position: DVec3::new(4.5, f64::from(FLOOR), 4.5),
+        ..Body::default()
+    };
+    let item = scene
+        .app
+        .world_mut()
+        .spawn((
+            MotionState(EntityState::new(EntityUuid::from_u128(7), body, None)),
+            MotionKind(MotionRow::item()),
+            Appearance {
+                kind: &EntityTypeData::ITEM,
+                look: SpawnLook::Mob(MobLooks::default()),
+            },
+        ))
+        .id();
+    tick(scene);
+    item
+}
+
+fn join_player(scene: &mut TestScene) -> Entity {
+    scene.app.world_mut().spawn(Owner(PlayerSession(3))).id()
+}
+
+#[test]
+fn a_network_id_names_its_entity_until_the_entity_despawns() {
+    let cases: [(&str, fn(&mut TestScene) -> Entity, i32); 3] = [
+        ("mob", summon_pig, 2),
+        ("item", drop_item, 2),
+        ("player", join_player, 7),
+    ];
+    for (name, spawn, id) in cases {
+        let mut scene = scene();
+        let entity = spawn(&mut scene);
+        let world = scene.app.world_mut();
+        assert_eq!(
+            world.resource::<NetworkIds>().get(id),
+            Some(entity),
+            "{name}"
+        );
+        world.despawn(entity);
+        assert_eq!(world.resource::<NetworkIds>().get(id), None, "{name}");
+    }
 }

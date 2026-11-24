@@ -67,6 +67,13 @@ const HARDCORE_HEARTS: HeartSprites = HeartSprites {
     half: "hud/heart/hardcore_half",
 };
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the heart shake animation counts every fixed tick, so each run writes a new value"
+    )
+)]
 fn count_hud_ticks(mut ticks: ResMut<HudTicks>) {
     ticks.0 = ticks.0.wrapping_add(1);
 }

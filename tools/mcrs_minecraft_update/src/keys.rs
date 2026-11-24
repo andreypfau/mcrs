@@ -704,7 +704,7 @@ fn catalog_manifest(static_owners: &BTreeSet<String>) -> String {
     let mut out = format!(
         "[package]\n\
          name = \"{CATALOG_CRATE}\"\n\
-         description = \"The entries of every static registry\"\n\
+         description = \"The STATIC_REGISTRIES table: the entry locations of every static registry\"\n\
          version.workspace = true\n\
          edition.workspace = true\n\
          \n\

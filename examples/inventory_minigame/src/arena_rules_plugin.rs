@@ -1,5 +1,6 @@
 use bevy_app::App;
 use bevy_app::Plugin;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::observer::On;
 use bevy_ecs::query::With;
@@ -114,7 +115,10 @@ fn count_denials(
     if denial.source != rules.source {
         return;
     }
-    if let Ok(mut frozen) = frozen.get_mut(result.holder) {
-        frozen.denied = frozen.denied.saturating_add(1);
+    if let Ok(frozen) = frozen.get_mut(result.holder) {
+        let denied = frozen.denied.saturating_add(1);
+        frozen
+            .map_unchanged(|frozen| &mut frozen.denied)
+            .set_if_neq(denied);
     }
 }

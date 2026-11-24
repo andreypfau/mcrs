@@ -37,6 +37,20 @@ pub(crate) fn colour_layout() -> BindGroupLayoutDescriptor {
     )
 }
 
+pub(crate) fn colour_pipelines_unsettled(
+    pipelines: Res<ColourPipelines>,
+    cache: Res<PipelineCache>,
+) -> bool {
+    pipelines.stages.is_none_or(|stages| {
+        stages.into_iter().any(|id| {
+            !matches!(
+                cache.get_compute_pipeline_state(id),
+                CachedPipelineState::Ok(_)
+            )
+        })
+    })
+}
+
 pub(crate) fn prepare_colour_pipelines(
     mut pipelines: ResMut<ColourPipelines>,
     asset_server: Res<AssetServer>,
@@ -90,10 +104,6 @@ fn bind_groups(volume: &Volume, device: &RenderDevice, cache: &PipelineCache) ->
     })
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy render-graph system: each access is its own parameter"
-)]
 pub(crate) fn propagate_colour(
     _view: ViewQuery<&'static ExtractedView>,
     volume: Option<ResMut<Volume>>,

@@ -13,10 +13,13 @@ use crate::{Client, add_entity};
 
 const PIG: i32 = 1;
 
-fn store_lit_at_origin(lit: EntityLight) -> ColumnStore {
-    let pos = ColumnPos::new(0, 0);
+fn unlit_store_at_origin() -> ColumnStore {
     let mut store = ColumnStore::default();
-    store.insert(pos, Column::unlit(0, vec![None]));
+    store.insert(ColumnPos::new(0, 0), Column::unlit(0, vec![None]));
+    store
+}
+
+fn light_origin(store: &mut ColumnStore, lit: EntityLight) {
     let row = |level: u8| {
         vec![
             RowLight::Unchanged,
@@ -25,12 +28,17 @@ fn store_lit_at_origin(lit: EntityLight) -> ColumnStore {
         ]
     };
     store.relight(
-        pos,
+        ColumnPos::new(0, 0),
         &ColumnLight {
             sky: row(lit.sky),
             block: row(lit.block),
         },
     );
+}
+
+fn store_lit_at_origin(lit: EntityLight) -> ColumnStore {
+    let mut store = unlit_store_at_origin();
+    light_origin(&mut store, lit);
     store
 }
 
@@ -62,6 +70,39 @@ fn an_entity_that_snaps_into_a_lit_block_takes_its_light() {
         relatives: PositionFlags::default(),
         on_ground: true,
     });
+    client.app.update();
+
+    assert_eq!(client.app.world().get::<EntityLight>(pig), Some(&lit));
+}
+
+#[test]
+fn a_standing_entity_takes_the_light_that_arrives_for_its_column() {
+    let lit = EntityLight { block: 5, sky: 3 };
+    let mut client = Client::new();
+    let mut changes = Vec::new();
+    let mut store = unlit_store_at_origin();
+    store.drain_changes(&mut changes);
+    client.app.insert_resource(store);
+    client.receive(add_entity(
+        PIG,
+        EntityType::Pig,
+        DVec3::new(8.5, 4.0, 8.5),
+        0.0,
+        0.0,
+    ));
+    client.app.update();
+    let pig = client.entity(PIG).expect("the pig was added");
+    assert_eq!(
+        client.app.world().get::<EntityLight>(pig),
+        Some(&EntityLight { block: 0, sky: 0 }),
+        "the column of the pig holds no light yet"
+    );
+
+    changes.clear();
+    let mut store = client.app.world_mut().resource_mut::<ColumnStore>();
+    light_origin(&mut store, lit);
+    store.drain_changes(&mut changes);
+    client.app.world_mut().write_message_batch(changes);
     client.app.update();
 
     assert_eq!(client.app.world().get::<EntityLight>(pig), Some(&lit));

@@ -155,7 +155,12 @@ mod tests {
             .init_resource::<Seen>()
             .add_message::<KeyboardInput>()
             .add_systems(Startup, open)
-            .add_systems(PreUpdate, read_events.after(MenuInputSystems));
+            .add_systems(
+                PreUpdate,
+                read_events
+                    .after(MenuInputSystems)
+                    .run_if(on_message::<MenuEvent>),
+            );
         app.world_mut().spawn((Window::default(), PrimaryWindow));
         app
     }
@@ -236,7 +241,10 @@ mod tests {
     }
 
     fn point_at(app: &mut App, x: i32, y: i32) {
-        app.world_mut().resource_mut::<GuiConfig>().cursor = Some(IVec2::new(x, y));
+        app.world_mut()
+            .resource_mut::<GuiConfig>()
+            .map_unchanged(|resource| &mut resource.cursor)
+            .set_if_neq(Some(IVec2::new(x, y)));
     }
 
     fn click(app: &mut App) -> Vec<MenuEvent> {
@@ -256,13 +264,13 @@ mod tests {
         point_at(&mut app, 100, 50);
         app.world_mut()
             .resource_mut::<AccumulatedMouseScroll>()
-            .delta
-            .y = -1.0;
+            .map_unchanged(|scroll| &mut scroll.delta.y)
+            .set_if_neq(-1.0);
         app.update();
         app.world_mut()
             .resource_mut::<AccumulatedMouseScroll>()
-            .delta
-            .y = 0.0;
+            .map_unchanged(|scroll| &mut scroll.delta.y)
+            .set_if_neq(0.0);
         let menu = app.world().resource::<Menu>();
         let offset = menu.widgets.get(LIST).and_then(Widget::scroll_offset);
         assert_eq!(offset, Some(12.0));

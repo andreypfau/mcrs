@@ -116,7 +116,7 @@ pub(crate) fn track_hot_tickets(
         }
         post(mail.as_deref_mut(), session, Some(wanted));
         wanted.moved_from(old, &mut loading, owned);
-        *held = wanted;
+        held.set_if_neq(wanted);
     }
 }
 
@@ -137,7 +137,7 @@ pub(crate) fn move_remote_ticket(world: &mut World, holder: Entity, new: HotTick
     };
     new.moved_from(old, &mut loading, owned.as_ref());
     if let Some(mut held) = world.get_mut::<HotTicket>(holder) {
-        *held = new;
+        held.set_if_neq(new);
     }
     if let Some(mut area) = world.get_mut::<HeldSimulationArea>(holder) {
         area.set_if_neq(HeldSimulationArea::new(dim, new.simulation));

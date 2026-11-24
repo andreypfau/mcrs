@@ -42,9 +42,9 @@ pub(crate) fn trusted(url: &str) -> Option<String> {
 
 pub(crate) fn finish_downloads(
     mut commands: Commands,
-    mut downloads: Query<(Entity, &mut SkinDownload)>,
+    mut downloads: Populated<(Entity, &mut SkinDownload)>,
 ) {
-    for (entity, mut download) in &mut downloads {
+    for (entity, mut download) in downloads.iter_mut() {
         let Some(image) = check_ready(&mut download.0) else {
             continue;
         };

@@ -418,9 +418,12 @@ struct FillBuffers {
     block_values: Vec<f32>,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one column fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column fill"
+    )
 )]
 fn fill_column(
     column: &ColumnBlocks,
@@ -514,9 +517,12 @@ fn fill_column(
     true
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one dense column fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one dense column fill"
+    )
 )]
 fn fill_column_dense(
     column: &ColumnBlocks,
@@ -580,9 +586,12 @@ fn fill_cell_box(column: &ColumnBlocks, index: usize, base: IVec3, cell: IVec3, 
     );
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one block fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one block fill"
+    )
 )]
 fn fill_blocks(
     column: &ColumnBlocks,
@@ -695,9 +704,12 @@ pub fn first_free_kind(name: HeightmapName) -> HeightmapKinds {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one height query"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one height query"
+    )
 )]
 pub fn base_height(
     router: &NoiseRouter,
@@ -1008,9 +1020,12 @@ pub fn generate_column(
     column.into_sections(&filled.biomes)
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one dense fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one dense fill"
+    )
 )]
 pub fn fill_column_dense_any<'a>(
     column: &mut ColumnBlocks,
