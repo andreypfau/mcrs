@@ -41,13 +41,6 @@ impl Plugin for WorldClockHostPlugin {
 #[cfg_attr(
     mcrs_lint,
     expect(
-        mcrs::ungated_system,
-        reason = "advances the game time by one on every fixed tick"
-    )
-)]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
         mcrs::missed_set_if_neq,
         reason = "the counter changes on every write, so a comparison never skips one"
     )

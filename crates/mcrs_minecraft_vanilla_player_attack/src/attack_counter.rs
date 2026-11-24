@@ -32,7 +32,7 @@ impl AttackCounter {
 fn start_counting(mut world: DeferredWorld, context: HookContext) {
     let now = birth_tick(world.get_resource::<BirthClock>());
     if let Some(mut counter) = world.get_mut::<AttackCounter>(context.entity) {
-        counter.reset_at = now;
+        counter.set_if_neq(AttackCounter { reset_at: now });
     }
 }
 

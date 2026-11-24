@@ -82,6 +82,13 @@ impl Drop for Control {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the allocations happen only when a request line arrives or an attack request selects its target"
+    )
+)]
 pub(crate) fn serve(mut control: ResMut<Control>, mut client: ControlledClient) {
     let control = &mut *control;
     if control.connection.is_none() {

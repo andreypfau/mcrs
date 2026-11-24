@@ -229,8 +229,16 @@ impl ControlledClient<'_, '_> {
     pub(crate) fn look(&mut self, yaw: f32, pitch: f32) -> Result<(), Missing> {
         let mut player = self.player.single_mut().map_err(|_| Missing::Player)?;
         let rotation = Rotation::new(yaw, pitch);
-        player.transform.rotation = rotation;
-        player.old.0.rotation = rotation;
+        player
+            .transform
+            .reborrow()
+            .map_unchanged(|transform| &mut transform.rotation)
+            .set_if_neq(rotation);
+        player
+            .old
+            .reborrow()
+            .map_unchanged(|old| &mut old.0.rotation)
+            .set_if_neq(rotation);
         Ok(())
     }
 
