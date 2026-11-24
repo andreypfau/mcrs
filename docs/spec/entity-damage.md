@@ -704,8 +704,10 @@ these steps:
 
 A hit that a client packet causes, for example an attack, applies when the server
 handles that packet, in the packet phase (`player-attack.md`, ATK-ORD-002). A later packet of the
-same packet phase sees the hit (PHY-ORD-018). The target then does its own tick with the health
-after the hit (ATK-ORD-005). DMG-ORD-004 states the place of a hit of a command.
+same packet phase sees the hit (PHY-ORD-018). In mcrs, the hits of the client packets of a tick
+apply after the last packet of the tick, so a later packet does not see them (ATK-DEV-006). In
+both, the target then does its own tick with the health after the hit (ATK-ORD-005). DMG-ORD-004
+states the place of a hit of a command.
 
 In the pass, a hit from another entity applies in the apply step of the tick that wrote it
 (PHY-CMP-015, AIT-RFX-006). That apply step comes after the tick of each entity of the pass, and
@@ -716,7 +718,8 @@ can apply in the apply step of the next tick (PHY-CMP-015).
 The order is visible. An entity that lands on magma takes the `hot_floor` hit first, as a full
 hit. The fall hit of the same tick is then a partial hit, so the damage event names `hot_floor`.
 
-Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic; deviation
+(`player-attack.md`, ATK-DEV-006). Confidence: high.
 
 **DMG-ORD-002** In the pass, the own hits of an entity are entries of the sorted queue, as the hits
 from other entities are. The own hits are the hits
@@ -794,11 +797,17 @@ An observer also does not know when a console command arrives relative to the ti
 places give the same result to an observer. In both, the mob moves in the next entity pass after
 the command runs.
 
+A command of a client also sees the hits of the earlier attack packets of the same tick
+(PHY-ORD-018). In mcrs, it reads the state from before these hits (`player-attack.md`,
+ATK-DEV-006).
+
 A user of the library can change or cancel each hit of a command before it applies. The user gets
-the hits of one command at a time, in the order of the commands.
+the hits of a command together with the other hits of the same apply step, not one command at a
+time.
 
 Provenance: `source_suggested`; `design` for the change of a hit by a user of the library and for
-the order of a command of a client (PHY-DEV-015). Kind: semantic. Confidence: medium.
+the order of a command of a client (PHY-DEV-015). Kind: semantic; deviation (ATK-DEV-006).
+Confidence: medium.
 
 ## 12. Out of scope
 

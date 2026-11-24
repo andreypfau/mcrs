@@ -622,10 +622,13 @@ Each server tick thus has two apply points for the hits of other entities:
 
 The hits of the base entity tick apply at their step in the pass (DMG-ORD-002).
 
-A user of the library can change or cancel each hit before it applies. In the packet phase, the
-user gets the hits of one packet at a time, in the order of the packets. The hits of one attack
-packet are its primary hit and its sweep hits. In the apply step, the user gets all hits of that
-step together, before the first of them applies.
+In mcrs, the hits of the packets of one tick apply after the last packet of that tick, before the
+entity pass. ATK-DEV-006 states this difference from the reference.
+
+A user of the library can change or cancel each hit before it applies. For the packet phase, the
+user gets the hits of all packets of the tick together, in the order of the packets, before the
+first of them applies. The hits of one attack packet are its primary hit and its sweep hits. In
+the apply step, the user gets all hits of that step together, before the first of them applies.
 
 The hit of a packet applies in the tick of its packet, also when the attacker and the target are in
 different cells. The exception "write across a cell boundary" of PHY-INV-014 does not apply to it.
@@ -633,14 +636,15 @@ The update after the entity pass of the same tick sends the result of the hit: t
 sounds and the packets of section 8, and the velocity of ATK-KB-005.
 
 Provenance: `source_suggested` for the place in the tick, `design` for the change of a hit by a
-user of the library. Kind: semantic. Confidence: high. ATK-E1 to ATK-E9 show the hits of attacks
-in a frozen tick.
+user of the library. Kind: semantic; deviation (ATK-DEV-006). Confidence: high. ATK-E1 to ATK-E9
+show the hits of attacks in a frozen tick.
 
 **ATK-ORD-003** Each hit of an attack has the writer key of the attacker. The sweep hits of
 ATK-SWP-002 also have it. When the primary hit is accepted, its sweep hits apply directly after it,
-before the server handles the next packet. Among themselves, the sweep hits apply in the order of
-PHY-CMP-015. A rejected primary hit gives no sweep hit. Thus a later packet of the same packet
-phase and the entity pass of the same tick see the sweep hits (ATK-ORD-005).
+before the hits of the next packet. Among themselves, the sweep hits apply in the order of
+PHY-CMP-015. A rejected primary hit gives no sweep hit. Thus the entity pass of the same tick sees
+the sweep hits (ATK-ORD-005). In the reference, a later packet of the same packet phase also sees
+them (ATK-ORD-004). ATK-DEV-006 states the difference in mcrs.
 
 The reference applies the sweep hits in the order in which it finds the sweep targets. Each sweep
 hit changes only its own target. The order of the sweep hits thus changes only the order of their
@@ -665,11 +669,14 @@ of the packets before it in the same packet phase. These results follow:
   that attacker with an accepted hit.
 - The attack reads the state of the attacker at its packet (ATK-ORD-001).
 
+In mcrs, the hits apply in this order. But the checks of a later attack packet read the state from
+before the hits of the same tick, so the third result differs. ATK-DEV-006 states the difference.
+
 A player cannot select the order of arrival between connections. A differential test thus does not
 compare a result that depends on that order (PHY-ORD-018).
 
 Provenance: `source_suggested`. Kind: semantic; the order between connections is unspecified
-(PHY-ORD-018). Confidence: high.
+(PHY-ORD-018); deviation (ATK-DEV-006). Confidence: high.
 
 **ATK-ORD-005** The entity pass of a tick sees each result of the packet phase of that tick.
 For a target that is a living entity and not a player, these results follow:
@@ -756,6 +763,39 @@ Provenance: `documentation`. Kind: semantic. Confidence: low.
   knockback can differ by a small amount.
 - **Bug reference:** none.
 - **Test:** a differential test compares no velocity of a player target after a partial hit.
+
+### ATK-DEV-006: The hits of the client packets of a tick apply after the last packet of the tick
+
+- **Rule:** ATK-ORD-002, ATK-ORD-003, ATK-ORD-004; `entity-physics.md`, PHY-ORD-018;
+  `entity-damage.md`, DMG-ORD-001, DMG-ORD-004.
+- **Reference:** each attack packet takes effect when the server handles it. Its hits apply before
+  the server handles the next packet. A later packet of the same tick sees each result of the
+  earlier attack packets.
+- **mcrs:** the packets of one tick reach the handlers in the order of their arrival (PHY-ORD-018).
+  The handler of an attack packet does its checks and writes its hits to a queue. After the last
+  packet of the tick, and before the entity pass, one apply step applies the hits of the queue in
+  the order of the queue. That order is the order of arrival. Each hit applies after the earlier
+  hits. Thus the health, the damage cooldown, the death, the last-hit record and the knockback of
+  the hits compose as in the reference. These differences remain:
+  - The checks of a handler read the state from before the hits of the same tick. These checks
+    are the live target, the reset of the attack counter and the reach.
+  - A user of the library gets the hits of all packets of the tick as one batch, in the order of
+    arrival (ATK-ORD-002). The user does not get the hits of one packet at a time.
+  - Another packet of the same tick does not see the hits of the earlier attack packets. For
+    example, a command that reads the health reads the health from before these hits.
+- **Reason:** an apply for each packet needs a packet phase that is one serial loop over the
+  packets, with the hit pipeline after each packet. That loop waits for the rework of the command
+  and packet phase (issues #1099 and #1101).
+- **Visible to the client:** yes, only when two packets of one tick depend on each other. Example:
+  two players hit one mob in one tick, and the first hit kills it. In mcrs, the handler of the
+  second packet still sees a live target. It resets the attack counter of the second player and
+  writes a hit, and the apply step rejects that hit. In the reference, the second attack finds the
+  mob in the dying state (ATK-TGT-006). With the default of that rule, the second attack skips the
+  mob. When no other entity is on its ray, the attack has no effect, and the attack counter keeps
+  its value.
+- **Bug reference:** none.
+- **Test:** a differential test does not send, in one tick, an attack packet and a later packet that
+  reads the target or the attacker of that attack.
 
 ## 13. Experiments
 

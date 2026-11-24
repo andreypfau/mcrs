@@ -1825,7 +1825,9 @@ of their arrival:
 Each packet completes before the server handles the next packet. A later packet of the same packet
 phase sees each result of an earlier packet, also a result on another player or on another entity.
 The entity pass of the same tick sees the results of all packets of the packet phase. This rule
-applies in the exact-parity mode and in the order-independent pass (section 11.4).
+applies in the exact-parity mode and in the order-independent pass (section 11.4). In mcrs, the
+hits of the client packets of a tick apply after the last packet of the tick
+(`player-attack.md`, ATK-DEV-006). Thus a later packet of the tick does not see them.
 
 Two packets of different connections can have no order of arrival, for example when the server
 reads both in one read of the network. The server then handles first the packet of the connection
@@ -1839,7 +1841,7 @@ A command that a client sends runs in the order of its packet, as each other act
 
 Provenance: `source_suggested` for the order of the packets, `design` for the order of two packets
 with no order of arrival. Kind: semantic for the order of one connection, unspecified for the order
-between connections. Confidence: high.
+between connections; deviation (`player-attack.md`, ATK-DEV-006). Confidence: high.
 
 **PHY-ORD-011** (`source_suggested`, semantic, confidence: medium). In the pass of step 4 of
 PHY-ORD-010, these rules apply:
