@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_server"
-description = "mcrs_minecraft_server"
+description = "The vanilla server plugin group MinecraftServerPlugins: it adds the engine, the vanilla gameplay plugins and the commands to an app"
 version.workspace = true
 edition.workspace = true
 

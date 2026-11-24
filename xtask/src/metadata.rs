@@ -23,6 +23,7 @@ pub struct Package {
     pub name: String,
     pub dir: String,
     pub edition: String,
+    pub description: Option<String>,
     pub dependencies: Vec<Dependency>,
 }
 
@@ -42,6 +43,7 @@ struct MetadataPackage {
     name: String,
     manifest_path: String,
     edition: String,
+    description: Option<String>,
     dependencies: Vec<MetadataDependency>,
 }
 
@@ -107,6 +109,7 @@ impl Workspace {
                     name: package.name,
                     dir,
                     edition: package.edition,
+                    description: package.description,
                     dependencies,
                 })
             })

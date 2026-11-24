@@ -399,6 +399,7 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         Check::NoBevy => no_bevy(ctx),
         Check::Layers => layers(ctx),
         Check::ExampleDependencies => crate::example_dependencies::check(&ctx.root),
+        Check::CrateMap => crate::crate_map::check(&ctx.root),
         Check::NoStd => build_for(
             ctx,
             "wasm32v1-none",
@@ -932,6 +933,7 @@ mod tests {
                 name: "x".to_owned(),
                 dir: "crates/x".to_owned(),
                 edition: "2024".to_owned(),
+                description: None,
                 dependencies: Vec::new(),
             }],
         };
