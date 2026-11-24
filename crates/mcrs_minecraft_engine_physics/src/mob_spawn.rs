@@ -14,6 +14,7 @@ use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::KeyedStream;
+use mcrs_minecraft_physics::Travel;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
 use mcrs_minecraft_registries::CurrentRegistries;
 
@@ -76,7 +77,13 @@ pub(crate) fn spawn_mob_entities(
             break;
         };
         let row = mob_row(request.kind);
-        let state = mob_body(request.kind, &row, key, request.position);
+        let mut state = mob_body(request.kind, &row, key, request.position);
+        state.body.flags.on_ground = request.extras.on_ground;
+        if request.extras.no_ai
+            && let Some(living) = state.living.as_mut()
+        {
+            living.travel = Travel::Closed;
+        }
         let vitals = mob_vitals(request.kind);
         let mut looks = match request.setup {
             SpawnSetup::First => {

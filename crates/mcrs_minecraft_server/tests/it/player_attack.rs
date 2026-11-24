@@ -35,7 +35,7 @@ use crate::mob_replication::mob_entities;
 
 const ALICE: Uuid = Uuid::from_u128(111);
 const BOB: Uuid = Uuid::from_u128(222);
-const DEFAULT_KNOCKBACK: f64 = 0.4;
+const DEFAULT_KNOCKBACK: f64 = 0.4000000059604645;
 
 #[derive(Component)]
 struct Cancelled;
@@ -113,11 +113,13 @@ impl Arena {
             .0 = mode;
     }
 
-    fn summon_pig(&mut self, at: DVec3) -> (Entity, i32) {
-        let command = format!(
-            "summon minecraft:pig {} {} {} {{NoAI:1b}}",
-            at.x, at.y, at.z
-        );
+    fn summon_pig(&mut self, at: DVec3, summoned: Summoned) -> (Entity, i32) {
+        let data = match summoned {
+            Summoned::NoAiOnGround => "NoAI:1b,OnGround:1b",
+            Summoned::NoAi => "NoAI:1b",
+            Summoned::Ai => "",
+        };
+        let command = format!("summon minecraft:pig {} {} {} {{{data}}}", at.x, at.y, at.z);
         self.server.queue(
             self.alice,
             &ServerboundChatCommand {
@@ -180,7 +182,14 @@ fn decoded<P: Packet + for<'a> Decode<'a>>(packets: &[PacketPayload]) -> Vec<P> 
         .collect()
 }
 
-fn assert_pushed_away(arena: &mut Arena, name: &str, id: i32, at: DVec3, seen: &[PacketPayload]) {
+fn assert_pushed_away(
+    arena: &mut Arena,
+    name: &str,
+    id: i32,
+    at: DVec3,
+    summoned: Summoned,
+    seen: &[PacketPayload],
+) {
     let pushed = decoded::<ClientboundSetEntityMotion>(seen)
         .into_iter()
         .find(|motion| motion.entity_id.0 == id)
@@ -194,17 +203,15 @@ fn assert_pushed_away(arena: &mut Arena, name: &str, id: i32, at: DVec3, seen: &
         .unwrap()
         .translation;
     let away = (at - alice).with_y(0.0).normalize();
-    let horizontal = pushed.with_y(0.0);
-    let stone_drag = f64::from(0.6_f32 * 0.91_f32);
-    let strengths = [DEFAULT_KNOCKBACK, DEFAULT_KNOCKBACK * stone_drag];
-    let strength = horizontal.length();
+    let lift = match summoned {
+        Summoned::NoAiOnGround => 0.4,
+        Summoned::NoAi => 0.0,
+        Summoned::Ai => 0.36080000519752503,
+    };
+    let expected = away * DEFAULT_KNOCKBACK + DVec3::Y * lift;
     assert!(
-        pushed.y > 0.0
-            && (horizontal.normalize_or_zero() - away).length() < 1e-3
-            && strengths
-                .iter()
-                .any(|expected| (strength - expected).abs() < 1e-3),
-        "{name}: ATK-KB-001 and DMG-KB-001 lift the pig and push it along {away} with the strength {strengths:?}, before or after one motion step on stone: {pushed}"
+        pushed.abs_diff_eq(expected, 1.0E-4),
+        "{name}: ATK-KB-005 sends the velocity directly after the knockback: {pushed} != {expected}"
     );
 }
 
@@ -214,11 +221,18 @@ enum Gait {
     Sprint,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Summoned {
+    NoAiOnGround,
+    NoAi,
+    Ai,
+}
+
 #[derive(Clone, Copy, Debug)]
 enum Target {
     Bob { pvp: bool, gait: Gait },
     Herself,
-    Pig,
+    Pig(Summoned),
     InvulnerablePig,
     FarPig,
     CancelledPig,
@@ -232,11 +246,23 @@ struct Case {
     lost: f32,
 }
 
-const CASES: [Case; 11] = [
+const CASES: [Case; 13] = [
     Case {
-        name: "a pig hit by an empty hand at full strength",
+        name: "a pig with NoAI and OnGround hit by an empty hand at full strength",
         attacker: GameMode::Survival,
-        target: Target::Pig,
+        target: Target::Pig(Summoned::NoAiOnGround),
+        lost: 1.0,
+    },
+    Case {
+        name: "a pig with AI at rest hit by an empty hand at full strength",
+        attacker: GameMode::Survival,
+        target: Target::Pig(Summoned::Ai),
+        lost: 1.0,
+    },
+    Case {
+        name: "a pig with NoAI and no OnGround hit by an empty hand at full strength",
+        attacker: GameMode::Survival,
+        target: Target::Pig(Summoned::NoAi),
         lost: 1.0,
     },
     Case {
@@ -281,7 +307,7 @@ const CASES: [Case; 11] = [
     Case {
         name: "a pig hit by a spectator",
         attacker: GameMode::Spectator,
-        target: Target::Pig,
+        target: Target::Pig(Summoned::NoAi),
         lost: 0.0,
     },
     Case {
@@ -332,10 +358,10 @@ fn the_server_accepts_or_refuses_an_attack() {
                 let session = arena.server.session_of(arena.alice).unwrap();
                 (arena.alice_player, player_network_id(session))
             }
-            Target::Pig => arena.summon_pig(near),
-            Target::FarPig => arena.summon_pig(DVec3::new(14.5, 64.0, 15.5)),
+            Target::Pig(summoned) => arena.summon_pig(near, summoned),
+            Target::FarPig => arena.summon_pig(DVec3::new(14.5, 64.0, 15.5), Summoned::NoAi),
             Target::InvulnerablePig => {
-                let pig = arena.summon_pig(near);
+                let pig = arena.summon_pig(near, Summoned::NoAi);
                 arena
                     .server
                     .world()
@@ -345,11 +371,11 @@ fn the_server_accepts_or_refuses_an_attack() {
                 pig
             }
             Target::CancelledPig => {
-                let pig = arena.summon_pig(near);
+                let pig = arena.summon_pig(near, Summoned::NoAi);
                 arena.server.world().entity_mut(pig.0).insert(Cancelled);
                 pig
             }
-            Target::UnknownId => (arena.summon_pig(near).0, i32::MAX),
+            Target::UnknownId => (arena.summon_pig(near, Summoned::NoAi).0, i32::MAX),
         };
         let _ = arena.server.ticks_all(10);
         let before = arena.health(target);
@@ -372,8 +398,10 @@ fn the_server_accepts_or_refuses_an_attack() {
             "{}",
             case.name
         );
-        if matches!(case.target, Target::Pig) && case.lost > 0.0 {
-            assert_pushed_away(&mut arena, case.name, id, near, &to_bob);
+        if let Target::Pig(summoned) = case.target
+            && case.lost > 0.0
+        {
+            assert_pushed_away(&mut arena, case.name, id, near, summoned, &to_bob);
         }
         if let Target::Bob { pvp: true, gait } = case.target {
             let pushed = to_bob
