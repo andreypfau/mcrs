@@ -51,6 +51,10 @@ impl DepartureRequests {
             .map(|request| &request.to)
     }
 
+    pub fn players(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.0.iter().map(|request| request.player)
+    }
+
     fn set(&mut self, request: DepartureRequest) {
         self.cancel(request.player);
         self.0.push(request);

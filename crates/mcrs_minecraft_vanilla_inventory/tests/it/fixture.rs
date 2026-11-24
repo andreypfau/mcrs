@@ -2,21 +2,35 @@ use std::num::NonZeroU8;
 use std::sync::LazyLock;
 
 use bevy_app::App;
+use bevy_app::Last;
+use bevy_app::Update;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::Mut;
 use bevy_ecs::world::World;
+use mcrs_minecraft_dimension::dimension_keys::THE_NETHER;
+use mcrs_minecraft_engine::ability::PlayerFlying;
+use mcrs_minecraft_engine::ability::PlayerOpLevel;
+use mcrs_minecraft_engine::bus::InboundPlayerDespawn;
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::persisted_registry::PersistedRegistry;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
+use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_item::Stacks;
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::session::DimPlayerIndex;
+use mcrs_minecraft_engine_world::session::Owner;
+use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_entity_key::EntityUuid;
+use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_stack::Count;
@@ -32,9 +46,11 @@ use mcrs_minecraft_item_table::bake;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_player_holders::PlayerHolders;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::item::ItemStackValue;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
@@ -101,6 +117,35 @@ pub fn capture(world: &mut World, player: Entity, cause: CaptureCause) -> Persis
             registry.capture(world, player, cause)
         })
         .expect("the player captures")
+}
+
+pub fn depart(world: &mut World, player: Entity, cause: CaptureCause) {
+    let session = PlayerSession(1);
+    world.init_resource::<DimPlayerIndex>();
+    world.entity_mut(player).insert((
+        Owner(session),
+        EntityUuid(Uuid::nil()),
+        Transform::IDENTITY,
+        PlayerGameMode::default(),
+        PlayerFlying(false),
+        PlayerOpLevel(0),
+        TeleportState::default(),
+    ));
+    match cause {
+        CaptureCause::Leave => {
+            world.write_message(InboundPlayerDespawn { session });
+            world.run_schedule(Update);
+        }
+        CaptureCause::DimensionChange => {
+            world.write_message(ChangeDimensionRequest {
+                player,
+                to: ResourceKeyBuf::from(THE_NETHER),
+                transform: Transform::IDENTITY,
+            });
+            world.run_schedule(Last);
+        }
+        _ => {}
+    }
 }
 
 pub fn capture_file(world: &mut World, player: Entity, cause: CaptureCause) -> PersistedSnapshot {

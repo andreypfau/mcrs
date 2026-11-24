@@ -128,6 +128,7 @@ pub use persistence::{
     AutosaveCadence, AutosavePlugin, PlayerPersistencePlugin, UnreadablePlayerDat,
     apply_join_snapshot, load_player, save_player, write_player,
 };
+pub use player_dimension_change::{check_departure, is_own_dimension};
 pub use player_dimensions::{PlayerBody, PlayerBodyItem, player_dimensions, player_scale};
 pub use pose_systems::PoseSystems;
 pub use publish_player_tiles::HiddenPlayer;
