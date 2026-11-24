@@ -178,6 +178,10 @@ and give any materialization exactly one owner and a stated cost model.
   adds only what the server has no use for: prediction state, last-sent values,
   interface state. A system that copies a client type into a shared component is
   a defect. `mcrs_minecraft_inventory_client` follows this rule with `Slots`.
+- A simulation partition is a **shard**, never a thread and never a "region". A
+  shard step is a library call on a kernel without Bevy.
+
+An exception to any of these is justified by a measurement in the pull request.
 
 ## Crossing a boundary
 
@@ -194,10 +198,6 @@ Each boundary has one mechanism. Do not add another.
 - A new `Arc<Mutex<..>>` queue between worlds is not allowed. A real cross-thread
   seam, such as a GPU map callback or a thread of another runtime, stays behind one
   named type with `#[expect(..., reason = "...")]`.
-- A simulation partition is a **shard**, never a thread and never a "region". A
-  shard step is a library call on a kernel without Bevy.
-
-An exception to any of these is justified by a measurement in the pull request.
 
 ## Ownership, locks, dispatch and allocation
 
