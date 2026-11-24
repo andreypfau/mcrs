@@ -19,7 +19,7 @@ pub fn place_single_block_pillar<W>(
     volume: &mut W,
     rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_cap: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    mut place_cap: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -77,7 +77,7 @@ mod tests {
             &mut volume,
             &mut rng,
             AT,
-            &mut |_, _, pos| {
+            |_, _, pos| {
                 capped.push(pos);
                 true
             }
@@ -112,7 +112,7 @@ mod tests {
             &mut volume,
             &mut rng,
             AT,
-            &mut |_, _, pos| {
+            |_, _, pos| {
                 capped.push(pos);
                 true
             }
@@ -135,7 +135,7 @@ mod tests {
             &mut volume,
             &mut rng,
             AT,
-            &mut |_, _, pos| {
+            |_, _, pos| {
                 capped.push(pos);
                 true
             }
