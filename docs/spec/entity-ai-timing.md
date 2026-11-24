@@ -656,8 +656,8 @@ the hurt time, the knockback and the death. They also are the reset of the idle 
 and the source of the last damage. These writes are not claims. They apply in the apply step of
 PHY-CMP-015, in the tick of the hit (DMG-ORD-001). A write from another cell can apply one tick
 later (PHY-CMP-015). A hit from a client packet, for example an attack, applies before the pass,
-in the packet apply step (`player-attack.md`, ATK-ORD-002). The reflex of the mob then sees it in
-the same tick. The removal of a mob after its death is not a claim. The mob leaves the world
+when the server handles that packet (`player-attack.md`, ATK-ORD-002). The reflex of the mob then
+sees it in the same tick. The removal of a mob after its death is not a claim. The mob leaves the world
 in the tick in which its death time reaches 20 (DMG-DTH-003). The own hits of DMG-ORD-002, for
 example the hits of the step action, the fall action and the crowd, also apply in the apply step.
 The hits of the base entity tick are an exception. They apply at their step, before the AI step

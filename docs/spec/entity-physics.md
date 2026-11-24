@@ -126,8 +126,11 @@ the reference implementation.
   step (PHY-CMP-015). Each write goes from the tick of one entity to another entity, or is an own
   hit of an entity. A write stays in the sorted queue until an apply step applies it.
 - **Apply step**: the serial step of a tick that applies the sorted queue, in the order of
-  PHY-CMP-015. It comes after the tick of each entity of the pass. The hits of client packets
-  apply before the pass, in the packet apply step of `player-attack.md` (ATK-ORD-002).
+  PHY-CMP-015. It comes after the tick of each entity of the pass. A hit that a client packet
+  causes applies before the pass, when the server handles that packet (`player-attack.md`,
+  ATK-ORD-002).
+- **Packet phase**: step 1 of PHY-ORD-010. In it, the server handles the packets of the clients
+  one after the other, in the order of PHY-ORD-018.
 - **External impulse**: a change of the velocity that does not come from this model, for example
   knockback or an explosion (section 11.3).
 - **f32**, **f64**: an IEEE 754 binary32 value and an IEEE 754 binary64 value.
@@ -1790,8 +1793,8 @@ table. The rules that use such a state name it.
 ticks of entities in one server tick occur in this order:
 
 1. Between two server ticks, the server handles the packets of the clients, in the order in which
-   they arrive. A move packet changes the position of its player when the server handles it
-   (PHY-SRV-003).
+   they arrive (PHY-ORD-018). A move packet changes the position of its player when the server
+   handles it (PHY-SRV-003).
 2. The server ticks each dimension in turn. The overworld is first. The other dimensions follow in
    the order in which the server created them.
 3. In one dimension, other parts occur before the entities. They are the world border, the
@@ -1810,6 +1813,33 @@ starts to tick entities. An entity that leaves the list and enters it again goes
 The exact-parity mode keeps this order. In that mode, an entity sees each block change that occurs
 before its own tick in the same server tick. The exact-parity mode does not use PHY-CMP-009 or
 PHY-DEV-003.
+
+**PHY-ORD-018** The action of a client packet takes effect when the server handles that packet, in
+the packet phase. An attack, a block break, a block place, a click in a container and a command are
+such actions. The server handles the packets of one packet phase one after the other, in the order
+of their arrival:
+
+- The packets of one connection come in the order in which the client sent them.
+- The packets of different connections interleave in the order of their arrival at the server.
+
+Each packet completes before the server handles the next packet. A later packet of the same packet
+phase sees each result of an earlier packet, also a result on another player or on another entity.
+The entity pass of the same tick sees the results of all packets of the packet phase. This rule
+applies in the exact-parity mode and in the order-independent pass (section 11.4).
+
+Two packets of different connections can have no order of arrival, for example when the server
+reads both in one read of the network. The server then handles first the packet of the connection
+that was made first. Thus the order does not depend on the thread count. An observer cannot tell
+this order from the jitter of the arrival times, so it is not a deviation. A player cannot select
+the order of arrival between connections. Thus a differential test does not compare a result that
+depends on that order.
+
+A command that a client sends runs in the order of its packet, as each other action does
+(PHY-DEV-015).
+
+Provenance: `source_suggested` for the order of the packets, `design` for the order of two packets
+with no order of arrival. Kind: semantic for the order of one connection, unspecified for the order
+between connections. Confidence: high.
 
 **PHY-ORD-011** (`source_suggested`, semantic, confidence: medium). In the pass of step 4 of
 PHY-ORD-010, these rules apply:
@@ -3201,6 +3231,7 @@ of an entity. Thus this document keeps these rules too.
 
 The rules PHY-CMP-006, PHY-CMP-008, PHY-CMP-009, PHY-CMP-012, PHY-CMP-014 to PHY-CMP-022 permit
 the deviations of this section for server-simulated entities. An implementation that uses one of them must state it.
+PHY-DEV-015 is different: it is a deviation of the packet phase, and each implementation has it.
 
 ### PHY-DEV-001: Tolerance for server-simulated motion
 
@@ -3392,6 +3423,21 @@ the deviations of this section for server-simulated entities. An implementation 
   shorter than `sqrt(1.0E-7)`. When the item moves again, the removed speed gives at most
   `1.0E-6 / (1 - 0.98)`, `5.0E-5` block. This is less than the unit of `1/4096` block.
 - **Test:** a differential test compares `v.x` and `v.z` of an item on the ground within `1.0E-6`.
+
+### PHY-DEV-015: A command of a client runs in the order of its packet
+
+- **Rule:** PHY-ORD-018.
+- **Reference:** the server runs the commands of the clients between two ticks, before the other
+  packets of the next packet phase. Thus a command can run before an earlier packet of the same
+  client. A command of the remote console has the same place.
+- **Reason:** the packets of one connection keep the order in which the client sent them. A player
+  expects the order of the own actions, and one order for all packets is simpler.
+- **Visible to the client:** yes, only when one client sends a command after another packet in the
+  same tick. Example: an attack on a mob, and then `damage` on the same mob. The reference runs the
+  command first. A player needs two inputs in one tick to do this.
+- **Bug reference:** none.
+- **Test:** a differential test does not send a command and another packet of one client in one
+  tick.
 
 ### Known vanilla quirks
 

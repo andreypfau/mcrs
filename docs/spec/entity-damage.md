@@ -26,8 +26,8 @@ numeric rules and the packets (section 15).
   entity reads the other entities at their state from the start of the tick.
 - **Sorted queue**, **apply step**: `entity-physics.md`, section 0.1, defines these terms. In this
   document, the entries of the sorted queue are hits.
-- **Packet apply step**: `player-attack.md`, section 0.1, defines this term. It applies the hits
-  of client packets before the pass (ATK-ORD-002).
+- **Packet phase**: `entity-physics.md`, section 0.1, defines this term. In it, the server handles
+  the packets of the clients one after the other, before the pass (PHY-ORD-018).
 - **Health**: an f32 value of a living entity, from 0 to the max health.
 - **Max health**: the value of the attribute `max_health` of the entity, converted to f32.
 - **Damage type**: an entry of the data-pack registry `minecraft:damage_type`.
@@ -702,9 +702,10 @@ these steps:
    (DMG-FALL-001).
 3. Step 9, the push step: the crowd hit, before the pushes (PHY-PSH-007).
 
-A hit that the server writes while it handles a client packet, for example an attack, applies in
-the packet apply step, before the pass (`player-attack.md`, ATK-ORD-002). The target then does
-its own tick with the health after the hit (ATK-ORD-005).
+A hit that a client packet causes, for example an attack, applies when the server
+handles that packet, in the packet phase (`player-attack.md`, ATK-ORD-002). A later packet of the
+same packet phase sees the hit (PHY-ORD-018). The target then does its own tick with the health
+after the hit (ATK-ORD-005). DMG-ORD-004 states the place of a hit of a command.
 
 In the pass, a hit from another entity applies in the apply step of the tick that wrote it
 (PHY-CMP-015, AIT-RFX-006). That apply step comes after the tick of each entity of the pass, and
@@ -769,6 +770,35 @@ A hit with a damage type of the tag `bypasses_cooldown` is always a full hit (DM
 order then changes the health. Example: the health is 20, a hit of 2 has that tag, and a hit of 5
 does not. The order "2, then 5" gives 15. The order "5, then 2" gives 13. The tag is empty in the
 corpus, so only a data pack makes this case.
+
+**DMG-ORD-004** A hit of a command, for example of `damage` or `kill`, applies when the command
+runs (`command-damage.md`, CMD-DMG-003; `command-kill.md`, CMD-KILL-006). A later command sees the
+hit. The source of the command sets its place in the tick:
+
+| Source of the command | When the command runs | First entity pass that sees the hit |
+|-----------------------|-----------------------|-------------------------------------|
+| a client | in the packet phase, in the order of its packet (PHY-ORD-018) | the pass of the same tick |
+| the server console, the remote console | in the packet phase, before the packets of the clients, in the order of arrival | the pass of the same tick |
+| a function of the tag `#minecraft:tick` | after the packet phase, before the dimensions tick | the pass of the same tick |
+| a function that `schedule` starts | in the time step of the overworld (PHY-ORD-010 step 3) | the pass of the same tick |
+| a command block | in the scheduled block ticks of its dimension (PHY-ORD-010 step 3) | the pass of the same tick |
+
+Thus a mob that a hit of a command knocks back moves in the first entity pass after the command.
+The update after that pass sends the velocity after the travel step of the mob (DMG-NET-004). The
+base entity tick of that pass decreases the hurt time and the damage cooldown (DMG-HIT-006).
+
+The reference runs a command of the server console at the end of a tick, after the server part of
+the players. Between that place and the packet phase of the next tick, no entity ticks and only
+commands run.
+An observer also does not know when a console command arrives relative to the tick. Thus the two
+places give the same result to an observer. In both, the mob moves in the next entity pass after
+the command runs.
+
+A user of the library can change or cancel each hit of a command before it applies. The user gets
+the hits of one command at a time, in the order of the commands.
+
+Provenance: `source_suggested`; `design` for the change of a hit by a user of the library and for
+the order of a command of a client (PHY-DEV-015). Kind: semantic. Confidence: medium.
 
 ## 12. Out of scope
 

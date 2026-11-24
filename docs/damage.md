@@ -75,28 +75,32 @@ The kernel reads no registry and no world. A custom damage type from a data pack
 `DamageSet` is a chain of four sets in `FixedUpdate`. The chain runs at two apply points
 (ATK-ORD-002), and `DamagePoint` names them:
 
-- `Packets`: after the packet handlers in `TickSet::ClientInput`, before `tick_vitals` and the
-  motion pass. It takes the hits that the packet handlers wrote in this tick: the attack and its
-  sweep hits. The knockback of these hits is written before the motion pass, so the target moves by
-  it in the same tick (ATK-KB-005). The velocity packet of a target player goes here (ATK-KB-004).
+- `Packets`: in the packet phase, in `TickSet::ClientInput`. The packet phase is one serial loop
+  over the client packets of the tick, in the order of PHY-ORD-018. After a handler that wrote
+  requests, the loop runs the chain for those requests, before it handles the next packet. `Filter`
+  thus sees the requests of one packet: an attack and its sweep hits, or the hits of one command
+  (DMG-ORD-004). The next packet reads `Vitals`, `HitRecord` and the velocity after these hits
+  (ATK-ORD-004). The knockback is written before the motion pass, so the target moves by it in the
+  same tick (ATK-KB-005). The velocity packet of a target player goes here (ATK-KB-004). A packet
+  that writes no request runs no chain. Cost: one run of the chain for each packet with a hit.
 - `Pass`: in `TickSet::WorldWrite`, after the motion pass. It takes the hits of the entities of the
-  pass, the own hits of DMG-ORD-002 and a late write from another cell.
+  pass, the own hits of DMG-ORD-002 and a late write from another cell. `Filter` sees them as one
+  batch.
 
 1. `Collect`. Each source appends a `DamageRequest { target: Entity, hit: Hit, writer: WriterKey,
    tick: u64, sequence: u32 }` to `PendingHits`. `tick` is the write tick and `sequence` the order of
    the writes of one writer to one target in that tick. A write from another cell keeps both values. The motion step appends the own hits of an entity (step action, inside
    actions, freezing, fall, crowd; DMG-ORD-002) through a per-thread queue. The system that fills `Defence` runs here again, after the changes of the pass.
 2. `Filter`. A user system takes `ResMut<PendingHits>`. It changes an amount or removes a request.
-   It runs before `Apply` of each apply point. The engine adds no system to this set. A mutable
-   queue, not an observer: the order is stable, the hits of an apply point are one batch, and no
+   It runs before each `Apply`. The engine adds no system to this set. A mutable queue, not an
+   observer: the order is stable, the hits of one packet or of the pass are one batch, and no
    dispatch runs for each hit.
 3. `Apply`. `apply_hits` sorts the queue by (`EntityUuid` of the target, `WriterKey`, write tick,
    sequence). It calls `hurt` for each request. It writes `Vitals` only on a real change. The
    attack writes its sweep hits (ATK-SWP-002) in `Collect`, together with the primary hit, and
-   `Filter` sees them as other requests. Each sweep hit names its primary hit. `apply_hits` holds
-   the sweep hits back from the sorted queue. After the last request of the queue, it applies the
-   sweep hits of each accepted primary hit, in the order of PHY-CMP-015 (ATK-ORD-003). It drops
-   the sweep hits of a rejected primary hit.
+   `Filter` sees them as other requests. Each sweep hit names its primary hit. `apply_hits` applies
+   the primary hit first. When it is accepted, `apply_hits` then applies its sweep hits, in the
+   order of PHY-CMP-015 (ATK-ORD-003). It drops the sweep hits of a rejected primary hit.
 4. `Report`. `apply_hits` has written one `Damaged { target, source, report }` for each accepted hit
    and one `Died { target, position, source }` for each death. `position` is the position of the
    target (DMG-DTH-002). Consumers run here.
@@ -108,7 +112,11 @@ population.
 Rules:
 
 - Two apply points exist in each tick for the hits of other entities: `Packets` and `Pass`. A hit
-  that is written before the `Apply` of a point applies there, in the same tick.
+  of a client packet applies before the next packet. A hit of the pass applies in `Pass`, in the
+  same tick.
+- Every action of a client packet takes effect in the order of PHY-ORD-018, not only a hit. A
+  handler of one packet kind must not run for all packets of that kind before the packets of
+  another kind.
 - Every hit source, also a hit of the base entity tick, writes a request to `PendingHits`. No source
   calls `hurt` directly.
 - The hits of the base entity tick are the exception to the two apply points. They apply at their
