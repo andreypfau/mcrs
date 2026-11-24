@@ -5,7 +5,6 @@ use crate::{
     time, whitelist,
 };
 use bevy_app::{App, Plugin};
-use bevy_ecs::system::IntoSystem;
 use core::fmt::Display;
 use mcrs_minecraft_command_engine::{AppCommandsExt, Worlds};
 use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuilders;
@@ -39,10 +38,7 @@ impl Plugin for VanillaCommandsPlugin {
             "attribute",
             app.add_command(attribute::build, attribute::run),
         );
-        report(
-            "data",
-            app.add_command(data::build, data::find.pipe(data::read).pipe(data::reply)),
-        );
+        report("data", app.add_command(data::build, data::run));
         report("time", app.add_command(time::build, time::run));
         report("ban", app.add_command(ban::build, ban::run));
         report("op", app.add_command(op::build, op::run));

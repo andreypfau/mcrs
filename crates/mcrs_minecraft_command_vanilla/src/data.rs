@@ -12,7 +12,7 @@ use mcrs_minecraft_command_argument::{BlockPosArgument, block_floor};
 use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_argument_vanilla::{NbtPathArgument, NbtPathValue, VanillaArgument};
 use mcrs_minecraft_command_engine::{
-    Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback, Invocation,
+    Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback,
 };
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::save_player;
@@ -46,26 +46,9 @@ pub(crate) enum Holder {
     Block([i32; 3]),
 }
 
-pub(crate) struct DataQuery {
-    invocation: Invocation,
+struct Found {
     holder: Holder,
-    path: Option<NbtPathValue>,
-    scale: Option<f64>,
-}
-
-pub(crate) enum Subject {
-    Player(Entity),
-    Saved(NbtCompound),
-}
-
-pub(crate) struct Found {
-    query: DataQuery,
-    subject: Subject,
-}
-
-pub(crate) struct Read {
-    query: DataQuery,
-    data: NbtTag,
+    data: NbtCompound,
 }
 
 pub(crate) fn build(
@@ -105,56 +88,77 @@ fn arguments<T: Copy + Into<VanillaArgument>>(
     })
 }
 
-pub(crate) fn find(
+pub(crate) fn run(
     In(call): In<Call<Form, DataCommand>>,
     context: VanillaContext,
     dimension: DimensionView,
     mut found: Local<SelectionBuffers>,
-) -> Result<Found, CommandFailure> {
-    match call.branch {
-        Form::Entity => find_entity(&call, &context, &mut found),
-        Form::Block => find_block(&call, &context, &dimension),
-    }
-}
-
-fn data_query<T>(
-    call: &Call<Form, DataCommand>,
-    context: &VanillaContext,
-    arguments: Arguments<T>,
-    holder: Holder,
-) -> Result<DataQuery, CommandFailure> {
-    Ok(DataQuery {
-        invocation: call.invocation.clone(),
-        holder,
-        path: context.opt(&call.invocation, arguments.path)?,
-        scale: context.opt(&call.invocation, arguments.scale)?,
-    })
+    mut access: ParamSet<(&World, CommandOutput)>,
+) -> CommandResult {
+    let (Found { holder, data }, path, scale) = match call.branch {
+        Form::Entity => {
+            let arguments = call.command.entity;
+            let found = find_entity(&call, &context, &mut found, access.p0())?;
+            (found, arguments.path, arguments.scale)
+        }
+        Form::Block => {
+            let arguments = call.command.block;
+            let found = find_block(&call, &context, &dimension)?;
+            (found, arguments.path, arguments.scale)
+        }
+    };
+    let path = context.opt(&call.invocation, path)?;
+    let scale = context.opt(&call.invocation, scale)?;
+    let invocation = &call.invocation;
+    let data = NbtTag::Compound(data);
+    let mut output = access.p1();
+    let Some(path) = path else {
+        output.success(invocation, holder.query(&data), Feedback::Source);
+        return Ok(1);
+    };
+    let value = single_value(&data, &path)?;
+    let Some(scale) = scale else {
+        output.success(invocation, holder.query(&value), Feedback::Source);
+        return Ok(result_of(&value));
+    };
+    let number = Number::of(&value).ok_or_else(|| {
+        CommandFailure::translate("commands.data.get.invalid", vec![path.text.clone().into()])
+    })?;
+    let result = floor_to_int(number.to_f64() * scale);
+    output.success(
+        invocation,
+        holder.get(path.text, scale_text(scale), result),
+        Feedback::Source,
+    );
+    Ok(result)
 }
 
 fn find_entity(
     call: &Call<Form, DataCommand>,
     context: &VanillaContext,
     found: &mut SelectionBuffers,
+    world: &World,
 ) -> Result<Found, CommandFailure> {
-    let arguments = call.command.entity;
     found.with(|targets| {
-        select(context, &call.invocation, arguments.target, targets)?;
+        select(
+            context,
+            &call.invocation,
+            call.command.entity.target,
+            targets,
+        )?;
         let target = targets
             .first()
             .ok_or_else(|| CommandFailure::translate("argument.entity.notfound.entity", vec![]))?;
-        let subject = match target {
+        let data = match target {
             EntityView::Player(player) => {
-                Subject::Player(player.entity.ok_or_else(CommandFailure::failed)?)
+                player_data(world, player.entity.ok_or_else(CommandFailure::failed)?)?
             }
-            EntityView::Mob { view, .. } => Subject::Saved(mob_data(view)),
+            EntityView::Mob { view, .. } => mob_data(view),
         };
-        let query = data_query(
-            call,
-            context,
-            arguments,
-            Holder::Entity(target.display_name()),
-        )?;
-        Ok(Found { query, subject })
+        Ok(Found {
+            holder: Holder::Entity(target.display_name()),
+            data,
+        })
     })
 }
 
@@ -163,11 +167,10 @@ fn find_block(
     context: &VanillaContext,
     dimension: &DimensionView,
 ) -> Result<Found, CommandFailure> {
-    let arguments = call.command.block;
     let source = context.source(&call.invocation)?;
     let pos = block_floor(
         context
-            .arg(&call.invocation, arguments.target)?
+            .arg(&call.invocation, call.command.block.target)?
             .position(&source),
     );
     dimension.readable(pos)?;
@@ -178,58 +181,10 @@ fn find_block(
         tracing::error!("the data of a block entity was not captured: {error}");
         CommandFailure::failed()
     })?;
-    let query = data_query(call, context, arguments, Holder::Block(pos))?;
     Ok(Found {
-        query,
-        subject: Subject::Saved(data),
+        holder: Holder::Block(pos),
+        data,
     })
-}
-
-pub(crate) fn read(
-    In(found): In<Result<Found, CommandFailure>>,
-    world: &mut World,
-) -> Result<Read, CommandFailure> {
-    let Found { query, subject } = found?;
-    let data = match subject {
-        Subject::Player(player) => player_data(world, player)?,
-        Subject::Saved(data) => data,
-    };
-    Ok(Read {
-        query,
-        data: NbtTag::Compound(data),
-    })
-}
-
-pub(crate) fn reply(
-    In(read): In<Result<Read, CommandFailure>>,
-    mut output: CommandOutput,
-) -> CommandResult {
-    let Read { query, data } = read?;
-    let DataQuery {
-        invocation,
-        holder,
-        path,
-        scale,
-    } = query;
-    let Some(path) = path else {
-        output.success(&invocation, holder.query(&data), Feedback::Source);
-        return Ok(1);
-    };
-    let value = single_value(&data, &path)?;
-    let Some(scale) = scale else {
-        output.success(&invocation, holder.query(&value), Feedback::Source);
-        return Ok(result_of(&value));
-    };
-    let number = Number::of(&value).ok_or_else(|| {
-        CommandFailure::translate("commands.data.get.invalid", vec![path.text.clone().into()])
-    })?;
-    let result = floor_to_int(number.to_f64() * scale);
-    output.success(
-        &invocation,
-        holder.get(path.text, scale_text(scale), result),
-        Feedback::Source,
-    );
-    Ok(result)
 }
 
 impl Holder {
@@ -265,7 +220,7 @@ impl Holder {
     }
 }
 
-fn player_data(world: &mut World, player: Entity) -> Result<NbtCompound, CommandFailure> {
+fn player_data(world: &World, player: Entity) -> Result<NbtCompound, CommandFailure> {
     let mut data = save_player(world, player, CaptureCause::Autosave)
         .map_err(|error| {
             tracing::error!("the data of a player was not captured: {error}");
