@@ -2,7 +2,7 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{Transform as PhysicsTransform, Velocity};
 use mcrs_minecraft_entity_visual::SyncedData;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_physics::{
     BlockAction, Keys, NoBodies, Orientation, PlayerFacts, PlayerInput, Scratch, Side, View,
     tick_player,
@@ -11,7 +11,6 @@ use mcrs_minecraft_physics::{
 use crate::collision_tables::ClientPhysicsTables;
 use crate::collision_view::ClientBlocks;
 use crate::columns::ColumnStore;
-use crate::game_mode::LocalGameMode;
 use crate::local_motion::LocalMotion;
 use crate::local_player::Sprint;
 use crate::movement_input::MovementInput;
@@ -36,7 +35,7 @@ pub(crate) fn walk(
             &mut PhysicsTransform,
             &mut Velocity,
             &mut Sprint,
-            Option<&LocalGameMode>,
+            Option<&PlayerGameMode>,
             &SyncedData,
         ),
         With<Player>,
@@ -50,7 +49,7 @@ pub(crate) fn walk(
         keys: keys(input.or(scripted.movement)),
         rotation: Orientation::facing(transform.rotation.yaw(), transform.rotation.pitch()),
         facts: PlayerFacts {
-            spectator: game_mode.is_some_and(|mode| mode.current == GameMode::Spectator),
+            spectator: game_mode.is_some_and(|mode| mode.0 == GameMode::Spectator),
             sleeping: synced.sleeping_position.is_some(),
             fall_flying: synced.is_fall_flying(),
             spin_attack: synced.is_spin_attacking(),

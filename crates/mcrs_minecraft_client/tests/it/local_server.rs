@@ -7,9 +7,11 @@ use mcrs_minecraft_client::test_support::{joined, open, update_until};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::session::{LocalServer, LocalServerError, LocalServerStopped};
 use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_game_mode::{PlayerGameMode, PreviousGameMode};
 use mcrs_minecraft_item::inventory::slots;
 use mcrs_minecraft_network::client::LeaveRequest;
 use mcrs_minecraft_save::SaveLock;
+use mcrs_minecraft_server_settings::ServerSettings;
 
 use crate::local_world::{client, world_folder};
 use crate::stacks::stack_at;
@@ -75,7 +77,7 @@ fn leaving_a_local_world_restores_the_title_world() {
 }
 
 #[test]
-fn a_new_local_player_joins_with_the_first_slot_selected_and_an_empty_hotbar() {
+fn a_new_local_player_joins_with_the_server_default_mode_the_first_slot_and_an_empty_hotbar() {
     let folder = world_folder("selection");
     let mut app = client();
     open(&mut app, &folder);
@@ -90,6 +92,14 @@ fn a_new_local_player_joins_with_the_first_slot_selected_and_an_empty_hotbar() {
         .single(app.world())
         .expect("one local player");
     assert_eq!(app.world().get::<Selected>(player), Some(&Selected(0)));
+    assert_eq!(
+        app.world().get::<PlayerGameMode>(player),
+        Some(&PlayerGameMode(ServerSettings::default().default_game_mode))
+    );
+    assert_eq!(
+        app.world().get::<PreviousGameMode>(player),
+        Some(&PreviousGameMode(None))
+    );
     for index in slots::HOTBAR {
         assert_eq!(stack_at(app.world(), player, index), None, "slot {index}");
     }

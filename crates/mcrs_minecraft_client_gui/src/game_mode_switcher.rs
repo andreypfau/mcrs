@@ -1,7 +1,7 @@
 use bevy::math::IVec2;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode, PreviousGameMode};
 use mcrs_minecraft_item_icon::Overlays;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::Count;
@@ -22,7 +22,7 @@ use crate::item_icons::ItemIcons;
 use crate::language::ClientLanguage;
 use crate::scene::{GuiAtlas, GuiScene, sprite};
 use mcrs_minecraft_client_world::chat::ChatMessage;
-use mcrs_minecraft_client_world::game_mode::{LocalGameMode, PermissionLevel};
+use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 
@@ -54,30 +54,29 @@ pub fn next(mode: GameMode) -> GameMode {
     ICONS.get((at + 1) % ICONS.len()).copied().unwrap_or(mode)
 }
 
-pub fn default_selected(mode: &LocalGameMode) -> GameMode {
-    mode.previous
-        .unwrap_or(if mode.current == GameMode::Creative {
-            GameMode::Survival
-        } else {
-            GameMode::Creative
-        })
+pub fn default_selected(current: GameMode, previous: Option<GameMode>) -> GameMode {
+    previous.unwrap_or(if current == GameMode::Creative {
+        GameMode::Survival
+    } else {
+        GameMode::Creative
+    })
 }
 
 pub fn open_on(
-    mode: Option<&LocalGameMode>,
+    mode: Option<(&PlayerGameMode, &PreviousGameMode)>,
     permission: Option<&PermissionLevel>,
 ) -> Option<GameMode> {
-    let mode = mode?;
-    (*permission? >= PermissionLevel::GAMEMASTERS).then(|| default_selected(mode))
+    let (current, previous) = mode?;
+    (*permission? >= PermissionLevel::GAMEMASTERS).then(|| default_selected(current.0, previous.0))
 }
 
 pub fn mode_to_send(
     selected: GameMode,
-    mode: Option<&LocalGameMode>,
+    mode: Option<&PlayerGameMode>,
     permission: Option<&PermissionLevel>,
 ) -> Option<GameMode> {
     let mode = mode?;
-    (selected != mode.current && *permission? >= PermissionLevel::GAMEMASTERS).then_some(selected)
+    (selected != mode.0 && *permission? >= PermissionLevel::GAMEMASTERS).then_some(selected)
 }
 
 fn debug_feedback(key: &'static str) -> Text {
@@ -109,7 +108,13 @@ fn switch_game_mode(
     keys: Res<ButtonInput<KeyCode>>,
     mut screen: ResMut<Screen>,
     mut modifier: ResMut<DebugModifier>,
-    player: Query<(Option<&LocalGameMode>, Option<&PermissionLevel>), With<Player>>,
+    player: Query<
+        (
+            Option<(&PlayerGameMode, &PreviousGameMode)>,
+            Option<&PermissionLevel>,
+        ),
+        With<Player>,
+    >,
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
     connection: Option<Single<&mut ClientConnection>>,
     mut chat: MessageWriter<ChatMessage>,
@@ -120,7 +125,8 @@ fn switch_game_mode(
     match *screen {
         Screen::GameModeSwitcher(selected) => {
             if keys.just_released(MODIFIER) {
-                if let Some(send) = mode_to_send(selected, mode, permission)
+                if let Some(send) =
+                    mode_to_send(selected, mode.map(|(current, _)| current), permission)
                     && let Some(mut connection) = connection
                 {
                     connection.write_packet(&ServerboundChangeGameMode { mode: send });
@@ -258,10 +264,8 @@ mod tests {
             );
         app.world_mut().spawn((
             Player,
-            LocalGameMode {
-                current: GameMode::Survival,
-                previous: None,
-            },
+            PlayerGameMode(GameMode::Survival),
+            PreviousGameMode(None),
             PermissionLevel(permission),
         ));
         app.world_mut().spawn((
@@ -437,26 +441,26 @@ mod tests {
         }
     }
 
-    fn mode(current: GameMode, previous: Option<GameMode>) -> LocalGameMode {
-        LocalGameMode { current, previous }
+    fn mode(current: GameMode, previous: Option<GameMode>) -> (PlayerGameMode, PreviousGameMode) {
+        (PlayerGameMode(current), PreviousGameMode(previous))
     }
 
     #[test]
     fn the_switcher_opens_on_the_previous_mode() {
         assert_eq!(
-            default_selected(&mode(GameMode::Survival, Some(GameMode::Spectator))),
+            default_selected(GameMode::Survival, Some(GameMode::Spectator)),
             GameMode::Spectator
         );
         assert_eq!(
-            default_selected(&mode(GameMode::Creative, None)),
+            default_selected(GameMode::Creative, None),
             GameMode::Survival
         );
         assert_eq!(
-            default_selected(&mode(GameMode::Survival, None)),
+            default_selected(GameMode::Survival, None),
             GameMode::Creative
         );
         assert_eq!(
-            default_selected(&mode(GameMode::Spectator, None)),
+            default_selected(GameMode::Spectator, None),
             GameMode::Creative
         );
     }
@@ -465,14 +469,20 @@ mod tests {
     fn opening_needs_a_joined_game_master() {
         let survival = mode(GameMode::Survival, None);
         assert_eq!(open_on(None, Some(&PermissionLevel(4))), None);
-        assert_eq!(open_on(Some(&survival), None), None);
-        assert_eq!(open_on(Some(&survival), Some(&PermissionLevel(1))), None);
+        assert_eq!(open_on(Some((&survival.0, &survival.1)), None), None);
         assert_eq!(
-            open_on(Some(&survival), Some(&PermissionLevel::GAMEMASTERS)),
+            open_on(Some((&survival.0, &survival.1)), Some(&PermissionLevel(1))),
+            None
+        );
+        assert_eq!(
+            open_on(
+                Some((&survival.0, &survival.1)),
+                Some(&PermissionLevel::GAMEMASTERS)
+            ),
             Some(GameMode::Creative)
         );
         assert_eq!(
-            open_on(Some(&survival), Some(&PermissionLevel(4))),
+            open_on(Some((&survival.0, &survival.1)), Some(&PermissionLevel(4))),
             Some(GameMode::Creative)
         );
     }
@@ -482,17 +492,17 @@ mod tests {
         let creative = mode(GameMode::Creative, Some(GameMode::Survival));
         let op = PermissionLevel::GAMEMASTERS;
         assert_eq!(
-            mode_to_send(GameMode::Creative, Some(&creative), Some(&op)),
+            mode_to_send(GameMode::Creative, Some(&creative.0), Some(&op)),
             None
         );
         assert_eq!(
-            mode_to_send(GameMode::Spectator, Some(&creative), Some(&op)),
+            mode_to_send(GameMode::Spectator, Some(&creative.0), Some(&op)),
             Some(GameMode::Spectator)
         );
         assert_eq!(
             mode_to_send(
                 GameMode::Spectator,
-                Some(&creative),
+                Some(&creative.0),
                 Some(&PermissionLevel(1))
             ),
             None
