@@ -1,5 +1,3 @@
-use bevy_ecs::prelude::Component;
-
 pub mod slots {
     use std::ops::Range;
 
@@ -54,9 +52,6 @@ pub mod slots {
 }
 
 pub const LAST_HOTBAR_SLOT: u8 = (slots::HOTBAR.end - slots::HOTBAR.start - 1) as u8;
-
-#[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SelectedHotbarSlot(pub u8);
 
 #[cfg(test)]
 mod tests {

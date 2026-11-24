@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_inventory_client::InventoryClientSet;
-use mcrs_minecraft_item::{LAST_HOTBAR_SLOT, SelectedHotbarSlot};
+use mcrs_minecraft_item::LAST_HOTBAR_SLOT;
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
+use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundSetHeldSlot};
@@ -26,40 +26,31 @@ impl Plugin for HotbarSyncPlugin {
             .add_observer(on_set_held_slot)
             .add_systems(
                 FixedUpdate,
-                (
-                    send_selected_slot
-                        .in_set(SendSelectedSlot)
-                        .before(LocalPlayerTick)
-                        .run_if(any_with_component::<ClientConnection>),
-                    project_selected,
-                )
-                    .before(InventoryClientSet::Predict),
-            )
-            .add_systems(
-                Update,
-                project_selected
-                    .after(ClientNetworkSystems::Receive)
-                    .before(InventoryClientSet::Predict),
+                send_selected_slot
+                    .in_set(SendSelectedSlot)
+                    .before(LocalPlayerTick)
+                    .before(InventoryClientSet::Predict)
+                    .run_if(any_with_component::<ClientConnection>),
             );
     }
 }
 
 fn on_login(
     event: On<Received<ClientboundLogin>>,
-    mut player: Query<(&mut SelectedHotbarSlot, &mut LastSentHotbarSlot), With<Player>>,
+    mut player: Query<(&mut Selected, &mut LastSentHotbarSlot), With<Player>>,
 ) {
     if event.packet().is_none() {
         return;
     }
     if let Ok((mut selected, mut last_sent)) = player.single_mut() {
-        selected.set_if_neq(SelectedHotbarSlot(0));
+        selected.set_if_neq(Selected(0));
         last_sent.set_if_neq(LastSentHotbarSlot(0));
     }
 }
 
 fn on_set_held_slot(
     event: On<Received<ClientboundSetHeldSlot>>,
-    mut player: Query<&mut SelectedHotbarSlot, With<Player>>,
+    mut player: Query<&mut Selected, With<Player>>,
 ) {
     let Some(packet) = event.packet() else {
         return;
@@ -71,12 +62,12 @@ fn on_set_held_slot(
         return;
     };
     if let Ok(mut selected) = player.single_mut() {
-        selected.set_if_neq(SelectedHotbarSlot(slot));
+        selected.set_if_neq(Selected(slot));
     }
 }
 
 fn send_selected_slot(
-    player: Single<(&SelectedHotbarSlot, &mut LastSentHotbarSlot), With<Player>>,
+    player: Single<(&Selected, &mut LastSentHotbarSlot), With<Player>>,
     connection: Single<(&mut ClientConnection, &ConnectionState)>,
 ) {
     let (mut connection, state) = connection.into_inner();
@@ -93,15 +84,6 @@ fn send_selected_slot(
     last_sent.set_if_neq(LastSentHotbarSlot(selected.0));
 }
 
-fn project_selected(
-    mut players: Populated<(Entity, &SelectedHotbarSlot), Changed<SelectedHotbarSlot>>,
-    mut commands: Commands,
-) {
-    for (player, slot) in &mut players {
-        commands.entity(player).try_insert(Selected(slot.0));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,7 +95,7 @@ mod tests {
     fn slots(session: &TestSession) -> (u8, u8) {
         let world = session.app.world();
         (
-            world.get::<SelectedHotbarSlot>(session.player).unwrap().0,
+            world.get::<Selected>(session.player).unwrap().0,
             world.get::<LastSentHotbarSlot>(session.player).unwrap().0,
         )
     }

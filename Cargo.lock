@@ -4467,6 +4467,7 @@ dependencies = [
  "mcrs_minecraft_chat_client",
  "mcrs_minecraft_client_world",
  "mcrs_minecraft_damage",
+ "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_entity_visual",
