@@ -49,6 +49,8 @@ pub(crate) enum Holder {
 struct Found {
     holder: Holder,
     data: NbtCompound,
+    path: Option<NbtPathValue>,
+    scale: Option<f64>,
 }
 
 pub(crate) fn build(
@@ -95,20 +97,15 @@ pub(crate) fn run(
     mut found: Local<SelectionBuffers>,
     mut access: ParamSet<(&World, CommandOutput)>,
 ) -> CommandResult {
-    let (Found { holder, data }, path, scale) = match call.branch {
-        Form::Entity => {
-            let arguments = call.command.entity;
-            let found = find_entity(&call, &context, &mut found, access.p0())?;
-            (found, arguments.path, arguments.scale)
-        }
-        Form::Block => {
-            let arguments = call.command.block;
-            let found = find_block(&call, &context, &dimension)?;
-            (found, arguments.path, arguments.scale)
-        }
+    let Found {
+        holder,
+        data,
+        path,
+        scale,
+    } = match call.branch {
+        Form::Entity => find_entity(&call, &context, &mut found, access.p0())?,
+        Form::Block => find_block(&call, &context, &dimension)?,
     };
-    let path = context.opt(&call.invocation, path)?;
-    let scale = context.opt(&call.invocation, scale)?;
     let invocation = &call.invocation;
     let data = NbtTag::Compound(data);
     let mut output = access.p1();
@@ -139,16 +136,14 @@ fn find_entity(
     found: &mut SelectionBuffers,
     world: &World,
 ) -> Result<Found, CommandFailure> {
+    let arguments = call.command.entity;
     found.with(|targets| {
-        select(
-            context,
-            &call.invocation,
-            call.command.entity.target,
-            targets,
-        )?;
+        select(context, &call.invocation, arguments.target, targets)?;
         let target = targets
             .first()
             .ok_or_else(|| CommandFailure::translate("argument.entity.notfound.entity", vec![]))?;
+        let path = context.opt(&call.invocation, arguments.path)?;
+        let scale = context.opt(&call.invocation, arguments.scale)?;
         let data = match target {
             EntityView::Player(player) => {
                 player_data(world, player.entity.ok_or_else(CommandFailure::failed)?)?
@@ -158,6 +153,8 @@ fn find_entity(
         Ok(Found {
             holder: Holder::Entity(target.display_name()),
             data,
+            path,
+            scale,
         })
     })
 }
@@ -184,6 +181,8 @@ fn find_block(
     Ok(Found {
         holder: Holder::Block(pos),
         data,
+        path: context.opt(&call.invocation, call.command.block.path)?,
+        scale: context.opt(&call.invocation, call.command.block.scale)?,
     })
 }
 
