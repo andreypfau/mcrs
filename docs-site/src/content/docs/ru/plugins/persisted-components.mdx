@@ -59,7 +59,7 @@ import Example from '~/components/Example.astro';
 
 ## Тест, что компонент возвращается
 
-Тест может работать с реестром напрямую. Он применяет `PersistedSnapshot` с вашим ключом, как сервер поступает с прочитанным файлом игрока. Потом переводит игрока и снова снимает снапшот в новом мире. Так устроен тест инвентаря игрока в репозитории. Он добавляет `ItemPersistencePlugin` из `mcrs_minecraft_engine_item` и `PlayerItemFilePlugin` из `mcrs_minecraft_vanilla_inventory`, который регистрирует инвентарь, эндер-сундук, выбранный слот хотбара и надетую экипировку:[^pr744]
+Тест может работать с реестром напрямую. Он применяет `PersistedSnapshot` с вашим ключом, как сервер поступает с прочитанным файлом игрока. Потом переводит игрока и снова снимает снапшот в новом мире. Так устроен тест инвентаря игрока в репозитории. Он добавляет `ItemPersistencePlugin` из `mcrs_minecraft_engine_item` и `InventoryPersistencePlugin` из `mcrs_minecraft_vanilla_inventory`, который регистрирует инвентарь, эндер-сундук, выбранный слот хотбара и надетую экипировку:[^pr744]
 
 <Example file="crates/mcrs_minecraft_server/tests/it/persistence.rs" from={"#[test]\nfn an_inventory_crosses_a_dimension_change"} title="Тест: инвентарь переживает смену измерения" />
 

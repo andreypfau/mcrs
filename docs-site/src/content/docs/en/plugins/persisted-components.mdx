@@ -85,7 +85,7 @@ The test moves a player from the overworld to the End and then lets the player l
 
 ## Test that the component comes back
 
-A test can drive the registry directly. It applies a `PersistedSnapshot` that holds your key, which is what the server does with a player file it has read. Then it moves the player and captures the snapshot again in the new world. The repository test of the player inventory works this way. It adds `ItemPersistencePlugin` of `mcrs_minecraft_engine_item` and `PlayerItemFilePlugin` of `mcrs_minecraft_vanilla_inventory`, which registers the inventory, the ender chest, the selected hotbar slot and the worn equipment:[^pr744]
+A test can drive the registry directly. It applies a `PersistedSnapshot` that holds your key, which is what the server does with a player file it has read. Then it moves the player and captures the snapshot again in the new world. The repository test of the player inventory works this way. It adds `ItemPersistencePlugin` of `mcrs_minecraft_engine_item` and `InventoryPersistencePlugin` of `mcrs_minecraft_vanilla_inventory`, which registers the inventory, the ender chest, the selected hotbar slot and the worn equipment:[^pr744]
 
 <Example file="crates/mcrs_minecraft_server/tests/it/persistence.rs" from={"#[test]\nfn an_inventory_crosses_a_dimension_change"} title="Test: an inventory crosses a dimension change" />
 
