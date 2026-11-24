@@ -37,6 +37,7 @@ pub fn floor(y: i32, state: BlockStateId) -> TestWorld {
 }
 
 pub struct Special {
+    pub tables: Tables,
     pub types: PathTypeTable,
     states: HashMap<PathType, BlockStateId>,
 }
@@ -97,7 +98,11 @@ impl Special {
         .collect::<HashMap<_, _>>();
         let tables = Tables::new(builder.build());
         let types = table(&tables.collision, states.get(&Water).copied());
-        Self { types, states }
+        Self {
+            tables,
+            types,
+            states,
+        }
     }
     pub fn id(&self, kind: PathType) -> BlockStateId {
         self.states[&kind]
