@@ -42,13 +42,6 @@ impl CameraOrigin {
 #[extract_app(RenderApp)]
 pub struct TerrainShade(pub CardinalLight);
 
-impl TerrainShade {
-    #[must_use]
-    pub fn is_nether(self) -> bool {
-        self.0 == CardinalLight::Nether
-    }
-}
-
 pub(super) struct Frame {
     pub params: Buffer,
     pub camera: Buffer,

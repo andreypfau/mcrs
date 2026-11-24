@@ -377,13 +377,6 @@ impl NbtTag {
         }
     }
 
-    pub fn extract_bool(&self) -> Option<bool> {
-        match self {
-            NbtTag::Byte(byte) => Some(*byte != 0),
-            _ => None,
-        }
-    }
-
     pub fn extract_string(&self) -> Option<&str> {
         match self {
             NbtTag::String(string) => Some(string),

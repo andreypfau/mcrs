@@ -4,7 +4,6 @@ extern crate alloc;
 
 #[cfg(feature = "testing")]
 mod flat_ground;
-mod float;
 mod gate;
 mod look_around;
 mod look_at_player;
@@ -20,7 +19,6 @@ mod vanilla_brain;
 
 #[cfg(feature = "testing")]
 pub use flat_ground::*;
-pub use float::*;
 pub use gate::*;
 pub use look_around::*;
 pub use look_at_player::*;

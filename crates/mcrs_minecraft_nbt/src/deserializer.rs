@@ -115,11 +115,6 @@ impl<R: Read + Seek, E: NbtEncoding> NbtReadHelper<R, E> {
     }
 
     #[inline]
-    pub fn get_u16(&mut self) -> Result<u16> {
-        E::read_u16(&mut self.reader)
-    }
-
-    #[inline]
     pub fn get_i16(&mut self) -> Result<i16> {
         E::read_i16(&mut self.reader)
     }

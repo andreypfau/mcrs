@@ -60,7 +60,7 @@ mod tests {
         assert_ne!(
             lerp(1.0, first, second),
             second,
-            "the bare Mth.lerp misses the endpoint, which is why the samplers branch"
+            "the unbranched lerp misses the endpoint, which is why the samplers branch"
         );
     }
 }
