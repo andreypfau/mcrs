@@ -427,7 +427,7 @@ impl<'a> FluidField<'a> {
         y: i32,
         z: i32,
         density: f64,
-        barrier: &mut dyn FnMut(i32, i32, i32) -> f64,
+        barrier: &mut impl FnMut(i32, i32, i32) -> f64,
     ) -> Substance {
         if density > 0.0 {
             return None;
@@ -493,7 +493,7 @@ impl<'a> FluidField<'a> {
         noise: &mut Option<f64>,
         a: FluidStatus,
         b: FluidStatus,
-        barrier: &mut dyn FnMut(i32, i32, i32) -> f64,
+        barrier: &mut impl FnMut(i32, i32, i32) -> f64,
     ) -> f64 {
         let (type_a, type_b) = (a.at(y), b.at(y));
         if (type_a == self.lava && type_b == self.water)
@@ -558,7 +558,7 @@ impl<'a> FluidField<'a> {
         y: i32,
         z: i32,
         density: f64,
-        barrier: &mut dyn FnMut(i32, i32, i32) -> f64,
+        barrier: &mut impl FnMut(i32, i32, i32) -> f64,
     ) -> Substance {
         debug_assert!(density <= 0.0);
         let at = IVec3::new(x, y, z);

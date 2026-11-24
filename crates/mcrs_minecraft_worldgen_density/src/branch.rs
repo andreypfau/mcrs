@@ -147,16 +147,16 @@ pub(crate) fn build(
         }
     }
 
-    let smallest = |candidates: &mut dyn Iterator<Item = (usize, &Cone)>| -> Option<usize> {
+    fn smallest<'a>(candidates: impl Iterator<Item = (usize, &'a Cone)>) -> Option<usize> {
         candidates
             .min_by_key(|(_, cone)| cone.nodes.len())
             .map(|(c, _)| c)
-    };
+    }
     let parents: Vec<Option<usize>> = cones
         .iter()
         .enumerate()
         .map(|(c, cone)| {
-            smallest(&mut cones.iter().enumerate().filter(|&(p, parent)| {
+            smallest(cones.iter().enumerate().filter(|&(p, parent)| {
                 p != c
                     && parent.nodes.len() > cone.nodes.len()
                     && cone.nodes.iter().all(|&n| is(&parent.member, n))
@@ -167,7 +167,7 @@ pub(crate) fn build(
     for &n in column_order {
         if let Some(owner) = owner.get_mut(n as usize) {
             *owner = smallest(
-                &mut cones
+                cones
                     .iter()
                     .enumerate()
                     .filter(|(_, cone)| is(&cone.member, n)),
