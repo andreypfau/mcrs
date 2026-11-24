@@ -414,7 +414,8 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
 
 const OWN_FEATURES: [&str; 2] = ["--config", "resolver.feature-unification=\"selected\""];
 
-const WASM32_CLIENT_FEATURES: [&[&str]; 2] = [&[], &["--no-default-features"]];
+const WASM32_CLIENT_FEATURES: [&[&str]; 3] =
+    [&[], &["--no-default-features"], &["--features", "dev"]];
 
 fn wasm32(ctx: &Context) -> Outcome {
     build_for(
