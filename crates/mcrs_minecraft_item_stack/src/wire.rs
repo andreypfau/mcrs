@@ -13,7 +13,6 @@ use crate::NameTable;
 use crate::PatchEntry;
 use crate::UndecodedWireValue;
 use crate::WireError;
-use crate::check_saved_form::check_count;
 use crate::check_saved_form::check_saved_form;
 use crate::nbt_depth::STACK_LEVEL;
 use crate::nbt_depth::check_nbt_depth;
@@ -49,11 +48,7 @@ pub fn read_wire_with_length<L: NameLookup>(
     input: &mut &[u8],
     names: &L,
 ) -> Result<Option<ItemStack>, WireError> {
-    let stack = read_frame(input, names, Entries::LengthPrefixed)?;
-    if let Some(stack) = &stack {
-        check_count(stack)?;
-    }
-    Ok(stack)
+    read_frame(input, names, Entries::LengthPrefixed)
 }
 
 pub fn write_wire<L: NameLookup>(
@@ -110,7 +105,7 @@ fn read_budgeted_frame<L: NameLookup>(
     let count = u8::try_from(count)
         .ok()
         .and_then(Count::new)
-        .ok_or(WireError::CountTooLarge)?;
+        .ok_or(WireError::CountOutOfRange)?;
     let kind = u16::try_from(read_var_int(input, WireError::of_frame)?)
         .map_err(|_| WireError::UnknownItem)?;
     let item = names

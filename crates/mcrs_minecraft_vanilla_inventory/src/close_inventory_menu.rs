@@ -96,12 +96,10 @@ pub(crate) fn apply_close_moves(stacks: &mut PlayerItems, moves: &[CloseMove]) -
                 };
                 match slot {
                     None => *slot = Some(part),
-                    Some(held) => {
-                        if let Some(sum) = held.count.get().checked_add(count).and_then(Count::new)
-                        {
-                            held.count = sum;
-                        }
-                    }
+                    Some(held) => match held.count.get().checked_add(count).and_then(Count::new) {
+                        Some(sum) => held.count = sum,
+                        None => drops.push(part),
+                    },
                 }
             }
             Destination::Drop => drops.push(part),

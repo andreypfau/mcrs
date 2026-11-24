@@ -25,7 +25,7 @@ use mcrs_minecraft_engine_world::world::storage::random_ticks::{
 };
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
-use mcrs_minecraft_item::ItemStack;
+use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};

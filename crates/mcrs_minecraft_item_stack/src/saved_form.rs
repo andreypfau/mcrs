@@ -68,7 +68,6 @@ use crate::TooltipDisplay;
 use crate::Trim;
 use crate::Unbreakable;
 use crate::WireError;
-use crate::check_saved_form::MAX_COUNT;
 use crate::check_saved_form::NOT_NEGATIVE;
 use crate::check_saved_form::OMINOUS_AMPLIFIER;
 use crate::check_saved_form::POSITIVE;
@@ -717,9 +716,6 @@ impl<L: NameLookup> Walk<'_, L> {
             return Err(Fault::BadValue(self.component));
         }
         let count = stack.count.get();
-        if count > MAX_COUNT {
-            return Err(Fault::OutOfRange(self.component));
-        }
         saved_patch(
             stack,
             self.names,

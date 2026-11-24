@@ -99,7 +99,8 @@ impl<'a> WorkStack<'a> {
         self.item
             .as_deref()
             .and_then(|stack| items.effective::<MaxStackSize>(stack))
-            .and_then(|size| u8::try_from(size.0).ok())
+            .map_or(1, |size| size.0.clamp(1, i32::from(Count::MAX)))
+            .try_into()
             .unwrap_or(1)
     }
 
@@ -161,5 +162,29 @@ mod tests {
         work.set_kind(Kind(1), &items);
         let expected = ItemStack::new(Kind(1), one).set(RepairCost(2));
         assert_eq!(work.read(), Some(&expected));
+    }
+
+    #[test]
+    fn stk_cnt_007_divide_places_every_item_for_a_maximum_stack_size_above_99() {
+        let items = ItemTable::leak([Vec::new()]);
+        let one = Count::new(1).expect("a count above 0");
+        for (size, total, expected) in [
+            (200, 150, vec![99, 51]),
+            (255, 99, vec![99]),
+            (16, 40, vec![16, 16, 8]),
+            (0, 3, vec![1, 1, 1]),
+        ] {
+            let stack = ItemStack::new(Kind(0), one).set(MaxStackSize(size));
+            let mut work = WorkStack::copy(Some(&stack));
+            work.count = total;
+            let mut stacks = Vec::new();
+            work.divide(&items, &mut stacks);
+            let counts: Vec<u8> = stacks
+                .iter()
+                .flatten()
+                .map(|stack| stack.count.get())
+                .collect();
+            assert_eq!(counts, expected, "size {size}");
+        }
     }
 }

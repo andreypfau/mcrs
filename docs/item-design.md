@@ -56,14 +56,16 @@ The layer numbers are those of `AGENTS.md`.
 | `mcrs_minecraft_block_transformer` | 3, data | none | `BlockTransformer` and its keys | block predicate, sound, registries, resource |
 | `mcrs_minecraft_instrument` | 3, data | none | `Instrument<I>`, its keys and its tag keys | sound, text, resource |
 | `mcrs_minecraft_jukebox_song` | 3, data | none | `JukeboxSong<I>` and its keys | sound, text, resource |
-| `mcrs_minecraft_painting_variant` | 3, data | none | `PaintingVariant<I>`, its keys and its tag keys | text, resource |
-| `mcrs_minecraft_trim` | 3, data | none | `TrimMaterial<I>`, `TrimPattern<I>` and their keys | text, resource |
+| `mcrs_minecraft_painting_variant` | 3, data | none | `PaintingVariant<I>`, its keys and its tag keys; no crate depends on it yet | text, resource |
+| `mcrs_minecraft_trim` | 3, data | none | `TrimMaterial<I>`, `TrimPattern<I>` and their keys; no crate depends on it yet | text, resource |
 
 - Each layer 3 crate starts as `#![no_std]` with `alloc`. If a dependency forbids it, the crate
   states which one.
-- `I` is the type parameter of the text (`TextTypes` of the text crate). `mcrs_minecraft_item_stack`
-  depends on the five crates from `mcrs_minecraft_banner_pattern` to `mcrs_minecraft_trim`.
-- The protocol crates and the save crate depend on `mcrs_minecraft_item_stack` only.
+- `I` is the type parameter of the text (`TextTypes` of the text crate). The target is that
+  `mcrs_minecraft_item_stack` depends on the five crates from `mcrs_minecraft_banner_pattern` to
+  `mcrs_minecraft_trim`. Today it depends on none of them. Issue #1114 closes this gap.
+- The target is that the protocol crates depend on `mcrs_minecraft_item_stack` only.
+  `mcrs_minecraft_protocol_game` still depends on `mcrs_minecraft_item`. Issue #1114 closes this gap.
 - A proxy or a tool takes `mcrs_minecraft_item_stack` alone. A bot adds the table and the engine
   crate.
 - The network id of a stack is state of one connection in the edge. No crate of this map stores it.
@@ -258,3 +260,20 @@ An error is data. The edge renders it to text.
 
 The engine crate reads untyped columns for the merge check, the row hash and `to_value`. These
 reads use `unsafe`. Each block states its condition.
+
+# 8. Removal of the first model
+
+`mcrs_minecraft_item` still holds a first item stack model. It has the types `ItemStackValue`,
+`ItemStackWithSlot`, `ProtoStack`, `ComponentPatch` and the component types. Issue #1114 removes it
+in these steps. Each step is one pull request and ends with the old path deleted.
+
+1. Delete the old two-field `ItemStack` and its three users. Make `Count` hold 1 to 99.
+2. Make `mcrs_minecraft_item_stack` depend on the registry value crates. Replace each `Inline*`
+   type with a reference to the type of the registry crate.
+3. Move `mcrs_minecraft_protocol_game` to the wire stack of `mcrs_minecraft_item_stack`. Delete
+   `ProtoStack`, the old hashed stack and the bytes bridge between the two models.
+4. Move `mcrs_minecraft_block_entity`, `mcrs_minecraft_vanilla_inventory` and the loot tables off
+   `ItemStackValue`, `ItemStackWithSlot` and `ComponentPatch`.
+5. Delete the component types, the patch and the stack of `mcrs_minecraft_item`.
+6. Correct this note and the two inventory notes. Replace the private `ItemStack` of world
+   generation.

@@ -367,51 +367,71 @@ fn a_repeated_enchantment_on_the_wire_keeps_the_last_level() {
 }
 
 #[test]
-fn the_count_is_8_bits_and_the_length_prefixed_form_holds_at_most_99() {
+fn the_count_of_each_wire_form_follows_the_table_of_the_count_rules() {
     let empty = Err(WireError::EmptyStack);
-    let cases: [(
-        &str,
-        Result<Option<u8>, WireError>,
-        Result<Option<u8>, WireError>,
-    ); 7] = [
-        ("00", Ok(None), Ok(None)),
-        ("ffffffff0f", Ok(None), Ok(None)),
-        ("01", Ok(Some(1)), Ok(Some(1))),
-        ("63", Ok(Some(99)), Ok(Some(99))),
-        ("64", Ok(Some(100)), Err(WireError::CountOutOfRange)),
-        ("ff01", Ok(Some(255)), Err(WireError::CountOutOfRange)),
-        (
-            "8002",
-            Err(WireError::CountTooLarge),
-            Err(WireError::CountTooLarge),
-        ),
+    let over = Err(WireError::CountOutOfRange);
+    let cases: [(&str, Result<Option<u8>, WireError>); 8] = [
+        ("00", Ok(None)),
+        ("ffffffff0f", Ok(None)),
+        ("01", Ok(Some(1))),
+        ("63", Ok(Some(99))),
+        ("64", over),
+        ("ff01", over),
+        ("8002", over),
+        ("ffffffff07", over),
     ];
-    for (count, bare, prefixed) in cases {
+    for (count, expected) in cases {
         let bytes = [unhex(count), unhex("01 00 00")].concat();
         let count_of = |stack: Option<ItemStack>| stack.map(|stack| stack.count.get());
         let mut input = bytes.as_slice();
-        assert_eq!(read_wire(&mut input, &Names).map(count_of), bare, "{count}");
+        assert_eq!(
+            read_wire(&mut input, &Names).map(count_of),
+            expected,
+            "{count}"
+        );
         let mut input = bytes.as_slice();
         let read = read_wire_with_length(&mut input, &Names).map(count_of);
-        assert_eq!(read, prefixed, "{count}");
+        assert_eq!(read, expected, "{count}");
         let mut input = bytes.as_slice();
         let not_empty =
             read_wire_not_empty(&mut input, &Names).map(|stack| Some(stack.count.get()));
-        let expected = bare.and_then(|count| count.map(Some).ok_or(WireError::EmptyStack));
+        let expected = expected.and_then(|count| count.map(Some).ok_or(WireError::EmptyStack));
         assert_eq!(not_empty, expected, "{count}");
     }
 
     let mut output = vec![0xaa];
-    let over = stack(STONE, 100);
-    assert_eq!(
-        write_wire(Some(&over), &Names, &mut output),
-        Err(WireError::CountOutOfRange)
-    );
-    assert_eq!(output, [0xaa], "a failed write leaves the output as it was");
     assert_eq!(
         write_wire_not_empty(&stack(AIR, 1), &Names, &mut output),
         empty
     );
+}
+
+#[test]
+fn the_count_of_an_item_template_in_the_wire_form_is_1_to_99() {
+    let bad = Err(WireError::BadValue(BuiltinKey::BundleContents));
+    let cases: [(&str, Result<u8, WireError>); 8] = [
+        ("00", Err(WireError::EmptyStack)),
+        ("ffffffff0f", bad),
+        ("01", Ok(1)),
+        ("63", Ok(99)),
+        ("64", Err(WireError::CountOutOfRange)),
+        ("ff01", Err(WireError::CountOutOfRange)),
+        ("8002", Err(WireError::CountOutOfRange)),
+        ("ffffffff07", Err(WireError::CountOutOfRange)),
+    ];
+    for (count, expected) in cases {
+        let value = [unhex("01 01"), unhex(count), unhex("00 00")].concat();
+        let bytes = stone_with("bundle_contents", &value);
+        let read = read_all(&bytes, read_wire).map(|stack| {
+            let stack = stack.expect("a stone");
+            let Some(PatchEntry::Value(Builtin::BundleContents(contents))) = stack.patch().first()
+            else {
+                panic!("the stone holds a bundle");
+            };
+            contents.0.first().map(|template| template.count.get())
+        });
+        assert_eq!(read, expected.map(Some), "{count}");
+    }
 }
 
 fn saved(snbt: &str) -> NbtCompound {
