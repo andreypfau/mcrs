@@ -22,7 +22,6 @@ use mcrs_minecraft_item_stack::EntityTypeSet;
 use mcrs_minecraft_item_stack::Equippable;
 use mcrs_minecraft_item_stack::EquippableSlot;
 use mcrs_minecraft_item_stack::Food;
-use mcrs_minecraft_item_stack::InlineSoundEvent;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::LodestoneTracker;
@@ -61,6 +60,7 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_snbt::parse_compound;
 use mcrs_minecraft_snbt::parse_tag;
 use mcrs_minecraft_snbt::write_compound;
+use mcrs_minecraft_sound::SoundEventValue;
 use mcrs_minecraft_text::Text;
 use mcrs_voxel::BlockPos;
 use serde::Deserialize;
@@ -299,9 +299,10 @@ fn an_equippable_takes_its_defaults_and_keeps_an_empty_entity_list_apart_from_no
     let mut pig = body.clone();
     pig.allowed_entities = Some(EntityTypeSet::EntityTypes(vec![EntityTypeId(0)].into()));
     let mut snip = Equippable::new(EquippableSlot::Feet);
-    snip.shearing_sound = Some(SoundEventRef::Inline(InlineSoundEvent::new(
-        ResourceLocationBuf::read("mcrs:snip").expect("an identifier"),
-    )));
+    snip.shearing_sound = Some(SoundEventRef::Inline(SoundEventValue {
+        sound_id: ResourceLocationBuf::read("mcrs:snip").expect("an identifier"),
+        range: None,
+    }));
     let cases = [
         (
             r#"{slot:"head",dispensable:1b,swappable:1b,damage_on_hurt:1b,equip_on_interact:0b,can_be_sheared:0b}"#,

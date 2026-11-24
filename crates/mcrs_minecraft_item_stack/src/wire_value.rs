@@ -4,11 +4,15 @@ use alloc::vec::Vec;
 use core::mem;
 use core::num::NonZeroU8;
 
+use mcrs_minecraft_banner_pattern::BannerPattern;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
+use mcrs_minecraft_sound::SoundEventValue;
 use mcrs_minecraft_text::Text;
+use mcrs_minecraft_trim::TrimMaterial;
+use mcrs_minecraft_trim::TrimPattern;
 use mcrs_minecraft_wire::Decode;
 use mcrs_minecraft_wire::Encode;
 use mcrs_minecraft_wire::VarInt;
@@ -58,11 +62,7 @@ use crate::FireworkExplosion;
 use crate::FireworkShape;
 use crate::Fireworks;
 use crate::Food;
-use crate::InlineBannerPattern;
 use crate::InlineInstrument;
-use crate::InlineSoundEvent;
-use crate::InlineTrimMaterial;
-use crate::InlineTrimPattern;
 use crate::Instrument;
 use crate::InstrumentId;
 use crate::InteractAnimation;
@@ -555,11 +555,11 @@ impl<L: NameLookup> Reader<'_, L> {
 
     fn sound_event(&self, input: &mut &[u8]) -> Result<SoundEventRef, WireError> {
         let Some(id) = self.registry_form(input, NameTable::SoundEvent)? else {
-            let mut inline = InlineSoundEvent::new(self.identifier_buf(input)?);
-            inline.range = self.optional(input, |reader, input| {
+            let sound_id = self.identifier_buf(input)?;
+            let range = self.optional(input, |reader, input| {
                 Ok(f32::from_be_bytes(reader.bytes(input)?))
             })?;
-            return Ok(SoundEventRef::Inline(inline));
+            return Ok(SoundEventRef::Inline(SoundEventValue { sound_id, range }));
         };
         Ok(SoundEventRef::Reference(SoundEventId(id)))
     }
@@ -692,10 +692,10 @@ impl<L: NameLookup> Reader<'_, L> {
     fn banner_layer(&self, input: &mut &[u8]) -> Result<BannerLayer, WireError> {
         let pattern = match self.registry_form(input, NameTable::BannerPattern)? {
             Some(id) => RegistryValue::Reference(BannerPatternId(id)),
-            None => RegistryValue::Inline(InlineBannerPattern::new(
-                self.identifier_buf(input)?,
-                self.string(input)?,
-            )),
+            None => RegistryValue::Inline(BannerPattern {
+                asset_id: self.identifier_buf(input)?,
+                translation_key: self.string(input)?,
+            }),
         };
         Ok(BannerLayer {
             pattern,
@@ -744,21 +744,18 @@ impl<L: NameLookup> Reader<'_, L> {
     fn trim(&self, input: &mut &[u8]) -> Result<Trim, WireError> {
         let material = match self.registry_form(input, NameTable::TrimMaterial)? {
             Some(id) => RegistryValue::Reference(TrimMaterialId(id)),
-            None => RegistryValue::Inline(InlineTrimMaterial::new(
-                self.identifier_buf(input)?,
-                read_text(input, self.component)?,
-            )),
+            None => RegistryValue::Inline(TrimMaterial {
+                palette_id: self.identifier_buf(input)?,
+                description: read_text(input, self.component)?,
+            }),
         };
         let pattern = match self.registry_form(input, NameTable::TrimPattern)? {
             Some(id) => RegistryValue::Reference(TrimPatternId(id)),
-            None => {
-                let mut inline = InlineTrimPattern::new(
-                    self.identifier_buf(input)?,
-                    read_text(input, self.component)?,
-                );
-                inline.decal = self.boolean(input)?;
-                RegistryValue::Inline(inline)
-            }
+            None => RegistryValue::Inline(TrimPattern {
+                asset_id: self.identifier_buf(input)?,
+                description: read_text(input, self.component)?,
+                decal: self.boolean(input)?,
+            }),
         };
         Ok(Trim { material, pattern })
     }
@@ -1085,7 +1082,7 @@ impl<L: NameLookup> Writer<'_, L> {
             }
             SoundEventRef::Inline(inline) => {
                 put_var_int(output, INLINE_VALUE);
-                self.identifier(inline.sound_id(), output)?;
+                self.identifier(inline.sound_id.as_location(), output)?;
                 self.optional(inline.range, output, |_, range, output| {
                     output.extend_from_slice(&range.to_be_bytes());
                     Ok(())
@@ -1140,7 +1137,7 @@ impl<L: NameLookup> Writer<'_, L> {
             RegistryValue::Reference(id) => write_registry_reference(output, id.0),
             RegistryValue::Inline(material) => {
                 put_var_int(output, INLINE_VALUE);
-                self.identifier(material.palette_id(), output)?;
+                self.identifier(material.palette_id.as_location(), output)?;
                 write_text(&material.description, self.component, output)?;
             }
         }
@@ -1148,7 +1145,7 @@ impl<L: NameLookup> Writer<'_, L> {
             RegistryValue::Reference(id) => write_registry_reference(output, id.0),
             RegistryValue::Inline(pattern) => {
                 put_var_int(output, INLINE_VALUE);
-                self.identifier(pattern.asset_id(), output)?;
+                self.identifier(pattern.asset_id.as_location(), output)?;
                 write_text(&pattern.description, self.component, output)?;
                 put_boolean(output, pattern.decal);
             }
@@ -1307,7 +1304,7 @@ impl<L: NameLookup> Writer<'_, L> {
             RegistryValue::Reference(id) => write_registry_reference(output, id.0),
             RegistryValue::Inline(pattern) => {
                 put_var_int(output, INLINE_VALUE);
-                self.identifier(pattern.asset_id(), output)?;
+                self.identifier(pattern.asset_id.as_location(), output)?;
                 self.string(&pattern.translation_key, output)?;
             }
         }
