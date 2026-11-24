@@ -19,21 +19,17 @@ const CRAFT_GRID_KEY: &str = "mcrs:craft_grid";
 pub(crate) const CARRIED_KEYS: &[&str] = &[CURSOR_KEY, CRAFT_GRID_KEY];
 
 pub(crate) fn capture_carried(
-    world: &mut World,
+    world: &World,
     player: Entity,
     cause: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
     if cause != CaptureCause::CellCrossing {
         return Ok(None);
     }
-    registry_names(world).map_err(|missing| encode_error(CURSOR_KEY, missing))?;
-    let Some(items) = world
-        .run_system_cached_with(capture_holders, (player, cause))
-        .map_err(|error| encode_error(CURSOR_KEY, error))?
-    else {
+    let names = registry_names(world).map_err(|missing| encode_error(CURSOR_KEY, missing))?;
+    let Some(items) = capture_holders(world, player) else {
         return Ok(None);
     };
-    let names = registry_names(world).map_err(|missing| encode_error(CURSOR_KEY, missing))?;
     let carried = write_carried(&items, &names)?;
     Ok((!carried.is_empty()).then_some(NbtTag::Compound(carried)))
 }

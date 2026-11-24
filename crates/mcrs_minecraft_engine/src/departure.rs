@@ -78,13 +78,11 @@ impl CarriedPlayer {
         let swing = player.get::<PlayerSwing>().copied();
         let unreadable = player.contains::<UnreadablePlayerDat>();
         let (snapshot, departed_at) = player.world_scope(|world| {
-            let Some(registry) = world.remove_resource::<PersistedRegistry>() else {
+            let Some(registry) = world.get_resource::<PersistedRegistry>() else {
                 error!("player transfer has no persisted-component registry");
                 return Err(DimensionChangeError::NoArrivalState);
             };
-            let snapshot = registry.capture(world, id, cause);
-            world.insert_resource(registry);
-            let snapshot = snapshot.map_err(|err| {
+            let snapshot = registry.capture(world, id, cause).map_err(|err| {
                 error!(?id, "player transfer state not captured: {err}");
                 DimensionChangeError::NoArrivalState
             })?;

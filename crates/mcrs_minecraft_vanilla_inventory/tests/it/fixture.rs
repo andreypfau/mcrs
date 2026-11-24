@@ -111,11 +111,10 @@ pub fn apply(world: &mut World, player: Entity, snapshot: &PersistedSnapshot) {
         .expect("the snapshot applies");
 }
 
-pub fn capture(world: &mut World, player: Entity, cause: CaptureCause) -> PersistedSnapshot {
+pub fn capture(world: &World, player: Entity, cause: CaptureCause) -> PersistedSnapshot {
     world
-        .resource_scope(|world, registry: Mut<PersistedRegistry>| {
-            registry.capture(world, player, cause)
-        })
+        .resource::<PersistedRegistry>()
+        .capture(world, player, cause)
         .expect("the player captures")
 }
 
@@ -148,11 +147,10 @@ pub fn depart(world: &mut World, player: Entity, cause: CaptureCause) {
     }
 }
 
-pub fn capture_file(world: &mut World, player: Entity, cause: CaptureCause) -> PersistedSnapshot {
+pub fn capture_file(world: &World, player: Entity, cause: CaptureCause) -> PersistedSnapshot {
     world
-        .resource_scope(|world, registry: Mut<PersistedRegistry>| {
-            registry.capture_file(world, player, cause)
-        })
+        .resource::<PersistedRegistry>()
+        .capture_file(world, player, cause)
         .expect("the player captures")
 }
 

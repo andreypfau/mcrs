@@ -44,8 +44,8 @@ pub(crate) fn apply_close(
         inventory,
         selected.0,
         Some(holders),
-        &holder_slots,
-        &mut stacks,
+        |holder| holder_slots.get(holder).ok(),
+        |stack| stacks.to_value(stack),
     );
     if scope == CloseScope::OtherMenu {
         values.craft_grid = Default::default();

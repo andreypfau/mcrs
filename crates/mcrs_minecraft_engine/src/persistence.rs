@@ -149,7 +149,7 @@ impl PersistedForm<Transform> for Pose {
 }
 
 fn capture_pose(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -189,7 +189,7 @@ fn apply_pose(world: &mut World, player: Entity, tag: &NbtTag) -> Result<(), Per
 }
 
 fn capture_uuid(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -231,7 +231,7 @@ fn ticks(saved: i16) -> u8 {
 }
 
 fn capture_vitals(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -388,7 +388,7 @@ struct ReadAbilities {
 }
 
 fn capture_abilities(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -439,7 +439,7 @@ fn apply_abilities(world: &mut World, player: Entity, tag: &NbtTag) -> Result<()
 }
 
 fn capture_dimension(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -820,15 +820,14 @@ pub fn apply_join_snapshot(world: &mut World, player: Entity, snapshot: &Persist
 }
 
 pub fn save_player(
-    world: &mut World,
+    world: &World,
     player: Entity,
     cause: CaptureCause,
 ) -> Result<PlayerDat, PersistedError> {
-    let Some(registry) = world.remove_resource::<PersistedRegistry>() else {
+    let Some(registry) = world.get_resource::<PersistedRegistry>() else {
         return Err(PersistedError::NoRegistry);
     };
     let snapshot = registry.capture_file(world, player, cause);
-    world.insert_resource(registry);
     let mut root = mcrs_minecraft_nbt::compound::NbtCompound::new();
     for (key, tag) in snapshot? {
         root.put(key, tag);
@@ -842,7 +841,7 @@ pub fn save_player(
 }
 
 fn player_file(
-    world: &mut World,
+    world: &World,
     player: Entity,
     cause: CaptureCause,
 ) -> Option<(PathBuf, Uuid, PlayerDat)> {

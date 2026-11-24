@@ -23,7 +23,7 @@ use crate::cells::Cells;
 use crate::column::Column;
 use crate::item_components::ItemComponents;
 use crate::row::Row;
-use crate::row::bit;
+use crate::row::row_mask;
 
 pub(crate) struct ItemColumns<'w, 's> {
     entities: &'w Entities,
@@ -63,9 +63,7 @@ impl<'w> ItemColumns<'w, '_> {
         if let Some(Some(mask)) = self.state.masks.get(index) {
             return *mask;
         }
-        let mask = (self.state.rows.iter().enumerate())
-            .filter(|(_, row)| has(row.id()))
-            .fold(0, |mask, (index, _)| mask | bit(index));
+        let mask = row_mask(&self.state.rows, has);
         if self.state.masks.len() <= index {
             self.state.masks.resize(index + 1, None);
         }

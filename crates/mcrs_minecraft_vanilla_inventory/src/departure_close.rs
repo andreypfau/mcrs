@@ -130,8 +130,8 @@ impl DepartureClose<'_, '_> {
             slots,
             selected.map_or(0, |selected| selected.0),
             player_holders,
-            &self.holders,
-            &mut self.stacks,
+            |holder| self.holders.get(holder).ok(),
+            |stack| self.stacks.to_value(stack),
         );
         if has_carried(&values) {
             let world = self.world;

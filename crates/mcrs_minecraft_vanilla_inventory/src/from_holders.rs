@@ -1,35 +1,38 @@
-use bevy_ecs::system::Query;
+use bevy_ecs::entity::Entity;
 use mcrs_minecraft_engine_item::Slots;
-use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_inventory_file::PlayerItems;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
-pub(crate) fn from_holders(
+pub(crate) fn from_holders<'a>(
     inventory: &Slots,
     selected: u8,
     holders: Option<&PlayerHolders>,
-    holder_slots: &Query<&Slots>,
-    stacks: &mut Stacks,
+    holder_slots: impl Fn(Entity) -> Option<&'a Slots>,
+    mut stack_value: impl FnMut(Entity) -> Option<ItemStack>,
 ) -> PlayerItems {
     let mut items = PlayerItems {
         selected,
         ..PlayerItems::default()
     };
-    read_slots(stacks, inventory, &mut items.slots);
+    read_slots(&mut stack_value, inventory, &mut items.slots);
     if let Some(holders) = holders {
-        if let Ok(cursor) = holder_slots.get(holders.cursor) {
-            items.cursor = cursor.get(0).and_then(|stack| stacks.to_value(stack));
+        if let Some(cursor) = holder_slots(holders.cursor) {
+            items.cursor = cursor.get(0).and_then(&mut stack_value);
         }
-        if let Ok(craft_grid) = holder_slots.get(holders.craft_grid) {
-            read_slots(stacks, craft_grid, &mut items.craft_grid);
+        if let Some(craft_grid) = holder_slots(holders.craft_grid) {
+            read_slots(&mut stack_value, craft_grid, &mut items.craft_grid);
         }
     }
     items
 }
 
-fn read_slots(stacks: &mut Stacks, slots: &Slots, values: &mut [Option<ItemStack>]) {
+fn read_slots(
+    stack_value: &mut impl FnMut(Entity) -> Option<ItemStack>,
+    slots: &Slots,
+    values: &mut [Option<ItemStack>],
+) {
     for (value, stack) in values.iter_mut().zip(slots.iter()) {
-        *value = stack.and_then(|stack| stacks.to_value(stack));
+        *value = stack.and_then(&mut *stack_value);
     }
 }
