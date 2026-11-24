@@ -100,7 +100,7 @@ Do not set the variables in this section for normal play. They change on purpose
 | `MCRS_SCREENSHOT_DIR` | `screenshots` | Native screenshot directory, relative to the working directory unless the path is absolute. |
 | `MCRS_SCENE_DIR`, `MCRS_SCENE_RECORD` | none | Native, `scene` only. Windowless scene capture directory, and a record of the vanilla client to take entities from. |
 
-The client reads these in `crates/mcrs_minecraft_client/src/config.rs`, `dev/knobs.rs` and `scene_capture.rs`. The default native build enables `singleplayer` and `dev`.
+The client reads these in `crates/mcrs_minecraft_client/src/config.rs`, `dev/knobs.rs` and `scene_capture.rs`. The default native build enables `singleplayer`. Build with `--features dev` for the `dev` variables.
 
 ## Library configuration
 
