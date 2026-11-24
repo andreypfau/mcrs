@@ -34,7 +34,7 @@ from `Vitals`.
 | `mcrs_minecraft_damage` (`no_std`, feature `bevy` for derives only) | 3, rules | `Vitals`, `HitRecord`, `Hit`, `DamageSource`, `Defence`, `DamageTypeRules`, `HurtRules`, `HitReport`, `HitOutcome`, `hurt`, `preview`, `knockback`, `Footing`, `fall_damage` |
 | `mcrs_minecraft_engine_damage` (new) | 4 | `DamagePlugin`, `DamageSet`, `PendingHits`, `DamageRequest`, `Damaged`, `Died`, `RespawnRequest`; no vanilla behaviour |
 | `mcrs_minecraft_engine_player_vitals` (new) | 4 | `PlayerVitalsPlugin`, `DeathMessage`, `PlayerDeathSet`; gives a player `Vitals`, `HitRecord` and `Defence`; sends the health packet, the hit and death packets and the kill packet; removes a dead player from its viewers at death time 20; restores the player from a `RespawnRequest` |
-| `mcrs_minecraft_vanilla_player_attack` (new) | 5 | the attack packet becomes a `DamageRequest` and a knockback; needs #93 and #95 |
+| `mcrs_minecraft_vanilla_player_attack` (new) | 5 | the attack packet becomes a `DamageRequest` and a knockback |
 | `mcrs_minecraft_vanilla_death` (new) | 5 | death drops and death messages, two plugins |
 | `mcrs_minecraft_vanilla_respawn` (new) | 5 | the respawn packet becomes a `RespawnRequest`; the respawn position rules |
 | `mcrs_minecraft_command_vanilla` | 5 | `/damage` and `/kill` write a `DamageRequest` |
@@ -134,8 +134,8 @@ Rules:
 - The owner of a player gets the health packet when the health, the food level or the state "the
   saturation is 0" changes (DMG-NET-005), on players only. Viewers get
   the damage event from `Damaged` through the tile events, encoded once.
-- Knockback is a velocity write through the ping bracket of #93 for a player and a motion impulse
-  for a mob. `apply_hits` writes no velocity.
+- Knockback is a velocity packet for a player and an entity write for a mob. `apply_hits` writes
+  no velocity. The server does not track when a player applied its knockback yet (#93).
 
 ## 5. Use cases
 
@@ -162,7 +162,7 @@ Rules:
    crowd, `/damage` and `/kill` go through `PendingHits`. `hurt_mob` and `MobChanges::strikes` are
    deleted.
 5. PR 4, Refs #106, Closes #116: `Vitals` on a player, health packets, `Died`, death plugins,
-   respawn plugin. The player attack joins when #93 and #95 are ready; if not, it is a sixth PR.
+   respawn plugin. The player attack is a later pull request.
 6. PR 5, Closes #106: client `Vitals`, HUD, death screen, attack on the entity under the cursor.
 
 ## 7. Open points
