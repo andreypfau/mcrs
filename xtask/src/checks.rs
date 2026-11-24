@@ -51,7 +51,7 @@ const NO_STD_PACKAGES: [&str; 20] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 143] = [
+const NO_BEVY_PACKAGES: [&str; 141] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -114,7 +114,6 @@ const NO_BEVY_PACKAGES: [&str; 143] = [
     "mcrs_minecraft_game_mode",
     "mcrs_minecraft_game_rule",
     "mcrs_minecraft_heightmap",
-    "mcrs_minecraft_instrument",
     "mcrs_minecraft_inventory_click",
     "mcrs_minecraft_inventory_client_view",
     "mcrs_minecraft_inventory_file",
@@ -127,7 +126,6 @@ const NO_BEVY_PACKAGES: [&str; 143] = [
     "mcrs_minecraft_item_stack",
     "mcrs_minecraft_item_table",
     "mcrs_minecraft_item_tooltip",
-    "mcrs_minecraft_jukebox_song",
     "mcrs_minecraft_keys",
     "mcrs_minecraft_lang",
     "mcrs_minecraft_light_color",
