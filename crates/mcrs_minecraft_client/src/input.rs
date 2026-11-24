@@ -1,9 +1,10 @@
 use bevy::input::mouse::{AccumulatedMouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_item::{LAST_HOTBAR_SLOT, SelectedHotbarSlot};
+use mcrs_minecraft_item::LAST_HOTBAR_SLOT;
 
 use mcrs_minecraft_client_gui::item_key_codes;
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
@@ -148,14 +149,7 @@ fn read_wheel(
     mut sums: Local<WheelSums>,
     screen: Option<Res<Screen>>,
     window: Single<(&CursorOptions, &Window), With<PrimaryWindow>>,
-    mut player: Query<
-        (
-            &mut Abilities,
-            &mut SelectedHotbarSlot,
-            Option<&LocalGameMode>,
-        ),
-        With<Player>,
-    >,
+    mut player: Query<(&mut Abilities, &mut Selected, Option<&LocalGameMode>), With<Player>>,
 ) {
     let (cursor, window) = *window;
     let screen_open = cursor.grab_mode == CursorGrabMode::None || !screen_is_none(screen);
@@ -184,7 +178,7 @@ fn read_wheel(
             slot = slot_after(slot, -notches.horizontal);
         }
     }
-    selected.set_if_neq(SelectedHotbarSlot(slot));
+    selected.set_if_neq(Selected(slot));
     let next = Abilities {
         flying_speed: speed,
         ..*abilities
@@ -194,14 +188,7 @@ fn read_wheel(
 
 fn read_hotbar_keys(
     keys: Res<ButtonInput<KeyCode>>,
-    mut player: Query<
-        (
-            &mut SelectedHotbarSlot,
-            Option<&Abilities>,
-            Option<&LocalGameMode>,
-        ),
-        With<Player>,
-    >,
+    mut player: Query<(&mut Selected, Option<&Abilities>, Option<&LocalGameMode>), With<Player>>,
 ) {
     let Some(slot) = (0..=LAST_HOTBAR_SLOT)
         .zip(item_key_codes::HOTBAR)
@@ -220,7 +207,7 @@ fn read_hotbar_keys(
     {
         return;
     }
-    selected.set_if_neq(SelectedHotbarSlot(slot));
+    selected.set_if_neq(Selected(slot));
 }
 
 fn grab_cursor_on_click(

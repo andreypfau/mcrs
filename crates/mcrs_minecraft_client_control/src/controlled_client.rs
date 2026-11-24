@@ -24,6 +24,7 @@ use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::player_load::PlayerLoad;
 use mcrs_minecraft_client_world::scripted_input::ScriptedInput;
 use mcrs_minecraft_damage::Vitals;
+use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_world::entity::physics::OldTransform;
 use mcrs_minecraft_engine_world::entity::physics::Rotation;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -31,7 +32,6 @@ use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_visual::ClientEntity;
 use mcrs_minecraft_entity_visual::Motion;
 use mcrs_minecraft_entity_visual::dimensions;
-use mcrs_minecraft_item::SelectedHotbarSlot;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::BlockPos;
@@ -54,7 +54,7 @@ pub(crate) struct OwnPlayer {
     vitals: Option<&'static Vitals>,
     food: Option<&'static FoodLevel>,
     mode: Option<&'static LocalGameMode>,
-    slot: Option<&'static mut SelectedHotbarSlot>,
+    slot: Option<&'static mut Selected>,
     load: Option<&'static PlayerLoad>,
 }
 
@@ -268,7 +268,7 @@ impl ControlledClient<'_, '_> {
     pub(crate) fn select_slot(&mut self, slot: u8) -> Result<(), Missing> {
         let player = self.player.single_mut().map_err(|_| Missing::Player)?;
         let mut selected = player.slot.ok_or(Missing::Slot)?;
-        selected.set_if_neq(SelectedHotbarSlot(slot));
+        selected.set_if_neq(Selected(slot));
         Ok(())
     }
 

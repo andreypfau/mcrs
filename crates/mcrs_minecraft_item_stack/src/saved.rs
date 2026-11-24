@@ -114,7 +114,6 @@ use crate::TrimPatternId;
 use crate::Unbreakable;
 use crate::UndecodedValue;
 use crate::builtin_key::NAMESPACE;
-use crate::check_saved_form::MAX_COUNT;
 use crate::check_saved_form::NOT_NEGATIVE;
 use crate::check_saved_form::OMINOUS_AMPLIFIER;
 use crate::check_saved_form::POSITIVE;
@@ -180,7 +179,6 @@ fn read_stack<L: NameLookup>(
     };
     let count = u8::try_from(count)
         .ok()
-        .filter(|count| *count <= MAX_COUNT)
         .and_then(Count::new)
         .ok_or(SavedError::BadCount)?;
     let mut stack = ItemStack::new(kind, count);
@@ -208,9 +206,6 @@ pub fn write_saved<L: NameLookup>(stack: &ItemStack, names: &L) -> Result<NbtCom
         return Err(SavedError::AirItem);
     }
     let count = stack.count.get();
-    if count > MAX_COUNT {
-        return Err(SavedError::BadCount);
-    }
     check_nbt_depth(stack, names).map_err(Fault::into_saved)?;
     let mut saved = NbtCompound::new();
     saved.put(ID, NbtTag::String(item.to_string()));

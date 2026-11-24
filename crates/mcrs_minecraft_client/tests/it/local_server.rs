@@ -6,10 +6,13 @@ use bevy::prelude::*;
 use mcrs_minecraft_client::test_support::{joined, open, update_until};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::session::{LocalServer, LocalServerError, LocalServerStopped};
+use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_item::inventory::slots;
 use mcrs_minecraft_network::client::LeaveRequest;
 use mcrs_minecraft_save::SaveLock;
 
 use crate::local_world::{client, world_folder};
+use crate::stacks::stack_at;
 
 fn stopped(app: &mut App) -> Option<Result<(), LocalServerError>> {
     app.world_mut()
@@ -64,6 +67,32 @@ fn leaving_a_local_world_restores_the_title_world() {
         .count();
     assert_eq!(players, 1);
 
+    app.world_mut().write_message(AppExit::Success);
+    app.update();
+    let lock = SaveLock::take(&folder).expect("the server released the world");
+    drop(lock);
+    std::fs::remove_dir_all(&folder).ok();
+}
+
+#[test]
+fn a_new_local_player_joins_with_the_first_slot_selected_and_an_empty_hotbar() {
+    let folder = world_folder("selection");
+    let mut app = client();
+    open(&mut app, &folder);
+    update_until(&mut app, joined);
+    for _ in 0..200 {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        app.update();
+    }
+    let player = app
+        .world_mut()
+        .query_filtered::<Entity, With<Player>>()
+        .single(app.world())
+        .expect("one local player");
+    assert_eq!(app.world().get::<Selected>(player), Some(&Selected(0)));
+    for index in slots::HOTBAR {
+        assert_eq!(stack_at(app.world(), player, index), None, "slot {index}");
+    }
     app.world_mut().write_message(AppExit::Success);
     app.update();
     let lock = SaveLock::take(&folder).expect("the server released the world");

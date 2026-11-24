@@ -22,6 +22,7 @@ mcrs_minecraft_chat.workspace = true
 mcrs_minecraft_chat_client.workspace = true
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_entity_visual.workspace = true
