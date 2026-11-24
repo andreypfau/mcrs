@@ -51,7 +51,7 @@ const NO_STD_PACKAGES: [&str; 20] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 143] = [
+const NO_BEVY_PACKAGES: [&str; 142] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -85,7 +85,6 @@ const NO_BEVY_PACKAGES: [&str; 143] = [
     "mcrs_minecraft_goal_world",
     "mcrs_minecraft_goals",
     "mcrs_minecraft_mob_control",
-    "mcrs_minecraft_server_bench",
     "mcrs_mob_bench",
     "mcrs_minecraft_client_ticks",
     "mcrs_minecraft_collision_table",

@@ -7084,22 +7084,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_minecraft_server_bench"
-version = "0.5.8"
-dependencies = [
- "anyhow",
- "glam",
- "mcrs_minecraft_bench_support",
- "mcrs_minecraft_protocol",
- "mcrs_minecraft_protocol_game",
- "mcrs_voxel",
- "serde",
- "serde_json",
- "tokio",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "mcrs_minecraft_server_settings"
 version = "0.5.8"
 dependencies = [
