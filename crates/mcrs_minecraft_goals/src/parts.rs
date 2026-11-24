@@ -1,5 +1,6 @@
 use mcrs_minecraft_brain::Part;
 
+pub const FLOAT_JUMP: Part = Part(0x0100);
 pub const PANIC_SEARCH: Part = Part(0x0200);
 pub const STROLL_WAIT: Part = Part(0x0300);
 pub const STROLL_SEARCH: Part = Part(0x0301);
