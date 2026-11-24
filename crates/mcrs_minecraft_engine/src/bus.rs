@@ -4,6 +4,7 @@ use bevy_ecs::message::{Message, MessageWriter};
 use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::event::Trigger;
 use mcrs_minecraft_network::metrics::PacketKind;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -42,6 +43,7 @@ pub struct InboundPlayerPacket {
     pub data: Bytes,
     pub trigger: Option<Trigger>,
     pub acknowledged_tick: u64,
+    pub arrival: Instant,
 }
 
 #[derive(Message, Clone, Debug)]

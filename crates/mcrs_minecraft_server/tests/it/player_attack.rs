@@ -15,6 +15,7 @@ use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_game_rule::GameRule;
+use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -520,5 +521,60 @@ fn the_server_accepts_or_refuses_an_attack() {
                 }
             }
         }
+    }
+}
+
+#[test]
+fn the_attack_packet_that_arrives_first_hits_first() {
+    let mut arena = Arena::start();
+    arena.set_mode(arena.alice_player, GameMode::Survival);
+    arena.set_mode(arena.bob_player, GameMode::Survival);
+    arena
+        .server
+        .world()
+        .get_mut::<Transform>(arena.alice_player)
+        .unwrap()
+        .translation = DVec3::new(5.5, 64.0, 10.5);
+    for (row, alice_first) in [(0.0, true), (2.0, false)] {
+        let (pig, id) = arena.summon_pig(DVec3::new(7.0, 64.0, 10.5 + row), Summoned::NoAi);
+        let _ = arena.server.ticks_all(10);
+        let before = arena.health(pig);
+        let early = Instant::now();
+        let late = early + std::time::Duration::from_millis(1);
+        let (first, second) = if alice_first {
+            (arena.alice, arena.bob)
+        } else {
+            (arena.bob, arena.alice)
+        };
+        let attack = ServerboundAttack {
+            entity_id: VarInt(id),
+        };
+        arena.server.queue_arrived(second, &attack, late);
+        arena.server.queue_arrived(first, &attack, early);
+        let session = arena.server.session_of(arena.bob).unwrap();
+        let seen = sent_to(session, arena.server.ticks_all(3));
+
+        assert_eq!(
+            before - arena.health(pig),
+            1.0,
+            "alice first: {alice_first}"
+        );
+        assert_eq!(
+            decoded::<ClientboundDamageEvent>(&seen).len(),
+            1,
+            "alice first: {alice_first}: DMG-HIT-003 refuses the second hit"
+        );
+        let pushed = decoded::<ClientboundSetEntityMotion>(&seen)
+            .into_iter()
+            .find(|motion| motion.entity_id.0 == id)
+            .expect("the viewer sees the knockback of the pig")
+            .velocity
+            .0
+            .x;
+        assert_eq!(
+            pushed > 0.0,
+            alice_first,
+            "ATK-ORD-004: the first packet pushes the pig away from its attacker: {pushed}"
+        );
     }
 }

@@ -43,8 +43,8 @@ use mcrs_minecraft_engine_world::world::sub_app::{
 };
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_light_engine::block_light::{BlockLightRegistry, block_light_registry};
-use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
+use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Encode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
@@ -287,6 +287,15 @@ impl PlayServer {
     }
 
     pub fn queue<P: Packet + Encode>(&mut self, anchor: Entity, packet: &P) {
+        self.queue_arrived(anchor, packet, Instant::now());
+    }
+
+    pub fn queue_arrived<P: Packet + Encode>(
+        &mut self,
+        anchor: Entity,
+        packet: &P,
+        arrival: Instant,
+    ) {
         let mut data = Vec::new();
         packet.encode(&mut data).unwrap();
         let data = Bytes::from(data);
@@ -321,6 +330,7 @@ impl PlayServer {
                     trigger,
                     data,
                     acknowledged_tick: 0,
+                    arrival,
                 },
             );
         assert!(sent.is_ok(), "the dimension takes the packet");

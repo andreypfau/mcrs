@@ -858,6 +858,7 @@ pub fn bridge_inbound(
                                 acknowledged_tick: probes
                                     .as_deref()
                                     .map_or(0, |probes| probes.pings.acknowledged_tick()),
+                                arrival: pkt.timestamp,
                             },
                         )
                     {
@@ -946,6 +947,7 @@ mod tests {
             data: Bytes::new(),
             trigger: None,
             acknowledged_tick: 0,
+            arrival: Instant::now(),
         }
     }
 

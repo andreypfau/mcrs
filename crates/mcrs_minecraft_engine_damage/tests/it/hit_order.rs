@@ -61,7 +61,7 @@ fn run(order: Order, executor: Executor) -> (Vec<(EntityUuid, Vitals)>, Vec<Seen
         requests.reverse();
     }
     for request in requests {
-        scene::push(&mut app, request);
+        scene::push_in_pass(&mut app, request);
     }
     scene::tick(&mut app);
     let mut vitals: Vec<(EntityUuid, Vitals)> = targets
