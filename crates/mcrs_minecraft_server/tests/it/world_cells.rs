@@ -35,9 +35,9 @@ use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
-use mcrs_minecraft_item::{ItemHoverMap, ItemStack};
+use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_item_stack::{Count, Kind};
+use mcrs_minecraft_item_stack::{Count, ItemStack, Kind};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
@@ -1233,7 +1233,10 @@ mod exhaustive {
             drops: &mut Vec<ItemStack>,
         ) {
             if block.state == self.note {
-                drops.push(ItemStack::new(Item::NoteBlock.id(), 1));
+                drops.push(ItemStack::new(
+                    Kind(Item::NoteBlock.id().number()),
+                    Count::new(1).unwrap(),
+                ));
             }
         }
     }
@@ -1242,7 +1245,7 @@ mod exhaustive {
     struct SeenDrops(Vec<ItemDropped>);
 
     fn record_drops(mut dropped: MessageReader<ItemDropped>, mut seen: ResMut<SeenDrops>) {
-        seen.0.extend(dropped.read().copied());
+        seen.0.extend(dropped.read().cloned());
     }
 
     #[test]
@@ -1271,7 +1274,7 @@ mod exhaustive {
             seen,
             [ItemDropped {
                 at: pos,
-                stack: ItemStack::new(Item::NoteBlock.id(), 1),
+                stack: ItemStack::new(Kind(Item::NoteBlock.id().number()), Count::new(1).unwrap()),
             }]
         );
         assert_eq!(block_at(&mut app, label, pos), Some(BlockStateId::AIR));
