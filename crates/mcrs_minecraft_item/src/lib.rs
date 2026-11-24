@@ -48,7 +48,6 @@ pub mod trim_pattern_keys;
 )]
 pub mod harness;
 pub mod hash_ops;
-#[cfg(feature = "bevy")]
 pub mod inventory;
 mod item_hover_map;
 pub mod item_stack;
@@ -62,8 +61,7 @@ pub use component::*;
 #[cfg(feature = "bevy")]
 pub use definition::Items;
 pub use definition::{ItemDefinitions, ItemEntry, ItemTableError};
-#[cfg(feature = "bevy")]
-pub use inventory::{LAST_HOTBAR_SLOT, SelectedHotbarSlot, slots};
+pub use inventory::{LAST_HOTBAR_SLOT, slots};
 pub use item_hover_map::ItemHoverMap;
 pub use item_stack::ItemStack;
 pub use kind::{ItemComponentValue, ItemDataComponent};
