@@ -15,7 +15,6 @@ use mcrs_minecraft_client_world::block_target::Reach;
 use mcrs_minecraft_client_world::chat::SendChat;
 use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_client_world::food_level::FoodLevel;
-use mcrs_minecraft_client_world::game_mode::LocalGameMode;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::local_motion;
 use mcrs_minecraft_client_world::local_motion::LocalMotion;
@@ -32,6 +31,7 @@ use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_visual::ClientEntity;
 use mcrs_minecraft_entity_visual::Motion;
 use mcrs_minecraft_entity_visual::dimensions;
+use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::BlockPos;
@@ -53,7 +53,7 @@ pub(crate) struct OwnPlayer {
     attributes: Option<&'static AttributeInstances>,
     vitals: Option<&'static Vitals>,
     food: Option<&'static FoodLevel>,
-    mode: Option<&'static LocalGameMode>,
+    mode: Option<&'static PlayerGameMode>,
     slot: Option<&'static mut Selected>,
     load: Option<&'static PlayerLoad>,
 }
@@ -151,7 +151,7 @@ impl ControlledClient<'_, '_> {
             pitch: player.transform.rotation.pitch(),
             health: player.vitals.map(|vitals| vitals.health),
             food: player.food.map(|food| food.food),
-            game_mode: player.mode.map(|mode| mode.current.name().to_owned()),
+            game_mode: player.mode.map(|mode| mode.0.name().to_owned()),
             on_ground: player
                 .motion
                 .is_some_and(|motion| motion.0.body.flags.on_ground),

@@ -9,7 +9,7 @@ use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_visual::{ClientEntity, Motion, SyncedData, dimensions};
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_physics::{Aabb, PlayerState};
@@ -25,7 +25,7 @@ use crate::attack_input::AttackInput;
 use crate::block_prediction::BlockPredictions;
 use crate::block_target::{BlockHit, EntityBox, Reach, Target, target};
 use crate::columns::{AIR, ColumnStore};
-use crate::game_mode::{LocalGameMode, PermissionLevel};
+use crate::game_mode::PermissionLevel;
 use crate::hotbar_sync::SendSelectedSlot;
 use crate::local_motion::{self, LocalMotion};
 use crate::local_player::LocalPlayerTick;
@@ -307,7 +307,7 @@ fn attack(
             &PhysicsTransform,
             Option<&mut LocalMotion>,
             Option<&AttributeInstances>,
-            Option<&LocalGameMode>,
+            Option<&PlayerGameMode>,
             Option<&PermissionLevel>,
         ),
         With<Player>,
@@ -363,7 +363,7 @@ fn attack(
         connection: &mut connection,
         permission: permission.copied().unwrap_or_default(),
     };
-    attack.tick(input, target, mode.current, &mut world);
+    attack.tick(input, target, mode.0, &mut world);
 }
 
 #[cfg(test)]
