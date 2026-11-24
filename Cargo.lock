@@ -6066,13 +6066,16 @@ name = "mcrs_minecraft_item_stack"
 version = "0.5.8"
 dependencies = [
  "bevy_ecs",
+ "mcrs_minecraft_banner_pattern",
  "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_snbt",
+ "mcrs_minecraft_sound",
  "mcrs_minecraft_text",
+ "mcrs_minecraft_trim",
  "mcrs_minecraft_wire",
  "mcrs_test_alloc",
  "mcrs_voxel",

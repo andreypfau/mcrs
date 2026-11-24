@@ -7,6 +7,7 @@ use core::num::NonZeroU8;
 use core::ops::RangeInclusive;
 use std::io::Cursor;
 
+use mcrs_minecraft_banner_pattern::BannerPattern;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::from_tag;
@@ -14,6 +15,9 @@ use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_snbt::parse_compound;
+use mcrs_minecraft_sound::SoundEventValue;
+use mcrs_minecraft_trim::TrimMaterial;
+use mcrs_minecraft_trim::TrimPattern;
 use mcrs_voxel::BlockPos;
 
 use crate::ArgbColor;
@@ -61,11 +65,7 @@ use crate::FireworkExplosion;
 use crate::FireworkShape;
 use crate::Fireworks;
 use crate::Food;
-use crate::InlineBannerPattern;
 use crate::InlineInstrument;
-use crate::InlineSoundEvent;
-use crate::InlineTrimMaterial;
-use crate::InlineTrimPattern;
 use crate::Instrument;
 use crate::InstrumentId;
 use crate::InteractAnimation;
@@ -758,12 +758,14 @@ impl<L: NameLookup> Reader<'_, L> {
             }
             NbtTag::Compound(map) => {
                 let sound_id = self.identifier(self.necessary(map, "sound_id")?)?;
-                let mut inline = InlineSoundEvent::new(sound_id.to_buf());
-                inline.range = map
+                let range = map
                     .get("range")
                     .and_then(TagNumber::of)
                     .map(TagNumber::to_float);
-                Ok(SoundEventRef::Inline(inline))
+                Ok(SoundEventRef::Inline(SoundEventValue {
+                    sound_id: sound_id.to_buf(),
+                    range,
+                }))
             }
             _ => Err(self.bad()),
         }
@@ -889,25 +891,24 @@ impl<L: NameLookup> Reader<'_, L> {
     fn trim(&self, tag: &NbtTag) -> Result<Trim, SavedError> {
         let map = self.map(tag)?;
         let material = match self.necessary(map, "material")? {
-            NbtTag::Compound(material) => RegistryValue::Inline(InlineTrimMaterial::new(
-                self.identifier(self.necessary(material, "palette_id")?)?
+            NbtTag::Compound(material) => RegistryValue::Inline(TrimMaterial {
+                palette_id: self
+                    .identifier(self.necessary(material, "palette_id")?)?
                     .to_buf(),
-                read_text(self.necessary(material, "description")?, self.component)?,
-            )),
+                description: read_text(self.necessary(material, "description")?, self.component)?,
+            }),
             material => RegistryValue::Reference(TrimMaterialId(
                 self.entry(NameTable::TrimMaterial, self.identifier(material)?)?,
             )),
         };
         let pattern = match self.necessary(map, "pattern")? {
-            NbtTag::Compound(pattern) => {
-                let mut inline = InlineTrimPattern::new(
-                    self.identifier(self.necessary(pattern, "asset_id")?)?
-                        .to_buf(),
-                    read_text(self.necessary(pattern, "description")?, self.component)?,
-                );
-                inline.decal = self.flag(pattern, "decal", false)?;
-                RegistryValue::Inline(inline)
-            }
+            NbtTag::Compound(pattern) => RegistryValue::Inline(TrimPattern {
+                asset_id: self
+                    .identifier(self.necessary(pattern, "asset_id")?)?
+                    .to_buf(),
+                description: read_text(self.necessary(pattern, "description")?, self.component)?,
+                decal: self.flag(pattern, "decal", false)?,
+            }),
             pattern => RegistryValue::Reference(TrimPatternId(
                 self.entry(NameTable::TrimPattern, self.identifier(pattern)?)?,
             )),
@@ -1093,12 +1094,14 @@ impl<L: NameLookup> Reader<'_, L> {
     fn banner_layer(&self, tag: &NbtTag) -> Result<BannerLayer, SavedError> {
         let map = self.map(tag)?;
         let pattern = match self.necessary(map, "pattern")? {
-            NbtTag::Compound(pattern) => RegistryValue::Inline(InlineBannerPattern::new(
-                self.identifier(self.necessary(pattern, "asset_id")?)?
+            NbtTag::Compound(pattern) => RegistryValue::Inline(BannerPattern {
+                asset_id: self
+                    .identifier(self.necessary(pattern, "asset_id")?)?
                     .to_buf(),
-                self.string(self.necessary(pattern, "translation_key")?)?
+                translation_key: self
+                    .string(self.necessary(pattern, "translation_key")?)?
                     .to_string(),
-            )),
+            }),
             pattern => RegistryValue::Reference(BannerPatternId(
                 self.entry(NameTable::BannerPattern, self.identifier(pattern)?)?,
             )),
