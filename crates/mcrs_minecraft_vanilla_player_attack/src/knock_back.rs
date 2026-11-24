@@ -3,6 +3,7 @@ use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::message::MessageWriter;
+use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
@@ -45,6 +46,12 @@ use crate::birth_tick::birth_tick;
 
 const DEFAULT_STRENGTH: f64 = 0.4;
 const ATTACKER_SLOWDOWN: DVec3 = DVec3::new(0.6, 1.0, 0.6);
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Composed {
+    target: Entity,
+    velocity: DVec3,
+}
 
 type Players<'w, 's> = Query<
     'w,
@@ -128,9 +135,10 @@ pub(crate) fn knock_back(
     mobs: Query<(&MotionState, &Mob)>,
     mut writes: Option<ResMut<EntityWrites>>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
+    mut composed: Local<Vec<Composed>>,
 ) {
     let tick = birth_tick(clock.as_deref());
-    let mut composed: Option<(Entity, DVec3)> = None;
+    composed.clear();
     let mut sequence: u32 = 0;
     for hit in hits.read() {
         if hit.report.outcome == HitOutcome::Rejected {
@@ -166,10 +174,12 @@ pub(crate) fn knock_back(
                 send_own_entity_state(&mut packets, owner.0, &packet, "knockback");
             }
         } else if let Ok((MotionState(state), mob)) = mobs.get(hit.target) {
-            let before = match composed {
-                Some((target, velocity)) if target == hit.target => velocity,
-                _ => state.body.velocity,
-            };
+            let earlier = composed
+                .iter_mut()
+                .find(|composed| composed.target == hit.target);
+            let before = earlier
+                .as_ref()
+                .map_or(state.body.velocity, |earlier| earlier.velocity);
             let after = push(
                 before,
                 full.then(|| horizontal(attack.position - state.body.position)),
@@ -181,7 +191,13 @@ pub(crate) fn knock_back(
                 footing(state.body.flags.on_ground),
                 &KeyedStream::new(&state.key, tick),
             );
-            composed = Some((hit.target, after));
+            match earlier {
+                Some(earlier) => earlier.velocity = after,
+                None => composed.push(Composed {
+                    target: hit.target,
+                    velocity: after,
+                }),
+            }
             if let Some(writes) = writes.as_deref_mut()
                 && after != before
             {

@@ -85,7 +85,6 @@ impl Plugin for EntityPhysicsPlugin {
                 apply_entity_writes
                     .run_if(has_writes)
                     .in_set(TickSet::Simulate)
-                    .after(DamageSet::PacketReport)
                     .before(MotionPass),
                 apply_entity_writes
                     .run_if(has_writes)

@@ -10,9 +10,12 @@ use mcrs_minecraft_engine::coordinator::birth_clock::BirthClockPlugin;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
 use mcrs_minecraft_engine_damage::{DamageSet, PendingHits};
+use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{AttributeInstances, InstanceEdit};
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_network::Instant;
@@ -577,4 +580,74 @@ fn the_attack_packet_that_arrives_first_hits_first() {
             "ATK-ORD-004: the first packet pushes the pig away from its attacker: {pushed}"
         );
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum OtherPig {
+    HitLast,
+    HitBetween,
+}
+
+fn velocity_after_two_hits(other_pig: OtherPig) -> DVec3 {
+    let mut arena = Arena::start();
+    arena.set_mode(arena.alice_player, GameMode::Survival);
+    arena.set_mode(arena.bob_player, GameMode::Survival);
+    arena
+        .server
+        .world()
+        .get_mut::<Transform>(arena.alice_player)
+        .unwrap()
+        .translation = DVec3::new(5.5, 64.0, 10.5);
+    let mut attributes = arena
+        .server
+        .world()
+        .get_mut::<AttributeInstances>(arena.bob_player)
+        .unwrap();
+    let _ = attributes.apply(Attribute::AttackDamage, &InstanceEdit::SetBase(5.0));
+    let _ = attributes.apply(Attribute::AttackKnockback, &InstanceEdit::SetBase(1.0));
+    let (pig, pig_id) = arena.summon_pig(DVec3::new(7.0, 64.0, 10.5), Summoned::NoAiOnGround);
+    let (_, other_id) = arena.summon_pig(DVec3::new(7.0, 64.0, 12.5), Summoned::NoAiOnGround);
+    let _ = arena.server.ticks_all(10);
+    let start = Instant::now();
+    let order = match other_pig {
+        OtherPig::HitLast => [
+            (arena.alice, pig_id),
+            (arena.bob, pig_id),
+            (arena.alice, other_id),
+        ],
+        OtherPig::HitBetween => [
+            (arena.alice, pig_id),
+            (arena.alice, other_id),
+            (arena.bob, pig_id),
+        ],
+    };
+    for (millis, (player, id)) in (0..).zip(order) {
+        arena.server.queue_arrived(
+            player,
+            &ServerboundAttack {
+                entity_id: VarInt(id),
+            },
+            start + std::time::Duration::from_millis(millis),
+        );
+    }
+    let _ = arena.server.ticks_all(3);
+    arena
+        .server
+        .world()
+        .get::<MotionState>(pig)
+        .unwrap()
+        .0
+        .body
+        .velocity
+}
+
+#[test]
+fn a_hit_on_another_pig_between_two_hits_keeps_the_composed_knockback() {
+    let adjacent = velocity_after_two_hits(OtherPig::HitLast);
+    let between = velocity_after_two_hits(OtherPig::HitBetween);
+
+    assert!(
+        between.abs_diff_eq(adjacent, 1.0E-9),
+        "the second knockback starts from the velocity after the first: {between} != {adjacent}"
+    );
 }
