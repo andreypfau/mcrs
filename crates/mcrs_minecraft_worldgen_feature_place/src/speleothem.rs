@@ -47,7 +47,7 @@ pub struct PointedStates {
 }
 
 impl PointedStates {
-    pub fn resolve(pointed: &BlockState, blocks: &dyn BlockResolver) -> Option<Self> {
+    pub fn resolve(pointed: &BlockState, blocks: &impl BlockResolver) -> Option<Self> {
         Some(PointedStates {
             states: Self::table(pointed, blocks, None)?,
             attached: Self::table(pointed, blocks, Some("true")),
@@ -56,7 +56,7 @@ impl PointedStates {
 
     fn table(
         pointed: &BlockState,
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         attached: Option<&str>,
     ) -> Option<PointedTable> {
         const THICKNESS_NAMES: [&str; THICKNESSES] =

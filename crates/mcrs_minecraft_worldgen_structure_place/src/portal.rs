@@ -48,7 +48,7 @@ pub struct RuinedPortalBlocks {
 impl RuinedPortalBlocks {
     pub fn compile(
         setups: &[RuinedPortalSetup],
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         features_cannot_replace: &KeySet<Block>,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {

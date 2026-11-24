@@ -44,7 +44,7 @@ impl Oriented {
 
     pub fn named(
         world: &WorldStates,
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         block: Block,
         properties: &[(&str, &str)],
     ) -> Result<Self, FeatureCompileError> {
@@ -67,7 +67,7 @@ impl Oriented {
 }
 
 pub(crate) fn ignore_blocks(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     names: &[Block],
 ) -> Result<CompiledChain, FeatureCompileError> {
     Ok(vec![CompiledProcessor::BlockIgnore(block_mask(
