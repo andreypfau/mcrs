@@ -7,11 +7,11 @@ use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_inventory_menu::Menus;
-use mcrs_minecraft_engine_item::stack_capacity;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_inventory_menu::MenuLayout;
+use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::read_wire_with_length;
@@ -84,7 +84,7 @@ pub(crate) fn apply_creative_packet(
     let stack = stack.as_ref();
     let creative = game_mode.is_some_and(|game_mode| game_mode.0 == GameMode::Creative);
     let fits = stack.is_none_or(|stack| {
-        stack.count.get() <= stack_capacity(table.effective::<MaxStackSize>(stack))
+        stack.count.get() <= Count::capacity(table.effective::<MaxStackSize>(stack))
     });
     let entry = u16::try_from(slot)
         .ok()

@@ -96,12 +96,11 @@ impl<'a> WorkStack<'a> {
     }
 
     fn max_stack_size(&self, items: &ItemTable) -> u8 {
-        self.item
-            .as_deref()
-            .and_then(|stack| items.effective::<MaxStackSize>(stack))
-            .map_or(1, |size| size.0.clamp(1, i32::from(Count::MAX)))
-            .try_into()
-            .unwrap_or(1)
+        Count::capacity(
+            self.item
+                .as_deref()
+                .and_then(|stack| items.effective::<MaxStackSize>(stack)),
+        )
     }
 
     pub(crate) fn divide(&self, items: &ItemTable, stacks: &mut Vec<Option<ItemStack>>) {
