@@ -259,7 +259,9 @@ as this table states.
 **STK-CNT-001** (`design`, deviation). The count of a stack that is not empty is in the range
 `1..99`. The count of the empty stack is 0. An item template has a count in the same range. Each
 reader of a stack or of an item template in section 6 gives a value with such a count, the empty
-stack or an error (STK-CNT-003). No operation gives a stack with another count (STK-CNT-008).
+stack or an error (STK-CNT-003, STK-CNT-009), except the reader of the hashed stack (section 6.7),
+which keeps each count field for the comparison. No operation gives a stack with another count
+(STK-CNT-008).
 
 Reason: a count larger than 99 has no saved form (STK-CNT-004). The game cannot save such a stack,
 and the client cannot send it back in a `set_creative_mode_slot` packet. Deviations D3 and D12
@@ -272,16 +274,16 @@ its maximum stack size. Each reader of section 6 accepts such a count when the c
 where the game rejects such a stack or limits its count.
 
 **STK-CNT-003** (`source_suggested_black_box_confirmed`, wire). Each reader gives this result for
-the count field:
+the count field. A cell that names STK-CNT-009 has the result that STK-CNT-009 states.
 
 | Format | Count field | 0 or less | `1..99` | Larger than 99 |
 |--------|-------------|-----------|---------|----------------|
 | saved stack, saved stack with slot, optional saved stack | int; an absent field is 1 | an error and no stack (STK-CNT-006) | the count | an error and no stack (STK-CNT-006) |
 | item template, saved form | int; an absent field is 1 | an error (STK-TPL-002) | the count | an error (STK-TPL-002) |
-| wire stack | VarInt | the empty stack | the count | a decode error |
-| wire stack that is not empty | VarInt | a decode error | the count | a decode error |
+| wire stack | VarInt | the empty stack | the count | STK-CNT-009 |
+| wire stack that is not empty | VarInt | a decode error | the count | STK-CNT-009 |
 | wire stack with length prefix | VarInt | the empty stack | the count | a decode error (STK-NET-009) |
-| item template, wire form | VarInt | a decode error | the count | a decode error |
+| item template, wire form | VarInt | a decode error for 0; STK-CNT-009 for a negative count | the count | STK-CNT-009 |
 | hashed stack | VarInt | no error | no error | no error |
 
 The command form has no count field. STK-CMD-006 states the count that a command gives. A wire
@@ -290,11 +292,6 @@ other field of that stack (STK-NET-001). The optional saved stack gives the empt
 the map `{}` (STK-SAV-008), never for a count. The reader of the hashed stack keeps each value of
 the count field. A present hashed stack with a count field out of `1..99` thus matches no stack
 that is not empty (STK-HSH-003).
-
-Three rows are stricter than the reference. The reference readers of the wire stack and of the
-wire stack that is not empty give a stack for each count field larger than 99 (D3). The reference
-reader of the wire form of an item template gives an item template for each count field that is
-not 0 (D12).
 
 **STK-CNT-004** (`source_suggested`, semantic). A stack with a count larger than 99 has no saved
 form. The writer reports an error and writes no stack for it.
@@ -330,6 +327,21 @@ empty stack (STK-EMP-002). An operation must not increase the count above 99. Th
 operation that increases a count states its limit. That limit is the maximum stack size, the
 capacity of a slot (ITX-LIM-002 of `inventory-transactions.md`) or another number in `1..99`.
 Reason: STK-CNT-001. U6 states an operation of the reference that gives a larger count.
+
+**STK-CNT-009** (`design`, deviation). These readers are stricter than the reference:
+
+| Format | Count field | Result |
+|--------|-------------|--------|
+| wire stack | larger than 99 | a decode error |
+| wire stack that is not empty | larger than 99 | a decode error |
+| item template, wire form | negative, or larger than 99 | a decode error |
+
+The reference readers of the wire stack and of the wire stack that is not empty give a stack for
+each count field larger than 99 (D3). The reference reader of the wire form of an item template
+gives an item template for each count field that is not 0 (D12). A writer must not write a count
+out of `1..99`.
+
+Reason: a count larger than 99 has no saved form (STK-CNT-004).
 
 ## 5. Equality and the stack rule
 
@@ -601,9 +613,9 @@ STK-TPL-003, with no length prefix.
 ### 6.6 The item template
 
 **STK-TPL-001** (`source_suggested_black_box_confirmed`, semantic). An item template has an item,
-a count and a component patch. The item is not air and the count is in `1..99` (STK-CNT-001). A component that holds
-stacks holds item templates (STK-TYP-004). An item template is data. It does not change while its
-owner holds it.
+a count and a component patch. The item is not air and the count is in `1..99` (STK-CNT-001). A
+component that holds stacks holds item templates (STK-TYP-004). An item template is data. It does
+not change while its owner holds it.
 
 **STK-TPL-002** (`source_suggested_black_box_confirmed`, wire). The saved form of an item template
 is a map with these keys:
@@ -628,9 +640,8 @@ stack.
 
 **STK-TPL-004** (`source_suggested`, wire). A count of 0 or an item id of air in the wire form is a
 decode error (STK-TPL-008). A negative count and a count larger than 99 are also decode errors
-(STK-CNT-003). The reader accepts a count in `1..99` that is larger than the maximum stack size of
-the item template. Strict validation then applies when a stack is made from it (STK-TPL-006). A
-writer must not write a count out of `1..99`. Deviation D12 records the reference behaviour.
+(STK-CNT-009). The reader accepts a count in `1..99` that is larger than the maximum stack size of
+the item template. Strict validation then applies when a stack is made from it (STK-TPL-006).
 
 **STK-TPL-005** (`source_suggested`, wire). The optional item template is one boolean byte, then
 the item template when the byte is `01`.
@@ -2626,7 +2637,7 @@ write. Deviation D14 records the reference behaviour.
 
 **D3.**
 
-- **Rule**: STK-CNT-001 and STK-CNT-003.
+- **Rule**: STK-CNT-009 and STK-CNT-001.
 - **Reference**: the reference reader of the wire stack and of the wire stack that is not empty
   accepts each positive VarInt as the count. The stack then holds that count. One operation of the
   reference also gives a count larger than 99: a trade whose `given_item_modifier` sets such a count
@@ -2757,7 +2768,7 @@ write. Deviation D14 records the reference behaviour.
 
 **D12.**
 
-- **Rule**: STK-TPL-004 and STK-CNT-003.
+- **Rule**: STK-CNT-009 and STK-TPL-004.
 - **Reference**: the reference reader of the wire form of an item template accepts each count that
   is not 0. The item template then holds that count. A stack that someone makes from an item
   template with a negative count is the empty stack. In the wire stack with length prefix, the
