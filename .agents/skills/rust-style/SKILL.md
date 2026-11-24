@@ -116,6 +116,19 @@ enforce and what the model would not do by default.
 - A type does not reuse the name of a type that its users import from another
   crate. That forces the user to qualify one of them.
 
+## Canonical homes
+
+Search these crates before you write a helper. One line: need, crate, item.
+
+- Math (`lerp`, floor division, clamp): `mcrs_minecraft_numeric`; `lerp`, `floor_div`, `clamp_f32`.
+- Default check for serde: `mcrs_minecraft_core`; `is_default`.
+- Directions and axes: `mcrs_minecraft_core`; `Direction`, `Axis`.
+- Block, section, local and column positions: `mcrs_voxel`; `BlockPos`, `SectionPos`, `LocalPos`, `ColumnPos`. The chunk position type is `ColumnPos`.
+- Resource location parsing: `mcrs_minecraft_resource`; `ResourceLocation::read`.
+- Var-int: `mcrs_minecraft_wire`; `VarInt`.
+- Random sources: `mcrs_minecraft_random`; `Random`.
+- Atomic file write: `mcrs_minecraft_anvil`; `write_atomic`.
+
 ## Documentation and comments
 
 - No comments and no doc comments outside `examples/`: no `//`, `/* */`,

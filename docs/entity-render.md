@@ -252,7 +252,8 @@ the pixel, the same as for terrain.
 ### 4.7 Upload
 
 The render world receives only the dirty pages and their bytes. It does not extract a component
-of each mob. The upload uses the `Upload` and `Uploads` path of the render crate:
+of each mob. The upload uses the `Upload` and `Uploads` path of the render crate. The queue predates the rule
+of the section "Crossing a boundary" of `AGENTS.md`; new code moves a buffer in an extract system.
 
 - The tick records always go through a scatter compute pass, because the pass rotates the
   previous record (section 4.1). The render world writes the dirty tick records and their slot
