@@ -23,7 +23,7 @@ Behaviour comes from `docs/spec/arm-swing.md` (SWG), `docs/spec/block-placing.md
 | `mcrs_minecraft_protocol_game` | 3, data | `ClientboundSwingAnimation`, `ClientboundAnimate` |
 | `mcrs_minecraft_replication` | 3, data | `PlayerData::Swing` (and planned `MobSignal::Swing`) encoded once and delivered to tracking observers without backlog replay |
 | `mcrs_minecraft_engine` | 4 | `LoadedClientPlugin`, `UnloadedClient`, `PlayerSwingPlugin`, `SwingPlayer` message, `MuxerStage` ordering (`views_out` -> `Entities` -> `changes_out`); planned `PlayerOrder::Swing` |
-| `mcrs_minecraft_engine_physics`, `mcrs_minecraft_engine_mob_replication` (planned swing APIs) | 4 | `MobSwingStates`, `swing_mob`, `publish_swings` |
+| `mcrs_minecraft_engine_physics`, `mcrs_minecraft_engine_entity_motion_replication` (planned swing APIs) | 4 | `MobSwingStates`, `swing_mob`, `publish_swings` |
 | `mcrs_minecraft_vanilla_swing`, `mcrs_minecraft_vanilla_block_place`, `mcrs_minecraft_vanilla_inventory`; planned `mcrs_minecraft_command_vanilla` swing additions | 5 | `SwingPlugin` (`punch` and `stab`), placement swing (`PLC-PLA-007`), hand-drop swing; planned `/swing` command (`SwingAnimationArgument`, `SwingEntity`) |
 | `mcrs_minecraft_server` | 7 | `VanillaSwingPlugin` in `MinecraftServerPlugins` |
 

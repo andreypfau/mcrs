@@ -5,7 +5,7 @@ Behaviour comes from `docs/spec/entity-damage.md` (DMG), `docs/spec/player-death
 `docs/spec/command-damage.md` and `docs/spec/player-attack.md`.
 
 This note assumes that a mob is an ECS entity. The decision issue #1067 states that
-migration. A name that does not exist in the code yet is planned.
+migration.
 
 ## 1. Classification of the state
 
@@ -175,22 +175,7 @@ Rules:
 | Balance calculator | It calls `hurt` in a loop with a `Defence` value. No Bevy. |
 | Bedrock edge (#655) | `HurtRules` holds the differences. |
 
-## 6. Migration path
-
-1. PR 0, `refactor` (#1068, merged): `EntityKey` becomes `EntityUuid` over `uuid::Uuid`. Same bits,
-   same order.
-2. PR 1, docs: the decision issue #1067, this note, `docs/spec/player-attack.md`, and the changes
-   of the specifications that the decision needs.
-3. PR 2: mobs become ECS entities; `mcrs_minecraft_entity_rows` is deleted. Health stays in
-   `Living`; behaviour does not change.
-4. PR 3, Closes #103: `Vitals` leaves `Living`; the kernel of section 3; `mcrs_minecraft_engine_damage`;
-   crowd, `/damage` and `/kill` go through `PendingHits`. `hurt_mob` and `MobChanges::strikes` are
-   deleted.
-5. PR 4, Refs #106, Closes #116: `Vitals` on a player, health packets, `Died`, death plugins,
-   respawn plugin. The player attack is a later pull request.
-6. PR 5, Closes #106: client `Vitals`, HUD, death screen, attack on the entity under the cursor.
-
-## 7. Open points
+## 6. Open points
 
 - The reach check of the player attack uses the baseline. Reach against what the client saw is
   #95; `docs/lag-compensation.md` states the scheme and its open points.
