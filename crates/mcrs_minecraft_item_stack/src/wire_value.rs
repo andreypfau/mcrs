@@ -105,7 +105,6 @@ use crate::TrimMaterialId;
 use crate::TrimPatternId;
 use crate::Unbreakable;
 use crate::WireError;
-use crate::check_saved_form::MAX_COUNT;
 use crate::lore::MAX_LINES;
 use crate::nbt_depth::LIST_TEMPLATE_LEVELS;
 use crate::nbt_depth::SLOT_TEMPLATE_LEVELS;
@@ -671,9 +670,10 @@ impl<L: NameLookup> Reader<'_, L> {
             return Err(WireError::EmptyStack);
         }
         stack.count = match u8::try_from(count) {
-            Ok(count) => Count::new(count).ok_or(WireError::EmptyStack)?,
+            Ok(0) => return Err(WireError::EmptyStack),
+            Ok(count) => Count::new(count).ok_or(WireError::CountOutOfRange)?,
             Err(_) if count < 0 => return Err(self.bad()),
-            Err(_) => return Err(WireError::CountTooLarge),
+            Err(_) => return Err(WireError::CountOutOfRange),
         };
         Ok(stack)
     }
@@ -1224,12 +1224,8 @@ impl<L: NameLookup> Writer<'_, L> {
         if is_air(item) {
             return Err(WireError::EmptyStack);
         }
-        let count = stack.count.get();
-        if count > MAX_COUNT {
-            return Err(WireError::CountOutOfRange);
-        }
         put_var_int(output, i32::from(stack.kind.0));
-        put_var_int(output, i32::from(count));
+        put_var_int(output, i32::from(stack.count.get()));
         write_patch(stack, self.names, Entries::Bare, depth, output)
     }
 

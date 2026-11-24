@@ -14,10 +14,14 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_inventory_client_view::SlotView;
+use mcrs_minecraft_item_stack::BlockSet;
+use mcrs_minecraft_item_stack::BlockTagId;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::Tool;
+use mcrs_minecraft_item_stack::ToolRule;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
 use mcrs_minecraft_protocol_game::item::kind::ItemComponentValue;
@@ -304,10 +308,12 @@ fn a_stack_without_a_wire_form_is_sent_once_per_change() {
     apply(world, player, &PersistedSnapshot::new());
     world.run_schedule(FixedUpdate);
     sent(world);
-    let over_the_saved_count = Count::new(100).expect("a count above 0");
+    let unnamed_tag = Tool::new(vec![ToolRule::new(BlockSet::Tag(BlockTagId(u16::MAX)))]);
     world
         .commands()
-        .spawn_stack(ItemStack::new(STONE, over_the_saved_count))
+        .spawn_stack(
+            ItemStack::new(STONE, Count::new(1).expect("a count above 0")).set(unnamed_tag),
+        )
         .put_at(player, 9);
     world.flush();
 

@@ -407,10 +407,6 @@ fn the_saved_count_is_an_int_from_1_to_99_and_an_absent_count_is_1() {
     }
 
     assert!(write_saved(&stack(STONE, 99), &Names).is_ok());
-    assert_eq!(
-        write_saved(&stack(STONE, 100), &Names),
-        Err(SavedError::BadCount)
-    );
 }
 
 #[test]

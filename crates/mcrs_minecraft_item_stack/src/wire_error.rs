@@ -13,7 +13,6 @@ use crate::SavedError;
 pub enum WireError {
     UnexpectedEnd,
     Malformed,
-    CountTooLarge,
     CountOutOfRange,
     EmptyStack,
     UnknownItem,
@@ -68,7 +67,6 @@ impl fmt::Display for WireError {
         match self {
             Self::UnexpectedEnd => formatter.write_str("the input ends inside the stack"),
             Self::Malformed => formatter.write_str("the frame of the stack is malformed"),
-            Self::CountTooLarge => formatter.write_str("the count is larger than 255"),
             Self::CountOutOfRange => formatter.write_str("the count is larger than 99"),
             Self::EmptyStack => formatter.write_str("the format has no form for the empty stack"),
             Self::UnknownItem => formatter.write_str("the item id names no item"),
