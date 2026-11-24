@@ -167,5 +167,6 @@ Rules:
 
 ## 7. Open points
 
-- The player attack depends on #93 and #95.
+- The reach check of the player attack uses the baseline. Reach against what the client saw is
+  #95; `docs/lag-compensation.md` states the scheme and its open points.
 - The save of `Vitals` goes through the persisted registry (#159). No rule states the save of a mob.
