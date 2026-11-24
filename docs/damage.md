@@ -72,16 +72,24 @@ The kernel reads no registry and no world. A custom damage type from a data pack
 
 ## 4. The hit pipeline in the tick
 
-`DamageSet` is a chain of four sets in `FixedUpdate`, in `TickSet::WorldWrite`, after the motion
-pass.
+`DamageSet` is a chain of four sets in `FixedUpdate`. The chain runs at two apply points
+(ATK-ORD-002), and `DamagePoint` names them:
+
+- `Packets`: after the packet handlers in `TickSet::ClientInput`, before `tick_vitals` and the
+  motion pass. It takes the hits that the packet handlers wrote in this tick: the attack and its
+  sweep hits. The knockback of these hits is written before the motion pass, so the target moves by
+  it in the same tick (ATK-KB-005). The velocity packet of a target player goes here (ATK-KB-004).
+- `Pass`: in `TickSet::WorldWrite`, after the motion pass. It takes the hits of the entities of the
+  pass, the own hits of DMG-ORD-002 and a late write from another cell.
 
 1. `Collect`. Each source appends a `DamageRequest { target: Entity, hit: Hit, writer: WriterKey,
    tick: u64, sequence: u32 }` to `PendingHits`. `tick` is the write tick and `sequence` the order of
    the writes of one writer to one target in that tick. A write from another cell keeps both values. The motion step appends the own hits of an entity (step action, inside
    actions, freezing, fall, crowd; DMG-ORD-002) through a per-thread queue. The system that fills `Defence` runs here again, after the changes of the pass.
 2. `Filter`. A user system takes `ResMut<PendingHits>`. It changes an amount or removes a request.
-   The engine adds no system to this set. A mutable queue, not an observer: the order is stable,
-   the hits of a tick are one batch, and no dispatch runs for each hit.
+   It runs before `Apply` of each apply point. The engine adds no system to this set. A mutable
+   queue, not an observer: the order is stable, the hits of an apply point are one batch, and no
+   dispatch runs for each hit.
 3. `Apply`. `apply_hits` sorts the queue by (`EntityUuid` of the target, `WriterKey`, write tick,
    sequence). It calls `hurt` for each request. It writes `Vitals` only on a real change. The
    attack writes its sweep hits (ATK-SWP-002) in `Collect`, together with the primary hit, and
@@ -99,14 +107,14 @@ population.
 
 Rules:
 
-- One apply point exists for each tick for the hits of other entities and the own hits of
-  DMG-ORD-002. A hit that is written before `Apply` applies in the same tick.
+- Two apply points exist in each tick for the hits of other entities: `Packets` and `Pass`. A hit
+  that is written before the `Apply` of a point applies there, in the same tick.
 - Every hit source, also a hit of the base entity tick, writes a request to `PendingHits`. No source
   calls `hurt` directly.
-- The hits of the base entity tick are the exception to the one apply point. They apply at their
+- The hits of the base entity tick are the exception to the two apply points. They apply at their
   step (DMG-ORD-002): that step takes its own requests from the queue and applies them in the order
-  of `Apply`. `Apply` after the pass takes all other requests. Later issues of
-  `docs/spec/environment-damage.md` decide the systems of that step and how `Filter` sees its requests.
+  of `Apply`. Later issues of `docs/spec/environment-damage.md` decide the systems of that step and
+  how `Filter` sees its requests.
 - A hit of the base entity tick reads `Defence` from the run before the motion pass. That value has
   each change before the pass. The hit comes before the effect tick of its step (ENV-ORD-001,
   EFX-TCK-001), so no later change of the same tick reaches it in the reference either.

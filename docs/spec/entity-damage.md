@@ -26,6 +26,8 @@ numeric rules and the packets (section 15).
   entity reads the other entities at their state from the start of the tick.
 - **Sorted queue**, **apply step**: `entity-physics.md`, section 0.1, defines these terms. In this
   document, the entries of the sorted queue are hits.
+- **Packet apply step**: `player-attack.md`, section 0.1, defines this term. It applies the hits
+  of client packets before the pass (ATK-ORD-002).
 - **Health**: an f32 value of a living entity, from 0 to the max health.
 - **Max health**: the value of the attribute `max_health` of the entity, converted to f32.
 - **Damage type**: an entry of the data-pack registry `minecraft:damage_type`.
@@ -599,7 +601,9 @@ stated, not a channel.
 without the tag `no_impact` marks the velocity. At the end of the next tracker tick, after the
 update packets, the tracker sends `set_entity_motion` (play clientbound 103). The viewers and the
 entity itself get it. Then the tracker clears the mark (TRK-UPD-007). The mark does not make the tracker tick an
-update. D9 shows the packet after `set_entity_data`.
+update. D9 shows the packet after `set_entity_data`. The packet carries the velocity that the
+entity has at the tracker tick. For a hit before the pass, this is the velocity after the tick of
+the entity (`player-attack.md`, ATK-KB-005).
 
 **DMG-NET-005** (`black_box_confirmed`, wire, confidence: high). The server part of a player sends
 `set_health` (play clientbound 106) to that player when one of these values changed since the last
@@ -698,11 +702,15 @@ these steps:
    (DMG-FALL-001).
 3. Step 9, the push step: the crowd hit, before the pushes (PHY-PSH-007).
 
-In the pass, a hit from another entity, for example an attack, applies in the apply step of the
-tick that wrote it (PHY-CMP-015, AIT-RFX-006). Each tick has one apply step. It comes after the
-tick of each entity of the pass, and before the server sends the changes of the tick. Thus the
-target does its own tick with the health from before the hit. The update of the same tick sends
-the new health. A hit from another cell can apply in the apply step of the next tick (PHY-CMP-015).
+A hit that the server writes while it handles a client packet, for example an attack, applies in
+the packet apply step, before the pass (`player-attack.md`, ATK-ORD-002). The target then does
+its own tick with the health after the hit (ATK-ORD-005).
+
+In the pass, a hit from another entity applies in the apply step of the tick that wrote it
+(PHY-CMP-015, AIT-RFX-006). That apply step comes after the tick of each entity of the pass, and
+before the server sends the changes of the tick. Thus the target does its own tick with the health
+from before such a hit. The update of the same tick sends the new health. A hit from another cell
+can apply in the apply step of the next tick (PHY-CMP-015).
 
 The order is visible. An entity that lands on magma takes the `hot_floor` hit first, as a full
 hit. The fall hit of the same tick is then a partial hit, so the damage event names `hot_floor`.

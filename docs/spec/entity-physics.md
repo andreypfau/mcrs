@@ -125,8 +125,9 @@ the reference implementation.
 - **Sorted queue**: the list of the writes of the order-independent pass that wait for the apply
   step (PHY-CMP-015). Each write goes from the tick of one entity to another entity, or is an own
   hit of an entity. A write stays in the sorted queue until an apply step applies it.
-- **Apply step**: the one serial step of a tick that applies the sorted queue, in the order of
-  PHY-CMP-015. It comes after the tick of each entity of the pass.
+- **Apply step**: the serial step of a tick that applies the sorted queue, in the order of
+  PHY-CMP-015. It comes after the tick of each entity of the pass. The hits of client packets
+  apply before the pass, in the packet apply step of `player-attack.md` (ATK-ORD-002).
 - **External impulse**: a change of the velocity that does not come from this model, for example
   knockback or an explosion (section 11.3).
 - **f32**, **f64**: an IEEE 754 binary32 value and an IEEE 754 binary64 value.
