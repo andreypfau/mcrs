@@ -1,6 +1,5 @@
 pub use mcrs_voxel::SectionPos;
 
-use crate::entity::SectionEntities;
 use crate::palette::ChunkBlocks;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::stage::SectionStage;
@@ -24,7 +23,6 @@ impl Plugin for SectionPlugin {
 pub struct SectionBundle {
     pub dimension: InDimension,
     pub pos: SectionPos,
-    pub entities: SectionEntities,
     marker: Section,
     stage: SectionStage,
 }
@@ -38,7 +36,6 @@ impl SectionBundle {
         Self {
             dimension,
             pos: chunk_pos,
-            entities: SectionEntities::default(),
             marker: Section,
             stage: SectionStage::Loading,
         }

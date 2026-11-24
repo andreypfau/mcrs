@@ -20,7 +20,6 @@ use mcrs_minecraft_engine::command_handoff::CommandHandoff;
 use mcrs_minecraft_engine::dim_tick::DimInboxDrain;
 use mcrs_minecraft_engine::drain_player_despawn::drain_inbound_player_despawn;
 use mcrs_minecraft_engine::minecraft_entity::InboundDispatch;
-use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use std::marker::PhantomData;
 
@@ -126,8 +125,7 @@ impl<S: CommandSet> Plugin for DimCommandPlugin<S> {
                 .run_if(commands_pending)
                 .after(DimInboxDrain)
                 .after(InboundDispatch)
-                .after(drain_inbound_player_despawn)
-                .before(add_entity_to_chunk),
+                .after(drain_inbound_player_despawn),
         );
     }
 }

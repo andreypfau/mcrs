@@ -1,23 +1,15 @@
-use crate::entity::player::Player;
 use crate::tick::TickSet;
 use crate::world::lifecycle::column_loading::ColumnLoading;
 use crate::world::lifecycle::simulation::SectionSimulation;
 use crate::world::storage::column::ColumnIndex;
 use crate::world::storage::section::SectionIndex;
 use crate::world::storage::section::SectionPlugin;
-use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
+use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
-use bevy_ecs::change_detection::DetectChanges;
-use bevy_ecs::lifecycle::Remove;
-use bevy_ecs::prelude::{
-    Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, IntoScheduleConfigs, On,
-    Query, Ref, With,
-};
-use bevy_ecs::system::Populated;
+use bevy_ecs::prelude::{Bundle, Component, ContainsEntity, Entity, IntoScheduleConfigs};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use mcrs_voxel::SectionPos;
-use std::collections::BTreeSet;
 
 pub struct DimensionPlugin;
 
@@ -37,11 +29,6 @@ impl Plugin for DimensionPlugin {
         );
         app.add_plugins(SectionPlugin);
         app.add_plugins(crate::world::storage::column::ColumnPlugin);
-        app.add_systems(
-            FixedPostUpdate,
-            (add_old_in_dimension, update_index, update_old_in_dimensions).chain(),
-        );
-        app.add_observer(forget_removed_player);
     }
 }
 
@@ -53,7 +40,6 @@ pub struct DimensionBundle {
     pub chunk_index: SectionIndex,
     pub loading: ColumnLoading,
     pub simulation: SectionSimulation,
-    pub players: DimensionPlayers,
     pub column_index: ColumnIndex,
 }
 
@@ -71,7 +57,6 @@ impl DimensionBundle {
             chunk_index: SectionIndex::default(),
             loading: ColumnLoading::bounded(min_section_y..=max_section_y),
             simulation: SectionSimulation::default(),
-            players: DimensionPlayers::default(),
             column_index: ColumnIndex::default(),
         }
     }
@@ -91,22 +76,10 @@ pub struct HasWeather;
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DimensionTypeId(pub Id<DimensionType>);
 
-#[derive(Component, Clone, Default, Deref, Debug)]
-pub struct DimensionPlayers(BTreeSet<Entity>);
-
 #[derive(Component, Clone, Debug, Copy, PartialEq, Eq, DerefMut, Deref)]
 pub struct InDimension(pub Entity);
 
 impl ContainsEntity for InDimension {
-    fn entity(&self) -> Entity {
-        self.0
-    }
-}
-
-#[derive(Component, Deref, Debug, PartialEq, Eq)]
-pub struct OldInDimension(Entity);
-
-impl ContainsEntity for OldInDimension {
     fn entity(&self) -> Entity {
         self.0
     }
@@ -130,109 +103,5 @@ impl DimensionTypeConfig {
 
     pub fn max_y(&self) -> i32 {
         self.min_y + self.height as i32 - 1
-    }
-}
-
-fn update_index(
-    entities: Populated<(Entity, &OldInDimension, Ref<InDimension>), With<Player>>,
-    mut dimensions: Query<&mut DimensionPlayers>,
-) {
-    for (player, old_in_dimension, in_dimension) in &entities {
-        if !in_dimension.is_changed() {
-            continue;
-        }
-        if let Ok(mut viewers) = dimensions.get_mut(**old_in_dimension) {
-            let removed = viewers.0.remove(&player);
-            debug_assert!(
-                removed,
-                "a player is in the players of the dimension its OldInDimension names"
-            );
-        }
-        if let Ok(mut viewers) = dimensions.get_mut(**in_dimension) {
-            let inserted = viewers.0.insert(player);
-            debug_assert!(
-                inserted,
-                "a player is in the players of one dimension only, the one it just left"
-            );
-        }
-    }
-}
-
-fn forget_removed_player(
-    remove: On<Remove<InDimension>>,
-    players: Query<(&InDimension, Option<&OldInDimension>), With<Player>>,
-    mut dimensions: Query<&mut DimensionPlayers>,
-) {
-    let player = remove.event().entity;
-    let Ok((in_dimension, old_in_dimension)) = players.get(player) else {
-        return;
-    };
-    for dimension in [Some(in_dimension.0), old_in_dimension.map(|old| old.0)]
-        .into_iter()
-        .flatten()
-    {
-        if let Ok(mut viewers) = dimensions.get_mut(dimension) {
-            viewers.0.remove(&player);
-        }
-    }
-}
-
-fn add_old_in_dimension(
-    mut commands: Commands,
-    new_players: Populated<(Entity, &InDimension), (With<Player>, Added<InDimension>)>,
-    mut dimensions: Query<&mut DimensionPlayers>,
-) {
-    new_players.iter().for_each(|(entity, in_dimension)| {
-        commands
-            .entity(entity)
-            .insert(OldInDimension(**in_dimension));
-        let Ok(mut dim) = dimensions.get_mut(**in_dimension) else {
-            return;
-        };
-        dim.0.insert(entity);
-    });
-}
-
-pub(crate) fn update_old_in_dimensions(
-    mut clients: Populated<(&mut OldInDimension, &InDimension), Changed<InDimension>>,
-) {
-    clients
-        .iter_mut()
-        .for_each(|(mut old_in_dimension, in_dimension)| {
-            if old_in_dimension.0 != **in_dimension {
-                old_in_dimension.0 = **in_dimension;
-            }
-        });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use bevy_ecs::change_detection::DetectChangesMut;
-
-    #[test]
-    fn a_player_despawned_is_gone_from_the_players_of_every_dimension() {
-        let mut app = App::new();
-        app.add_plugins(DimensionPlugin);
-        let [a, b] = [(); 2].map(|()| app.world_mut().spawn(DimensionPlayers::default()).id());
-        let [staying, moving] =
-            [(); 2].map(|()| app.world_mut().spawn((Player, InDimension(a))).id());
-        app.world_mut().run_schedule(FixedPostUpdate);
-
-        app.world_mut()
-            .get_mut::<InDimension>(moving)
-            .unwrap()
-            .set_if_neq(InDimension(b));
-        app.world_mut().despawn(moving);
-        app.world_mut().despawn(staying);
-
-        for dimension in [a, b] {
-            assert!(
-                app.world()
-                    .get::<DimensionPlayers>(dimension)
-                    .unwrap()
-                    .is_empty()
-            );
-        }
     }
 }
