@@ -68,7 +68,9 @@ bevy = [
 telemetry-tracy = []
 
 [dev-dependencies]
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+proptest.workspace = true
 serde.workspace = true
 
 [[test]]
