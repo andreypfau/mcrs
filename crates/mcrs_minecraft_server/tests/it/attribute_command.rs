@@ -10,8 +10,9 @@ use mcrs_minecraft_protocol_game::text::TextContent;
 use mcrs_minecraft_server::{VanillaEntityAttributesPlugin, VanillaEntityPhysicsPlugin};
 use mcrs_minecraft_text::TranslateArg;
 
-use crate::commands::{chats, load_stone_column};
+use crate::commands::load_stone_column;
 use crate::host_app::{self, PlayServer};
+use crate::support::chats;
 
 const OPERATOR: Uuid = Uuid::from_u128(1);
 const PIG: &str = "00000009-0000-0009-0000-000900000009";

@@ -4,9 +4,8 @@ use bevy_ecs::entity::Entity;
 use mcrs_minecraft_command_engine::{CommandLimits, CommandPlugin};
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine::banlist::{BanEntry, BanList, BanListHostPlugin};
-use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
+use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
-use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_network::client::offline_player_uuid;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, VarInt};
@@ -17,6 +16,7 @@ use mcrs_minecraft_protocol_game::text::{Color, IntoText, Text};
 use mcrs_minecraft_server::operator_broadcast::OperatorBroadcastPlugin;
 
 use crate::host_app::{self, PlayServer};
+use crate::support::{chats, chats_to, reply};
 
 const ADMIN: Uuid = Uuid::from_u128(1);
 const GAMEMASTER: Uuid = Uuid::from_u128(2);
@@ -47,39 +47,12 @@ fn replies(server: &mut PlayServer, anchor: Entity, line: &str) -> Vec<Text> {
     chats(&packets)
 }
 
-fn chats(packets: &[PacketPayload]) -> Vec<Text> {
-    packets
-        .iter()
-        .filter_map(|packet| match packet {
-            PacketPayload::SystemChat(chat) => {
-                Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap())
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-fn chats_to(server: &mut PlayServer, anchor: Entity) -> Vec<Text> {
-    let session = server.session_of(anchor).unwrap();
-    let packets: Vec<PacketPayload> = server
-        .ticks_all(2)
-        .into_iter()
-        .filter(|packet| matches!(&packet.target, PacketTarget::PlayerSet(set) if set.contains(&session)))
-        .map(|packet| packet.data)
-        .collect();
-    chats(&packets)
-}
-
 fn temp_file(test: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("mcrs-ban-it-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(test);
     let _ = std::fs::remove_file(&path);
     path
-}
-
-fn reply(key: &'static str) -> Text {
-    Text::translate(key, Vec::<Text>::new())
 }
 
 fn failed(key: &'static str) -> Text {

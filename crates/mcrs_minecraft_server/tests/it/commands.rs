@@ -47,6 +47,7 @@ use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 
 use crate::host_app::{self, PlayServer};
+use crate::support::chats;
 
 #[derive(Clone, Copy)]
 struct Echo {
@@ -267,18 +268,6 @@ fn root_literals(packets: &[PacketPayload]) -> Vec<String> {
         .iter()
         .filter_map(|child| match &tree.nodes[child.0 as usize].kind {
             CommandNodeKind::Literal(name) => Some(name.to_string()),
-            _ => None,
-        })
-        .collect()
-}
-
-pub(crate) fn chats(packets: &[PacketPayload]) -> Vec<Text> {
-    packets
-        .iter()
-        .filter_map(|packet| match packet {
-            PacketPayload::SystemChat(chat) => {
-                Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap())
-            }
             _ => None,
         })
         .collect()

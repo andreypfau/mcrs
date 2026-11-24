@@ -4,7 +4,6 @@ pub mod browser;
 pub mod client;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod connect;
-mod disconnect_reason;
 #[cfg(feature = "bevy")]
 pub mod event;
 mod forwarding_secret;

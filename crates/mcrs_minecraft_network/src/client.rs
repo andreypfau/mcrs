@@ -17,6 +17,7 @@ use bevy_ecs::system::Populated;
 use bevy_ecs::world::World;
 use bytes::Bytes;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
@@ -173,7 +174,7 @@ impl fmt::Display for ConnectionEnd {
             ConnectionEnd::Kicked(reason) => write!(
                 f,
                 "the server disconnected you: {}",
-                crate::disconnect_reason::disconnect_reason(reason)
+                mcrs_minecraft_text_flatten::plain_text(&Language::default(), reason)
             ),
             ConnectionEnd::JoinFailed(cause) => write!(f, "the connection failed: {cause}"),
             ConnectionEnd::Lost(cause) => f.write_str(cause),

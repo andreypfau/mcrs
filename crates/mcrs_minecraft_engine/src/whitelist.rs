@@ -1,4 +1,4 @@
-use crate::json_list::{parse_json_list, read_json_list, write_atomic};
+use crate::json_list::{parse_json_list, read_json_list};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::{Commands, Event, On, ResMut, Resource};
 use mcrs_minecraft_network::client::offline_player_uuid;
@@ -105,7 +105,7 @@ impl Whitelist {
     }
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
         let entries: Vec<_> = self.entries.values().collect();
-        write_atomic(path, &serde_json::to_string_pretty(&entries)?)
+        mcrs_minecraft_save::write_atomic(path, serde_json::to_string_pretty(&entries)?.as_bytes())
     }
 
     pub fn remove(&mut self, id: &Uuid) -> Option<WhitelistEntry> {
