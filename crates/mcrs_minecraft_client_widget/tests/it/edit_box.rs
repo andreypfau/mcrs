@@ -452,7 +452,7 @@ fn tab_and_activation_start_edit_mode_and_an_arrow_does_not() {
 
 #[test]
 fn the_options_of_a_box_filter_cut_keep_the_focus_and_colour_it() {
-    let cases: [(&str, fn() -> EditBox, &str, bool, u32); 5] = [
+    let cases: [(&str, fn() -> EditBox, &str, bool, u32); 6] = [
         ("defaults", EditBox::default, "a1b", false, 0xFFE0_E0E0),
         (
             "a filter refuses a value",
@@ -474,6 +474,13 @@ fn the_options_of_a_box_filter_cut_keep_the_focus_and_colour_it() {
             "a1b",
             true,
             0xFFFF_FFFF,
+        ),
+        (
+            "the chat box stays in edit mode",
+            || EditBox::new(EditBoxLook::Chat),
+            "a1b",
+            true,
+            0xFFE0_E0E0,
         ),
         (
             "a box that is not editable takes its colour",

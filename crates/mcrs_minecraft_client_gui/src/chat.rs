@@ -12,6 +12,7 @@ use crate::edit_box_draw;
 use crate::font::{self, Font, Hover, Span};
 use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
+use crate::menu_input;
 use crate::scene::{self, GuiAtlas, GuiAtlasData, GuiConfig, GuiQuad, GuiScene, GuiSize};
 use crate::text::{self, Wrap};
 use crate::tooltip::Tooltip;
@@ -37,7 +38,6 @@ const ARGUMENT_PALETTE: [u32; ARGUMENT_COLOURS as usize] = [
     0xFFFF_55FF,
     0xFFFF_AA00,
 ];
-const CARET_BLINK_MS: u128 = 300;
 const TAG_TOOLTIP_WIDTH: i32 = 210;
 const MODIFIED_ICON: &str = "icon/chat_modified";
 
@@ -294,7 +294,7 @@ fn input_box(
     size: GuiSize,
     atlas: &GuiAtlasData,
     screen: &ChatScreen,
-    caret_on: bool,
+    now_ms: u64,
     out: &mut Vec<GuiQuad>,
 ) {
     out.push(GuiQuad::Fill {
@@ -306,9 +306,10 @@ fn input_box(
     let font = &atlas.font;
     let mut visible = 0..0;
     let mut selection = None;
+    let mut caret_part = None;
     screen.edit().draw(
         input_bounds(size),
-        0,
+        now_ms,
         &|text| font.str_width(text),
         None,
         EditBoxHighlight::Off,
@@ -316,6 +317,9 @@ fn input_box(
         &mut |part| match part {
             EditBoxPart::Text { range, .. } => visible = range,
             EditBoxPart::Selection { .. } => selection = Some(part),
+            EditBoxPart::CaretBar { .. } | EditBoxPart::CaretUnderscore { .. } => {
+                caret_part = Some(part);
+            }
             _ => {}
         },
     );
@@ -345,32 +349,15 @@ fn input_box(
     {
         font::draw_str(
             font,
-            Vec2::new(caret_x as f32 - 1.0, y as f32),
+            Vec2::new(caret_x as f32, y as f32),
             ghost,
             GHOST,
             false,
             out,
         );
     }
-    if let Some(part) = selection {
+    for part in [selection, caret_part].into_iter().flatten() {
         edit_box_draw::draw_edit_box_part(atlas, part, out);
-    }
-    if caret_on && in_view {
-        if at_end {
-            font::draw_str(
-                font,
-                Vec2::new(caret_x as f32, y as f32),
-                "_",
-                INPUT_TEXT,
-                false,
-                out,
-            );
-        } else {
-            out.push(GuiQuad::Fill {
-                rect: IRect::new(caret_x, y - 1, caret_x + 1, y + 10),
-                color: 0xFFD0_D0D0,
-            });
-        }
     }
 }
 
@@ -426,8 +413,8 @@ pub fn draw(
         return;
     }
     let screen = &input.0;
-    let caret_on = (time.elapsed().as_millis() / CARET_BLINK_MS).is_multiple_of(2);
-    input_box(size, &atlas.0, screen, caret_on, &mut scene.quads);
+    let now_ms = menu_input::menu_clock(&time);
+    input_box(size, &atlas.0, screen, now_ms, &mut scene.quads);
     if let Some((list, rows)) = screen
         .commands
         .list()

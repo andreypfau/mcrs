@@ -46,9 +46,11 @@ impl ChatScreen {
         &mut self,
         initial: &str,
         style: InputStyle,
+        now_ms: u64,
         cx: &Context<'_, L>,
     ) {
         self.edit.set(initial);
+        self.edit.focus(now_ms);
         self.recall = Recall::default();
         self.draft = style == InputStyle::Draft;
         self.commands.auto = false;

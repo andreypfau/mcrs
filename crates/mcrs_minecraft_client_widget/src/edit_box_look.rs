@@ -33,6 +33,6 @@ impl EditBoxLook {
 
     #[must_use]
     pub(crate) const fn can_lose_focus(self) -> bool {
-        !matches!(self, Self::CreativeSearch)
+        !matches!(self, Self::Chat | Self::CreativeSearch)
     }
 }
