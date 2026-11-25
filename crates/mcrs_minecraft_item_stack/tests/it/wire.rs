@@ -46,6 +46,7 @@ use mcrs_minecraft_item_stack::TooltipDisplay;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_stack::WireError;
 use mcrs_minecraft_item_stack::WireStack;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::read_saved;
 use mcrs_minecraft_item_stack::read_wire;
@@ -68,6 +69,7 @@ use mcrs_minecraft_text::Color;
 use mcrs_minecraft_text::IntoText;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::Decode;
+use mcrs_minecraft_wire::ErrorKind;
 use serde::Deserialize;
 
 use crate::common::COMPONENT_TYPES;
@@ -1467,6 +1469,76 @@ fn one_wire_stack_shares_one_nbt_budget_with_the_stacks_inside_it() {
             assert!(matches!(read, Ok(Ok(Some(_)))), "{index}");
         } else {
             assert_eq!(read, Err(NbtQuotaExceeded), "{index}");
+        }
+    }
+}
+
+fn decode_with_length(bytes: &[u8]) -> Result<Vec<u8>, WireError> {
+    let mut input = bytes;
+    let frame = WireStackWithLength::decode(&mut input).map_err(|error| match error.kind() {
+        ErrorKind::UnexpectedEnd => WireError::UnexpectedEnd,
+        ErrorKind::Other(other) => *other
+            .downcast_ref::<WireError>()
+            .expect("the frame gives a wire error"),
+        other => panic!("the frame gives {other:?}"),
+    })?;
+    assert!(input.is_empty(), "{} bytes are left", input.len());
+    Ok(frame.bytes().to_vec())
+}
+
+#[test]
+fn a_length_prefixed_frame_checks_each_value_against_the_shape_of_its_type() {
+    let charge = ComponentType(7);
+    let cases = [
+        (
+            with_one_component("minimum_attack_charge", "04 3f800000"),
+            None,
+        ),
+        (
+            with_one_component("minimum_attack_charge", "05 3f800000 00"),
+            Some(WireError::BadLength(charge)),
+        ),
+        (
+            with_one_component("minimum_attack_charge", "03 3f8000"),
+            Some(WireError::BadLength(charge)),
+        ),
+        (
+            with_one_component("damage", "01 8001"),
+            Some(WireError::BadLength(ComponentType(3))),
+        ),
+        (
+            with_one_component("use_effects", "06 02 00 3f800000"),
+            Some(WireError::BadShape(ComponentType(5))),
+        ),
+        (
+            unhex("01 01 01 00 7a 00"),
+            Some(WireError::UnknownComponentType(122)),
+        ),
+    ];
+    for (index, (bytes, error)) in cases.iter().enumerate() {
+        let expected = error.map_or_else(|| Ok(bytes.clone()), Err);
+        assert_eq!(decode_with_length(bytes), expected, "{index}");
+    }
+}
+
+#[test]
+fn a_length_prefixed_frame_charges_its_values_to_the_nbt_budget_in_force() {
+    let mut nbt = vec![10, 7, 0, 1, b'a', 0, 0, 0, 100];
+    nbt.resize(nbt.len() + 100, 0);
+    nbt.push(0);
+    let length = u8::try_from(nbt.len()).expect("the value is shorter than 128 bytes");
+    let bytes = stone_with("custom_data", &[vec![length], nbt].concat());
+    let cases = [(1_024, true), (64, false)];
+    for (limit, passes) in cases {
+        let budget = NbtBudget {
+            bytes: limit,
+            tags: 262_144,
+        };
+        let decoded = with_nbt_budget(budget, || decode_with_length(&bytes));
+        if passes {
+            assert_eq!(decoded, Ok(Ok(bytes.clone())), "{limit}");
+        } else {
+            assert_eq!(decoded, Err(NbtQuotaExceeded), "{limit}");
         }
     }
 }

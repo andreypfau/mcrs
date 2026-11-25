@@ -310,8 +310,11 @@ model, and the frame is its stage on the Java wire. `mcrs_minecraft_item_stack` 
 
 - `WireStack`: the bytes of one wire stack (STK-NET-001), with checked bounds. Its `Encode` and
   `Decode` need no context. It holds no component values.
-- `WireStackWithLength`: the bytes of one wire stack with length prefix (STK-NET-007). It replaces
-  `DelimitedStack` and needs no shape table.
+- `WireStackWithLength`: the bytes of one wire stack with length prefix (STK-NET-007). Its
+  `Decode` does not trust the length prefix. It checks each value with the shape of its type id,
+  inside the length and under the NBT budget in force. The value must fill its length exactly
+  (STK-NET-010). An unknown type id, a short or long value, or a value over the budget is a
+  decode error.
 - `HashedStack`: it gets `Encode` and `Decode` that need no context. Its read takes no name table.
   It checks each type id against `DataComponentType`.
 

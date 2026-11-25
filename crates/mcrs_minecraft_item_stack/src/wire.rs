@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use core::mem;
 
 use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -18,6 +19,7 @@ use crate::nbt_depth::STACK_LEVEL;
 use crate::nbt_depth::check_nbt_depth;
 use crate::saved::is_air;
 use crate::saved_form::Fault;
+use crate::wire_scan::prefixed_value;
 use crate::wire_value::put_length;
 use crate::wire_value::put_var_int;
 use crate::wire_value::read_value_at;
@@ -196,31 +198,14 @@ fn read_prefixed_value<L: NameLookup>(
     names: &L,
     component: &TypeRef<'_>,
 ) -> Result<PatchEntry, WireError> {
-    let length = frame_length(input)?;
-    let (bytes, rest) = input
-        .split_at_checked(length)
-        .ok_or(WireError::UnexpectedEnd)?;
-    *input = rest;
-    if let Some(key) = component.builtin {
-        let mut value_input = bytes;
-        let bad_length = WireError::BadLength(component.id);
-        let value =
-            read_value_at(key, &mut value_input, names, STACK_LEVEL).map_err(
-                |error| match error {
-                    WireError::UnexpectedEnd => bad_length,
-                    other => other,
-                },
-            )?;
-        if !value_input.is_empty() {
-            return Err(bad_length);
-        }
-        return Ok(PatchEntry::Value(value));
-    }
-    Ok(PatchEntry::UndecodedWire(UndecodedWireValue::new(
-        component.id,
-        component.builtin,
-        bytes,
-    )))
+    prefixed_value(input, component.id, |value| match component.builtin {
+        Some(key) => read_value_at(key, value, names, STACK_LEVEL).map(PatchEntry::Value),
+        None => Ok(PatchEntry::UndecodedWire(UndecodedWireValue::new(
+            component.id,
+            component.builtin,
+            mem::take(value),
+        ))),
+    })
 }
 
 fn put_new(
