@@ -1061,7 +1061,7 @@ format code changes no style.
 `docs/spec/fixtures/text-component/e2-sign.txt`,
 `docs/spec/fixtures/text-component/e3-dialog.txt` and
 `docs/spec/fixtures/text-component/e6-chat-display.txt`). The client expands a text in the same way
-in each place where it draws a text. The places that an experiment covers are chat, a sign, the
+in each place where it draws a text, except the server list. TXT-DSP-012 states the server list. The places that an experiment covers are chat, a sign, the
 title and the body of a dialog, and the name of the held item above the hotbar. The places differ
 in the layout, in the style of the root, and in the texts that arrive unresolved. A sign draws a
 text with no colour in black. Chat and a dialog draw it in white. Thus the same unresolved selector
@@ -1103,10 +1103,11 @@ This table sums up the content kinds:
 reads at most 65536 pieces. It ignores each piece after the 65536th. This gives no error and no
 mark. The limit counts pieces, not characters. An empty literal gives no piece, thus it does not
 count. An empty string argument gives a piece, thus it counts. The limit applies to each root text
-alone, in the drawn form and in the plain string.
+alone. The experiments confirm it for the plain string. No experiment shows the drawn form yet.
+U16 lists it.
 The expansion of a text can be much larger than the text, because a `%N$s` can repeat an
 argument. A translation that repeats one argument ten times, in five levels, has 100000 pieces.
-The text after the 65536th piece does not show. TXT-DSP-022 adds a bound on the nodes.
+The plain string does not hold the text after the 65536th piece. TXT-DSP-022 adds a bound on the nodes.
 TXT-DSP-023 adds a bound on the code units of the drawn form.
 
 **TXT-DSP-020** (`black_box_confirmed`, semantic, artefact
@@ -1188,10 +1189,6 @@ screenshot.
 - **E7, key mappings that the player changed.** Start the client with an options file that binds
   `key.jump` to the key X and leaves `key.sneak` with no key. Run `tellraw` and `item replace`
   with `keybind` contents. The fixture is `e7-keybind.txt`.
-- **Not run.** The server list (TXT-DSP-012), the tooltip (TXT-DSP-026), the hover, click and
-  insertion of a piece (TXT-DSP-025) and the hat layer of a head (TXT-DSP-024) need a pointer on
-  the screen of the client, or a skin. Section 11 lists them.
-
 ## 9. Boundaries
 
 This document does not state these subjects:
@@ -1296,3 +1293,5 @@ Not decided by an experiment yet:
   `2.0E-323d`.
 - **U15**: TXT-DSP-022, D2. The reference shows `END` after six levels of ten repeats over an empty
   literal. Extend E5 with that case.
+- **U16**: TXT-DSP-019. The limit of 65536 pieces in the drawn form. Run the case LIM-a1 of E5
+  and take a screenshot of the chat. Compare the drawn text with the plain string.
