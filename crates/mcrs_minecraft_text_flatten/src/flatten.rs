@@ -1,36 +1,37 @@
 use mcrs_minecraft_lang::{Language, Piece};
-use mcrs_minecraft_text::{Text, TextContent, TextTypes, TranslateArg};
-
-use crate::RunStyle;
+use mcrs_minecraft_text::{ResolvedStyle, Text, TextContent, TextTypes, TranslateArg};
 
 pub(crate) const MAX_FLAT_LEN: usize = 262_144;
 
-pub fn flatten<I: TextTypes>(
+pub fn flatten<'a, I: TextTypes>(
     language: &Language,
-    text: &Text<I>,
-    mut emit: impl FnMut(&str, RunStyle),
+    text: &'a Text<I>,
+    mut emit: impl FnMut(&str, ResolvedStyle<'a, I>),
 ) {
     let mut walk = Walk {
         language,
         emit: &mut emit,
         budget: MAX_FLAT_LEN,
     };
-    walk.text(text, RunStyle::default());
+    walk.text(text, ResolvedStyle::default());
 }
 
-struct Walk<'a, F> {
-    language: &'a Language,
-    emit: &'a mut F,
+struct Walk<'l, F> {
+    language: &'l Language,
+    emit: &'l mut F,
     budget: usize,
 }
 
-impl<F: FnMut(&str, RunStyle)> Walk<'_, F> {
-    fn text<I: TextTypes>(&mut self, text: &Text<I>, inherited: RunStyle) {
+impl<F> Walk<'_, F> {
+    fn text<'a, I: TextTypes>(&mut self, text: &'a Text<I>, inherited: ResolvedStyle<'a, I>)
+    where
+        F: FnMut(&str, ResolvedStyle<'a, I>),
+    {
         let Some(budget) = self.budget.checked_sub(1) else {
             return;
         };
         self.budget = budget;
-        let style = inherited.with(&text.style);
+        let style = text.style.resolve(inherited);
         match &text.content {
             TextContent::Text { text } => self.run(text, style),
             TextContent::Translate {
@@ -66,7 +67,10 @@ impl<F: FnMut(&str, RunStyle)> Walk<'_, F> {
         }
     }
 
-    fn arg<I: TextTypes>(&mut self, arg: &TranslateArg<I>, style: RunStyle) {
+    fn arg<'a, I: TextTypes>(&mut self, arg: &'a TranslateArg<I>, style: ResolvedStyle<'a, I>)
+    where
+        F: FnMut(&str, ResolvedStyle<'a, I>),
+    {
         match arg {
             TranslateArg::Bool(value) => self.run(if *value { "true" } else { "false" }, style),
             TranslateArg::Number(number) => {
@@ -76,7 +80,10 @@ impl<F: FnMut(&str, RunStyle)> Walk<'_, F> {
         }
     }
 
-    fn run(&mut self, run: &str, style: RunStyle) {
+    fn run<'a, I: TextTypes>(&mut self, run: &str, style: ResolvedStyle<'a, I>)
+    where
+        F: FnMut(&str, ResolvedStyle<'a, I>),
+    {
         let run = run
             .get(..run.floor_char_boundary(self.budget))
             .unwrap_or_default();

@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 
 use mcrs_minecraft_item_stack::EnchantmentLevel;
 use mcrs_minecraft_text::Color;
+use mcrs_minecraft_text::IntoText;
 use mcrs_minecraft_text::Text;
 
 use crate::EnchantmentClass;
@@ -27,13 +28,10 @@ pub(crate) fn enchantment_parts(
 
 fn enchantment_part(level: EnchantmentLevel, inputs: &TooltipInputs<'_>) -> Option<Text> {
     let entry = inputs.enchantments.get(usize::from(level.enchantment.0))?;
-    let mut part = entry.description.clone();
-    if part.style.color.is_none() {
-        part.style.color = Some(match entry.class {
-            EnchantmentClass::Curse => Color::RED,
-            EnchantmentClass::Other => Color::GRAY,
-        });
-    }
+    let mut part = entry.description.clone().default_color(match entry.class {
+        EnchantmentClass::Curse => Color::RED,
+        EnchantmentClass::Other => Color::GRAY,
+    });
     if level.level.get() != 1 || entry.max_level != 1 {
         part.extra.push(Text::text(" "));
         part.extra.push(Text::translate(

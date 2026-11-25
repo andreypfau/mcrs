@@ -3,7 +3,9 @@ use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ClickEvent, Color, HoverEvent, ItemHover, TextMap, TextSerde, TextTypes};
+use crate::{
+    ClickEvent, Color, DeclaredStyle, HoverEvent, ItemHover, TextMap, TextSerde, TextTypes,
+};
 use mcrs_minecraft_core::codec::{ArgbInt, optional_flag};
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -87,6 +89,83 @@ impl<I: TextTypes> Default for Style<I> {
 impl<I: TextTypes> Style<I> {
     pub fn is_empty(&self) -> bool {
         *self == Style::default()
+    }
+
+    #[must_use]
+    pub fn declared(&self) -> DeclaredStyle {
+        DeclaredStyle {
+            click_event: self.click_event.is_some(),
+            hover_event: self.hover_event.is_some(),
+            font: self.font.is_some(),
+            strikethrough_enabled: self.strikethrough == Some(true),
+            underlined_enabled: self.underlined == Some(true),
+        }
+    }
+
+    #[must_use]
+    pub fn formatting<B: TextTypes>(&self) -> Style<B> {
+        Style {
+            color: self.color,
+            bold: self.bold,
+            italic: self.italic,
+            underlined: self.underlined,
+            strikethrough: self.strikethrough,
+            obfuscated: self.obfuscated,
+            ..Style::default()
+        }
+    }
+
+    #[must_use]
+    pub fn resolve<'a>(&'a self, parent: ResolvedStyle<'a, I>) -> ResolvedStyle<'a, I> {
+        ResolvedStyle {
+            color: self.color.or(parent.color),
+            obfuscated: self.obfuscated.unwrap_or(parent.obfuscated),
+            bold: self.bold.unwrap_or(parent.bold),
+            strikethrough: self.strikethrough.unwrap_or(parent.strikethrough),
+            underlined: self.underlined.unwrap_or(parent.underlined),
+            italic: self.italic.unwrap_or(parent.italic),
+            click_event: self.click_event.as_ref().or(parent.click_event),
+            hover_event: self.hover_event.as_ref().or(parent.hover_event),
+            insertion: self.insertion.as_deref().or(parent.insertion),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ResolvedStyle<'a, I: TextTypes = ItemHover> {
+    pub color: Option<Color>,
+    pub obfuscated: bool,
+    pub bold: bool,
+    pub strikethrough: bool,
+    pub underlined: bool,
+    pub italic: bool,
+    pub click_event: Option<&'a ClickEvent<I>>,
+    pub hover_event: Option<&'a HoverEvent<I>>,
+    pub insertion: Option<&'a str>,
+}
+
+impl<I: TextTypes> Clone for ResolvedStyle<'_, I> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<I: TextTypes> Copy for ResolvedStyle<'_, I> {}
+
+impl<I: TextTypes> Default for ResolvedStyle<'_, I> {
+    fn default() -> Self {
+        Self {
+            color: None,
+            obfuscated: false,
+            bold: false,
+            strikethrough: false,
+            underlined: false,
+            italic: false,
+            click_event: None,
+            hover_event: None,
+            insertion: None,
+        }
     }
 }
 

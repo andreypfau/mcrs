@@ -1,12 +1,10 @@
 use mcrs_minecraft_lang::Language;
-use mcrs_minecraft_text::{Color, Text, TextTypes};
-
-use crate::RunStyle;
+use mcrs_minecraft_text::{Color, ResolvedStyle, Text, TextTypes};
 
 #[must_use]
 pub fn legacy_text<I: TextTypes>(language: &Language, text: &Text<I>) -> String {
     let mut out = String::new();
-    let mut written = RunStyle::default();
+    let mut written = ResolvedStyle::default();
     crate::flatten(language, text, |run, style| {
         write_change(&mut out, written, style);
         written = style;
@@ -15,8 +13,8 @@ pub fn legacy_text<I: TextTypes>(language: &Language, text: &Text<I>) -> String 
     out
 }
 
-fn write_change(out: &mut String, from: RunStyle, to: RunStyle) {
-    let flags = |style: RunStyle| {
+fn write_change<I: TextTypes>(out: &mut String, from: ResolvedStyle<I>, to: ResolvedStyle<I>) {
+    let flags = |style: ResolvedStyle<I>| {
         [
             (style.obfuscated, 'k'),
             (style.bold, 'l'),
