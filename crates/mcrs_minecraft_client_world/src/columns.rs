@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::Hash;
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::change_detection::{DetectChangesMut, Mut};
 use bevy::ecs::message::{Message, MessageWriter};
@@ -40,7 +39,9 @@ use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 
 use crate::block_prediction::BlockPredictions;
 use crate::client_light;
+use crate::column_decode_error::ColumnDecodeError;
 use crate::joined_game::CurrentDimension;
+use crate::refused_chunk::RefusedChunk;
 use crate::sign::sign_block;
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{
@@ -587,9 +588,10 @@ impl Column {
         extent: Extent,
         block_state_count: usize,
         biome_count: usize,
-    ) -> Result<Column> {
+    ) -> Result<Column, ColumnDecodeError> {
         let sections = data
-            .sections(extent.sections, block_state_count, biome_count)?
+            .sections(extent.sections, block_state_count, biome_count)
+            .map_err(ColumnDecodeError::Sections)?
             .into_iter()
             .map(|section| {
                 if section.non_empty_block_count == 0 {
@@ -612,10 +614,12 @@ impl Column {
                     states,
                 }))
             })
-            .collect::<Result<_>>()?;
+            .collect::<Result<_, ColumnDecodeError>>()?;
 
         let mut column = Column::unlit(extent.min_section_y, sections);
-        column.relight(&unpack_light_data(light, extent.sections + 2)?);
+        let light =
+            unpack_light_data(light, extent.sections + 2).map_err(ColumnDecodeError::Light)?;
+        column.relight(&light);
         Ok(column)
     }
 
@@ -713,14 +717,12 @@ fn write_nibbles(source: &LightChunk, out: &mut [u8; SectionPos::VOLUME], shift:
 fn biome_ids(
     sent: &PalettedContainer<u8, { Biomes::SIZE }>,
     biome_count: usize,
-) -> Result<PalettedContainer<u8, { Biomes::SIZE }>> {
-    let local = |number: u8| -> Result<u8> {
+) -> Result<PalettedContainer<u8, { Biomes::SIZE }>, ColumnDecodeError> {
+    let local = |number: u8| -> Result<u8, ColumnDecodeError> {
         if usize::from(number) < biome_count {
             Ok(number)
         } else {
-            Err(anyhow!(
-                "biome {number} is not one the session registries hold"
-            ))
+            Err(ColumnDecodeError::UnknownBiome(number))
         }
     };
     match sent {
@@ -854,7 +856,7 @@ impl Default for Arrivals {
 
 enum Arrival {
     Enter(Dimension),
-    Column(Task<Result<Option<(ColumnPos, Column)>>>),
+    Column(Task<Result<Option<(ColumnPos, Column)>, RefusedChunk>>),
     Light(ColumnPos, ColumnLight),
     Blocks(Vec<BlockChange>),
     Sign(BlockPos, SignUpdate),
@@ -973,13 +975,11 @@ fn on_level_chunk(
     let block_state_count = blocks.state_count();
     let task = AsyncComputeTaskPool::get().spawn(async move {
         let mut bytes = &data[..];
-        let packet = ClientboundLevelChunkWithLight::decode(&mut bytes)
-            .map_err(|error| anyhow!("chunk packet: {error:?}"))?;
-        anyhow::ensure!(
-            bytes.is_empty(),
-            "chunk packet: {} bytes left over",
-            bytes.len()
-        );
+        let packet =
+            ClientboundLevelChunkWithLight::decode(&mut bytes).map_err(RefusedChunk::Packet)?;
+        if !bytes.is_empty() {
+            return Err(RefusedChunk::TrailingBytes(bytes.len()));
+        }
         let Some(extent) = extent else {
             return Ok(None);
         };
@@ -994,7 +994,10 @@ fn on_level_chunk(
             block_state_count,
             biome_count,
         )
-        .with_context(|| format!("column {:?}", packet.pos))?;
+        .map_err(|error| RefusedChunk::Column {
+            pos: packet.pos,
+            error,
+        })?;
         let column = column.with_chunk_signs(packet.pos, &packet.chunk_data.block_entities);
         Ok(Some((packet.pos, column)))
     });
@@ -1267,7 +1270,7 @@ fn settle_columns(
                         close_connection_later(
                             commands.reborrow(),
                             *entity,
-                            ConnectionEnd::Lost(format!("Internal Exception: {error:#}")),
+                            ConnectionEnd::Lost(format!("Internal Exception: {error}")),
                         );
                     }
                     arrivals.queue.clear();
@@ -1468,7 +1471,7 @@ mod tests {
         }
     }
 
-    fn decoded(sections: &[ChunkSection], biomes: usize) -> Result<Column> {
+    fn decoded(sections: &[ChunkSection], biomes: usize) -> Result<Column, ColumnDecodeError> {
         let blob = sections.iter().flat_map(written).collect::<Vec<u8>>();
         Column::decode(
             &ChunkData {
@@ -1521,10 +1524,19 @@ mod tests {
         let Err(error) = decoded(&[held.clone(), lacking], biomes) else {
             panic!("a biome the session registries lack was accepted");
         };
-        assert!(format!("{error:#}").contains("biome 12"), "{error:#}");
+        assert!(
+            matches!(error, ColumnDecodeError::UnknownBiome(12)),
+            "{error:?}"
+        );
 
         let lacking_in_one_cell = biomes_with_one_cell(7, (0, 3, 2), 12);
-        assert!(decoded(&[held, lacking_in_one_cell], biomes).is_err());
+        assert!(
+            matches!(
+                decoded(&[held, lacking_in_one_cell], biomes),
+                Err(ColumnDecodeError::UnknownBiome(12))
+            ),
+            "a biome the session registries lack in one cell was accepted"
+        );
     }
 
     #[test]
