@@ -81,6 +81,16 @@ fn grows_local(scores: Query<&Score>) {
 
 #[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
 #[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn grows_a_deque(scores: Query<&Score>) {
+    let mut values = std::collections::VecDeque::new();
+    for score in &scores {
+        values.push_back(score.0);
+    }
+    drop(values);
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn fills_through_helper(scores: Query<&Score>) {
     let mut values = Vec::new();
     fill(&mut values, &scores);
@@ -267,6 +277,7 @@ pub fn build_tick_rules(app: &mut App) {
             reads_file_through_helper,
             allocates,
             grows_local,
+            grows_a_deque,
             fills_through_helper,
             formats_a_label,
             states_a_wrong_count,

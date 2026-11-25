@@ -361,7 +361,16 @@ impl<'tcx> Scanner<'_, 'tcx> {
         }
         let grows = matches!(
             self.tcx.item_name(callee).as_str(),
-            "push" | "extend" | "insert" | "push_str" | "append" | "resize" | "reserve"
+            "push"
+                | "push_back"
+                | "push_front"
+                | "extend"
+                | "extend_from_slice"
+                | "insert"
+                | "push_str"
+                | "append"
+                | "resize"
+                | "reserve"
         );
         if let Some(receiver) = args.first().filter(|_| grows) {
             self.grow(receiver);
