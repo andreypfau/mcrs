@@ -41,7 +41,7 @@ The layer numbers are those of `AGENTS.md`.
 
 | Crate | Layer | Bevy | Owns | Depends on |
 |-|-|-|-|-|
-| `mcrs_minecraft_item_stack` | 3, data | feature `bevy`: derives only | `ItemStack`, `PatchEntry`, `Kind`, `Count`, one type for each component type, the codecs of the spec section 6 | wire, NBT, SNBT, text, profile, entity attribute, resource, voxel, banner pattern, sound, trim, all without their `registry` feature |
+| `mcrs_minecraft_item_stack` | 3, data | feature `bevy`: derives only | `ItemStack`, `PatchEntry`, `Kind`, `Count`, one type for each component type, the component type enum `DataComponentType`, the wire frames (section 8.1), the codecs of the spec section 6 | wire, NBT, SNBT, text, profile, entity attribute, resource, voxel, banner pattern, sound, trim, all without their `registry` feature; static registry without `std` |
 | `mcrs_minecraft_item_table` | 3, data | feature `bevy`: one resource derive | `ItemTable`, `Prototype`; the bake from the data pack | `mcrs_minecraft_item_stack`, registries |
 | `mcrs_minecraft_inventory_transaction` | 3, rules | none | the planner of an atomic request | nothing (`core` and `alloc`) |
 | `mcrs_minecraft_engine_item` | 4, engine | required | the entity form, hooks, commands, read tools, the request command, `Equipped` | the three crates above, `bevy_ecs`, `bevy_app`, `bevy_math` |
@@ -72,6 +72,9 @@ The layer numbers are those of `AGENTS.md`.
   the last two. The instrument component keeps `InlineInstrument`: the registry type holds its
   sound as a `Ref` with a shared pointer and validated numbers, and the stack crate holds a dense
   sound id.
+- The stack crate owns the component type enum `DataComponentType`. The enum is generated and is
+  static for one game version. For it, `mcrs_minecraft_item_stack` depends on
+  `mcrs_minecraft_static_registry` without the feature `std`.
 - The target is that the protocol crates depend on `mcrs_minecraft_item_stack` only.
   `mcrs_minecraft_protocol_game` still depends on `mcrs_minecraft_item`. Issue #1114 closes this gap.
 - A proxy or a tool takes `mcrs_minecraft_item_stack` alone. A bot adds the table and the engine
@@ -165,7 +168,7 @@ impl CustomComponent for Soulbound {
 app.insert_resource(table).add_plugins(ItemPlugin::default()).register_item_component::<Soulbound>()?;
 
 let stack = ItemStack::new(kind, count).set(CustomName("Sting".into())).unset::<Lore>();
-let bytes = encode_wire(Some(&stack))?;            // the codec names come with the codec step
+let frame = WireStack::write(Some(&stack), &names)?;  // section 8.1
 ```
 
 # 6. Storage-class contract and the write rule
@@ -278,10 +281,66 @@ in these steps. Each step is one pull request and ends with the old path deleted
 1. Delete the old two-field `ItemStack` and its three users. Make `Count` hold 1 to 99.
 2. Done, except the instrument. Make `mcrs_minecraft_item_stack` depend on the registry value
    crates. Replace each `Inline*` type with a reference to the type of the registry crate.
-3. Move `mcrs_minecraft_protocol_game` to the wire stack of `mcrs_minecraft_item_stack`. Delete
-   `ProtoStack`, the old hashed stack and the bytes bridge between the two models.
+3. Move `mcrs_minecraft_protocol_game` to the wire frames of `mcrs_minecraft_item_stack`
+   (section 8.1). Do these steps in this order:
+   - **3a.** Move the owner of the component type enum `DataComponentType` from
+     `mcrs_minecraft_item` to `mcrs_minecraft_item_stack`.
+   - **3b.** Give each of the 122 component types a wire shape, and add `WireStack` and
+     `WireStackWithLength`. A differential test against the old decoder gates this step. The
+     test runs over the fixtures of `mcrs_minecraft_protocol_game`.
+   - **3c.** Use `HashedStack` of the stack crate in the serverbound packets and the click paths.
+     Delete the two hashed bridges.
+   - **3d.** Move the `set_creative_mode_slot` packet to `WireStackWithLength`.
+   - **3e.** Move the clientbound packets, the item stack slot of the entity metadata, the trade
+     offers and replication to `WireStack`. Delete `ProtoStack`, `DelimitedStack`, the old
+     hashed stack and the bridges that remain.
+   - **3f.** In one `fix(item)` pull request, change the consumers that now reject a count larger
+     than 99 (STK-CNT-009).
+   - **3g.** Remove the component type table from `NameLookup`.
 4. Move `mcrs_minecraft_block_entity`, `mcrs_minecraft_vanilla_inventory` and the loot tables off
    `ItemStackValue`, `ItemStackWithSlot` and `ComponentPatch`.
 5. Delete the component types, the patch and the stack of `mcrs_minecraft_item`.
 6. Correct this note and the two inventory notes. Replace the private `ItemStack` of world
    generation.
+
+## 8.1 How a packet carries a stack
+
+A packet carries a wire frame, not a second typed model of a stack. `ItemStack` stays the one
+model, and the frame is its stage on the Java wire. `mcrs_minecraft_item_stack` has these frames:
+
+- `WireStack`: the bytes of one wire stack (STK-NET-001), with checked bounds. Its `Encode` and
+  `Decode` need no context. It holds no component values.
+- `WireStackWithLength`: the bytes of one wire stack with length prefix (STK-NET-007). It replaces
+  `DelimitedStack` and needs no shape table.
+- `HashedStack`: it gets `Encode` and `Decode` that need no context. Its read takes no name table.
+  It checks each type id against `DataComponentType`.
+
+The one conversion between `ItemStack` and the frame is this pair:
+
+```rust
+WireStack::write(stack: Option<&ItemStack>, names: &impl NameLookup) -> Result<WireStack, WireError>
+WireStack::read(&self, names: &impl NameLookup) -> Result<Option<ItemStack>, WireError>
+```
+
+The bounds of a wire stack need only the wire shape of each component type id (STK-NET-002). The
+reader models 44 of the 122 component types. Each of the other 78 types gets a shape that only
+skips its bytes, so that the frame finds its end. When a type gets a model, its skip arm is
+deleted.
+
+The frame keeps the count field as it came. `WireStack::read` rejects a count larger than 99
+(STK-CNT-009). A consumer that starts to call `read` thus changes behaviour. That change is a
+separate `fix(item)` pull request (step 3f).
+
+Reasons:
+
+- A proxy, a recorder or a bot decodes packets with no registries.
+- The engine bus encodes packets outside the ECS.
+- One stack model stays. The frame does not add a second one.
+- A future Bedrock frame uses the same `ItemStack`.
+
+Rejected options:
+
+- A context parameter on packet decode. No packet decodes without registries, and the parameter
+  goes through the bus, the client receive, the server input, the probe and the recorder.
+- A typed raw stack. It is a second model of a stack.
+- Unresolved entries inside `ItemStack`. They make invalid states representable.
