@@ -1,4 +1,9 @@
-mcrs_minecraft_registries::static_registry! {
+#[cfg(feature = "std")]
+use mcrs_minecraft_static_registry::static_registry;
+#[cfg(not(feature = "std"))]
+use mcrs_minecraft_static_registry::static_registry_core as static_registry;
+
+static_registry! {
     pub enum DataComponentType;
     CustomData = "minecraft:custom_data",
     MaxStackSize = "minecraft:max_stack_size",

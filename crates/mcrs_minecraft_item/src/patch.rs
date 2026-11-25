@@ -9,6 +9,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::deserialize_unit;
+use crate::component_value_seed::ComponentValueSeed;
 use crate::data_component_type_keys::DataComponentType;
 use crate::kind::decode_component_value;
 use crate::kind::{ItemComponentValue, ItemDataComponent};
@@ -213,7 +214,7 @@ impl<'de> Deserialize<'de> for ComponentPatch<Named> {
                         map.next_value_seed(EmptyMapSeed)?;
                         patch.remove(kind);
                     } else {
-                        patch.set_value(map.next_value_seed(kind)?);
+                        patch.set_value(map.next_value_seed(ComponentValueSeed(kind))?);
                     }
                 }
                 Ok(patch)
@@ -339,7 +340,9 @@ impl<'de> Deserialize<'de> for ComponentMap<Named> {
                     if values.get_value(kind).is_some() {
                         return Err(A::Error::custom(format_args!("Duplicate key '{key}'")));
                     }
-                    values.0.push(map.next_value_seed(kind)?);
+                    values
+                        .0
+                        .push(map.next_value_seed(ComponentValueSeed(kind))?);
                 }
                 Ok(values)
             }
