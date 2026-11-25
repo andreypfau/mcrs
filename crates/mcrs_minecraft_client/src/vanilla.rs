@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -336,6 +337,8 @@ fn draw_progress(
     lines: Query<(Entity, &Line)>,
     mut rate: Local<Rate>,
     mut shown: Local<[String; 2]>,
+    mut text: Local<String>,
+    mut glyphs: Local<Vec<GuiQuad>>,
     mut commands: Commands,
 ) {
     let (done, total) = (
@@ -355,29 +358,35 @@ fn draw_progress(
         return;
     };
     for (entity, &line) in &lines {
-        let (text, color) = match line {
+        text.clear();
+        let color = match line {
             Line::Amount => {
-                let mut text = format!(
+                let _ = write!(
+                    text,
                     "{:.1} / {:.1} MB  {:.0}%",
                     done as f64 / 1e6,
                     total as f64 / 1e6,
                     100.0 * fraction
                 );
                 if rate.bytes_per_second > 0.0 {
-                    text += &format!(
+                    let _ = write!(
+                        text,
                         "  {:.1} MB/s  {:.0} s left",
                         rate.bytes_per_second / 1e6,
                         total.saturating_sub(done) as f64 / rate.bytes_per_second
                     );
                 }
-                (text, WHITE)
+                WHITE
             }
-            Line::Status => (fetch.progress.status.lock().unwrap().clone(), GRAY),
+            Line::Status => {
+                text.push_str(&fetch.progress.status.lock().unwrap());
+                GRAY
+            }
         };
-        if shown[line as usize] == text {
+        if shown[line as usize] == *text {
             continue;
         }
-        let mut glyphs = Vec::new();
+        glyphs.clear();
         draw_centered_text(
             &font.font,
             (BAR_WIDTH / TEXT_SCALE) as i32 / 2,
@@ -389,13 +398,13 @@ fn draw_progress(
             .entity(entity)
             .despawn_children()
             .with_children(|row| {
-                for glyph in glyphs {
+                for glyph in glyphs.drain(..) {
                     if let Some(node) = glyph_node(&font, glyph) {
                         row.spawn(node);
                     }
                 }
             });
-        shown[line as usize] = text;
+        shown[line as usize].clone_from(&text);
     }
 }
 

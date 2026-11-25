@@ -50,6 +50,14 @@ struct Decoded {
     overlay: Image,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "one-off load that ends when the resource is removed; it copies the pack bytes of the panorama once for the decoding task"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn load_panorama(
     mut load: ResMut<PanoramaLoad>,
     catalog: Res<BlockCatalog>,
