@@ -42,6 +42,9 @@ impl<H: TextHost, F> Walk<'_, H, F> {
     where
         F: FnMut(&str, ResolvedStyle<'a, I>),
     {
+        if self.pieces_left == 0 {
+            return;
+        }
         let Some(nodes_left) = self.nodes_left.checked_sub(1) else {
             return;
         };
@@ -105,6 +108,9 @@ impl<H: TextHost, F> Walk<'_, H, F> {
             }
         };
         for piece in pieces {
+            if self.pieces_left == 0 {
+                return;
+            }
             match piece {
                 Piece::Literal(literal) => self.piece(literal, style),
                 Piece::Argument(index) => {
@@ -249,6 +255,19 @@ mod tests {
             flatten(&language, &text, Projection::Plain, |_, _| pieces += 1);
             assert_eq!(pieces, expected, "{leaf:?}");
         }
+    }
+
+    #[test]
+    fn an_exhausted_piece_bound_stops_the_expansion_of_later_nodes() {
+        let repeated = "%1$s".repeat(MAX_PIECES);
+        let json = format!(r#"{{"inner":"{repeated}","outer":"{repeated}"}}"#);
+        let language = Language::from_json(json.as_bytes()).expect("valid JSON");
+        let inner: Text<ItemHover> =
+            Text::from_str(r#"{"translate":"inner","with":[true]}"#).expect("valid text");
+        let text: Text<ItemHover> = Text::translate_args("outer", vec![inner.into()]);
+        let mut pieces = 0;
+        flatten(&language, &text, Projection::Plain, |_, _| pieces += 1);
+        assert_eq!(pieces, MAX_PIECES);
     }
 
     #[test]
