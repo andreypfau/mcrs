@@ -361,8 +361,8 @@ mod tests {
     use crate::item_decorations::WHITE;
     use crate::menu::WidgetTooltip;
     use mcrs_minecraft_client_widget::{
-        EditBox, GuiExtent, GuiInput, GuiKey, KeyModifiers, Slider, TooltipDelay as Delay,
-        WidgetId, Widgets,
+        EditBox, EditBoxLook, GuiExtent, GuiInput, GuiKey, KeyModifiers, Slider,
+        TooltipDelay as Delay, WidgetId, Widgets,
     };
 
     const GUI: GuiSize = GuiSize {
@@ -497,7 +497,7 @@ mod tests {
             const BOX: WidgetId = WidgetId(1);
             let rect = GuiRect::new(10, 20, 150, 20);
             let (tx, ty) = (14, 26);
-            let text = EditBox::default().text_color;
+            let text = EditBoxLook::Form.text_color();
             let after_a = tx + ATLAS.font.str_width("a");
             let after_end = tx + ATLAS.font.str_width("ab") + 1;
             let underscore = [
@@ -556,8 +556,12 @@ mod tests {
                 (true, focus_all, 300, LIT, vec![highlight]),
             ];
             for (case, (border, act, now_ms, frame, parts)) in cases.into_iter().enumerate() {
-                let mut edit = EditBox::default();
-                edit.border = border;
+                let look = if border {
+                    EditBoxLook::Form
+                } else {
+                    EditBoxLook::Chat
+                };
+                let mut edit = EditBox::new(look);
                 edit.set("ab");
                 let widget = Widget::new(BOX, rect, String::new(), WidgetKind::EditBox(edit));
                 let mut menu = menu(widget, GuiPoint::new(300, 200));

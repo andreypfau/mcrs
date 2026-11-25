@@ -1,7 +1,7 @@
 use bevy::math::IVec2;
 use mcrs_minecraft_client_widget::{Caret, EditBox, EditBoxLayout, GuiRect, Widget};
 
-use crate::font::{Font, Span, draw_str, draw_str_without_shadow, draw_text};
+use crate::font::{Font, Span, draw_str, draw_text};
 use crate::menu::Menu;
 use crate::menu_draw::{irect, point};
 use crate::scene::GuiQuad;
@@ -41,11 +41,7 @@ pub(crate) fn draw_edit_box_in(
         ..
     } = edit.layout(rect, now_ms, &|text| font.str_width(text));
     let run = |at: IVec2, text: &str, color: u32, out: &mut Vec<GuiQuad>| {
-        if edit.text_shadow {
-            draw_str(font, at.as_vec2(), text, color, false, out);
-        } else {
-            draw_str_without_shadow(font, at.as_vec2(), text, color, out);
-        }
+        draw_str(font, at.as_vec2(), text, color, false, out);
     };
     run(
         point(origin),
@@ -56,13 +52,13 @@ pub(crate) fn draw_edit_box_in(
     if let (Some(at), Some(text)) = (hint, hint_text) {
         draw_text(font, point(at), text, out);
     }
-    if let (Some(at), Some(text)) = (suggestion, edit.suggestion.as_deref()) {
+    if let (Some(at), Some(text)) = (suggestion, edit.suggestion()) {
         run(point(at), text, EditBoxLayout::SUGGESTION_COLOR, out);
     }
     if let Some(rect) = selection {
         out.push(GuiQuad::Highlight {
             rect: irect(rect),
-            invert: edit.invert,
+            invert: edit.look().invert(),
         });
     }
     match caret {

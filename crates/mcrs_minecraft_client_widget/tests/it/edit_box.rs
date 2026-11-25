@@ -1,6 +1,6 @@
 use mcrs_minecraft_client_widget::{
-    Anchor, Caret, EditBox, GuiKey, GuiPoint, GuiRect, KeyModifiers, LengthUnit, PointerButton,
-    PointerPress, Step, WidgetEvent, WidgetId, WidgetKind, Widgets,
+    Anchor, Caret, EditBox, EditBoxLook, GuiKey, GuiPoint, GuiRect, KeyModifiers, LengthUnit,
+    PointerButton, PointerPress, Step, WidgetEvent, WidgetId, WidgetKind, Widgets,
 };
 
 use crate::screen::{button, key, mono, press, screen_of, widget};
@@ -290,8 +290,7 @@ fn shift_click_keeps_the_anchor_and_a_double_click_selects_a_word() {
 
 #[test]
 fn dragging_beyond_the_right_edge_stops_at_the_visible_end() {
-    let mut edit = EditBox::default();
-    edit.border = false;
+    let mut edit = EditBox::new(EditBoxLook::Chat);
     edit.set("abcdefghijklmnop");
     let rect = GuiRect::new(0, 0, 30, 10);
     edit.click(rect, 6.0, Anchor::Move, &mono);
@@ -372,7 +371,7 @@ fn copy_and_cut_give_the_selection_and_nothing_without_one() {
         screen.change_edit_box(ID, &mono, &mut Vec::new(), |edit| {
             edit.set("abc");
             edit.set_caret(anchor, Anchor::Keep);
-            edit.editable = editable;
+            edit.set_editable(editable);
             false
         });
         let mut events = Vec::new();
@@ -417,43 +416,43 @@ fn tab_and_activation_start_edit_mode_and_an_arrow_does_not() {
 
 #[test]
 fn the_options_of_a_box_filter_cut_keep_the_focus_and_colour_it() {
-    let cases: [(&str, fn(&mut EditBox), &str, bool, u32); 5] = [
-        ("defaults", |_| {}, "a1b", false, 0xFFE0_E0E0),
+    let cases: [(&str, fn() -> EditBox, &str, bool, u32); 5] = [
+        ("defaults", EditBox::default, "a1b", false, 0xFFE0_E0E0),
         (
             "a filter refuses a value",
-            |edit| edit.filter = Some(|value| !value.contains(char::is_numeric)),
+            || EditBox::default().with_filter(|value| !value.contains(char::is_numeric)),
             "ab",
             false,
             0xFFE0_E0E0,
         ),
         (
             "a width limit refuses a wider value",
-            |edit| edit.width_limit = Some(12),
+            || EditBox::default().with_width_limit(12),
             "a1",
             false,
             0xFFE0_E0E0,
         ),
         (
             "a box that cannot lose the focus stays in edit mode",
-            |edit| edit.can_lose_focus = false,
+            || EditBox::new(EditBoxLook::CreativeSearch),
             "a1b",
             true,
-            0xFFE0_E0E0,
+            0xFFFF_FFFF,
         ),
         (
             "a box that is not editable takes its colour",
-            |edit| {
-                edit.editable = false;
-                edit.uneditable_color = 0xFF12_3456;
+            || {
+                let mut edit = EditBox::default();
+                edit.set_editable(false);
+                edit
             },
             "",
             false,
-            0xFF12_3456,
+            0xFF70_7070,
         ),
     ];
-    for (name, configure, text, editing_after, color) in cases {
-        let mut edit = EditBox::default();
-        configure(&mut edit);
+    for (name, build, text, editing_after, color) in cases {
+        let edit = build();
         let mut screen = screen_of([
             widget(1, BOX, WidgetKind::EditBox(edit)),
             button(2, 10, 50, 150, 20),
@@ -488,7 +487,7 @@ fn a_paste_replaces_the_selection_and_reports_a_new_value() {
         let mut screen = editing(EditBox::default());
         set(&mut screen, "abc", anchor, Anchor::Keep);
         screen.change_edit_box(ID, &mono, &mut Vec::new(), |edit| {
-            edit.editable = editable;
+            edit.set_editable(editable);
             false
         });
         let mut events = Vec::new();

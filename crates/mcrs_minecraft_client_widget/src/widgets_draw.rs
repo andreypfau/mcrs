@@ -159,9 +159,11 @@ impl Widgets {
             | WidgetKind::ScrollPanel(_)
             | WidgetKind::SectionLabel
             | WidgetKind::TabBar(_) => None,
-            WidgetKind::EditBox(ref edit) => edit.border.then_some(WidgetSprite::TextField {
-                highlighted: edit.editing || highlighted,
-            }),
+            WidgetKind::EditBox(ref edit) => {
+                edit.look().border().then_some(WidgetSprite::TextField {
+                    highlighted: edit.is_editing() || highlighted,
+                })
+            }
         }
     }
 
@@ -186,7 +188,7 @@ impl Widgets {
                 && self.is_focused(widget)
                 && matches!(widget.kind, WidgetKind::Slider(_));
             shape = if let WidgetKind::EditBox(edit) = &widget.kind {
-                if edit.editable {
+                if edit.is_editable() {
                     PointerShape::Text
                 } else {
                     PointerShape::NotAllowed

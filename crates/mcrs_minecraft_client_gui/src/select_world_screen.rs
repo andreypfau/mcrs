@@ -46,8 +46,7 @@ pub(crate) fn select_world_screen(
     font: &Font,
 ) -> Option<([Widget; 7], WidgetHint)> {
     let title = language.get("selectWorld.title");
-    let mut search = EditBox::default();
-    search.has_hint = true;
+    let search = EditBox::default();
     let column = [
         Child::new(text_line_extent(font.str_width(title), None), ACROSS),
         Child::new(SEARCH_BOX, ACROSS),

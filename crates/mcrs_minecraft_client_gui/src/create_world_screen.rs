@@ -205,7 +205,6 @@ pub(crate) fn create_world_menu(
         if let Some(text) = text {
             edit.set(text);
         }
-        edit.has_hint = text.is_none();
         Widget::new(id, rect, String::new(), WidgetKind::EditBox(edit))
     };
     let cycle = |id, rect, name_key, value, cycle: Option<CycleButton>| {

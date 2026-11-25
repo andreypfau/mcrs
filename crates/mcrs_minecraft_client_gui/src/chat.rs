@@ -343,7 +343,7 @@ fn input_box(
     if let Some(rect) = layout.selection {
         out.push(GuiQuad::Highlight {
             rect: menu_draw::irect(rect),
-            invert: screen.edit().invert,
+            invert: screen.edit().look().invert(),
         });
     }
     if caret_on && in_view {

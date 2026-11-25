@@ -4,6 +4,7 @@ use core::ops::Range;
 use crate::anchor::Anchor;
 use crate::caret::Caret;
 use crate::edit_box_layout::EditBoxLayout;
+use crate::edit_box_look::EditBoxLook;
 use crate::gui_key::GuiKey;
 use crate::gui_point::GuiPoint;
 use crate::gui_rect::GuiRect;
@@ -12,8 +13,6 @@ use crate::length_unit::LengthUnit;
 use crate::step::Step;
 
 const DEFAULT_MAX_LENGTH: usize = 32;
-const TEXT_COLOR: u32 = 0xFFE0_E0E0;
-const UNEDITABLE_COLOR: u32 = 0xFF70_7070;
 const BORDER_INSET: i32 = 4;
 const GLYPH_HEIGHT: i32 = 8;
 const CURSOR_HEIGHT: i32 = 11;
@@ -31,20 +30,13 @@ pub struct EditBox {
     first: usize,
     max_length: usize,
     unit: LengthUnit,
-    pub(crate) editing: bool,
-    pub(crate) focus_ms: u64,
-    pub width_limit: Option<i32>,
-    pub border: bool,
-    pub centred: bool,
-    pub text_shadow: bool,
-    pub text_color: u32,
-    pub uneditable_color: u32,
-    pub editable: bool,
-    pub can_lose_focus: bool,
-    pub invert: bool,
-    pub has_hint: bool,
-    pub suggestion: Option<String>,
-    pub filter: Option<fn(&str) -> bool>,
+    editing: bool,
+    focus_ms: u64,
+    look: EditBoxLook,
+    width_limit: Option<i32>,
+    editable: bool,
+    suggestion: Option<String>,
+    filter: Option<fn(&str) -> bool>,
 }
 
 struct View {
@@ -55,28 +47,7 @@ struct View {
 
 impl Default for EditBox {
     fn default() -> Self {
-        Self {
-            text: String::new(),
-            caret: 0,
-            anchor: 0,
-            first: 0,
-            max_length: DEFAULT_MAX_LENGTH,
-            unit: LengthUnit::CodeUnits,
-            editing: false,
-            focus_ms: 0,
-            width_limit: None,
-            border: true,
-            centred: false,
-            text_shadow: true,
-            text_color: TEXT_COLOR,
-            uneditable_color: UNEDITABLE_COLOR,
-            editable: true,
-            can_lose_focus: true,
-            invert: true,
-            has_hint: false,
-            suggestion: None,
-            filter: None,
-        }
+        Self::new(EditBoxLook::default())
     }
 }
 
@@ -168,8 +139,83 @@ impl EditBox {
         self.editing
     }
 
-    pub fn set_editing(&mut self, editing: bool) {
-        self.editing = editing;
+    #[must_use]
+    pub fn new(look: EditBoxLook) -> Self {
+        Self {
+            text: String::new(),
+            caret: 0,
+            anchor: 0,
+            first: 0,
+            max_length: DEFAULT_MAX_LENGTH,
+            unit: LengthUnit::CodeUnits,
+            editing: false,
+            focus_ms: 0,
+            look,
+            width_limit: None,
+            editable: true,
+            suggestion: None,
+            filter: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_width_limit(mut self, limit: i32) -> Self {
+        self.width_limit = Some(limit);
+        self
+    }
+
+    #[must_use]
+    pub fn with_filter(mut self, accepts: fn(&str) -> bool) -> Self {
+        self.filter = Some(accepts);
+        self
+    }
+
+    #[must_use]
+    pub const fn look(&self) -> EditBoxLook {
+        self.look
+    }
+
+    #[must_use]
+    pub const fn is_editable(&self) -> bool {
+        self.editable
+    }
+
+    pub fn set_editable(&mut self, editable: bool) {
+        self.editable = editable;
+    }
+
+    #[must_use]
+    pub fn suggestion(&self) -> Option<&str> {
+        self.suggestion.as_deref()
+    }
+
+    pub fn set_suggestion(&mut self, suggestion: Option<String>) {
+        self.suggestion = suggestion;
+    }
+
+    #[must_use]
+    pub const fn keeps_focus(&self) -> bool {
+        !self.look.can_lose_focus()
+    }
+
+    pub fn focus(&mut self, now_ms: u64) {
+        self.focus_ms = now_ms;
+        self.editing = true;
+    }
+
+    pub fn focus_without_editing(&mut self, now_ms: u64) {
+        self.focus_ms = now_ms;
+        self.editing = false;
+    }
+
+    pub fn blur(&mut self) {
+        if self.look.can_lose_focus() {
+            self.editing = false;
+        }
+    }
+
+    pub fn release(&mut self) {
+        self.editing = false;
     }
 
     pub fn set_max_length(&mut self, max: usize, unit: LengthUnit) -> bool {
@@ -362,7 +408,7 @@ impl EditBox {
             let span = anchor_x.max(cursor_x).saturating_sub(left);
             GuiRect::new(left, top, span, CURSOR_HEIGHT)
         });
-        let hint = (self.has_hint && self.text.is_empty() && !self.editing).then_some(origin);
+        let hint = (self.text.is_empty() && !self.editing).then_some(origin);
         let suggestion = (self.suggestion.is_some() && underscore).then(|| {
             let x = if first == last {
                 origin.x.saturating_sub(1)
@@ -375,9 +421,9 @@ impl EditBox {
             origin,
             visible,
             color: if self.editable {
-                self.text_color
+                self.look.text_color()
             } else {
-                self.uneditable_color
+                EditBoxLook::UNEDITABLE_COLOR
             },
             caret,
             selection,
@@ -456,7 +502,7 @@ impl EditBox {
     }
 
     fn view(&self, rect: GuiRect, width: &impl Fn(&str) -> i32) -> View {
-        let (x, y, inner) = if self.border {
+        let (x, y, inner) = if self.look.border() {
             let inset = rect.height.saturating_sub(GLYPH_HEIGHT).div_euclid(2);
             (
                 rect.x.saturating_add(BORDER_INSET),
@@ -469,13 +515,6 @@ impl EditBox {
         let first = self.text.floor_char_boundary(self.first);
         let rest = self.text.get(first..).unwrap_or_default();
         let visible = first..first + head(rest, inner, width);
-        let x = if self.centred {
-            let shown = width(self.text.get(visible.clone()).unwrap_or_default());
-            rect.x
-                .saturating_add(rect.width.saturating_sub(shown).div_euclid(2))
-        } else {
-            x
-        };
         View {
             origin: GuiPoint::new(x, y),
             inner,
