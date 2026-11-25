@@ -61,7 +61,10 @@ impl<H: TextHost, F> Walk<'_, H, F> {
                 let host = self.host;
                 match host.keybind_label(keybind) {
                     Some(label) => self.piece(label, style),
-                    None => self.translate(keybind, None, &[], style),
+                    None if host.translates_keybind_name() => {
+                        self.translate(keybind, None, &[], style)
+                    }
+                    None => self.piece(keybind, style),
                 }
             }
             TextContent::EntityNames { selector, .. } => self.piece(selector, style),
@@ -287,17 +290,32 @@ mod tests {
         }
     }
 
+    struct Client(Language);
+
+    impl TextHost for Client {
+        fn translation<'a>(&'a self, key: &'a str) -> Option<&'a str> {
+            self.0.translation(key)
+        }
+
+        fn translates_keybind_name(&self) -> bool {
+            true
+        }
+    }
+
     #[test]
-    fn a_keybind_name_without_a_mapping_goes_through_the_translation_path() {
-        let language =
-            Language::from_json(br#"{"key.a":"100%%","key.b":"%s"}"#).expect("valid JSON");
-        for (json, expected) in [
-            (r#"{"keybind":"key.a"}"#, "100%"),
-            (r#"{"keybind":"key.b"}"#, "%s"),
-            (r#"{"keybind":"key.c"}"#, "key.c"),
+    fn only_a_client_translates_a_keybind_name_without_a_mapping() {
+        let table = br#"{"key.a":"100%%","key.b":"%s","gui.yes":"Yes"}"#;
+        let client = Client(Language::from_json(table).expect("valid JSON"));
+        let server = Language::from_json(table).expect("valid JSON");
+        for (json, on_client, on_server) in [
+            (r#"{"keybind":"key.a"}"#, "100%", "key.a"),
+            (r#"{"keybind":"key.b"}"#, "%s", "key.b"),
+            (r#"{"keybind":"key.c"}"#, "key.c", "key.c"),
+            (r#"{"keybind":"gui.yes"}"#, "Yes", "gui.yes"),
         ] {
             for projection in [Projection::Drawn, Projection::Plain] {
-                assert_eq!(shown(&language, json, projection), expected, "{json}");
+                assert_eq!(shown(&client, json, projection), on_client, "{json}");
+                assert_eq!(shown(&server, json, projection), on_server, "{json}");
             }
         }
     }

@@ -10,6 +10,10 @@ pub trait TextHost {
         let _ = name;
         None
     }
+
+    fn translates_keybind_name(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
