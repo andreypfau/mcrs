@@ -52,6 +52,7 @@ pub mod scene_capture;
 pub mod scene_record;
 #[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
+pub mod section_drawn;
 #[cfg(not(target_family = "wasm"))]
 pub mod settle;
 pub mod sign_text;
@@ -60,6 +61,7 @@ mod skin_download;
 pub mod sky;
 pub mod sky_state;
 pub mod stream;
+pub mod stream_focus;
 pub mod terrain_debug_entry;
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 pub mod test_support;
