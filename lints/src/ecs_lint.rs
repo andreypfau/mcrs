@@ -1,6 +1,8 @@
+use std::mem;
 use std::path::PathBuf;
 
 use rustc_data_structures::fx::FxHashMap;
+use rustc_data_structures::fx::FxHashSet;
 use rustc_hir::def::DefKind;
 use rustc_lint::LateContext;
 use rustc_lint::LateLintPass;
@@ -19,6 +21,7 @@ use crate::body_scan;
 use crate::collect::collect;
 use crate::collect::helper_crate;
 use crate::collect::key;
+use crate::event_conditions;
 use crate::facts::Facts;
 use crate::facts::SystemWrites;
 use crate::lints;
@@ -61,7 +64,15 @@ impl<'tcx> LateLintPass<'tcx> for EcsLint {
             .flat_map(|facts| &facts.writes)
             .map(|writes| (writes.system.clone(), writes.components.clone()))
             .collect();
-        let resolved = resolve(tcx, collect(tcx, &anchors, &helper_crates), &deps);
+        let marked = event_conditions::scan(tcx);
+        let event_conditions: FxHashSet<String> = deps
+            .iter()
+            .flat_map(|facts| facts.event_conditions.iter().cloned())
+            .chain(marked.valid.iter().map(|def| key(tcx, def.to_def_id())))
+            .collect();
+        let mut collected = collect(tcx, &anchors, &helper_crates, &event_conditions);
+        marked.report(tcx, &mem::take(&mut collected.condition_uses));
+        let resolved = resolve(tcx, collected, &deps);
         let test = is_test_target();
         let bodies = body_scan::scan(tcx, &anchors, test);
         let tick_schedules = system_rules::tick_schedules();
@@ -102,6 +113,11 @@ impl<'tcx> LateLintPass<'tcx> for EcsLint {
             sets: resolved.sets,
             writes,
             always_changed: local_always,
+            event_conditions: marked
+                .valid
+                .iter()
+                .map(|def| key(tcx, def.to_def_id()))
+                .collect(),
         };
         if let Some(path) = facts_path(tcx, LOCAL_CRATE)
             && let Err(error) = facts.store(&path)

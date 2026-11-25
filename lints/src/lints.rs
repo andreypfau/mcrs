@@ -80,7 +80,12 @@ pub static ALWAYS_CHANGED_FILTER: &Lint = &lint(
     "a `Changed<T>` filter on a component that a tick system writes on each run",
 );
 
-pub static LINTS: [&Lint; 16] = [
+pub static INVALID_EVENT_CONDITION: &Lint = &lint(
+    "mcrs::invalid_event_condition",
+    "`mcrs::event_condition` marks an item that is not a run condition",
+);
+
+pub static LINTS: [&Lint; 17] = [
     EXCLUSIVE_SYSTEM,
     EXCLUSIVE_OBSERVER,
     UNGATED_SYSTEM,
@@ -97,6 +102,7 @@ pub static LINTS: [&Lint; 16] = [
     TOO_MANY_ARGUMENTS,
     UNIT_IN_BUNDLE,
     ALWAYS_CHANGED_FILTER,
+    INVALID_EVENT_CONDITION,
 ];
 
 pub fn emit(
