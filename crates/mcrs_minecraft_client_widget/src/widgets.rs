@@ -11,6 +11,7 @@ use crate::widget_event::WidgetEvent;
 use crate::widget_id::WidgetId;
 use crate::widget_kind::WidgetKind;
 use crate::widget_push_error::WidgetPushError;
+use crate::widget_value::WidgetValue;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Drag {
@@ -78,6 +79,11 @@ impl Widgets {
     #[must_use]
     pub fn get(&self, id: WidgetId) -> Option<&Widget> {
         self.widgets.iter().find(|widget| widget.id() == id)
+    }
+
+    #[must_use]
+    pub fn value(&self, id: WidgetId) -> Option<WidgetValue<'_>> {
+        self.get(id)?.value()
     }
 
     pub fn get_mut(&mut self, id: WidgetId) -> Option<&mut Widget> {

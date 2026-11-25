@@ -13,6 +13,7 @@ use crate::standard_sizes::{BUTTON_LABEL_MARGIN, LINE_HEIGHT};
 use crate::tooltip_delay::TooltipDelay;
 use crate::widget_id::WidgetId;
 use crate::widget_kind::WidgetKind;
+use crate::widget_value::WidgetValue;
 
 pub(crate) const WHITE: u32 = 0xFFFF_FFFF;
 pub(crate) const INACTIVE_CAPTION: u32 = 0xFFA0_A0A0;
@@ -64,6 +65,21 @@ impl Widget {
     #[must_use]
     pub const fn kind(&self) -> &WidgetKind {
         &self.kind
+    }
+
+    #[must_use]
+    pub fn value(&self) -> Option<WidgetValue<'_>> {
+        match &self.kind {
+            WidgetKind::EditBox(edit) => Some(WidgetValue::Text(edit.text())),
+            WidgetKind::Slider(slider) => Some(match (slider.value(), slider.index()) {
+                (Some(value), _) => WidgetValue::Int(value),
+                (None, Some(index)) => WidgetValue::Choice(index),
+                (None, None) => WidgetValue::Number(slider.position()),
+            }),
+            WidgetKind::CycleButton(cycle) => Some(WidgetValue::Choice(cycle.index())),
+            WidgetKind::Checkbox { selected } => Some(WidgetValue::Bool(*selected)),
+            _ => None,
+        }
     }
 
     #[must_use]

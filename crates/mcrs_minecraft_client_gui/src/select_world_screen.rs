@@ -1,7 +1,7 @@
 use mcrs_minecraft_client_widget::{
     Alignment, Child, EditBox, Grid, GridChild, GuiExtent, GuiRect, HeaderContentFooter,
-    LayoutCell, Overflow, Padding, SelectionList, Stack, Widget, WidgetId, WidgetKind, Widgets,
-    text_line_extent,
+    LayoutCell, Overflow, Padding, SelectionList, Stack, Widget, WidgetId, WidgetKind, WidgetValue,
+    Widgets, text_line_extent,
 };
 use mcrs_minecraft_client_world::world_list::WorldList;
 use mcrs_minecraft_save::WorldSummary;
@@ -151,8 +151,8 @@ pub(crate) fn shown_worlds<'a>(
 }
 
 pub(crate) fn search_query(widgets: &Widgets) -> &str {
-    match widgets.get(SEARCH).map(|widget| widget.kind()) {
-        Some(WidgetKind::EditBox(edit)) => edit.text(),
+    match widgets.value(SEARCH) {
+        Some(WidgetValue::Text(text)) => text,
         _ => "",
     }
 }
