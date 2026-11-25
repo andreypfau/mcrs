@@ -1,16 +1,28 @@
 use crate::item::harness::WireCodec;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_engine_registries::RegistryNames;
+use mcrs_minecraft_engine_registries::test_item_table;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
+use mcrs_minecraft_item_stack::ComponentType;
+use mcrs_minecraft_item_stack::HashScratch;
+use mcrs_minecraft_item_stack::HashedComponent;
+use mcrs_minecraft_item_stack::HashedStack;
+use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::WireError;
+use mcrs_minecraft_item_stack::hash_stack;
+use mcrs_minecraft_item_stack::matches_hashed;
+use mcrs_minecraft_item_stack::read_wire;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::item::{
-    ComponentPatch, CreativeSlotLock, CustomName, Damage, HashedPatchMap, ItemComponentValue, Lore,
-    MaxStackSize, Template, Text, Unbreakable, decode_delimited_patch, encode_delimited_patch,
-    hash_ops,
+    ComponentPatch, CreativeSlotLock, CustomName, Damage, ItemComponentValue, Lore, MaxStackSize,
+    Template, Text, Unbreakable, decode_delimited_patch, encode_delimited_patch, hash_ops,
 };
 use mcrs_minecraft_registries::FromWire;
 use mcrs_minecraft_registries::Named;
 
-use crate::item::harness::{custom_data, hex, json_of, lookup, named, read_json, registries};
+use crate::item::harness::{custom_data, hex, json_of, lookup, named, read_json};
 use mcrs_minecraft_item_key::item_keys::Item;
 
 const PATCH_WIRE: &str = "07020110000a03000178000186a00800046e616d6500046d637273000b010800046c696e65060800056e616d656403070414130d";
@@ -95,45 +107,97 @@ fn text_free_kinds_hash_like_vanilla() {
 fn text_kinds_hash_like_vanilla_and_the_hashed_map_matches_its_wire() {
     assert_eq!(hash(Lore::new(vec![Text::text("line")])), -476441620);
     assert_eq!(hash(CustomName(Text::text("named"))), -756126370);
-    let hashed = HashedPatchMap::create(&patch(false), registries()).unwrap();
-    let vanilla = HashedPatchMap::decode(&mut &hex(HASHED_WIRE)[..]).unwrap();
+    let items = test_item_table();
+    let names = RegistryNames::new(test_registries(), &items);
+    let mut scratch = HashScratch::default();
+    let stack = sword_stack(&names, false).unwrap().unwrap();
+    let hashed = hash_stack(Some(&stack), &names, &mut scratch)
+        .unwrap()
+        .unwrap();
+    let vanilla = HashedStack::decode(&mut &hashed_wire()[..]).unwrap();
     assert_eq!(sorted(&hashed), sorted(&vanilla));
-    assert!(vanilla.matches(&patch(false), registries()));
+    assert_eq!(
+        matches_hashed(Some(&vanilla), Some(&stack), &names, &mut scratch),
+        Ok(true)
+    );
+    assert_eq!(
+        sword_stack(&names, true),
+        Err(WireError::UnsupportedComponentType(ComponentType(
+            DataComponentType::CreativeSlotLock as u16
+        )))
+    );
     assert_eq!(
         json_of(&Template::new(Item::DiamondSword.id(), 3, patch(false)).unwrap()),
         r#"{"id":"minecraft:diamond_sword","count":3,"components":{"minecraft:max_stack_size":16,"minecraft:custom_data":{"x":100000,"name":"mcrs"},"minecraft:lore":["line"],"minecraft:custom_name":"named","minecraft:damage":7,"minecraft:unbreakable":{},"!minecraft:repair_cost":{},"!minecraft:enchantments":{}}}"#
     );
 }
 
-fn sorted(map: &HashedPatchMap) -> (Vec<(DataComponentType, i32)>, Vec<DataComponentType>) {
-    let mut added = map.added.clone();
-    added.sort();
-    let mut removed = map.removed.clone();
-    removed.sort();
-    (added, removed)
+fn sword() -> VarInt {
+    VarInt(i32::from(Item::DiamondSword.id().number()))
+}
+
+fn sword_stack(
+    names: &RegistryNames<'_>,
+    with_transient: bool,
+) -> Result<Option<ItemStack>, WireError> {
+    let mut bytes = Vec::new();
+    VarInt(1).encode(&mut bytes).unwrap();
+    sword().encode(&mut bytes).unwrap();
+    bytes.extend(wire(&patch(with_transient)));
+    read_wire(&mut bytes.as_slice(), names)
+}
+
+fn hashed_wire() -> Vec<u8> {
+    let mut bytes = Vec::new();
+    sword().encode(&mut bytes).unwrap();
+    VarInt(1).encode(&mut bytes).unwrap();
+    bytes.extend(hex(HASHED_WIRE));
+    bytes
+}
+
+fn sorted(stack: &HashedStack) -> (Vec<(ComponentType, i32)>, Vec<ComponentType>) {
+    let mut values: Vec<(ComponentType, i32)> = (stack.values.iter())
+        .map(|value| (value.component, value.hash))
+        .collect();
+    values.sort();
+    let mut removals = stack.removals.clone();
+    removals.sort();
+    (values, removals)
+}
+
+fn component(kind: DataComponentType, hash: i32) -> HashedComponent {
+    HashedComponent {
+        component: ComponentType(kind as u16),
+        hash,
+    }
 }
 
 #[test]
 fn the_hashed_map_wire_is_the_vanilla_layout() {
-    let hashed = HashedPatchMap::decode(&mut &hex(HASHED_WIRE)[..]).unwrap();
-    let expected = HashedPatchMap {
-        added: vec![
-            (DataComponentType::MaxStackSize, 1769065625),
-            (DataComponentType::CustomData, 1148427506),
-            (DataComponentType::Lore, -476441620),
-            (DataComponentType::CustomName, -756126370),
-            (DataComponentType::Damage, -1726626450),
-            (DataComponentType::Unbreakable, -982207288),
+    let bytes = hashed_wire();
+    let hashed = HashedStack::decode(&mut &bytes[..]).unwrap();
+    let expected = HashedStack {
+        kind: Kind(Item::DiamondSword.id().number()),
+        count: 1,
+        values: vec![
+            component(DataComponentType::MaxStackSize, 1769065625),
+            component(DataComponentType::CustomData, 1148427506),
+            component(DataComponentType::Lore, -476441620),
+            component(DataComponentType::CustomName, -756126370),
+            component(DataComponentType::Damage, -1726626450),
+            component(DataComponentType::Unbreakable, -982207288),
         ],
-        removed: vec![
-            DataComponentType::RepairCost,
-            DataComponentType::Enchantments,
+        removals: vec![
+            ComponentType(DataComponentType::RepairCost as u16),
+            ComponentType(DataComponentType::Enchantments as u16),
         ],
     };
+    assert_eq!(hashed.kind, expected.kind);
+    assert_eq!(hashed.count, expected.count);
     assert_eq!(sorted(&hashed), sorted(&expected));
     let mut out = Vec::new();
     hashed.encode(&mut out).unwrap();
-    assert_eq!(out, hex(HASHED_WIRE));
+    assert_eq!(out, bytes);
 }
 
 #[test]

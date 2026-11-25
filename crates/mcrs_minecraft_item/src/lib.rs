@@ -64,6 +64,6 @@ pub use item_hover_map::ItemHoverMap;
 pub use kind::{ItemComponentValue, ItemDataComponent};
 pub use mcrs_minecraft_item_stack::data_component_type_keys;
 pub use patch::{ComponentMap, ComponentPatch};
-pub use stack::{HashedPatchMap, ItemStackValue, ItemStackWithSlot, ProtoStack, Template};
+pub use stack::{ItemStackValue, ItemStackWithSlot, ProtoStack, Template};
 
 pub type Text<M = mcrs_minecraft_registries::Resolved> = mcrs_minecraft_text::Text<Template<M>>;

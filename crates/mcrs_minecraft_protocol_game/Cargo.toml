@@ -27,6 +27,7 @@ mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_item_stack.workspace = true
 mcrs_minecraft_menu_key.workspace = true
 mcrs_minecraft_container_click = { workspace = true, features = ["wire"] }
 mcrs_minecraft_recipe.workspace = true
@@ -51,7 +52,6 @@ criterion = { workspace = true }
 rand.workspace = true
 serde_json.workspace = true
 mcrs_minecraft_fixtures.workspace = true
-mcrs_minecraft_item_stack.workspace = true
 mcrs_minecraft_registry_catalog.workspace = true
 mcrs_minecraft_banner_pattern = { workspace = true, features = ["registry"] }
 mcrs_test_alloc.workspace = true
