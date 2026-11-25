@@ -9,9 +9,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::map_only;
 use crate::patch::ComponentPatch;
-use crate::patch::{decode_delimited_patch, encode_delimited_patch};
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_registries::{FromWire, Wire, WireNames};
+use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::nested;
 use mcrs_minecraft_wire::{Decode, Encode, Error, Result, VarInt};
 use std::io::Write;
@@ -348,32 +347,5 @@ impl Encode for ProtoStack<Wire> {
 impl Decode<'_> for ProtoStack<Wire> {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         decode_with(r, ComponentPatch::decode)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct DelimitedStack(pub ProtoStack<Wire>);
-
-impl DelimitedStack {
-    pub fn check(self, lookup: &impl WireNames) -> anyhow::Result<ProtoStack> {
-        let stack = ProtoStack::from_wire(self.0, lookup)?;
-        if !stack.is_empty() {
-            let value = stack.to_value()?.name(lookup)?;
-            let persistent = mcrs_minecraft_nbt::to_nbt_compound(&value)?;
-            mcrs_minecraft_nbt::from_tag::<ItemStackValue<Named>>(persistent.into())?;
-        }
-        Ok(stack)
-    }
-}
-
-impl Encode for DelimitedStack {
-    fn encode(&self, w: impl Write) -> Result<()> {
-        encode_with(&self.0, w, |patch, w| encode_delimited_patch(patch, w))
-    }
-}
-
-impl Decode<'_> for DelimitedStack {
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        decode_with(r, decode_delimited_patch).map(DelimitedStack)
     }
 }

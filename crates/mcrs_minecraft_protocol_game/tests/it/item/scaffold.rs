@@ -10,9 +10,8 @@ use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::item::{
-    ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DelimitedStack,
-    ItemComponentValue, ItemStackValue, Lore, MaxStackSize, ProtoStack, Template, Text,
-    Unbreakable,
+    ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, ItemComponentValue,
+    ItemStackValue, Lore, MaxStackSize, ProtoStack, Template, Text, Unbreakable,
 };
 use mcrs_minecraft_registries::{FromWire, IdSet, Named, Ref, Resolved, Wire};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, rl};
@@ -164,58 +163,6 @@ fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
     let mut r = &trailing[..];
     assert_eq!(ProtoStack::<Wire>::decode(&mut r).unwrap(), unchecked);
     assert_eq!(r, [7]);
-}
-
-fn delimited(bytes: &[u8]) -> DelimitedStack {
-    let mut r = bytes;
-    let stack = DelimitedStack::decode(&mut r).unwrap();
-    assert!(r.is_empty(), "{} trailing bytes", r.len());
-    stack
-}
-
-#[test]
-fn a_delimited_stack_skips_what_a_value_leaves_unread() {
-    let lookup = lookup();
-    let slot = ProtoStack::new(Item::Stone.id(), 1, patch());
-    let stack = DelimitedStack(slot.to_wire(&lookup).unwrap());
-    let bytes = encoded(&stack);
-    assert_eq!(delimited(&bytes), stack);
-    assert_eq!(stack.check(&lookup).unwrap(), slot);
-
-    let mut padded = vec![1, 1, 1, 0, 1, 3, 16, 0xAA, 0xBB];
-    let resolved = delimited(&padded).check(&lookup).unwrap();
-    assert_eq!(
-        resolved.components.get::<MaxStackSize>(),
-        Some(&stack_size(16))
-    );
-    padded.push(0);
-    assert!(DelimitedStack::decode(&mut &padded[..]).is_ok());
-
-    assert_eq!(
-        delimited(&[1, 0, 0, 0]).check(&lookup).unwrap(),
-        ProtoStack::EMPTY
-    );
-    assert!(
-        delimited(&[100, 1, 0, 0])
-            .check(&lookup)
-            .unwrap_err()
-            .to_string()
-            .contains("[1;99]")
-    );
-
-    let with_component = |kind: u8, value: u8| delimited(&[1, 1, 1, 0, kind, 1, value]);
-    for (kind, value, message) in [
-        (1, 0, "[1;99]: 0"),
-        (1, 100, "[1;99]: 100"),
-        (2, 0, "Value must be positive: 0"),
-    ] {
-        let error = with_component(kind, value)
-            .check(&lookup)
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains(message), "{error}");
-    }
-    assert!(with_component(2, 5).check(&lookup).is_ok());
 }
 
 #[test]

@@ -51,11 +51,9 @@ use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::read_saved;
 use mcrs_minecraft_item_stack::read_wire;
 use mcrs_minecraft_item_stack::read_wire_not_empty;
-use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_item_stack::write_saved;
 use mcrs_minecraft_item_stack::write_wire;
 use mcrs_minecraft_item_stack::write_wire_not_empty;
-use mcrs_minecraft_item_stack::write_wire_with_length;
 use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_nbt::NbtQuotaExceeded;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -172,9 +170,31 @@ fn wire(stack: Option<&ItemStack>) -> Vec<u8> {
 }
 
 fn wire_with_length(stack: Option<&ItemStack>) -> Vec<u8> {
-    let mut output = Vec::new();
-    write_wire_with_length(stack, &Names, &mut output).expect("the test stack has a wire form");
-    output
+    WireStackWithLength::write(stack, &Names)
+        .expect("the test stack has a wire form")
+        .bytes()
+        .to_vec()
+}
+
+fn read_wire_with_length(input: &mut &[u8], names: &Names) -> Result<Option<ItemStack>, WireError> {
+    WireStackWithLength::decode(input)
+        .map_err(|error| frame_error(&error))?
+        .read(names)
+}
+
+fn frame_error(error: &mcrs_minecraft_wire::Error) -> WireError {
+    match error.kind() {
+        ErrorKind::Other(other) => *other
+            .downcast_ref::<WireError>()
+            .expect("the frame gives a wire error"),
+        kind => {
+            assert!(
+                matches!(kind, ErrorKind::UnexpectedEnd),
+                "the frame gives {kind:?}"
+            );
+            WireError::UnexpectedEnd
+        }
+    }
 }
 
 fn read_all<T>(
@@ -904,7 +924,7 @@ fn each_error_names_the_rule_that_the_input_breaks() {
         Err(WireError::UnregisteredType)
     );
 
-    let wire_only = read_all(&unhex("01 01 01 00 3c 02 0a00"), read_wire_with_length)
+    let wire_only = read_all(&unhex("01 01 01 00 3c 03 0a 0a00"), read_wire_with_length)
         .expect("entity data with a length prefix")
         .expect("a stone");
     assert_eq!(
@@ -1381,7 +1401,7 @@ fn a_lore_has_at_most_256_lines_in_each_form() {
 
 #[test]
 fn a_writer_measures_the_depth_past_a_component_that_only_the_wire_form_holds() {
-    let wire_only = read_all(&unhex("01 01 01 00 3c 02 0a00"), read_wire_with_length)
+    let wire_only = read_all(&unhex("01 01 01 00 3c 03 0a 0a00"), read_wire_with_length)
         .expect("entity data with a length prefix")
         .expect("a stone");
     let deepest = Chain {
@@ -1475,13 +1495,7 @@ fn one_wire_stack_shares_one_nbt_budget_with_the_stacks_inside_it() {
 
 fn decode_with_length(bytes: &[u8]) -> Result<Vec<u8>, WireError> {
     let mut input = bytes;
-    let frame = WireStackWithLength::decode(&mut input).map_err(|error| match error.kind() {
-        ErrorKind::UnexpectedEnd => WireError::UnexpectedEnd,
-        ErrorKind::Other(other) => *other
-            .downcast_ref::<WireError>()
-            .expect("the frame gives a wire error"),
-        other => panic!("the frame gives {other:?}"),
-    })?;
+    let frame = WireStackWithLength::decode(&mut input).map_err(|error| frame_error(&error))?;
     assert!(input.is_empty(), "{} bytes are left", input.len());
     Ok(frame.bytes().to_vec())
 }
@@ -1514,10 +1528,43 @@ fn a_length_prefixed_frame_checks_each_value_against_the_shape_of_its_type() {
             unhex("01 01 01 00 7a 00"),
             Some(WireError::UnknownComponentType(122)),
         ),
+        (
+            with_one_component("max_stack_size", "03 10 aa bb"),
+            Some(WireError::BadLength(ComponentType(1))),
+        ),
+        (unhex("01 00 00 00"), None),
     ];
     for (index, (bytes, error)) in cases.iter().enumerate() {
         let expected = error.map_or_else(|| Ok(bytes.clone()), Err);
         assert_eq!(decode_with_length(bytes), expected, "{index}");
+    }
+}
+
+#[test]
+fn a_length_prefixed_frame_reads_a_value_out_of_range_as_an_error() {
+    let cases = [
+        (
+            with_one_component("max_stack_size", "01 00"),
+            Err(WireError::OutOfRange(BuiltinKey::MaxStackSize)),
+        ),
+        (
+            with_one_component("max_stack_size", "01 64"),
+            Err(WireError::OutOfRange(BuiltinKey::MaxStackSize)),
+        ),
+        (
+            with_one_component("max_damage", "01 00"),
+            Err(WireError::OutOfRange(BuiltinKey::MaxDamage)),
+        ),
+        (
+            with_one_component("max_damage", "01 05"),
+            Ok(Some(stack(STONE, 1).set(MaxDamage(5)))),
+        ),
+        (unhex("01 00 00 00"), Ok(None)),
+    ];
+    for (index, (bytes, expected)) in cases.into_iter().enumerate() {
+        let frame = WireStackWithLength::decode(&mut bytes.as_slice())
+            .expect("the frame checks only the shape");
+        assert_eq!(frame.read(&Names), expected, "{index}");
     }
 }
 

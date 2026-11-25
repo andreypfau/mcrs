@@ -46,13 +46,6 @@ pub fn read_wire_not_empty<L: NameLookup>(
     read_wire(input, names)?.ok_or(WireError::EmptyStack)
 }
 
-pub fn read_wire_with_length<L: NameLookup>(
-    input: &mut &[u8],
-    names: &L,
-) -> Result<Option<ItemStack>, WireError> {
-    read_frame(input, names, Entries::LengthPrefixed)
-}
-
 pub fn write_wire<L: NameLookup>(
     stack: Option<&ItemStack>,
     names: &L,
@@ -72,19 +65,11 @@ pub fn write_wire_not_empty<L: NameLookup>(
     write_wire(Some(stack), names, output)
 }
 
-pub fn write_wire_with_length<L: NameLookup>(
-    stack: Option<&ItemStack>,
-    names: &L,
-    output: &mut Vec<u8>,
-) -> Result<(), WireError> {
-    write_frame(stack, names, Entries::LengthPrefixed, output)
-}
-
 fn frame_length(input: &mut &[u8]) -> Result<usize, WireError> {
     usize::try_from(read_var_int(input, WireError::of_frame)?).map_err(|_| WireError::Malformed)
 }
 
-fn read_frame<L: NameLookup>(
+pub(crate) fn read_frame<L: NameLookup>(
     input: &mut &[u8],
     names: &L,
     entries: Entries,
@@ -233,7 +218,7 @@ pub(crate) fn present<'stack, L: NameLookup, E>(
     Ok((!is_air(item)).then_some(stack))
 }
 
-fn write_frame<L: NameLookup>(
+pub(crate) fn write_frame<L: NameLookup>(
     stack: Option<&ItemStack>,
     names: &L,
     entries: Entries,
