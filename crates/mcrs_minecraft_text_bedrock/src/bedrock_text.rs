@@ -1,4 +1,4 @@
-use mcrs_minecraft_lang::{Piece, fill_pattern, primitive_text};
+use mcrs_minecraft_lang::{FormatError, Piece, primitive_text, template_pieces};
 use mcrs_minecraft_text::{ResolvedStyle, Text, TextContent, TextTypes, TranslateArg};
 
 use crate::drops::BedrockDrops;
@@ -144,6 +144,32 @@ struct StringWalk<'a, R> {
 }
 
 impl<R: BedrockServerResolver> StringWalk<'_, R> {
+    fn translated<'a, I: TextTypes>(
+        &mut self,
+        template: &str,
+        with: &'a [TranslateArg<I>],
+        view: ResolvedStyle<'a, I>,
+        style: BedrockStyle,
+    ) {
+        let pieces = match template_pieces(template, with.len()) {
+            Ok(pieces) => pieces,
+            Err(FormatError) => {
+                self.emit_str(template, style);
+                return;
+            }
+        };
+        for piece in pieces {
+            match piece {
+                Piece::Literal(literal) => self.emit_str(literal, style),
+                Piece::Argument(index) => {
+                    if let Some(arg) = with.get(index) {
+                        self.arg(arg, view);
+                    }
+                }
+            }
+        }
+    }
+
     fn walk_text<'a, I: TextTypes>(&mut self, text: &'a Text<I>, inherited: ResolvedStyle<'a, I>) {
         if !spend_node(&mut self.budget, self.drops) {
             return;
@@ -159,14 +185,8 @@ impl<R: BedrockServerResolver> StringWalk<'_, R> {
                 with,
                 ..
             } => {
-                fill_pattern(fallback.as_ref(), |piece| match piece {
-                    Piece::Literal(literal) => self.emit_str(literal, style),
-                    Piece::Argument(index) => {
-                        if let Some(arg) = with.get(index) {
-                            self.arg(arg, view);
-                        }
-                    }
-                });
+                let template: &str = fallback.as_ref();
+                self.translated(template, with, view, style);
             }
             TextContent::Translate {
                 translate, with, ..

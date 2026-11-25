@@ -1,11 +1,10 @@
-use mcrs_minecraft_lang::{Piece, write_primitive_text};
+use mcrs_minecraft_lang::{FormatError, Piece, template_pieces, write_primitive_text};
 use mcrs_minecraft_text::color::NamedColor;
 use mcrs_minecraft_text::{
     Color, GlyphFont, ResolvedStyle, Style, Text, TextContent, TextTypes, TranslateArg,
 };
 
 use crate::projection::Projection;
-use crate::template::Template;
 use crate::text_host::TextHost;
 
 const MAX_PIECES: usize = 65_536;
@@ -98,11 +97,14 @@ impl<H: TextHost, F> Walk<'_, H, F> {
     {
         let host = self.host;
         let template = host.translation(key).or(fallback).unwrap_or(key);
-        if !Template::is_valid(template, with.len()) {
-            self.piece(template, style);
-            return;
-        }
-        for piece in Template::new(template).flatten() {
+        let pieces = match template_pieces(template, with.len()) {
+            Ok(pieces) => pieces,
+            Err(FormatError) => {
+                self.piece(template, style);
+                return;
+            }
+        };
+        for piece in pieces {
             match piece {
                 Piece::Literal(literal) => self.piece(literal, style),
                 Piece::Argument(index) => {

@@ -1,7 +1,7 @@
 use bevy::prelude::Resource;
 
 use crate::font::Span;
-use mcrs_minecraft_lang::{EN_US, Language, Piece};
+use mcrs_minecraft_lang::{EN_US, FormatError, Language, Piece, template_pieces};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_text::{Text, TextTypes};
 use mcrs_minecraft_text_flatten::TextHost;
@@ -31,17 +31,24 @@ impl ClientLanguage {
     pub fn translate(&self, key: &str, color: u32, args: &[Vec<Span>]) -> Vec<Span> {
         let mut spans = Vec::new();
         let mut literal = String::new();
-        mcrs_minecraft_lang::fill_pattern(self.get(key), |piece| match piece {
-            Piece::Literal(text) => literal.push_str(text),
-            Piece::Argument(index) => {
-                if !literal.is_empty() {
-                    spans.push(Span::new(std::mem::take(&mut literal), color));
-                }
-                if let Some(arg) = args.get(index) {
-                    spans.extend(arg.iter().cloned());
+        let template = self.get(key);
+        let pieces = match template_pieces(template, args.len()) {
+            Ok(pieces) => pieces,
+            Err(FormatError) => return vec![Span::new(template.to_owned(), color)],
+        };
+        for piece in pieces {
+            match piece {
+                Piece::Literal(text) => literal.push_str(text),
+                Piece::Argument(index) => {
+                    if !literal.is_empty() {
+                        spans.push(Span::new(std::mem::take(&mut literal), color));
+                    }
+                    if let Some(arg) = args.get(index) {
+                        spans.extend(arg.iter().cloned());
+                    }
                 }
             }
-        });
+        }
         if !literal.is_empty() {
             spans.push(Span::new(literal, color));
         }

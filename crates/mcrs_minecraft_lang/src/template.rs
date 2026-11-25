@@ -1,29 +1,45 @@
-use mcrs_minecraft_lang::Piece;
+use core::fmt;
+
+use crate::piece::Piece;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct FormatError;
+pub struct FormatError;
 
-pub(crate) struct Template<'a> {
+impl fmt::Display for FormatError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("malformed translation template")
+    }
+}
+
+impl core::error::Error for FormatError {}
+
+pub fn template_pieces(
+    template: &str,
+    arguments: usize,
+) -> Result<impl Iterator<Item = Piece<'_>>, FormatError> {
+    for piece in Template::new(template) {
+        if let Piece::Argument(index) = piece?
+            && index >= arguments
+        {
+            return Err(FormatError);
+        }
+    }
+    Ok(Template::new(template).map_while(Result::ok))
+}
+
+struct Template<'a> {
     rest: &'a str,
     next: usize,
     failed: bool,
 }
 
 impl<'a> Template<'a> {
-    pub(crate) fn new(template: &'a str) -> Self {
+    fn new(template: &'a str) -> Self {
         Self {
             rest: template,
             next: 0,
             failed: false,
         }
-    }
-
-    pub(crate) fn is_valid(template: &str, arguments: usize) -> bool {
-        Template::new(template).all(|piece| match piece {
-            Ok(Piece::Argument(index)) => index < arguments,
-            Ok(Piece::Literal(_)) => true,
-            Err(FormatError) => false,
-        })
     }
 
     fn directive(&mut self) -> Result<Piece<'a>, FormatError> {
@@ -84,7 +100,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_template_is_valid_when_each_placeholder_has_an_argument() {
+    fn a_template_gives_pieces_when_each_placeholder_has_an_argument() {
         let cases = [
             ("%s %s", 2, true),
             ("%2$s %1$s %s", 2, true),
@@ -100,7 +116,28 @@ mod tests {
             ("50%", 1, false),
         ];
         for (template, arguments, valid) in cases {
-            assert_eq!(Template::is_valid(template, arguments), valid, "{template}");
+            assert_eq!(
+                template_pieces(template, arguments).is_ok(),
+                valid,
+                "{template}"
+            );
         }
+    }
+
+    #[test]
+    fn the_pieces_of_a_template_follow_its_order_and_positions() {
+        let pieces: Vec<_> = template_pieces("%2$s then %1$s, 100%%", 2)
+            .expect("valid template")
+            .collect();
+        assert_eq!(
+            pieces,
+            [
+                Piece::Argument(1),
+                Piece::Literal(" then "),
+                Piece::Argument(0),
+                Piece::Literal(", 100"),
+                Piece::Literal("%"),
+            ]
+        );
     }
 }

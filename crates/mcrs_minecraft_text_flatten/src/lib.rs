@@ -1,7 +1,6 @@
 mod flatten;
 mod plain_text;
 mod projection;
-mod template;
 mod text_host;
 mod unit_budget;
 
