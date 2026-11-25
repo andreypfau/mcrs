@@ -32,6 +32,9 @@ mod custom_model_data;
 mod custom_name;
 mod custom_value;
 mod damage;
+mod data_component_type_flags;
+#[rustfmt::skip]
+pub mod data_component_type_keys;
 mod dimension_pos;
 mod dye_color;
 mod dyed_color;
@@ -94,6 +97,8 @@ mod piercing_weapon;
 mod potion_contents;
 mod potion_id;
 mod rarity;
+#[rustfmt::skip]
+pub mod registry_keys;
 mod registry_value;
 mod repair_cost;
 mod saved;
