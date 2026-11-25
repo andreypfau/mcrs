@@ -351,6 +351,11 @@ mod tests {
                 "b a a",
             ),
             (
+                r#"{"translate":"%s|%s|%s","with":[1.0E10,2.0,true]}"#,
+                "10000000000|2|true",
+                "10000000000|2|true",
+            ),
+            (
                 r#"{"translate":"no.such.key","fallback":"fb %s!","with":["X"]}"#,
                 "fb X!",
                 "fb X!",
@@ -448,6 +453,28 @@ mod tests {
                 ("-".to_owned(), red, false),
                 ("c".to_owned(), red, false),
                 ("!".to_owned(), red, false),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_child_and_an_argument_inherit_the_shadow_colour() {
+        let text: Text<ItemHover> = Text::from_str(
+            r#"{"translate":"%s-%s","shadow_color":1,"with":[{"text":"a","shadow_color":2},"b"],"extra":[{"text":"c","shadow_color":3,"extra":["d"]}]}"#,
+        )
+        .expect("valid JSON");
+        let mut runs = Vec::new();
+        flatten(&NoHost, &text, Projection::Plain, |run, style| {
+            runs.push((run.to_owned(), style.shadow_color.map(|color| color.0)));
+        });
+        assert_eq!(
+            runs,
+            [
+                ("a".to_owned(), Some(2)),
+                ("-".to_owned(), Some(1)),
+                ("b".to_owned(), Some(1)),
+                ("c".to_owned(), Some(3)),
+                ("d".to_owned(), Some(3)),
             ]
         );
     }
