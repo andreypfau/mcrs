@@ -6,7 +6,7 @@ use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::item_decorations::WHITE;
 use crate::menu::Menu;
-use crate::menu_draw::{WorldPresence, draw_widget, irect, point};
+use crate::menu_draw::{WorldPresence, draw_leaf, irect, point};
 use crate::scene::{GuiAtlasData, GuiQuad};
 
 const BLACK: u32 = 0xFF00_0000;
@@ -50,7 +50,7 @@ pub(crate) fn draw_scroll_area(
     for member in members {
         if let WidgetPlacement::Area { shift, .. } = menu.widgets.placement(member) {
             let start = out.len();
-            draw_widget(menu, member, world, now_ms, atlas, out);
+            draw_leaf(menu, member, now_ms, atlas, out);
             if let Some(quads) = out.get_mut(start..) {
                 shift_up(quads, shift);
             }

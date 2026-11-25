@@ -62,6 +62,18 @@ pub(crate) fn draw_widget(
         WidgetKind::SelectionList(_) | WidgetKind::WidgetList(_) | WidgetKind::ScrollPanel(_) => {
             draw_scroll_area(menu, widget, world, now_ms, atlas, out);
         }
+        _ => draw_leaf(menu, widget, now_ms, atlas, out),
+    }
+}
+
+pub(crate) fn draw_leaf(
+    menu: &Menu,
+    widget: &Widget,
+    now_ms: u64,
+    atlas: &GuiAtlasData,
+    out: &mut Vec<GuiQuad>,
+) {
+    match widget.kind {
         WidgetKind::TabBar(_) => draw_tab_bar(menu, widget, now_ms, atlas, out),
         WidgetKind::SectionLabel => {
             draw_section_label_box(menu, widget, out);
