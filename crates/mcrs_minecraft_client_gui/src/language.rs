@@ -4,6 +4,7 @@ use crate::font::Span;
 use mcrs_minecraft_lang::{EN_US, Language, Piece};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_text::{Text, TextTypes};
+use mcrs_minecraft_text_flatten::TextHost;
 
 #[derive(Resource, Debug, Default)]
 pub struct ClientLanguage(Language);
@@ -24,7 +25,7 @@ impl ClientLanguage {
     }
 
     pub fn plain_text<I: TextTypes>(&self, text: &Text<I>) -> String {
-        mcrs_minecraft_text_flatten::plain_text(&self.0, text)
+        mcrs_minecraft_text_flatten::plain_text(self, text)
     }
 
     pub fn translate(&self, key: &str, color: u32, args: &[Vec<Span>]) -> Vec<Span> {
@@ -48,8 +49,18 @@ impl ClientLanguage {
     }
 }
 
+impl TextHost for ClientLanguage {
+    fn translation<'a>(&'a self, key: &'a str) -> Option<&'a str> {
+        self.0.translation(key)
+    }
+}
+
 #[cfg(test)]
 impl ClientLanguage {
+    pub(crate) fn from_json(bytes: &[u8]) -> Self {
+        Self(Language::from_json(bytes).unwrap())
+    }
+
     pub(crate) fn corpus() -> &'static ClientLanguage {
         static LANGUAGE: std::sync::LazyLock<ClientLanguage> =
             std::sync::LazyLock::new(|| ClientLanguage::load(ResourceSet::corpus()).unwrap());

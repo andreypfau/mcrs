@@ -1,69 +1,116 @@
-use mcrs_minecraft_lang::{Language, Piece};
-use mcrs_minecraft_text::{ResolvedStyle, Text, TextContent, TextTypes, TranslateArg};
+use mcrs_minecraft_lang::{Piece, write_primitive_text};
+use mcrs_minecraft_text::color::NamedColor;
+use mcrs_minecraft_text::{
+    Color, GlyphFont, ResolvedStyle, Style, Text, TextContent, TextTypes, TranslateArg,
+};
 
-pub(crate) const MAX_FLAT_LEN: usize = 262_144;
+use crate::projection::Projection;
+use crate::template::Template;
+use crate::text_host::TextHost;
+
+const MAX_PIECES: usize = 65_536;
+const MAX_NODES: usize = 262_144;
+const OBJECT_GLYPH: &str = "\u{FFFC}";
 
 pub fn flatten<'a, I: TextTypes>(
-    language: &Language,
+    host: &impl TextHost,
     text: &'a Text<I>,
+    projection: Projection,
     mut emit: impl FnMut(&str, ResolvedStyle<'a, I>),
 ) {
     let mut walk = Walk {
-        language,
+        host,
+        projection,
         emit: &mut emit,
-        budget: MAX_FLAT_LEN,
+        pieces_left: MAX_PIECES,
+        nodes_left: MAX_NODES,
+        scratch: String::new(),
     };
     walk.text(text, ResolvedStyle::default());
 }
 
-struct Walk<'l, F> {
-    language: &'l Language,
-    emit: &'l mut F,
-    budget: usize,
+struct Walk<'h, H, F> {
+    host: &'h H,
+    projection: Projection,
+    emit: &'h mut F,
+    pieces_left: usize,
+    nodes_left: usize,
+    scratch: String,
 }
 
-impl<F> Walk<'_, F> {
+impl<H: TextHost, F> Walk<'_, H, F> {
     fn text<'a, I: TextTypes>(&mut self, text: &'a Text<I>, inherited: ResolvedStyle<'a, I>)
     where
         F: FnMut(&str, ResolvedStyle<'a, I>),
     {
-        let Some(budget) = self.budget.checked_sub(1) else {
+        let Some(nodes_left) = self.nodes_left.checked_sub(1) else {
             return;
         };
-        self.budget = budget;
+        self.nodes_left = nodes_left;
         let style = text.style.resolve(inherited);
         match &text.content {
-            TextContent::Text { text } => self.run(text, style),
+            TextContent::Text { text } => self.piece(text, style),
             TextContent::Translate {
                 translate,
                 fallback,
                 with,
-            } => {
-                let pattern = match fallback {
-                    Some(fallback) if !self.language.contains(translate) => fallback.as_ref(),
-                    _ => self.language.get(translate),
-                };
-                mcrs_minecraft_lang::fill_pattern(pattern, |piece| match piece {
-                    Piece::Literal(literal) => self.run(literal, style),
-                    Piece::Argument(index) => {
-                        if let Some(arg) = with.get(index) {
-                            self.arg(arg, style);
-                        }
-                    }
-                });
-            }
-            TextContent::Keybind { keybind } => self.run(keybind, style),
-            TextContent::EntityNames { selector, .. } => self.run(selector, style),
-            TextContent::Nbt { nbt, .. } => self.run(nbt, style),
-            TextContent::Object { fallback, .. } => {
-                if let Some(fallback) = fallback {
-                    self.text(fallback, style);
+            } => self.translate(translate, fallback.as_deref(), with, style),
+            TextContent::Keybind { keybind } => {
+                let host = self.host;
+                match host.keybind_label(keybind) {
+                    Some(label) => self.piece(label, style),
+                    None => self.translate(keybind, None, &[], style),
                 }
             }
-            TextContent::ScoreboardValue { .. } => {}
+            TextContent::EntityNames { selector, .. } => self.piece(selector, style),
+            TextContent::Nbt { .. } | TextContent::ScoreboardValue { .. } => {}
+            TextContent::Object { object, fallback } => match self.projection {
+                Projection::Drawn => {
+                    let mut glyph = style;
+                    glyph.font = Some(GlyphFont::Object(object));
+                    self.piece(OBJECT_GLYPH, glyph);
+                }
+                Projection::Plain => match fallback {
+                    Some(fallback) => self.text(fallback, style),
+                    None => {
+                        let mut name = std::mem::take(&mut self.scratch);
+                        name.clear();
+                        object.write_default_text(&mut name);
+                        self.piece(&name, style);
+                        self.scratch = name;
+                    }
+                },
+            },
         }
         for child in &text.extra {
             self.text(child, style);
+        }
+    }
+
+    fn translate<'a, I: TextTypes>(
+        &mut self,
+        key: &'a str,
+        fallback: Option<&'a str>,
+        with: &'a [TranslateArg<I>],
+        style: ResolvedStyle<'a, I>,
+    ) where
+        F: FnMut(&str, ResolvedStyle<'a, I>),
+    {
+        let host = self.host;
+        let template = host.translation(key).or(fallback).unwrap_or(key);
+        if !Template::is_valid(template, with.len()) {
+            self.piece(template, style);
+            return;
+        }
+        for piece in Template::new(template).flatten() {
+            match piece {
+                Piece::Literal(literal) => self.piece(literal, style),
+                Piece::Argument(index) => {
+                    if let Some(arg) = with.get(index) {
+                        self.arg(arg, style);
+                    }
+                }
+            }
         }
     }
 
@@ -72,49 +119,297 @@ impl<F> Walk<'_, F> {
         F: FnMut(&str, ResolvedStyle<'a, I>),
     {
         match arg {
-            TranslateArg::Bool(value) => self.run(if *value { "true" } else { "false" }, style),
+            TranslateArg::Bool(value) => self.piece(if *value { "true" } else { "false" }, style),
             TranslateArg::Number(number) => {
-                self.run(&mcrs_minecraft_lang::primitive_text(number), style);
+                let mut digits = std::mem::take(&mut self.scratch);
+                digits.clear();
+                write_primitive_text(number, &mut digits);
+                self.piece(&digits, style);
+                self.scratch = digits;
             }
-            TranslateArg::Text(text) => self.text(text, style),
+            TranslateArg::Text(text) => match plain_string(text) {
+                Some("") => {
+                    self.spend_piece();
+                }
+                _ => self.text(text, style),
+            },
         }
     }
 
-    fn run<'a, I: TextTypes>(&mut self, run: &str, style: ResolvedStyle<'a, I>)
+    fn piece<'a, I: TextTypes>(&mut self, piece: &str, style: ResolvedStyle<'a, I>)
     where
         F: FnMut(&str, ResolvedStyle<'a, I>),
     {
-        let run = run
-            .get(..run.floor_char_boundary(self.budget))
-            .unwrap_or_default();
-        if run.is_empty() {
+        if piece.is_empty() || !self.spend_piece() {
             return;
         }
-        self.budget -= run.len();
-        (self.emit)(run, style);
+        match self.projection {
+            Projection::Plain => (self.emit)(piece, style),
+            Projection::Drawn => self.drawn(piece, style),
+        }
     }
+
+    fn spend_piece(&mut self) -> bool {
+        match self.pieces_left.checked_sub(1) {
+            Some(pieces_left) => {
+                self.pieces_left = pieces_left;
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn drawn<'a, I: TextTypes>(&mut self, piece: &str, base: ResolvedStyle<'a, I>)
+    where
+        F: FnMut(&str, ResolvedStyle<'a, I>),
+    {
+        let mut style = base;
+        let mut rest = piece;
+        while let Some((run, after)) = rest.split_once('§') {
+            if !run.is_empty() {
+                (self.emit)(run, style);
+            }
+            let mut chars = after.chars();
+            if let Some(code) = chars.next() {
+                style = format_code(code, style, base);
+            }
+            rest = chars.as_str();
+        }
+        if !rest.is_empty() {
+            (self.emit)(rest, style);
+        }
+    }
+}
+
+fn plain_string<I: TextTypes>(text: &Text<I>) -> Option<&str> {
+    match &text.content {
+        TextContent::Text { text: literal }
+            if text.extra.is_empty() && text.style == Style::default() =>
+        {
+            Some(literal)
+        }
+        _ => None,
+    }
+}
+
+fn format_code<'a, I: TextTypes>(
+    code: char,
+    mut style: ResolvedStyle<'a, I>,
+    base: ResolvedStyle<'a, I>,
+) -> ResolvedStyle<'a, I> {
+    if let Some(color) = NamedColor::from_hex_digit(code) {
+        style.color = Some(Color::Named(color));
+        style.obfuscated = false;
+        style.bold = false;
+        style.strikethrough = false;
+        style.underlined = false;
+        style.italic = false;
+        return style;
+    }
+    match code.to_ascii_lowercase() {
+        'k' => style.obfuscated = true,
+        'l' => style.bold = true,
+        'm' => style.strikethrough = true,
+        'n' => style.underlined = true,
+        'o' => style.italic = true,
+        'r' => style = base,
+        _ => {}
+    }
+    style
 }
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use mcrs_minecraft_lang::Language;
     use mcrs_minecraft_text::ItemHover;
 
     use super::*;
+    use crate::NoHost;
+
+    fn shown(host: &impl TextHost, json: &str, projection: Projection) -> String {
+        let text: Text<ItemHover> = Text::from_str(json).expect(json);
+        let mut out = String::new();
+        flatten(host, &text, projection, |run, _| out.push_str(run));
+        out
+    }
 
     #[test]
-    fn nested_translations_stop_at_the_bound() {
+    fn nested_translations_stop_at_the_piece_bound() {
         let language = Language::from_json(br#"{"grow":"%1$s%1$s%1$s%1$s"}"#).expect("valid JSON");
-        for (leaf, least) in [("ab€", MAX_FLAT_LEN / 2), ("", 0)] {
+        for (leaf, expected) in [("ab", MAX_PIECES), ("", 0)] {
             let mut text: Text<ItemHover> = Text::text(leaf);
             for _ in 0..16 {
                 text = Text::translate_args("grow", vec![text.into()]);
             }
-            let mut len = 0;
-            flatten(&language, &text, |run, _| len += run.len());
-            assert!(
-                (least..=MAX_FLAT_LEN).contains(&len),
-                "{leaf:?}: {len} bytes of the 4^16 leaves stay"
-            );
+            let mut pieces = 0;
+            flatten(&language, &text, Projection::Plain, |_, _| pieces += 1);
+            assert_eq!(pieces, expected, "{leaf:?}");
         }
+    }
+
+    #[test]
+    fn an_empty_string_argument_takes_one_piece_of_the_bound() {
+        let language = Language::from_json(br#"{"grow":"%1$s%1$s%1$s%1$s"}"#).expect("valid JSON");
+        for (leaf, expected) in [("\"\"", ""), (r#"{"text":"","bold":true}"#, "!")] {
+            let mut text: Text<ItemHover> = Text::from_str(leaf).expect(leaf);
+            for _ in 0..8 {
+                text = Text::translate_args("grow", vec![text.into()]);
+            }
+            text.extra.push(Text::text("!"));
+            let mut out = String::new();
+            flatten(&language, &text, Projection::Plain, |run, _| {
+                out.push_str(run)
+            });
+            assert_eq!(out, expected, "{leaf}");
+        }
+    }
+
+    #[test]
+    fn a_keybind_name_without_a_mapping_goes_through_the_translation_path() {
+        let language =
+            Language::from_json(br#"{"key.a":"100%%","key.b":"%s"}"#).expect("valid JSON");
+        for (json, expected) in [
+            (r#"{"keybind":"key.a"}"#, "100%"),
+            (r#"{"keybind":"key.b"}"#, "%s"),
+            (r#"{"keybind":"key.c"}"#, "key.c"),
+        ] {
+            for projection in [Projection::Drawn, Projection::Plain] {
+                assert_eq!(shown(&language, json, projection), expected, "{json}");
+            }
+        }
+    }
+
+    #[test]
+    fn each_content_kind_shows_as_the_rules_state() {
+        let cases = [
+            (r#""§cR§zX§""#, "RX", "§cR§zX§"),
+            (
+                r#"{"selector":"@e[ type = cow ]"}"#,
+                "@e[ type = cow ]",
+                "@e[ type = cow ]",
+            ),
+            (
+                r#"{"score":{"name":"a","objective":"b"},"extra":["!"]}"#,
+                "!",
+                "!",
+            ),
+            (
+                r#"{"nbt":"a","entity":"@s","separator":"x","extra":["!"]}"#,
+                "!",
+                "!",
+            ),
+            (r#"{"keybind":"gui.yes"}"#, "gui.yes", "gui.yes"),
+            (
+                r#"{"translate":"<%s> %s","with":["a"]}"#,
+                "<%s> %s",
+                "<%s> %s",
+            ),
+            (
+                r#"{"translate":"%2$s %1$s %s","with":["a","b"]}"#,
+                "b a a",
+                "b a a",
+            ),
+            (
+                r#"{"translate":"no.such.key","fallback":"fb %s!","with":["X"]}"#,
+                "fb X!",
+                "fb X!",
+            ),
+            (
+                r#"{"object":"atlas","sprite":"block/stone"}"#,
+                "\u{FFFC}",
+                "[block/stone]",
+            ),
+            (
+                r#"{"object":"atlas","atlas":"items","sprite":"item/diamond"}"#,
+                "\u{FFFC}",
+                "[item/diamond@items]",
+            ),
+            (
+                r#"{"object":"atlas","atlas":"my:atl","sprite":"foo/bar"}"#,
+                "\u{FFFC}",
+                "[foo/bar@my:atl]",
+            ),
+            (
+                r#"{"object":"atlas","sprite":"block/stone","fallback":"x"}"#,
+                "\u{FFFC}",
+                "x",
+            ),
+            (
+                r#"{"object":"player","player":{"name":"Alex"}}"#,
+                "\u{FFFC}",
+                "[Alex head]",
+            ),
+            (
+                r#"{"object":"player","player":{}}"#,
+                "\u{FFFC}",
+                "[unknown player head]",
+            ),
+        ];
+        for (json, drawn, plain) in cases {
+            assert_eq!(shown(&NoHost, json, Projection::Drawn), drawn, "{json}");
+            assert_eq!(shown(&NoHost, json, Projection::Plain), plain, "{json}");
+        }
+    }
+
+    struct Bindings;
+
+    impl TextHost for Bindings {
+        fn keybind_label<'a>(&'a self, name: &'a str) -> Option<&'a str> {
+            (name == "key.jump").then_some("Space")
+        }
+    }
+
+    #[test]
+    fn a_host_with_key_mappings_names_the_bound_key() {
+        let json = r#"{"keybind":"key.jump"}"#;
+        assert_eq!(shown(&Bindings, json, Projection::Drawn), "Space");
+        assert_eq!(shown(&NoHost, json, Projection::Drawn), "key.jump");
+    }
+
+    #[test]
+    fn a_format_code_changes_the_style_to_the_end_of_the_piece() {
+        let text: Text<ItemHover> =
+            Text::from_str(r#"{"text":"a§c§lb§rc","bold":true,"color":"blue","extra":["d"]}"#)
+                .expect("valid JSON");
+        let mut runs = Vec::new();
+        flatten(&NoHost, &text, Projection::Drawn, |run, style| {
+            runs.push((run.to_owned(), style.color, style.bold));
+        });
+        let blue = Some(Color::BLUE);
+        assert_eq!(
+            runs,
+            [
+                ("a".to_owned(), blue, true),
+                ("b".to_owned(), Some(Color::RED), true),
+                ("c".to_owned(), blue, true),
+                ("d".to_owned(), blue, true),
+            ]
+        );
+    }
+
+    #[test]
+    fn an_argument_style_does_not_reach_a_later_piece() {
+        let text: Text<ItemHover> = Text::from_str(
+            r##"{"translate":"%s-%s-%s","color":"red","bold":false,"with":[{"text":"a","color":"blue"},{"text":"b","bold":true},"c"],"extra":["!"]}"##,
+        )
+        .expect("valid JSON");
+        let mut runs = Vec::new();
+        flatten(&NoHost, &text, Projection::Plain, |run, style| {
+            runs.push((run.to_owned(), style.color, style.bold));
+        });
+        let red = Some(Color::RED);
+        assert_eq!(
+            runs,
+            [
+                ("a".to_owned(), Some(Color::BLUE), false),
+                ("-".to_owned(), red, false),
+                ("b".to_owned(), red, true),
+                ("-".to_owned(), red, false),
+                ("c".to_owned(), red, false),
+                ("!".to_owned(), red, false),
+            ]
+        );
     }
 }

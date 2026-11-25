@@ -4,7 +4,8 @@ use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClickEvent, Color, DeclaredStyle, HoverEvent, ItemHover, TextMap, TextSerde, TextTypes,
+    ClickEvent, Color, DeclaredStyle, GlyphFont, HoverEvent, ItemHover, TextMap, TextSerde,
+    TextTypes,
 };
 use mcrs_minecraft_core::codec::{ArgbInt, optional_flag};
 
@@ -127,6 +128,7 @@ impl<I: TextTypes> Style<I> {
             click_event: self.click_event.as_ref().or(parent.click_event),
             hover_event: self.hover_event.as_ref().or(parent.hover_event),
             insertion: self.insertion.as_deref().or(parent.insertion),
+            font: self.font.as_ref().map(GlyphFont::Named).or(parent.font),
         }
     }
 }
@@ -143,6 +145,7 @@ pub struct ResolvedStyle<'a, I: TextTypes = ItemHover> {
     pub click_event: Option<&'a ClickEvent<I>>,
     pub hover_event: Option<&'a HoverEvent<I>>,
     pub insertion: Option<&'a str>,
+    pub font: Option<GlyphFont<'a>>,
 }
 
 impl<I: TextTypes> Clone for ResolvedStyle<'_, I> {
@@ -165,6 +168,7 @@ impl<I: TextTypes> Default for ResolvedStyle<'_, I> {
             click_event: None,
             hover_event: None,
             insertion: None,
+            font: None,
         }
     }
 }
