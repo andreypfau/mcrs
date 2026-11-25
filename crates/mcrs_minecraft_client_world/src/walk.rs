@@ -189,7 +189,7 @@ mod tests {
     #[cfg(not(target_family = "wasm"))]
     mod wire {
         use super::*;
-        use crate::previous_transform::PreviousTransform;
+        use crate::previous_position::PreviousPosition;
         use crate::test_session::{Joined, Server, joined, take_column};
         use mcrs_minecraft_core::Look;
         use mcrs_minecraft_pose::Pose;
@@ -415,7 +415,7 @@ mod tests {
         }
 
         #[test]
-        fn the_previous_transform_is_the_teleport_target_and_then_the_start_of_each_tick() {
+        fn the_previous_position_is_the_teleport_target_and_then_the_start_of_each_tick() {
             let session = TestSession::new(DVec3::ZERO);
             let player = session.player;
             let Joined {
@@ -442,17 +442,17 @@ mod tests {
                     flags: PositionFlags::default(),
                 },
             );
-            let transforms = |app: &App| {
+            let positions = |app: &App| {
                 let world = app.world();
                 (
-                    *world.get::<PhysicsTransform>(player).unwrap(),
-                    world.get::<PreviousTransform>(player).unwrap().0,
+                    world.get::<PhysicsTransform>(player).unwrap().translation,
+                    world.get::<PreviousPosition>(player).unwrap().0,
                 )
             };
 
             app.world_mut().run_schedule(FixedUpdate);
-            let (current, previous) = transforms(&app);
-            assert_eq!(current.translation, target, "the teleport lands");
+            let (current, previous) = positions(&app);
+            assert_eq!(current, target, "the teleport lands");
             assert_eq!(previous, current, "a teleport while loading leaves no gap");
 
             app.world_mut()
@@ -461,11 +461,11 @@ mod tests {
             let mut start = current;
             for _ in 0..3 {
                 app.world_mut().run_schedule(FixedUpdate);
-                let (current, previous) = transforms(&app);
-                assert_eq!(previous, start, "the previous transform is the tick start");
+                let (current, previous) = positions(&app);
+                assert_eq!(previous, start, "the previous position is the tick start");
                 start = current;
             }
-            assert!(start.translation.y < target.y, "the player falls");
+            assert!(start.y < target.y, "the player falls");
         }
     }
 }

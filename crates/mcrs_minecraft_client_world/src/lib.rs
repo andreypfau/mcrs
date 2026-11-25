@@ -33,7 +33,7 @@ pub mod player_killed;
 pub mod player_load;
 pub mod player_view;
 mod pong;
-pub mod previous_transform;
+pub mod previous_position;
 mod received;
 mod refused_chunk;
 pub mod registries;
