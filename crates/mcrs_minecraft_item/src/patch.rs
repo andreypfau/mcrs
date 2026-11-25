@@ -9,6 +9,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::deserialize_unit;
+use crate::component_value_seed::ComponentValueSeed;
 use crate::data_component_type_keys::DataComponentType;
 use crate::kind::decode_component_value;
 use crate::kind::{ItemComponentValue, ItemDataComponent};
@@ -213,7 +214,7 @@ impl<'de> Deserialize<'de> for ComponentPatch<Named> {
                         map.next_value_seed(EmptyMapSeed)?;
                         patch.remove(kind);
                     } else {
-                        patch.set_value(map.next_value_seed(kind)?);
+                        patch.set_value(map.next_value_seed(ComponentValueSeed(kind))?);
                     }
                 }
                 Ok(patch)
@@ -339,7 +340,9 @@ impl<'de> Deserialize<'de> for ComponentMap<Named> {
                     if values.get_value(kind).is_some() {
                         return Err(A::Error::custom(format_args!("Duplicate key '{key}'")));
                     }
-                    values.0.push(map.next_value_seed(kind)?);
+                    values
+                        .0
+                        .push(map.next_value_seed(ComponentValueSeed(kind))?);
                 }
                 Ok(values)
             }
@@ -387,33 +390,6 @@ fn decode_with<'a>(
         patch.remove(DataComponentType::decode(r)?);
     }
     Ok(patch)
-}
-
-pub fn encode_delimited_patch(patch: &ComponentPatch<Wire>, w: impl Write) -> Result<()> {
-    encode_with(patch, w, |value, w| {
-        let mut bytes = Vec::new();
-        value.encode(&mut bytes)?;
-        VarInt(bytes.len() as i32).encode(&mut *w)?;
-        Ok(w.write_all(&bytes)?)
-    })
-}
-
-pub fn decode_delimited_patch(r: &mut &[u8]) -> Result<ComponentPatch<Wire>> {
-    decode_with(r, |kind, r| {
-        let len = VarInt::decode(r)?.0;
-        ensure!(len >= 0, "negative component length");
-        let len = len as usize;
-        ensure!(
-            len <= r.len(),
-            "component {} declares {len} bytes but {} remain",
-            kind.location(),
-            r.len()
-        );
-        let (mut slice, rest) = r.split_at(len);
-        let value = decode_component_value(kind, &mut slice)?;
-        *r = rest;
-        Ok(value)
-    })
 }
 
 impl Encode for ComponentPatch<Wire> {

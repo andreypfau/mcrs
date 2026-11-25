@@ -16,13 +16,11 @@ use mcrs_minecraft_inventory_client::CreativeClick;
 use mcrs_minecraft_inventory_client::MenuAction;
 use mcrs_minecraft_inventory_client::MenuInput;
 use mcrs_minecraft_item_stack::ItemStack;
-use mcrs_minecraft_item_stack::write_wire_with_length;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_protocol::Bounded;
-use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::WritePacket;
-use mcrs_minecraft_protocol_game::item::DelimitedStack;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -53,14 +51,12 @@ fn creative(area: CreativeArea, kind: ClickKind) -> MenuAction {
     })
 }
 
-fn delimited(world: &World, stack: &ItemStack) -> DelimitedStack {
+fn with_length(world: &World, stack: &ItemStack) -> WireStackWithLength {
     let names = RegistryNames::new(
         world.resource::<CurrentRegistries>(),
         world.resource::<ItemTable>(),
     );
-    let mut bytes = Vec::new();
-    write_wire_with_length(Some(stack), &names, &mut bytes).expect("the stack has a wire form");
-    DelimitedStack::decode(&mut bytes.as_slice()).expect("the wire form decodes")
+    WireStackWithLength::write(Some(stack), &names).expect("the stack has a wire form")
 }
 
 #[test]
@@ -97,7 +93,7 @@ fn the_drop_counter_passes_a_burst_of_creative_drops_and_refuses_the_next() {
 
     let drop = ServerboundSetCreativeModeSlot {
         slot: -1,
-        item: delimited(app.world(), &shown),
+        item: with_length(app.world(), &shown),
     };
     let sent =
         server.each_before::<ServerboundSetCreativeModeSlot, ServerboundChatCommand<'static>>();

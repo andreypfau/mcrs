@@ -1,3 +1,4 @@
+use bevy::platform::collections::HashMap;
 use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::render::Extract;
@@ -7,6 +8,9 @@ use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_mesh::SECTION_SIZE;
 use mcrs_minecraft_mesh::{Connectivity, OPEN, SEALED, along};
 use mcrs_minecraft_render::Terrain;
+
+use crate::section_drawn::SectionDrawn;
+use crate::stream_focus::StreamFocus;
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
     mcrs_minecraft_mesh::face_normal(0),
@@ -111,11 +115,18 @@ enum Edit {
     Forget([i32; 3]),
 }
 
+#[derive(Clone, Copy)]
+struct Laid {
+    slot: u32,
+    connectivity: Connectivity,
+}
+
 #[derive(Resource)]
 pub struct CaveCull {
     pub enabled: bool,
     pub bits: Box<[u32]>,
     pub generation: u32,
+    laid: HashMap<[i32; 3], Laid>,
     corner: [i32; 3],
     edits: Vec<Edit>,
     laid_meanwhile: Vec<u32>,
@@ -147,6 +158,7 @@ impl CaveCull {
             enabled,
             bits: vec![u32::MAX; slots.div_ceil(32)].into_boxed_slice(),
             generation: 0,
+            laid: HashMap::new(),
             corner: [0; 3],
             edits: Vec::new(),
             laid_meanwhile: Vec::new(),
@@ -184,10 +196,32 @@ impl CaveCull {
         }
         self.corner = corner;
         self.edit(Edit::Slide(corner));
+        let laid = std::mem::take(&mut self.laid);
+        for (&section, held) in &laid {
+            self.set_section(section, held.slot, held.connectivity);
+        }
+        self.laid = laid;
         true
     }
 
-    pub fn set_section(&mut self, section: [i32; 3], slot: u32, mask: Connectivity) {
+    pub fn record(&mut self, drawn: &SectionDrawn) {
+        match *drawn {
+            SectionDrawn::Laid {
+                section,
+                slot,
+                connectivity,
+            } => {
+                self.laid.insert(section, Laid { slot, connectivity });
+                self.set_section(section, slot, connectivity);
+            }
+            SectionDrawn::Forgotten { section } => {
+                self.laid.remove(&section);
+                self.forget(section);
+            }
+        }
+    }
+
+    fn set_section(&mut self, section: [i32; 3], slot: u32, mask: Connectivity) {
         if local_in(self.corner, section).is_none() {
             return;
         }
@@ -198,7 +232,7 @@ impl CaveCull {
         }
     }
 
-    pub fn forget(&mut self, section: [i32; 3]) {
+    fn forget(&mut self, section: [i32; 3]) {
         if local_in(self.corner, section).is_none() {
             return;
         }
@@ -259,6 +293,12 @@ impl CaveCull {
         let walker = self.idle.as_mut().expect("an idle walker");
         walker.apply(self.edits.drain(..));
         walker
+    }
+
+    #[cfg(test)]
+    pub(crate) fn walked_slot(&mut self, section: [i32; 3]) -> Option<u32> {
+        let walker = self.tables();
+        walker.cell(section).map(|cell| walker.slot[cell])
     }
 }
 
@@ -417,6 +457,18 @@ impl Walker {
         self.reached[(cell >> 5) as usize] |= 1u32 << (cell & 31);
         self.queue
             .push(cell | entry << QUEUE_ENTRY_SHIFT | (merged as u32) << QUEUE_DIRS_SHIFT);
+    }
+}
+
+pub fn record_drawn_sections(
+    mut cave: ResMut<CaveCull>,
+    focus: Res<StreamFocus>,
+    mut drawn: MessageReader<SectionDrawn>,
+) {
+    let cave = cave.bypass_change_detection();
+    cave.follow(focus.eye());
+    for change in drawn.read() {
+        cave.record(change);
     }
 }
 
@@ -712,6 +764,61 @@ mod tests {
         assert!(
             doubling_back([CONNECT_ALL; 4]).visible([6, 7, 7]),
             "an unrestricted corner still lets the walk through"
+        );
+    }
+
+    #[test]
+    fn sections_laid_and_forgotten_in_one_frame_keep_the_order_they_were_drawn_in() {
+        let mut app = App::new();
+        app.add_message::<SectionDrawn>()
+            .init_resource::<StreamFocus>()
+            .insert_resource(CaveCull::new(WALK_CELLS, true))
+            .add_systems(Update, record_drawn_sections);
+        let (relaid, gone, reused) = ([1, 0, 1], [2, 0, 1], [3, 0, 1]);
+        let laid = |section, slot| SectionDrawn::Laid {
+            section,
+            slot,
+            connectivity: SEALED,
+        };
+        app.world_mut().write_message(laid(relaid, 1));
+        app.update();
+        app.world_mut().write_message_batch([
+            SectionDrawn::Forgotten { section: relaid },
+            laid(relaid, 2),
+            laid(gone, 3),
+            SectionDrawn::Forgotten { section: gone },
+            laid(reused, 3),
+        ]);
+        app.update();
+
+        let cells = |app: &mut App| {
+            let tables = app
+                .world_mut()
+                .resource_mut::<CaveCull>()
+                .into_inner()
+                .tables();
+            [relaid, gone, reused].map(|section| {
+                let cell = tables.cell(section).expect("inside the walk box");
+                (tables.slot[cell], tables.conn[cell])
+            })
+        };
+        let expected = [(2, SEALED), (NO_SLOT, OPEN), (3, SEALED)];
+        assert_eq!(
+            cells(&mut app),
+            expected,
+            "a section forgotten and then laid is drawn, and one laid and then forgotten \
+             leaves its slot to the section that took it next"
+        );
+
+        let far = Vec3::X * (WALK[0] * SECTION_SIZE) as f32;
+        for eye in [far, Vec3::ZERO] {
+            app.world_mut().resource_mut::<StreamFocus>().look_from(eye);
+            app.update();
+        }
+        assert_eq!(
+            cells(&mut app),
+            expected,
+            "a slide away and back lays in the same sections from what the cave was told"
         );
     }
 

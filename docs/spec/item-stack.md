@@ -41,6 +41,8 @@ section 8.
 - **Saved form**: the form of a value as a tree of maps, lists, strings and numbers. NBT, SNBT and
   JSON carry a saved form.
 - **Wire form**: the form of a value as bytes in a packet.
+- **Bounds**: the first byte of a wire stack in a packet and the first byte after it
+  (STK-NET-002).
 - **Network NBT**: one NBT tag in a packet. It has the type byte and the payload, and no name.
 - **Saved type**: a component type that has a saved form (STK-TYP-002).
 - **Item template**: an item, a count and a component patch that is data of another value
@@ -341,6 +343,9 @@ each count field larger than 99 (D3). The reference reader of the wire form of a
 gives an item template for each count field that is not 0 (D12). A writer must not write a count
 out of `1..99`.
 
+The decode error of this table occurs when the reader gives the stack, not when the reader finds
+the bounds of the stack (STK-NET-002). A count field larger than 99 does not change the bounds.
+
 Reason: a count larger than 99 has no saved form (STK-CNT-004).
 
 ## 5. Equality and the stack rule
@@ -549,9 +554,18 @@ The item id has no offset. The empty stack is the one byte `00`.
 depends on its component type (STK-TYP-003). No length and no end mark separates two components.
 A reader must know the wire form of each component type to read a stack.
 
+Note: the bounds of a wire stack depend only on the sign of the count field, on the type ids of
+STK-TYP-001 and on the wire form of each type. They do not depend on the item id or on an entry of a registry that a data pack
+defines. A reader can thus find the bounds of a wire stack first and give the stack later. A reader
+can also apply the context-free value checks of each component type while it finds the bounds.
+
 **STK-NET-003** (`source_suggested`, wire). The reader gives a decode error for an item id or a
 type id that names no entry. The reader gives the empty stack when the count is larger than 0 and
 the item is air.
+
+A type id that names no entry gives the decode error when the reader finds the bounds of the
+stack (STK-NET-002). An item id that names no entry gives the decode error when the reader gives
+the stack.
 
 **STK-NET-004** (`design`, wire). A writer must not write two patch entries for one component
 type. The order of the patch entries is the choice of the writer. What a reader does with two
@@ -600,9 +614,10 @@ component. The reader does this:
 | the wire form of the component needs more bytes than the length | a decode error |
 | the wire form of the component uses fewer bytes than the length | a decode error |
 
-After the component, the reader continues at the first byte after the length. The length has no
-maximum of its own. A writer must write the exact length. The last case of the table is stricter
-than the reference. Deviation D4 records the reference behaviour.
+After the component, the reader continues at the first byte after the length. The table applies
+to the value entry of each component type, also of a type whose value the reader does not keep.
+The length has no maximum of its own. A writer must write the exact length. The last case of the
+table is stricter than the reference. Deviation D4 records the reference behaviour.
 
 ### 6.5 Where a nested format applies
 

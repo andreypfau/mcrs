@@ -26,6 +26,7 @@ crosses the wire without a second parser.
   `next_value_seed` with it. "The type is only known at runtime" is a reason for a seed, never a
   reason to keep `serde_json::Value`.
 - **Raw retention does not buy round-trip fidelity.** Make the codec symmetric and test it; do
-  not keep bytes as a substitute.
+  not keep bytes as a substitute. A transport frame with a symmetric typed codec, such as
+  `WireStack` of `mcrs_minecraft_item_stack`, is not raw retention.
 - An unknown field in a data pack file is ignored. A missing or malformed known field is a loud
   error at load. Do not put `deny_unknown_fields` on a type read from a data pack.
