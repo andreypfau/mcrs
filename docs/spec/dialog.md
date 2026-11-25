@@ -452,9 +452,12 @@ DLG-EXP-005.
   - `start` > `end` is valid. The slider then goes down from left to right.
   - `start` = `end` is valid.
   - A `step` ≤ 0 is a load error with the text "Value must be positive: <step>".
+  - A `start`, an `end` or an `initial` that is not finite is a load error with the text
+    "Value must be finite: <v>" (DLG-DEV-007). The check runs before the range check of `initial`.
 
 Provenance: source_suggested_black_box_confirmed: `docs/spec/fixtures/dialog/dlg-exp-001-load.txt`.
-Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001.
+The finite check is `design`: see DLG-DEV-007. Kind: semantic, and deviation for the finite
+check. Confidence: medium. Experiment: DLG-EXP-001.
 
 ### DLG-IN-004: Type `single_option`
 
@@ -624,9 +627,10 @@ semantic. Confidence: medium. Experiment: DLG-EXP-005.
      when `initial` is absent. When `start` = `end`, the initial position is 0.5.
   2. The raw value is `v = lerp(t, start, end)`.
   3. With no `step`, the value is `v`.
-  4. With a `step` `s`, let `n = round((v − i) / s)` and `r = i + n·s`.
+  4. With a `step` `s`, let `n = round((v − i) / s)`, where `round` yields a 32-bit signed
+     integer, saturated at −2147483648 and 2147483647. Let `r = i + n·s`.
   5. When `pos(r, start, end)` is in [0, 1], the value is `r`.
-  6. Else, the value is `i + (n − sign(n))·s`. `sign(n)` is −1, 0 or 1.
+  6. Else, the value is `i + (n − sign(n))·s`, clamped to [lo, hi]. `sign(n)` is −1, 0 or 1.
 - **Postconditions:**
   - The steps start at `initial`, not at `start`. With `start` 0, `end` 10, `initial` 3 and
     `step` 4, the values are 3 and 7. The position 0 gives 3, because −1 is out of the range.
@@ -1479,6 +1483,20 @@ Provenance: `design`. Kind: wire. Confidence: medium.
   largest finite 32-bit float. The caption shows a number in the range.
 - **Bug reference:** `none`.
 - **Test:** a differential test does not use such a range.
+
+### DLG-DEV-007: Non-finite slider edges and positions
+
+- **Rule:** DLG-IN-003 and DLG-ACT-006.
+- **Reference:** accepts non-finite values for `start`, `end` and `initial` with no validation
+  error at load. The initial position in the slider widget is the unclamped value from the
+  constructor. When a value is infinity or not a number, the caption shows the string
+  `"Infinity"`, `"-Infinity"` or `"NaN"`.
+- **Reason:** a slider position must be in [0, 1], and a value shown or sent must be finite
+  and in the range [lo, hi]. DLG-IN-003 rejects non-finite edges at load. When all edges are
+  finite, all arithmetic of steps stays in range.
+- **Visible to the client:** no. The load error is a diagnostic of the server.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not use non-finite edges.
 
 ---
 
