@@ -876,7 +876,8 @@ one argument shows as `<%s> %s`. An empty template gives no piece.
 `docs/spec/fixtures/text-component/e4-server-string.txt`). The piece of a byte, short, int
 or long argument has the decimal digits of the value, with `-` for a negative value. The piece of a
 float or double argument has the shortest string of digits that reads back as the same value in
-that number kind. The string has one of these forms:
+that number kind. TXT-DSP-027 states which string, when more than one is shortest. The string has
+one of these forms:
 
 - When the absolute value is at least 0.001 and smaller than 10000000, a decimal number with at
   least one digit after the point. Examples: `1.5`, `2.0`, `0.001` and `9999999.0`.
@@ -894,6 +895,14 @@ digits `10000000000`.
 its place, and the piece is `1` or `0`. SNBT reads `true` as `1b`. A text that comes in JSON keeps
 the boolean. Thus a JSON text in a data pack gives `true`, and the same text in SNBT or in NBT gives
 `1`. The client never draws `true` for an argument of a text that it got from the server.
+
+**TXT-DSP-027** (`source_suggested`, semantic). The digits of a float or double piece
+(TXT-DSP-006) have the least count that is two or more and gives a string that reads back as the
+same value. When more than one string of that count reads back, the piece is the string that is
+nearest to the exact value of the number. When two such strings are equally near, the piece is the
+string with an even last digit. Thus the smallest positive float gives `1.4E-45` and not `1.0E-45`.
+The smallest positive double gives `4.9E-324` and not `5.0E-324`. No artefact shows these cases yet
+(U14).
 
 ### 8.2 The other content kinds
 
@@ -1116,16 +1125,20 @@ The artefact shows a nesting of 50 levels and of 200 levels in `with` and in `ex
 string holds the text of each level.
 
 **TXT-DSP-022** (`design`, deviation). The expansion of one root text visits at most 262144 nodes.
-A node is a text that the walk enters: the root, each text in `extra`, each text argument of a
-translation and the fallback text of an object in the plain string. A number and a boolean argument
-are not nodes. The limit applies to each root text alone, in the drawn form and in the plain
+A node is a text that the walk enters: the root, each text in `extra`, each text argument that a
+placeholder of the template expands and the fallback text of an object in the plain string. The walk
+counts a text again at each time that it enters it, thus an argument that a template repeats counts
+once for each repeat. An argument that no placeholder uses is not entered. A number and a boolean
+argument are not nodes. The limit applies to each root text alone, in the drawn form and in the plain
 string. When the walk has visited 262144 nodes, it enters no other node. The pieces that it has
 emitted until then stay, in order. This gives no error and no mark. The reason is that a library
 does not let input that a caller can get wrong take unbounded time. TXT-DSP-019 does not bound a
-tree whose nodes give no piece, for example translations with empty templates that pass each other
-as arguments. The work of such a tree grows exponentially with its depth. A text that the game shows
-within TXT-DSP-019 and TXT-DSP-020 does not differ, unless the walk visits more than 262144 nodes
-while it emits at most 65536 pieces. See deviation D2.
+tree whose nodes give no piece, for example translations that repeat an argument with `%1$s` and
+have empty literals as leaves. The work of such a tree grows exponentially with its depth. A text
+does not differ from the game, unless the walk visits more than 262144 nodes while it emits at most
+65536 pieces. The pieces that follow the 262144th node do not show, although the game shows them.
+Thus a text of six levels that repeat the argument ten times over an empty literal, followed by the
+argument `END` in the root, shows nothing. The game shows `END`. See deviation D2.
 
 **TXT-DSP-023** (`design`, deviation). The drawn form of one root text has at most 1048576 UTF-16
 code units. The cut is the same cut as the cut of the plain string in TXT-DSP-020. The drawn form
@@ -1217,15 +1230,17 @@ This document does not state these subjects:
 - **Rule**: TXT-DSP-022.
 - **Reference**: the reference expansion has no bound on the nodes that it visits. The bound of
   TXT-DSP-019 counts pieces, thus a tree that gives no piece never reaches it. The expansion of such
-  a tree grows exponentially, for example with nested translations that have empty templates and
-  repeat each other through their arguments.
+  a tree grows exponentially, for example with nested translations that repeat an argument with
+  `%1$s` over empty literals (the artefact `e5-limits.txt` shows five levels of ten repeats).
 - **Reason**: a library does not let input that a caller can get wrong take unbounded time. The
-  piece bound and the cut of TXT-DSP-020 stop every text that gives pieces before the node bound.
+  piece bound and the cut of TXT-DSP-020 stop a text that gives many pieces before the node bound.
   Only a tree that gives few pieces or none reaches the node bound.
-- **Visible to the client**: no for each text that the game shows within TXT-DSP-019 and
-  TXT-DSP-020. A text that visits more than 262144 nodes and emits at most 65536 pieces shows only
-  the pieces that the walk emitted before the bound. The reference shows all of them, after a
-  long time.
+- **Visible to the client**: yes, for a text that visits more than 262144 nodes and emits at most
+  65536 pieces. The expansion shows only the pieces that the walk emitted before the bound. The
+  reference shows all of them, after a long time. A text of six levels that repeat the argument ten
+  times over an empty literal, followed by `END` in the root, shows nothing, and the reference shows
+  `END`. No artefact shows the case of six levels yet; the artefact of five levels shows `END`.
+  Another text does not differ.
 - **Bug reference**: none.
 - **Test**: a differential test must not send a text that visits more than 262144 nodes. A parity
   test over texts within the bound is not affected.
@@ -1276,3 +1291,8 @@ Not decided by an experiment yet:
   experiment needs a pointer on a piece of chat.
 - **U13**: TXT-DSP-024. The hat layer of a head, and the string of the piece of an object. The
   experiment needs a skin with a hat layer, which comes from a session server.
+- **U14**: TXT-DSP-027. The string of the smallest positive float and double, and of the values
+  next to them. Extend E1 with `tellraw` arguments `1.4E-45f`, `4.9E-324d`, `1.0E-44f` and
+  `2.0E-323d`.
+- **U15**: TXT-DSP-022, D2. The reference shows `END` after six levels of ten repeats over an empty
+  literal. Extend E5 with that case.
