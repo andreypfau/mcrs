@@ -5,6 +5,7 @@ use crate::anchor::Anchor;
 use crate::edit_box_highlight::EditBoxHighlight;
 use crate::edit_box_look::EditBoxLook;
 use crate::edit_box_part::EditBoxPart;
+use crate::edit_box_run::EditBoxRun;
 use crate::gui_key::GuiKey;
 use crate::gui_point::GuiPoint;
 use crate::gui_rect::GuiRect;
@@ -356,6 +357,7 @@ impl EditBox {
         width: &impl Fn(&str) -> i32,
         hint: Option<H>,
         highlight: EditBoxHighlight,
+        runs: &[EditBoxRun],
         out: &mut impl FnMut(EditBoxPart<'a, H>),
     ) {
         let View {
@@ -388,12 +390,7 @@ impl EditBox {
                 highlighted: self.editing || highlight == EditBoxHighlight::On,
             });
         }
-        out(EditBoxPart::Text {
-            at: origin,
-            text: shown,
-            range: visible,
-            color,
-        });
+        self.draw_text(origin, visible, runs, color, width, out);
         if let Some(hint) = hint
             && self.text.is_empty()
             && !self.editing
@@ -446,6 +443,40 @@ impl EditBox {
                     color,
                 });
             }
+        }
+    }
+
+    fn draw_text<'a, H>(
+        &'a self,
+        origin: GuiPoint,
+        visible: Range<usize>,
+        runs: &[EditBoxRun],
+        color: u32,
+        width: &impl Fn(&str) -> i32,
+        out: &mut impl FnMut(EditBoxPart<'a, H>),
+    ) {
+        if runs.is_empty() {
+            out(EditBoxPart::Text {
+                at: origin,
+                text: self.text.get(visible.clone()).unwrap_or_default(),
+                range: visible,
+                color,
+            });
+            return;
+        }
+        for run in runs {
+            let from = run.range.start.max(visible.start);
+            let to = run.range.end.min(visible.end);
+            let Some(text) = self.text.get(from..to).filter(|text| !text.is_empty()) else {
+                continue;
+            };
+            let before = self.text.get(visible.start..from).unwrap_or_default();
+            out(EditBoxPart::Text {
+                at: GuiPoint::new(origin.x.saturating_add(width(before)), origin.y),
+                text,
+                range: from..to,
+                color: run.color,
+            });
         }
     }
 

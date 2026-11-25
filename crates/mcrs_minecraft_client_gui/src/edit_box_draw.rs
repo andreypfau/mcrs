@@ -46,6 +46,7 @@ pub(crate) fn draw_edit_box_in(
         &|text| atlas.font.str_width(text),
         hint,
         highlight,
+        &[],
         &mut |part| draw_edit_box_part(atlas, part, out),
     );
 }

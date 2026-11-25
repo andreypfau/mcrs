@@ -1,7 +1,7 @@
 use mcrs_minecraft_client_widget::{
-    Anchor, EditBox, EditBoxHighlight, EditBoxLook, EditBoxPart, GuiKey, GuiPoint, GuiRect,
-    KeyModifiers, LengthUnit, PointerButton, PointerPress, Step, WidgetEvent, WidgetId, WidgetKind,
-    Widgets,
+    Anchor, EditBox, EditBoxHighlight, EditBoxLook, EditBoxPart, EditBoxRun, GuiKey, GuiPoint,
+    GuiRect, KeyModifiers, LengthUnit, PointerButton, PointerPress, Step, WidgetEvent, WidgetId,
+    WidgetKind, Widgets,
 };
 
 use crate::screen::{button, key, mono, press, screen_of, widget};
@@ -35,6 +35,7 @@ fn parts_of(edit: &EditBox, now_ms: u64) -> Vec<EditBoxPart<'_>> {
         &mono,
         None,
         EditBoxHighlight::Off,
+        &[],
         &mut |part| {
             parts.push(part);
         },
@@ -220,9 +221,17 @@ fn the_view_moves_by_width_to_keep_the_cursor_inside() {
         }
         let edit = edit_of(&screen);
         let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
-        edit.draw(BOX, 0, &font, None, EditBoxHighlight::Off, &mut |part| {
-            parts.push(part);
-        });
+        edit.draw(
+            BOX,
+            0,
+            &font,
+            None,
+            EditBoxHighlight::Off,
+            &[],
+            &mut |part| {
+                parts.push(part);
+            },
+        );
         let drawn = parts.into_iter().find_map(|part| match part {
             EditBoxPart::Text { range, .. } => Some(range),
             _ => None,
@@ -525,5 +534,61 @@ fn a_paste_replaces_the_selection_and_reports_a_new_value() {
         screen.paste(pasted, &mono, &mut events);
         assert_eq!(edit_of(&screen).text(), value, "{name}");
         assert_eq!(events.contains(&CHANGED), changed, "{name}");
+    }
+}
+
+#[test]
+fn colour_runs_split_the_visible_text_and_clip_to_it() {
+    let thirty = "a".repeat(30);
+    let cases = [
+        (
+            "two runs",
+            "hello world",
+            vec![EditBoxRun::new(0..5, 1), EditBoxRun::new(5..11, 2)],
+            vec![(14, "hello", 0..5, 1), (44, " world", 5..11, 2)],
+        ),
+        (
+            "a gap draws nothing",
+            "hello world",
+            vec![EditBoxRun::new(6..11, 2)],
+            vec![(50, "world", 6..11, 2)],
+        ),
+        (
+            "runs clip to the end of the view",
+            thirty.as_str(),
+            vec![EditBoxRun::new(0..10, 1), EditBoxRun::new(10..30, 2)],
+            vec![
+                (14, &thirty[..10], 0..10, 1),
+                (74, &thirty[..13], 10..23, 2),
+            ],
+        ),
+    ];
+    for (name, text, runs, expected) in cases {
+        let mut edit = EditBox::default();
+        edit.set(text);
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        edit.draw(
+            BOX,
+            0,
+            &mono,
+            None,
+            EditBoxHighlight::Off,
+            &runs,
+            &mut |part| parts.push(part),
+        );
+        let drawn: Vec<_> = parts
+            .iter()
+            .filter_map(|part| match part {
+                EditBoxPart::Text {
+                    at,
+                    text,
+                    range,
+                    color,
+                    ..
+                } => Some((at.x, *text, range.clone(), *color)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(drawn, expected, "{name}");
     }
 }

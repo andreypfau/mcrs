@@ -312,6 +312,7 @@ fn input_box(
         &|text| font.str_width(text),
         None,
         EditBoxHighlight::Off,
+        &[],
         &mut |part| match part {
             EditBoxPart::Text { range, .. } => visible = range,
             EditBoxPart::Selection { .. } => selection = Some(part),

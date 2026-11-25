@@ -479,6 +479,7 @@ fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
             &width,
             None,
             EditBoxHighlight::Off,
+            &[],
             &mut |part| parts.push(part),
         );
         let first = parts
