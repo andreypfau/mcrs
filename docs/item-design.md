@@ -331,6 +331,12 @@ The frame keeps the count field as it came. `WireStack::read` rejects a count la
 (STK-CNT-009). A consumer that starts to call `read` thus changes behaviour. That change is a
 separate `fix(item)` pull request (step 3f).
 
+`WireStack::decode` applies the context-free value checks of the specification to each type that
+has a reader. A value that the specification rejects makes the frame fail, as it makes the packet
+fail in the game. One shape description for each type has priority over a lenient read. A
+skip-only shape gets the same checks when its type gets a model. Booleans are strict. The count is
+the one exception: the frame keeps it raw, and `read` checks it (STK-CNT-009).
+
 Reasons:
 
 - A proxy, a recorder or a bot decodes packets with no registries.

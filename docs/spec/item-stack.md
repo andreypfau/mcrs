@@ -556,7 +556,8 @@ A reader must know the wire form of each component type to read a stack.
 
 Note: the bounds of a wire stack depend only on the sign of the count field, on the type ids of
 STK-TYP-001 and on the wire form of each type. They do not depend on the item id or on an entry of a registry that a data pack
-defines. A reader can thus find the bounds of a wire stack first and give the stack later.
+defines. A reader can thus find the bounds of a wire stack first and give the stack later. A reader
+can also apply the context-free value checks of each component type while it finds the bounds.
 
 **STK-NET-003** (`source_suggested`, wire). The reader gives a decode error for an item id or a
 type id that names no entry. The reader gives the empty stack when the count is larger than 0 and
