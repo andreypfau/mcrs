@@ -74,6 +74,7 @@ pub(crate) fn commands_pending(
         reason = "runs only on ticks with pending command lines, and each command line allocates its own parse and output"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(10))]
 pub(crate) fn run_commands<S: CommandSet>(world: &mut World) {
     world.try_resource_scope(|world, mut buffers: Mut<PassBuffers>| {
         let Some(here) = world.get_resource::<DimensionLabel>().map(|label| label.0) else {

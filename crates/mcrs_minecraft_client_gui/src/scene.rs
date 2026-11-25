@@ -645,6 +645,7 @@ pub(crate) struct ScreenStacks {
         reason = "caches the menu stacks and labels, so it allocates only when the open menu, its title or the language changes"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(15))]
 pub(crate) fn draw_screens(
     screen: Res<Screen>,
     player: Query<(

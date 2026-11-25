@@ -58,6 +58,7 @@ fn pose(transform: &Transform) -> Pose {
         reason = "allocates only when a player first enters replication or joins, and the spawn data moves into the tile events"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(7))]
 pub fn publish_player_tiles(
     mut events: ResMut<TileEvents>,
     dimensions: Query<(), With<DimensionTypeConfig>>,

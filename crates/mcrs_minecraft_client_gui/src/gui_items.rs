@@ -182,6 +182,7 @@ fn srgb_texture(
         reason = "allocates only when it creates the GUI textures, the pipelines for a new target format or a bind group for new atlases"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(7))]
 pub(super) fn prepare_gui_pass(
     mut commands: Commands,
     pass: Option<ResMut<GuiPass>>,

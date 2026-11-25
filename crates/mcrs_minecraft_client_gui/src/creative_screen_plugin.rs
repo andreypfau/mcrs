@@ -103,6 +103,7 @@ fn creative_inputs_changed(session: CreativeSession, content: Res<CreativeTabCon
         reason = "runs only when the registries, the item table, the language or the operator status changes"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(8))]
 fn rebuild_creative_content(
     session: CreativeSession,
     report: Res<LoadedCreativeReport>,

@@ -61,6 +61,7 @@ fn console_has_lines(console: Res<Console>) -> bool {
         reason = "each console line is boxed only when an operator types it, and the box moves to the overworld input channel"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn send_console_lines(
     mut console: ResMut<Console>,
     running: Option<Res<RunningDimensions>>,
