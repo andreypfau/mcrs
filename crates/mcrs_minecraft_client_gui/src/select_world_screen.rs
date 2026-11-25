@@ -152,7 +152,7 @@ pub(crate) fn shown_worlds<'a>(
 }
 
 pub(crate) fn search_query(widgets: &Widgets) -> &str {
-    match widgets.get(SEARCH).map(|widget| &widget.kind) {
+    match widgets.get(SEARCH).map(|widget| widget.kind()) {
         Some(WidgetKind::EditBox(edit)) => edit.text(),
         _ => "",
     }
@@ -166,7 +166,7 @@ pub(crate) fn selected_world<'a>(
 }
 
 pub(crate) fn selected_row(widgets: &Widgets) -> Option<usize> {
-    match widgets.get(LIST).map(|widget| &widget.kind) {
+    match widgets.get(LIST).map(|widget| widget.kind()) {
         Some(WidgetKind::SelectionList(rows)) => rows.selected(),
         _ => None,
     }
@@ -216,7 +216,7 @@ mod tests {
             let mut widgets = widgets_of(GUI, input, select).unwrap();
             widgets.set_rows(LIST, 1);
             let list = widgets.get(LIST).unwrap();
-            if let WidgetKind::SelectionList(rows) = &list.kind {
+            if let WidgetKind::SelectionList(rows) = list.kind() {
                 placed.extend(
                     rows.row_rect(list.rect(), 0)
                         .map(|row| (String::new(), row)),
@@ -252,7 +252,7 @@ mod tests {
             .unwrap();
             for widget in create.widgets.iter() {
                 let rect = widget.rect();
-                match &widget.kind {
+                match widget.kind() {
                     WidgetKind::TabBar(bar) => {
                         placed.extend(bar.tabs().iter().enumerate().map(|(index, tab)| {
                             (tab.label.clone(), bar.tab_rect(rect, index).unwrap())

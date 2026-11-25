@@ -9,8 +9,8 @@ use crate::scroll_area::ScrollArea;
 use crate::widget::Widget;
 use crate::widget_event::WidgetEvent;
 use crate::widget_id::WidgetId;
-use crate::widget_id_taken::WidgetIdTaken;
 use crate::widget_kind::WidgetKind;
+use crate::widget_push_error::WidgetPushError;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Drag {
@@ -57,9 +57,12 @@ impl Widgets {
         }
     }
 
-    pub fn push(&mut self, widget: Widget) -> Result<(), WidgetIdTaken> {
+    pub fn push(&mut self, widget: Widget) -> Result<(), WidgetPushError> {
+        if widget.area.is_some() && widget.kind.is_scroll_container() {
+            return Err(WidgetPushError::ContainerInArea(widget.id()));
+        }
         if self.index(widget.id()).is_some() {
-            return Err(WidgetIdTaken(widget.id()));
+            return Err(WidgetPushError::IdTaken(widget.id()));
         }
         self.widgets.push(widget);
         Ok(())

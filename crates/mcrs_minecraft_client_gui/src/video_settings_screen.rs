@@ -146,7 +146,7 @@ pub(crate) fn write_option(
     max_gui_scale: u32,
     modifiers: KeyModifiers,
 ) {
-    match (widget.id(), &widget.kind) {
+    match (widget.id(), widget.kind()) {
         (BRIGHTNESS, WidgetKind::Slider(slider)) => options.brightness = slider.position() as f32,
         (MAX_FRAMERATE, WidgetKind::Slider(slider)) => {
             if let Some(framerate) = slider

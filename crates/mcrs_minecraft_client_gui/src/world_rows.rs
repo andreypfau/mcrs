@@ -112,7 +112,7 @@ pub(crate) fn project_world_rows(
 }
 
 fn list_rows(widgets: &Widgets) -> Option<(usize, Option<usize>)> {
-    match widgets.get(LIST).map(|widget| &widget.kind) {
+    match widgets.get(LIST).map(|widget| widget.kind()) {
         Some(WidgetKind::SelectionList(list)) => Some((list.rows(), list.selected())),
         _ => None,
     }
@@ -133,7 +133,7 @@ fn loading(
 ) -> RowContent {
     let inner = widgets
         .get(LIST)
-        .and_then(|widget| match &widget.kind {
+        .and_then(|widget| match widget.kind() {
             WidgetKind::SelectionList(list) => list.row_rect(widget.rect(), 0),
             _ => None,
         })

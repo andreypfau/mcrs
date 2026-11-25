@@ -35,7 +35,7 @@ pub(crate) fn mouse_settings_screen(
 
 pub(crate) fn write_option(options: &mut ClientOptions, widget: &Widget) {
     if widget.id() == SENSITIVITY
-        && let WidgetKind::Slider(slider) = &widget.kind
+        && let WidgetKind::Slider(slider) = widget.kind()
     {
         options.sensitivity = slider.position() as f32;
     }

@@ -313,7 +313,7 @@ mod tests {
             widgets.select_all();
             let read = || Some("xy".to_owned());
             let returned = shortcut.apply(&mut widgets, read, &width, &mut Vec::new());
-            let value = match widgets.get(EDIT).map(|widget| &widget.kind) {
+            let value = match widgets.get(EDIT).map(|widget| widget.kind()) {
                 Some(WidgetKind::EditBox(edit)) => edit.text(),
                 _ => "",
             };

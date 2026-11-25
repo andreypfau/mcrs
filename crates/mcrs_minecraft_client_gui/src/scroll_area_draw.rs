@@ -41,11 +41,11 @@ pub(crate) fn draw_scroll_area(
         atlas.tile(background, rect, start, tile, out);
     }
     out.push(GuiQuad::Clip { rect });
-    if let WidgetKind::SelectionList(list) = &widget.kind {
+    if let WidgetKind::SelectionList(list) = widget.kind() {
         draw_rows(menu, widget, list, atlas, out);
     }
     let members = menu.widgets.iter().filter(|member| {
-        member.visible && member.area.is_some_and(|slot| slot.area == widget.id())
+        member.visible && member.area().is_some_and(|slot| slot.area == widget.id())
     });
     for member in members {
         if let WidgetPlacement::Area { shift, .. } = menu.widgets.placement(member) {
@@ -269,8 +269,8 @@ mod tests {
                     let origin = WidgetList::option_origin(GUI.width, bounds, 0);
                     let rect = GuiRect::new(origin.x, origin.y, 150, 20);
                     let id = WidgetId(10 + u32::try_from(row).unwrap());
-                    let mut button = Widget::new(id, rect, String::new(), WidgetKind::Button);
-                    button.area = Some(AreaSlot { area: LIST, row });
+                    let button = Widget::new(id, rect, String::new(), WidgetKind::Button)
+                        .in_area(AreaSlot { area: LIST, row });
                     widgets.push(button).unwrap();
                 }
                 widgets.mouse_wheel(200.0, 50.0, wheel, &mut Vec::new());

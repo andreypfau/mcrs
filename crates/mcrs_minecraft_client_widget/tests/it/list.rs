@@ -27,7 +27,7 @@ fn selection_screen() -> Widgets {
 }
 
 fn selected(screen: &Widgets) -> Option<usize> {
-    match screen.get(LIST).map(|list| &list.kind) {
+    match screen.get(LIST).map(|list| list.kind()) {
         Some(WidgetKind::SelectionList(list)) => list.selected(),
         _ => None,
     }
@@ -285,8 +285,7 @@ fn option_screen() -> Widgets {
         };
         for (column, (id, width)) in row_widgets.iter().enumerate() {
             let origin = WidgetList::option_origin(427, row_rect, column as i32);
-            let mut member = button(*id, origin.x, origin.y, *width, 20);
-            member.area = Some(AreaSlot {
+            let mut member = button(*id, origin.x, origin.y, *width, 20).in_area(AreaSlot {
                 area: WidgetId(1),
                 row,
             });

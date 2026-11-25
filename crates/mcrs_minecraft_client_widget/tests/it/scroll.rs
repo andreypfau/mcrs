@@ -1,6 +1,6 @@
 use mcrs_minecraft_client_widget::{
     AreaSlot, GuiInput, GuiPoint, GuiRect, PointerButton, ScrollPanel, SelectionList, Widget,
-    WidgetEvent, WidgetId, WidgetKind, WidgetList, Widgets,
+    WidgetEvent, WidgetId, WidgetKind, WidgetList, WidgetPushError, Widgets,
 };
 
 use crate::screen::{AWAY, button, mono, press, screen_of, screen_with_input, widget};
@@ -137,6 +137,18 @@ fn scrollbar_drag_moves_the_offset() {
     }
 }
 
+#[test]
+fn a_scroll_container_is_refused_as_a_member_of_a_scroll_area() {
+    let mut screen = screen_of([panel(AREA, 340)]);
+    let nested = widget(2, AREA, WidgetKind::ScrollPanel(ScrollPanel::new(100)))
+        .in_area(AreaSlot { area: LIST, row: 0 });
+    assert_eq!(
+        screen.push(nested),
+        Err(WidgetPushError::ContainerInArea(WidgetId(2)))
+    );
+    assert_eq!(screen.iter().count(), 1);
+}
+
 fn scrolled_option_list() -> Widgets {
     let list = options(13);
     let mut widgets = vec![widget(LIST.0, AREA, WidgetKind::WidgetList(list.clone()))];
@@ -147,8 +159,8 @@ fn scrolled_option_list() -> Widgets {
         for column in 0..2 {
             let origin = WidgetList::option_origin(427, row_rect, column);
             let id = 100 + 2 * row as u32 + column as u32;
-            let mut member = button(id, origin.x, origin.y, 150, 20);
-            member.area = Some(AreaSlot { area: LIST, row });
+            let member =
+                button(id, origin.x, origin.y, 150, 20).in_area(AreaSlot { area: LIST, row });
             widgets.push(member);
         }
     }
@@ -203,7 +215,7 @@ fn hover_is_cut_to_the_clip() {
         screen.mouse_move(GuiPoint::new(100, y));
         let hovered = screen
             .iter()
-            .filter(|widget| widget.area.is_some() && screen.is_hovered(widget))
+            .filter(|widget| widget.area().is_some() && screen.is_hovered(widget))
             .map(|widget| widget.id().0)
             .next();
         assert_eq!(hovered, expected, "{name}");

@@ -58,7 +58,7 @@ pub(crate) fn fov_effects_tooltip(language: &ClientLanguage) -> WidgetTooltip {
 
 pub(crate) fn write_option(options: &mut ClientOptions, widget: &Widget) {
     if widget.id() == FOV_EFFECTS
-        && let WidgetKind::Slider(slider) = &widget.kind
+        && let WidgetKind::Slider(slider) = widget.kind()
     {
         let position = slider.position();
         options.fov_effect_scale = (position * position) as f32;

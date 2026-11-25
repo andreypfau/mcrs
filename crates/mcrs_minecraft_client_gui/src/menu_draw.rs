@@ -58,11 +58,10 @@ pub(crate) fn draw_widget(
     atlas: &GuiAtlasData,
     out: &mut Vec<GuiQuad>,
 ) {
-    match widget.kind {
-        WidgetKind::SelectionList(_) | WidgetKind::WidgetList(_) | WidgetKind::ScrollPanel(_) => {
-            draw_scroll_area(menu, widget, world, now_ms, atlas, out);
-        }
-        _ => draw_leaf(menu, widget, now_ms, atlas, out),
+    if widget.kind().is_scroll_container() {
+        draw_scroll_area(menu, widget, world, now_ms, atlas, out);
+    } else {
+        draw_leaf(menu, widget, now_ms, atlas, out);
     }
 }
 
@@ -73,7 +72,7 @@ pub(crate) fn draw_leaf(
     atlas: &GuiAtlasData,
     out: &mut Vec<GuiQuad>,
 ) {
-    match widget.kind {
+    match *widget.kind() {
         WidgetKind::TabBar(_) => draw_tab_bar(menu, widget, now_ms, atlas, out),
         WidgetKind::SectionLabel => {
             draw_section_label_box(menu, widget, out);
@@ -145,7 +144,7 @@ fn draw_background(
     let tab_bar = menu
         .widgets
         .iter()
-        .find(|widget| widget.visible && matches!(widget.kind, WidgetKind::TabBar(_)));
+        .find(|widget| widget.visible && matches!(widget.kind(), WidgetKind::TabBar(_)));
     let top = tab_bar.map_or(0, |bar| bar.rect().y.saturating_add(bar.rect().height));
     let screen = IRect::new(0, top, size.width, size.height);
     let (background, header, footer) = match world {
@@ -258,7 +257,7 @@ fn draw_sprites(menu: &Menu, widget: &Widget, atlas: &GuiAtlasData, out: &mut Ve
         }
         _ => {}
     }
-    if let WidgetKind::IconButton { icon, .. } = widget.kind
+    if let WidgetKind::IconButton { icon, .. } = *widget.kind()
         && let Some(origin) = widget.icon_origin(atlas.font.str_width(&widget.caption))
         && let Some(entry) = menu.icons.iter().find(|entry| entry.widget == widget.id())
     {
@@ -270,7 +269,7 @@ fn draw_sprites(menu: &Menu, widget: &Widget, atlas: &GuiAtlasData, out: &mut Ve
 fn draw_caption(widget: &Widget, now_ms: u64, font: &Font, out: &mut Vec<GuiQuad>) {
     let caption = widget.caption.as_str();
     let color = widget.caption_color();
-    match widget.kind {
+    match *widget.kind() {
         WidgetKind::Checkbox { .. } => {
             let count = i32::try_from(caption.lines().count()).unwrap_or(i32::MAX);
             let origin = point(checkbox_label_origin(widget.rect(), count));
@@ -323,7 +322,7 @@ fn cut_room(widget: &Widget, text_width: i32, font: &Font) -> Option<i32> {
     let WidgetKind::Text {
         max_width,
         overflow: Overflow::Cut,
-    } = widget.kind
+    } = *widget.kind()
     else {
         return None;
     };

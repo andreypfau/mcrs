@@ -43,7 +43,7 @@ mod tests {
                 match menu
                     .widgets
                     .get(select_world_screen::LIST)
-                    .map(|widget| &widget.kind)
+                    .map(|widget| widget.kind())
                 {
                     Some(WidgetKind::SelectionList(list)) => (screen(app), list.rows()),
                     _ => (screen(app), 0),

@@ -27,8 +27,8 @@ pub struct Widget {
     pub active: bool,
     pub tab_group: i32,
     pub tooltip: Option<TooltipDelay>,
-    pub kind: WidgetKind,
-    pub area: Option<AreaSlot>,
+    pub(crate) kind: WidgetKind,
+    pub(crate) area: Option<AreaSlot>,
     pub(crate) tooltip_start_ms: Option<u64>,
 }
 
@@ -53,6 +53,22 @@ impl Widget {
     pub const fn with_rect(mut self, rect: GuiRect) -> Self {
         self.rect = rect;
         self
+    }
+
+    #[must_use]
+    pub const fn in_area(mut self, slot: AreaSlot) -> Self {
+        self.area = Some(slot);
+        self
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> &WidgetKind {
+        &self.kind
+    }
+
+    #[must_use]
+    pub const fn area(&self) -> Option<AreaSlot> {
+        self.area
     }
 
     #[must_use]

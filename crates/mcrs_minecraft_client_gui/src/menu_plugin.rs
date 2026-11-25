@@ -97,8 +97,8 @@ mod tests {
         for (id, row, column, kind) in members {
             let origin = WidgetList::option_origin(screen.width, rows[row], column);
             let rect = GuiRect::new(origin.x, origin.y, 150, 20);
-            let mut widget = Widget::new(id, rect, String::new(), kind);
-            widget.area = Some(AreaSlot { area: LIST, row });
+            let widget =
+                Widget::new(id, rect, String::new(), kind).in_area(AreaSlot { area: LIST, row });
             widgets.push(widget).unwrap();
         }
         commands.insert_resource(Menu::new(widgets, MenuBackground::Texture));
@@ -230,7 +230,7 @@ mod tests {
             .resource::<Menu>()
             .widgets
             .get(EDIT)
-            .map(|w| &w.kind)
+            .map(|w| w.kind())
         {
             Some(WidgetKind::EditBox(edit)) => edit.text(),
             _ => "",

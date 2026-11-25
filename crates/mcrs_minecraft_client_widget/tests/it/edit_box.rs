@@ -20,7 +20,7 @@ fn editing(edit: EditBox) -> Widgets {
 }
 
 fn edit_of(screen: &Widgets) -> EditBox {
-    match screen.get(ID).map(|widget| &widget.kind) {
+    match screen.get(ID).map(|widget| widget.kind()) {
         Some(WidgetKind::EditBox(edit)) => edit.clone(),
         _ => EditBox::default(),
     }

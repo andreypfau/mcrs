@@ -123,7 +123,7 @@ fn fov_caption(language: &ClientLanguage, fov: u8) -> String {
 
 pub(crate) fn write_option(options: &mut ClientOptions, widget: &Widget) {
     if widget.id() == FOV
-        && let WidgetKind::Slider(slider) = widget.kind
+        && let WidgetKind::Slider(slider) = *widget.kind()
         && let Some(fov) = slider.value().and_then(|fov| u8::try_from(fov).ok())
     {
         options.fov = fov;

@@ -94,7 +94,7 @@ impl NewWorldForm {
     }
 
     pub(crate) fn write(&mut self, widget: &Widget) {
-        let WidgetKind::CycleButton(cycle) = &widget.kind else {
+        let WidgetKind::CycleButton(cycle) = widget.kind() else {
             return;
         };
         match widget.id() {
@@ -142,7 +142,7 @@ pub(crate) fn show_tab(widgets: &mut Widgets, tab: usize, events: &mut Vec<Widge
 }
 
 pub(crate) fn edit_text(widgets: &Widgets, id: WidgetId) -> Option<&str> {
-    match &widgets.get(id)?.kind {
+    match widgets.get(id)?.kind() {
         WidgetKind::EditBox(edit) => Some(edit.text()),
         _ => None,
     }

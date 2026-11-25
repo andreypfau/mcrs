@@ -224,7 +224,7 @@ mod tests {
                 let Some(WidgetKind::SelectionList(list)) = menu
                     .widgets
                     .get(select_world_screen::LIST)
-                    .map(|widget| &widget.kind)
+                    .map(|widget| widget.kind())
                 else {
                     panic!("no world list");
                 };

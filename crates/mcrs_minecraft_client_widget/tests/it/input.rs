@@ -93,7 +93,7 @@ fn a_checkbox_toggles_on_a_press_and_on_an_activation_key_while_active() {
     let mut screen = screen_of([widget(1, rect, WidgetKind::Checkbox { selected: false })]);
     let selected = |screen: &mcrs_minecraft_client_widget::Widgets| {
         matches!(
-            screen.get(WidgetId(1)).unwrap().kind,
+            *screen.get(WidgetId(1)).unwrap().kind(),
             WidgetKind::Checkbox { selected: true }
         )
     };
