@@ -579,8 +579,7 @@ Provenance: source_suggested. Kind: semantic. Confidence: medium.
   `y`, the payload is `{a:1b, n:"y"}`.
 - **Edge cases:** the order of the keys of the payload is not specified.
 
-Provenance: source_suggested_black_box_confirmed: `docs/spec/fixtures/dialog/dlg-exp-005-values.txt`.
-Kind: semantic. Confidence: medium. Experiment: DLG-EXP-005.
+Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: DLG-EXP-005.
 
 ### DLG-ACT-005: Values of an input
 
@@ -884,7 +883,7 @@ Provenance: source_suggested. Kind: layout. Confidence: medium. Experiment: DLG-
 - **Inputs:** `n` buttons and `c` = `columns`.
 - **Behavior:**
   1. The grid has the column gap 2 and the row gap 2. Each cell has the alignment (0.5, 0.5).
-  2. Let `f = (n / c)·c`. The first `f` buttons fill the grid in rows of `c`, left to right
+  2. Let `f = floor(n / c)·c`. The first `f` buttons fill the grid in rows of `c`, left to right
      and top to bottom (`client-widget.md`, WID-LAY-004, WID-LAY-005).
   3. When `n − f` > 0, the other buttons are in a row with the gap 2. That row is one cell of
      the grid below the full rows. It spans all `c` columns and has the alignment (0.5, 0.5).
@@ -1314,7 +1313,7 @@ Provenance: source_suggested. Kind: layout. Confidence: medium.
   1. The title is `gui.waitingForResponse.title`: "Waiting for Server". The header height is
      33. The footer height is 0.
   2. The content holds one button of 200 × 20.
-  3. Let `sec` be the number of ticks since the screen opened, divided by 20.
+  3. Let `sec` be `floor(t / 20)`, with `t` the number of ticks since the screen opened.
   4. When `sec` = 0, the button is not visible.
   5. When `sec` is 1 to 4, the button is visible and not active. Its caption is
      `gui.waitingForResponse.button.inactive` ("Back (%ss)") with `5 − sec`.
@@ -1365,6 +1364,9 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
      registry id resolves on the server to its value.
   3. In the play phase, the server writes a registry id as its number (DLG-WIRE-003).
   4. A user of the library can send `clear_dialog` to one connection.
+- **Edge cases:** the server resolves the outer id only. A `show_dialog` action inside the
+  resolved value can name a registry entry, and the server does not replace it. Section 17 lists
+  the reaction of the client.
 
 Provenance: `design`. Kind: wire. Confidence: medium.
 
@@ -1497,7 +1499,8 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
 ## 17. Unresolved
 
 1. **A configuration dialog with a registry reference** (DLG-WIRE-002). What does the client do
-   when the decode fails: disconnect, or ignore the packet?
+   when the decode fails: disconnect, or ignore the packet? The same question applies to a
+   `show_dialog` action that names a registry entry inside a dialog that DLG-SRV-002 resolves.
 2. **The owner of the multi-line edit box** (DLG-CTL-005 to DLG-CTL-008). Which specification
    states the cursor keys over wrapped lines, the selection, the draw of the selection and the
    scroll to the cursor of the multi-line edit box?
@@ -1509,7 +1512,8 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
    load messages of the server and the packets, but not each command. The rules that these
    fixtures show have the label `source_suggested_black_box_confirmed`. The rules DLG-FLOW-001,
    DLG-FLOW-003, DLG-CLK-001, DLG-WAIT-001 and DLG-DEV-004 also cite these experiments and keep
-   their labels, because the fixtures show no screen.
+   their labels, because the fixtures show no screen. The rule DLG-ACT-004 keeps its label,
+   because the fixture of DLG-EXP-005 holds no `additions`.
    The fixture of DLG-EXP-008 names each raw connection with a label, for example `A32768` and
    `D16`. The saved logs do not state the size and the depth that each label stands for. Which
    size and which depth does each label stand for?
@@ -1556,6 +1560,9 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
 20. **The links** (DLG-CLK-004, DLG-CLK-005). Does an `open_url` action with "Prompt on Links" on
     show the screen of DLG-CLK-005, and does each of its buttons follow the rules?
 21. **The button "Disconnect"** (DLG-WARN-001). Does it disconnect with the stated reason?
+22. **A key of an input that is a key of `additions`** (DLG-ACT-004). Show a `dynamic/custom`
+    action with `additions` that hold a key of an input, and capture `custom_click_action`. The
+    fixture of DLG-EXP-005 holds no `additions`. Does the value of the input replace the entry?
 
 ---
 
