@@ -23,6 +23,7 @@ use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
 use crate::menu_input;
 use crate::scene::{GuiAtlas, GuiScene};
+use crate::span_events::SpanEvents;
 use crate::text::{self, Wrap};
 use mcrs_minecraft_client_world::chat::{
     self, Chat, ChatInput, ClientLookup, CommandWorld, SendChat,
@@ -31,7 +32,13 @@ use mcrs_minecraft_client_world::chat_history::CommandHistoryFile;
 use mcrs_minecraft_client_world::screen::Screen;
 
 #[derive(Resource, Default)]
-pub struct ChatLines(pub mcrs_minecraft_chat_client::ChatLines<Vec<Span>>);
+pub struct ChatLines {
+    pub lines: mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
+    pub events: SpanEvents,
+    synced_with_events: usize,
+}
+
+const REBUILD_AFTER_EVENT_MESSAGES: usize = 100;
 
 pub struct ChatScreenPlugin;
 
@@ -67,8 +74,19 @@ fn project_lines(
         return;
     }
     let font = &atlas.0.font;
+    let ChatLines {
+        lines,
+        events,
+        synced_with_events,
+    } = &mut *lines;
+    let changed = changed || *synced_with_events >= REBUILD_AFTER_EVENT_MESSAGES;
+    if changed {
+        events.clear();
+        *synced_with_events = 0;
+    }
+    let before = events.len();
     let wrap_message = |text: &Text, tag: Option<Tag>, rows: &mut Vec<Vec<Span>>| {
-        let spans = text::text_spans(text, &language, WHITE);
+        let spans = text::text_spans_with_events(text, &language, WHITE, events);
         text::wrap(
             &spans,
             chat_view::wrap_width(tag),
@@ -78,10 +96,13 @@ fn project_lines(
         );
     };
     if changed {
-        lines.0.rebuild(&chat.log, wrap_message);
+        lines.rebuild(&chat.log, wrap_message);
     } else {
         let open = (*screen == Screen::Chat).then(|| chat_view::per_page(ChatFocus::Focused));
-        lines.0.sync(&chat.log, open, wrap_message);
+        lines.sync(&chat.log, open, wrap_message);
+        if events.len() > before {
+            *synced_with_events += 1;
+        }
     }
 }
 
@@ -290,7 +311,7 @@ fn chat_keys(
             &keys,
             moved,
             screen,
-            &mut state.lines.0,
+            &mut state.lines,
             modifiers.shift,
             font,
             &cx,
@@ -302,7 +323,7 @@ fn chat_keys(
     if typed.page != 0 {
         let page = chat_view::per_page(ChatFocus::Focused);
         let lines = page.saturating_sub(1) as isize;
-        state.lines.0.scroll_by(typed.page * lines, page);
+        state.lines.lines.scroll_by(typed.page * lines, page);
     }
     capture_keys(&mut keys.keys);
     if let Some(closed) = typed.closed {
@@ -385,7 +406,7 @@ fn close(state: &mut ChatState, closed: Closed, sends: &mut MessageWriter<SendCh
     };
     chat.draft = mcrs_minecraft_chat_client::keeps_draft(screen.input(), Some(&closed), unsent)
         .then(|| screen.input().to_owned());
-    state.lines.0.reset_scroll();
+    state.lines.lines.reset_scroll();
     state.screen.set_if_neq(Screen::None);
 }
 
@@ -430,7 +451,7 @@ fn mouse(
     keys: &ChatKeys,
     moved: bool,
     screen: &mut ChatScreen,
-    log: &mut mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
+    log: &mut ChatLines,
     shift: bool,
     font: &Font,
     cx: &Context<'_, ClientLookup<'_>>,
@@ -454,7 +475,8 @@ fn mouse(
         _ => {
             let lines = if shift { step } else { step * 7.0 } as isize;
             if lines != 0 {
-                log.scroll_by(lines, chat_view::per_page(ChatFocus::Focused));
+                log.lines
+                    .scroll_by(lines, chat_view::per_page(ChatFocus::Focused));
             }
         }
     }
@@ -480,12 +502,13 @@ fn mouse(
     if over.is_some() || !left {
         return false;
     }
-    let Some(span) = chat_view::open_chat_span_at(scene.size, log, scene.cursor, font) else {
+    let Some(span) = chat_view::open_chat_span_at(scene.size, &log.lines, scene.cursor, font)
+    else {
         return false;
     };
     let style = StyleClick {
         insertion: span.insertion.as_deref(),
-        event: span.click.as_deref(),
+        event: span.click.and_then(|index| log.events.click(index)),
     };
     let mode = if shift {
         ClickMode::Shift

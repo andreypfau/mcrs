@@ -4,6 +4,7 @@ use mcrs_minecraft_text_flatten::{Projection, UnitBudget, flatten};
 
 use crate::font::{Font, Span};
 use crate::language::ClientLanguage;
+use crate::span_events::{Interner, SpanEvents};
 
 pub fn argb(color: Color) -> u32 {
     let rgb = match color {
@@ -14,6 +15,25 @@ pub fn argb(color: Color) -> u32 {
 }
 
 pub fn text_spans(text: &Text, language: &ClientLanguage, color: u32) -> Vec<Span> {
+    spans(text, language, color, None)
+}
+
+pub fn text_spans_with_events(
+    text: &Text,
+    language: &ClientLanguage,
+    color: u32,
+    events: &mut SpanEvents,
+) -> Vec<Span> {
+    spans(text, language, color, Some(events))
+}
+
+fn spans(
+    text: &Text,
+    language: &ClientLanguage,
+    color: u32,
+    events: Option<&mut SpanEvents>,
+) -> Vec<Span> {
+    let mut interner = events.map(Interner::new);
     let mut out = Vec::new();
     let mut budget = UnitBudget::new();
     flatten(language, text, Projection::Drawn, |run, style| {
@@ -24,12 +44,19 @@ pub fn text_spans(text: &Text, language: &ClientLanguage, color: u32) -> Vec<Spa
         if run.is_empty() {
             return;
         }
+        let (hover, click) = match interner.as_mut() {
+            Some(interner) => (
+                style.hover_event.and_then(|hover| interner.hover(hover)),
+                style.click_event.and_then(|click| interner.click(click)),
+            ),
+            None => (None, None),
+        };
         out.push(Span {
             text: run.to_owned(),
             color: style.color.map_or(color, argb),
             bold: style.bold,
-            hover: style.hover_event.map(|hover| Box::new(hover.clone())),
-            click: style.click_event.map(|click| Box::new(click.clone())),
+            hover,
+            click,
             insertion: style.insertion.map(Box::from),
         });
     });
@@ -168,15 +195,31 @@ mod tests {
     }
 
     #[test]
+    fn many_runs_under_one_event_store_its_payload_once() {
+        let text = Text::text("§lX".repeat(1000)).on_hover_show_text("tip");
+        let mut events = SpanEvents::default();
+        let spans =
+            text_spans_with_events(&text, &ClientLanguage::default(), 0xFFFF_FFFF, &mut events);
+        assert_eq!(spans.len(), 1000);
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
     fn click_event_and_insertion_pass_to_children_and_survive_wrapping() {
         let text = Text::text("ab")
             .on_click_suggest_command("/help")
             .insertion("ins");
         let mut text = text;
         text.extra.push(Text::text("cd").insertion("own"));
-        let spans = text_spans(&text, &ClientLanguage::default(), 0xFFFF_FFFF);
+        let mut events = SpanEvents::default();
+        let spans =
+            text_spans_with_events(&text, &ClientLanguage::default(), 0xFFFF_FFFF, &mut events);
         assert_eq!(spans.len(), 2);
-        assert!(spans.iter().all(|span| span.click.is_some()));
+        assert!(
+            spans
+                .iter()
+                .all(|span| span.click.and_then(|index| events.click(index)).is_some())
+        );
         assert_eq!(spans[0].insertion.as_deref(), Some("ins"));
         assert_eq!(spans[1].insertion.as_deref(), Some("own"));
         let mut rows = Vec::new();

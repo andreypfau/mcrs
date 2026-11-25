@@ -13,6 +13,7 @@ use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
 use crate::menu_input;
 use crate::scene::{self, GuiAtlas, GuiAtlasData, GuiConfig, GuiQuad, GuiScene, GuiSize};
+use crate::span_events::SpanEvents;
 use crate::text::{self, Wrap};
 use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_world::chat::{Chat, ChatInput};
@@ -87,6 +88,7 @@ pub(crate) fn chat_lines<'c>(
     size: GuiSize,
     chat: &Chat,
     lines: &'c mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
+    events: &'c SpanEvents,
     mut pointer: Option<Pointer<'_>>,
     out: &mut Vec<GuiQuad>,
     font: &Font,
@@ -101,7 +103,10 @@ pub(crate) fn chat_lines<'c>(
     let text_origin = |slot: usize| text_origin(size, slot);
     let (hovered, hovered_message) = pointer.as_ref().map_or((None, None), |pointer| {
         text_under(lines, page, text_origin, pointer.at, font).map_or((None, None), |under| {
-            (under.span.hover.as_deref(), Some(under.message))
+            (
+                under.span.hover.and_then(|index| events.hover(index)),
+                Some(under.message),
+            )
         })
     });
     let mut message = 0;
@@ -329,7 +334,7 @@ fn input_box(
         reason = "the immediate-mode GUI takes owned text spans, and the fade of each line changes its colour on each frame, so a span cache would be rebuilt on each frame too"
     )
 )]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(28))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(27))]
 pub fn draw(
     (chat, lines): (Res<Chat>, Res<crate::chat_input::ChatLines>),
     input: Res<ChatInput>,
@@ -354,7 +359,15 @@ pub fn draw(
         tooltip: &mut scene.tooltip,
         icon: atlas.0.chat_modified.size(),
     });
-    let hovered = chat_lines(size, &chat, &lines.0, pointer, &mut scene.quads, font);
+    let hovered = chat_lines(
+        size,
+        &chat,
+        &lines.lines,
+        &lines.events,
+        pointer,
+        &mut scene.quads,
+        font,
+    );
     if let Some((text, alpha)) = chat.overlay.shown(0.0) {
         let spans = text::text_spans(text, &language, u32::from(alpha) << 24 | 0x00FF_FFFF);
         font::draw_centered_text(
@@ -469,7 +482,15 @@ mod tests {
             };
             let mut out = Vec::new();
             chat.tick = 20;
-            chat_lines(size, &chat, &lines, None, &mut out, font);
+            chat_lines(
+                size,
+                &chat,
+                &lines,
+                &SpanEvents::default(),
+                None,
+                &mut out,
+                font,
+            );
             assert_eq!(
                 out[0],
                 GuiQuad::Fill {
@@ -490,7 +511,15 @@ mod tests {
             );
             out.clear();
             chat.tick = 200;
-            chat_lines(size, &chat, &lines, None, &mut out, font);
+            chat_lines(
+                size,
+                &chat,
+                &lines,
+                &SpanEvents::default(),
+                None,
+                &mut out,
+                font,
+            );
             assert!(out.is_empty());
         }
     }
