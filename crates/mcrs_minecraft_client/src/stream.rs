@@ -2222,27 +2222,11 @@ mod tests {
     }
 
     fn a_section_is_queued_when_the_last_of_its_neighbours_arrives_not_when_it_does() {
-        use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
-
         let extent = Extent {
             min_section_y: 0,
             sections: 1,
         };
-        let stone = || {
-            Column::unlit(
-                0,
-                vec![Some(Section {
-                    blocks: Box::new(
-                        [mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
-                            mcrs_minecraft_mesh::SECTION_VOLUME],
-                    ),
-                    biomes: PalettedContainer::Homogeneous(0),
-                    states: vec![
-                        mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air"),
-                    ],
-                })],
-            )
-        };
+        let stone = || stone_column(1);
 
         let mut loader = loader();
         let mut drawn = Messages::<SectionDrawn>::default();
@@ -2402,23 +2386,7 @@ mod tests {
     }
 
     fn a_mesh_read_out_of_a_column_the_server_took_back_is_thrown_away() {
-        use mcrs_minecraft_client_world::columns::{Column, Extent, Section};
-
-        let stone = || {
-            Column::unlit(
-                0,
-                vec![Some(Section {
-                    blocks: Box::new(
-                        [mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
-                            mcrs_minecraft_mesh::SECTION_VOLUME],
-                    ),
-                    biomes: PalettedContainer::Homogeneous(0),
-                    states: vec![
-                        mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air"),
-                    ],
-                })],
-            )
-        };
+        let stone = || stone_column(1);
 
         let mut loader = loader();
         let mut drawn = Messages::<SectionDrawn>::default();
@@ -2608,6 +2576,272 @@ mod tests {
             Some(NO_SLOT),
             "and forgets it when the loader evicts it"
         );
+    }
+
+    fn stream_app(budget: Budget, pacing: MeshPacing) -> App {
+        let mut app = App::new();
+        app.add_plugins((
+            bevy::app::TaskPoolPlugin::default(),
+            StreamPlugin::new(Arc::new(budget), Uploads::default(), pacing),
+        ))
+        .init_resource::<ColumnStore>()
+        .insert_resource(Blocks(Arc::clone(
+            &mcrs_minecraft_engine_registries::test_corpus().0.0,
+        )))
+        .insert_resource(CaveCull::new(1 << 8, true))
+        .add_message::<ColumnChange>()
+        .add_message::<mcrs_minecraft_network::client::ConnectionEnded>();
+        app.world_mut().spawn((
+            Camera3d::default(),
+            GlobalTransform::from_translation(Vec3::splat(8.0)),
+        ));
+        app.update();
+        app
+    }
+
+    fn status(app: &mut App) -> Status {
+        use bevy::ecs::system::RunSystemOnce;
+        app.world_mut()
+            .run_system_once(|streaming: Streaming| streaming.status())
+            .expect("the stream resources exist")
+    }
+
+    fn stone_column(sections: usize) -> mcrs_minecraft_client_world::columns::Column {
+        use mcrs_minecraft_client_world::columns::{Column, Section};
+
+        let stone = mcrs_voxel::BlockStateId::checked(1, 2).expect("a state past air");
+        let section = || {
+            Some(Section {
+                blocks: Box::new([stone; mcrs_minecraft_mesh::SECTION_VOLUME]),
+                biomes: PalettedContainer::Homogeneous(0),
+                states: vec![stone],
+            })
+        };
+        Column::unlit(0, (0..sections).map(|_| section()).collect())
+    }
+
+    fn insert_columns(
+        app: &mut App,
+        columns: impl IntoIterator<Item = ColumnPos>,
+        sections: usize,
+    ) {
+        let mut changes = Vec::new();
+        let mut store = app.world_mut().resource_mut::<ColumnStore>();
+        if store.extent().is_none() {
+            store.enter(Extent {
+                min_section_y: 0,
+                sections,
+            });
+        }
+        for pos in columns {
+            store.insert(pos, stone_column(sections));
+        }
+        store.drain_changes(&mut changes);
+        app.world_mut().write_message_batch(changes);
+        app.update();
+    }
+
+    fn around_origin() -> impl Iterator<Item = ColumnPos> {
+        (-1..=1).flat_map(|x| (-1..=1).map(move |z| ColumnPos::new(x, z)))
+    }
+
+    fn catch_up_catalog(app: &mut App) {
+        let mut catalog = app.world_mut().resource_mut::<BlockCatalog>();
+        catalog.blocks = Arc::new(vec![BlockInfo::default()]);
+        catalog.to_bake.clear();
+    }
+
+    fn start_mesh(app: &mut App, at: [i32; 3]) -> u32 {
+        let mut loader = app.world_mut().resource_mut::<Loader>();
+        let slot = loader.take_slot().expect("a free slot");
+        loader.sections.start_meshing(at);
+        let mesh = one_greedy_group(at, slot, 3);
+        let task = AsyncComputeTaskPool::get().spawn(async move { (mesh, Scratch::default()) });
+        loader.meshing.push((at, slot, task));
+        slot
+    }
+
+    fn finish_meshes(app: &App) {
+        let loader = app.world().resource::<Loader>();
+        while !loader.meshing.iter().all(|(_, _, task)| task.is_finished()) {
+            std::thread::yield_now();
+        }
+    }
+
+    fn resident(app: &App, at: [i32; 3]) -> bool {
+        app.world()
+            .resource::<Loader>()
+            .sections
+            .resident(at)
+            .is_some()
+    }
+
+    fn waits_for_room(app: &App, at: [i32; 3]) -> bool {
+        app.world().resource::<Loader>().sections.work(at) == Work::Deferred
+    }
+
+    fn room_for_one_mesh() -> Budget {
+        Budget {
+            quads: 4,
+            ..budget()
+        }
+    }
+
+    const ONE_AT_A_TIME: MeshPacing = MeshPacing {
+        per_frame: 1,
+        in_flight: 1,
+    };
+
+    const FAR: [i32; 3] = [40, 0, 0];
+    const NEAR: [i32; 3] = [0, 0, 0];
+
+    fn land_far_then_near(app: &mut App) {
+        for at in [FAR, NEAR] {
+            start_mesh(app, at);
+            finish_meshes(app);
+            app.update();
+        }
+    }
+
+    #[test]
+    fn a_mesh_with_no_room_takes_the_place_of_the_farthest_resident_in_the_frame_it_lands() {
+        let mut app = stream_app(room_for_one_mesh(), ONE_AT_A_TIME);
+        land_far_then_near(&mut app);
+
+        assert!(
+            resident(&app, NEAR),
+            "the near mesh is placed in the frame it lands"
+        );
+        assert!(!resident(&app, FAR), "in the room of the far one");
+        assert_eq!(status(&mut app).evicted, 1);
+        assert!(
+            waits_for_room(&app, FAR),
+            "the far section waits for room to come back"
+        );
+    }
+
+    #[test]
+    fn a_section_that_waited_for_room_is_queued_again_when_the_anchor_moves() {
+        let mut app = stream_app(room_for_one_mesh(), ONE_AT_A_TIME);
+        land_far_then_near(&mut app);
+        let move_camera = |app: &mut App, x: f32| {
+            let mut camera = app
+                .world_mut()
+                .query_filtered::<&mut GlobalTransform, With<Camera3d>>();
+            *camera.single_mut(app.world_mut()).expect("one camera") =
+                GlobalTransform::from_translation(Vec3::new(x, 8.0, 8.0));
+            app.update();
+            status(app).queued
+        };
+
+        assert_eq!(
+            move_camera(&mut app, 8.0 + HYSTERESIS - 1.0),
+            0,
+            "a camera inside the hysteresis keeps the anchor"
+        );
+        assert_eq!(
+            move_camera(&mut app, 8.0 + HYSTERESIS + 1.0),
+            1,
+            "a camera past it moves the anchor and queues the section that waited"
+        );
+    }
+
+    #[test]
+    fn a_section_laid_and_evicted_in_one_frame_reaches_the_cave_in_that_order() {
+        let mut app = stream_app(room_for_one_mesh(), ONE_AT_A_TIME);
+        let far = start_mesh(&mut app, FAR);
+        let near = start_mesh(&mut app, NEAR);
+        finish_meshes(&app);
+        app.update();
+
+        let told: Vec<SectionDrawn> = {
+            let messages = app.world().resource::<Messages<SectionDrawn>>();
+            messages.get_cursor().read(messages).copied().collect()
+        };
+        assert_eq!(
+            told,
+            [
+                SectionDrawn::Laid {
+                    section: FAR,
+                    slot: far,
+                    connectivity: mcrs_minecraft_mesh::OPEN,
+                },
+                SectionDrawn::Forgotten { section: FAR },
+                SectionDrawn::Laid {
+                    section: NEAR,
+                    slot: near,
+                    connectivity: mcrs_minecraft_mesh::OPEN,
+                },
+            ]
+        );
+        let mut cave = app.world_mut().resource_mut::<CaveCull>();
+        assert_eq!(
+            [cave.walked_slot(FAR), cave.walked_slot(NEAR)],
+            [Some(NO_SLOT), Some(near)],
+            "the cave forgets the section the stream laid and evicted, and draws the one in its place"
+        );
+    }
+
+    #[test]
+    fn a_column_sent_again_ends_with_its_sections_queued() {
+        let mut app = stream_app(budget(), ONE_AT_A_TIME);
+        insert_columns(&mut app, around_origin(), 1);
+        assert_eq!(status(&mut app).queued, 1, "only the centre is surrounded");
+        start_mesh(&mut app, NEAR);
+        finish_meshes(&app);
+        app.update();
+        assert!(
+            resident(&app, NEAR),
+            "the centre is drawn before it is sent again"
+        );
+
+        insert_columns(&mut app, [ColumnPos::new(0, 0)], 1);
+        let after = status(&mut app);
+        assert!(
+            !resident(&app, NEAR),
+            "the mesh of the column it replaced is gone"
+        );
+        assert_eq!(
+            after.queued, 1,
+            "and the section of the column sent again is meshed again"
+        );
+        assert_eq!(after.columns, 9);
+    }
+
+    #[test]
+    fn a_section_held_back_by_the_slots_or_the_pacing_is_admitted_in_the_frame_room_frees() {
+        let one_slot = Budget {
+            sections: 1,
+            ..budget()
+        };
+        let plenty = MeshPacing {
+            per_frame: 4,
+            in_flight: 4,
+        };
+        for (case, budget, pacing) in [
+            ("one slot", one_slot, plenty),
+            ("one in flight", budget(), ONE_AT_A_TIME),
+        ] {
+            let mut app = stream_app(budget, pacing);
+            insert_columns(&mut app, around_origin(), 2);
+            catch_up_catalog(&mut app);
+            app.update();
+            let first = status(&mut app);
+            assert_eq!(
+                [first.meshing, first.queued],
+                [1, 1],
+                "{case}: one section is admitted and the other waits"
+            );
+
+            finish_meshes(&app);
+            app.update();
+            let second = status(&mut app);
+            assert_eq!(
+                [second.meshing, second.queued, second.sections],
+                [1, 0, 1],
+                "{case}: the frame that collects the first mesh admits the second"
+            );
+        }
     }
 
     mod exhaustive {
