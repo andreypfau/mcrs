@@ -1,5 +1,6 @@
 extern crate alloc;
 
+mod any_names;
 mod argb_color;
 mod array_serializer;
 mod attack_animation;
@@ -108,6 +109,8 @@ mod saved_form;
 mod saved_key;
 mod saved_sink;
 mod saved_text;
+mod shape_skip;
+mod skip_value;
 mod slot_group;
 mod slot_stack;
 mod sound_event_id;
@@ -131,6 +134,10 @@ mod undecoded_value;
 mod undecoded_wire_value;
 mod wire;
 mod wire_error;
+mod wire_frame;
+mod wire_scan;
+mod wire_stack;
+mod wire_stack_with_length;
 mod wire_text;
 mod wire_value;
 
@@ -255,3 +262,5 @@ pub use wire::write_wire;
 pub use wire::write_wire_not_empty;
 pub use wire::write_wire_with_length;
 pub use wire_error::WireError;
+pub use wire_stack::WireStack;
+pub use wire_stack_with_length::WireStackWithLength;

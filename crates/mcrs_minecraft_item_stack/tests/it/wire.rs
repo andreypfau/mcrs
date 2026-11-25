@@ -45,6 +45,7 @@ use mcrs_minecraft_item_stack::ToolRule;
 use mcrs_minecraft_item_stack::TooltipDisplay;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_stack::WireError;
+use mcrs_minecraft_item_stack::WireStack;
 use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::read_saved;
 use mcrs_minecraft_item_stack::read_wire;
@@ -66,6 +67,7 @@ use mcrs_minecraft_snbt::parse_compound;
 use mcrs_minecraft_text::Color;
 use mcrs_minecraft_text::IntoText;
 use mcrs_minecraft_text::Text;
+use mcrs_minecraft_wire::Decode;
 use serde::Deserialize;
 
 use crate::common::COMPONENT_TYPES;
@@ -370,19 +372,29 @@ fn a_repeated_enchantment_on_the_wire_keeps_the_last_level() {
 fn the_count_of_each_wire_form_follows_the_table_of_the_count_rules() {
     let empty = Err(WireError::EmptyStack);
     let over = Err(WireError::CountOutOfRange);
-    let cases: [(&str, Result<Option<u8>, WireError>); 8] = [
-        ("00", Ok(None)),
-        ("ffffffff0f", Ok(None)),
-        ("01", Ok(Some(1))),
-        ("63", Ok(Some(99))),
-        ("64", over),
-        ("ff01", over),
-        ("8002", over),
-        ("ffffffff07", over),
+    let cases: [(&str, i32, Result<Option<u8>, WireError>); 8] = [
+        ("00", 0, Ok(None)),
+        ("ffffffff0f", -1, Ok(None)),
+        ("01", 1, Ok(Some(1))),
+        ("63", 99, Ok(Some(99))),
+        ("64", 100, over),
+        ("ff01", 255, over),
+        ("8002", 256, over),
+        ("ffffffff07", i32::MAX, over),
     ];
-    for (count, expected) in cases {
+    for (count, raw, expected) in cases {
         let bytes = [unhex(count), unhex("01 00 00")].concat();
+        let mut input = bytes.as_slice();
+        let frame = WireStack::decode(&mut input).expect("a count does not change the bounds");
+        let end = if raw > 0 {
+            bytes.len()
+        } else {
+            count.len() / 2
+        };
+        assert_eq!(frame.bytes(), &bytes[..end], "{count}");
+        assert_eq!(frame.count(), raw, "{count}");
         let count_of = |stack: Option<ItemStack>| stack.map(|stack| stack.count.get());
+        assert_eq!(frame.read(&Names).map(count_of), expected, "{count}");
         let mut input = bytes.as_slice();
         assert_eq!(
             read_wire(&mut input, &Names).map(count_of),
@@ -404,6 +416,18 @@ fn the_count_of_each_wire_form_follows_the_table_of_the_count_rules() {
         write_wire_not_empty(&stack(AIR, 1), &Names, &mut output),
         empty
     );
+
+    let written = WireStack::write(Some(&stack(STONE, 7)), &Names).expect("stone has a name");
+    assert_eq!(written.bytes(), unhex("07 01 00 00"));
+    assert_eq!(written.count(), 7);
+    assert_eq!(
+        written
+            .read_not_empty(&Names)
+            .map(|stack| stack.count.get()),
+        Ok(7)
+    );
+    let air = WireStack::write(Some(&stack(AIR, 1)), &Names).expect("air has a name");
+    assert_eq!(air, WireStack::EMPTY);
 }
 
 #[test]

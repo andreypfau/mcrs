@@ -21,6 +21,7 @@ pub enum WireError {
     UnregisteredType,
     RepeatedComponentType(ComponentType),
     BadLength(ComponentType),
+    BadShape(ComponentType),
     TooLong,
     TooManyEntries,
     BadValue(BuiltinKey),
@@ -89,6 +90,11 @@ impl fmt::Display for WireError {
             Self::BadLength(component_type) => write!(
                 formatter,
                 "a component of type {} does not match its length prefix",
+                component_type.0
+            ),
+            Self::BadShape(component_type) => write!(
+                formatter,
+                "a component of type {} does not match its wire shape",
                 component_type.0
             ),
             Self::TooLong => formatter.write_str("a component or a list is too long for a VarInt"),
