@@ -63,6 +63,12 @@ artefacts. The behaviour comes from a read of the reference. A rule that names a
 of section 16 has that experiment as its test. A rule with the label `source_suggested` cites
 no artefact.
 
+A fixture of a load holds the error cases only. The feedback for a valid dialog is "No player
+was found", and that feedback holds no field. Such a fixture shows no default and no valid
+value. A rule with the label `source_suggested_black_box_confirmed` is confirmed for the claims
+that its fixtures show. Each claim that no fixture shows is `source_suggested`, and item 25 of
+section 17 lists these claims.
+
 ### 0.3 Text and arithmetic
 
 - The font, the width of a text, the line height 9 and the drop shadow are as `client-chat.md`,
@@ -170,8 +176,7 @@ Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001.
      DLG-FLOW-001.
 - **Edge cases:** an unknown value of `after_action` is a load error.
 
-Provenance: source_suggested_black_box_confirmed: `docs/spec/fixtures/dialog/dlg-exp-001-load.txt`.
-Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001.
+Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001.
 
 ### DLG-DATA-004: External title
 
@@ -404,14 +409,11 @@ Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001.
   are not valid.
 - **Edge cases:**
   - The empty key is valid. The variable `$()` reads it (DLG-ACT-002).
-  - Two inputs can have the same key. Both controls show. The later input gives the value
-    (DLG-ACT-005). The load result is the same as for distinct keys. The server reports a
-    warning at load, as DLG-DEV-005 states.
+  - Two inputs can have the same key (DLG-IN-006).
 
 Provenance: source_suggested_black_box_confirmed: `assets/mcrs/reports/registries.json`,
 registry `minecraft:input_control_type`, and `docs/spec/fixtures/dialog/dlg-exp-001-load.txt`.
-Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001. DLG-DEV-005 states the warning at
-load.
+Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001.
 
 ### DLG-IN-002: Type `boolean`
 
@@ -468,8 +470,8 @@ Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001.
   Boolean with the default `false`.
 - **Behavior:**
   1. The control is a cycle button (DLG-CTL-003). Its values are the options in list order.
-  2. The text of an option is its `display`, or the literal string `id` when `display` is
-     absent.
+  2. The text of an option is its `display`. When `display` is absent, the text is the value of
+     the field `id` of the option.
   3. The initial option is the option with `initial` = `true`, or the first option when no
      option has it.
 - **Edge cases:** more than one option with `initial` = `true` is a load error with the text
@@ -501,6 +503,20 @@ Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001, DLG-EXP-005.
 
 Provenance: source_suggested_black_box_confirmed: `docs/spec/fixtures/dialog/dlg-exp-001-load.txt`.
 Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001.
+
+### DLG-IN-006: Duplicate keys
+
+- **Behavior:**
+  1. Two inputs of one dialog can have the same key.
+  2. The screen shows the control of each of the two inputs.
+  3. For a template value and for a tag value, the later input in `inputs` gives the value
+     (DLG-ACT-005).
+  4. The server reports a warning at load. The warning names the dialog and the key
+     (DLG-DEV-005).
+- **Postconditions:** the load result and the wire are the same as for distinct keys.
+
+Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: "Unresolved",
+item 23. The warning of step 4 is a design choice (DLG-DEV-005).
 
 ---
 
@@ -592,9 +608,7 @@ Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: DL
 | `single_option` | the `id` of the selected option | String of that `id` |
 | `text` | the value, escaped (DLG-ACT-008) | String of the value, not escaped |
 
-- **Edge cases:** two inputs with the same key: the later input in `inputs` gives the value, for
-  a template value and for a tag value. The load reports a warning (DLG-DEV-005). The fixture
-  does not show this case ("Unresolved", item 23).
+- **Edge cases:** two inputs with the same key give one value (DLG-IN-006).
 
 Provenance: source_suggested_black_box_confirmed: `docs/spec/fixtures/dialog/dlg-exp-005-values.txt`.
 Kind: semantic. Confidence: medium. Experiment: DLG-EXP-005.
@@ -761,24 +775,31 @@ Kind: wire. Confidence: medium. Experiment: DLG-EXP-007.
 ### DLG-WIRE-005: `custom_click_action`
 
 - **Behavior:** the packet has these fields, in this order:
-  1. the id: an identifier string, with at most 32767 code units;
-  2. the payload length: a VarInt `L`, with 0 ≤ `L` ≤ 65536;
+  1. the id: an identifier string;
+  2. the payload length: a VarInt `L`;
   3. `L` bytes that hold one network NBT.
-- **Postconditions:**
-  - A payload whose root tag type is 0 (End) means "no payload". The client sends a `custom`
-    action with no payload as `L` = 1 and one byte 0.
-  - The client sends it in the configuration phase and in the play phase.
-- **Edge cases:**
-  - An `L` greater than 65536 is a decode error of the packet. The server disconnects the client.
-    An `L` of 65536 decodes.
-  - The server ignores bytes after the NBT inside the `L` bytes. This input is unspecified.
-  - The NBT budget of the server is `nbt-quota.md` (NBQ-UNIT-001). A quota error is a decode
-    error (NBQ-REF-002).
+- **Postconditions:** a payload whose root tag type is 0 (End) means "no payload". The client
+  sends a `custom` action with no payload as `L` = 1 and one byte 0.
+- **Edge cases:** the server ignores bytes after the NBT inside the `L` bytes. This input is
+  unspecified.
 
-Provenance: source_suggested_black_box_confirmed: `docs/spec/fixtures/dialog/dlg-exp-004-after-actions.txt`,
-`docs/spec/fixtures/dialog/dlg-exp-005-values.txt` and
-`docs/spec/fixtures/dialog/dlg-exp-008-payload-length.txt`. Kind: wire. Confidence: medium.
-Experiment: DLG-EXP-004, DLG-EXP-005, DLG-EXP-008.
+Provenance: source_suggested_black_box_confirmed: `docs/spec/fixtures/dialog/dlg-exp-004-after-actions.txt`
+and `docs/spec/fixtures/dialog/dlg-exp-005-values.txt`. Kind: wire. Confidence: medium.
+Experiment: DLG-EXP-004, DLG-EXP-005.
+
+### DLG-WIRE-006: Limits of `custom_click_action`
+
+- **Behavior:**
+  1. The id has at most 32767 code units.
+  2. The payload length `L` is at most 65536. An `L` greater than 65536 is a decode error of
+     the packet, and the server disconnects the client. An `L` of 65536 decodes.
+  3. The NBT budget of the server is `nbt-quota.md` (NBQ-UNIT-001). A quota error is a decode
+     error (NBQ-REF-002).
+- **Postconditions:** the client sends the packet in the configuration phase and in the play
+  phase.
+
+Provenance: source_suggested. Kind: wire. Confidence: medium. Experiment: DLG-EXP-008. The
+fixture of that experiment does not show the `L` or the NBT of each case ("Unresolved", item 24).
 
 ---
 
@@ -915,7 +936,7 @@ Provenance: source_suggested. Kind: layout. Confidence: medium. Experiment: DLG-
 - **Behavior:**
   1. The widget is `w` wide. Its padding is 4.
   2. The text wraps at `w − 8`. Let `k` be the number of lines. The widget is `9·k + 8` high.
-  3. The first line is at `y + 4`. Each line is centred on `x + w / 2`.
+  3. The first line is at `y + 4`. Each line is centred on `x + floor(w / 2)`.
   4. The colour of the text is that of a multi-line text widget (`client-widget.md`,
      WID-TXT-002).
   5. The widget draws no background. When it is focused, it draws an outline of 1 GUI unit in
@@ -1411,10 +1432,10 @@ Provenance: `design`. Kind: wire. Confidence: medium.
 
 ### DLG-DEV-004: The budget of a custom payload
 
-- **Rule:** DLG-WIRE-005.
+- **Rule:** DLG-WIRE-006.
 - **Reference:** the server reads the payload with a fixed budget of 32768 bytes and a depth
-  of 16. A payload of 32010 bytes decoded. A payload of 32778 bytes gave a decode error and a
-  disconnect. A compound nested to 16 levels decoded, and 17 levels gave the disconnect.
+  limit of 16. A payload that exceeds the budget gives a decode error and a disconnect. No
+  experiment shows the exact edge of the budget or of the depth ("Unresolved", item 24).
 - **Reason:** each serverbound network NBT of mcrs uses the one budget of `nbt-quota.md`.
 - **Visible to the client:** only for a payload that one budget accepts and the other refuses.
 - **Bug reference:** `none`.
@@ -1422,9 +1443,10 @@ Provenance: `design`. Kind: wire. Confidence: medium.
 
 ### DLG-DEV-005: A duplicate input key gives a warning at load
 
-- **Rule:** DLG-IN-001, DLG-ACT-005.
+- **Rule:** DLG-IN-006.
 - **Reference:** a dialog with two inputs of one key loads with no diagnostic. Both controls
-  show, and the later input gives the value.
+  show, and the later input gives the value. This is `source_suggested`, and no experiment
+  shows it ("Unresolved", item 23).
 - **Reason:** a duplicate key is nearly always an error of the pack author, and the later
   input hides the earlier one. The author must see it. The loaded result and the wire stay the
   same as in the reference.
@@ -1478,9 +1500,10 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
   Expected: DLG-WIRE-003, DLG-WIRE-004 and DLG-FLOW-003. The output is in
   `docs/spec/fixtures/dialog/dlg-exp-007-wire.txt`.
 - **DLG-EXP-008, payload length.** Open a raw connection to the vanilla server. Send
-  `custom_click_action` in the configuration phase with `L` = 1, 2, 65536 and 65537. Send payloads
-  of 32010 and 32778 bytes, and compounds nested to 16 and 17 levels. Expected: DLG-WIRE-005 and
-  DLG-DEV-004. The first three values decode, and 65537 disconnects. The output is in
+  `custom_click_action` in the configuration phase with `L` = 0, 1, 2, 65536 and 65537. Send
+  payloads of sizes on each side of 32768 bytes, and compounds nested on each side of 16 levels.
+  Expected: DLG-WIRE-006 and DLG-DEV-004. A value of `L` up to 65536 decodes, and 65537
+  disconnects. The output is in
   `docs/spec/fixtures/dialog/dlg-exp-008-payload-length.txt`.
 - **DLG-EXP-009, layout.** Read the widget rectangles of DLG-SCR-006, of a `confirmation` and of a
   `multi_action` with 5 buttons in 2 and in 3 columns. Expected: DLG-SCR-001 to DLG-SCR-006,
@@ -1512,12 +1535,9 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
    The fixtures of DLG-EXP-001, DLG-EXP-004, DLG-EXP-005, DLG-EXP-007 and DLG-EXP-008 hold the
    load messages of the server and the packets, but not each command. The rules that these
    fixtures show have the label `source_suggested_black_box_confirmed`. The rules DLG-FLOW-001,
-   DLG-FLOW-003, DLG-CLK-001, DLG-WAIT-001 and DLG-DEV-004 also cite these experiments and keep
-   their labels, because the fixtures show no screen. The rule DLG-ACT-004 keeps its label,
-   because the fixture of DLG-EXP-005 holds no `additions`.
-   The fixture of DLG-EXP-008 names each raw connection with a label, for example `A32768` and
-   `D16`. The saved logs do not state the size and the depth that each label stands for. Which
-   size and which depth does each label stand for?
+   DLG-FLOW-003, DLG-CLK-001 and DLG-WAIT-001 also cite these experiments and keep their labels,
+   because the fixtures show no screen. The rule DLG-ACT-004 keeps its label, because the
+   fixture of DLG-EXP-005 shows no entry of `additions` with the key of an input.
 4. **The configuration phase** (DLG-WIRE-002, DLG-WIRE-004, DLG-FLOW-005). What does the client do
    with `show_dialog` and `clear_dialog` in the configuration phase? Do a `run_command` action
    and a `custom` action behave as DLG-FLOW-005 states?
@@ -1528,7 +1548,7 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
 7. **The load of an item and of an inline dialog** (DLG-BODY-002, DLG-ACT-001). Does the `item`
    template of a body element load? Does a `show_dialog` action with an inline dialog load from a
    data pack?
-8. **Two inputs with one key** (DLG-IN-001). Does the screen draw both controls?
+8. **Two inputs with one key** (DLG-IN-006). Does the screen draw both controls?
 9. **The click events of the static actions** (DLG-ACT-001). Does each static action type give its
    click event?
 10. **The template values** (DLG-ACT-003, DLG-ACT-005, DLG-ACT-008, DLG-ACT-009). Does a
@@ -1563,10 +1583,27 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
 21. **The button "Disconnect"** (DLG-WARN-001). Does it disconnect with the stated reason?
 22. **A key of an input that is a key of `additions`** (DLG-ACT-004). Show a `dynamic/custom`
     action with `additions` that hold a key of an input, and capture `custom_click_action`. The
-    fixture of DLG-EXP-005 holds no `additions`. Does the value of the input replace the entry?
-23. **Two inputs with one key** (DLG-ACT-005, edge case). Show a `dynamic/custom` action of a
-    dialog with two inputs that have the same key, and capture `custom_click_action`. The fixture
-    of DLG-EXP-005 has no such dialog. Does the later input give the value?
+    fixture of DLG-EXP-005 shows no entry of `additions` with the key of an input. Does the value
+    of the input replace the entry?
+23. **Two inputs with one key** (DLG-IN-006, DLG-DEV-005). Show a `dynamic/custom` action of a
+    dialog with two inputs that have the same key, and capture `custom_click_action`. Show a
+    `dynamic/run_command` action of such a dialog. The fixture of DLG-EXP-005 has no such dialog.
+    Does the later input give the value? Does the vanilla server report no diagnostic at load?
+24. **The limits of `custom_click_action`** (DLG-WIRE-006, DLG-DEV-004). The fixture of
+    DLG-EXP-008 names each raw connection with a label, for example `A32768` and `D16`. The saved
+    logs do not hold the `L` and the NBT that each connection sent. Record `L`, the size of the
+    payload and the nesting depth of each case with its result. Does `L` = 65536 decode and
+    `L` = 65537 disconnect? Which size of payload and which depth does the budget accept?
+25. **The claims that no fixture shows** (section 0.2). The fixture of DLG-EXP-001 holds error
+    cases only. Run each case again with a client that is online, and record the whole command
+    and the decoded fields. Which of these claims are correct?
+    - The defaults and the valid values of DLG-DATA-009, DLG-DATA-011, DLG-BODY-002,
+      DLG-IN-001, DLG-IN-003 to DLG-IN-005, DLG-ACT-001 and DLG-ACT-002.
+    - The valid combinations of `pause` and `after_action` (DLG-DATA-005), and the load of a
+      pack with the dialog of DLG-DATA-005.
+    - The template values of DLG-ACT-005. The fixture of DLG-EXP-005 shows the tag values only.
+    - The decode of `show_dialog` with no quota, and a number past the last entry
+      (DLG-WIRE-003). The packet `clear_dialog` in the configuration phase (DLG-WIRE-004).
 
 ---
 
