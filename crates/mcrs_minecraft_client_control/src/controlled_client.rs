@@ -24,7 +24,6 @@ use mcrs_minecraft_client_world::player_load::PlayerLoad;
 use mcrs_minecraft_client_world::scripted_input::ScriptedInput;
 use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_item::Selected;
-use mcrs_minecraft_engine_world::entity::physics::OldTransform;
 use mcrs_minecraft_engine_world::entity::physics::Rotation;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_entity_attribute::AttributeInstances;
@@ -48,7 +47,6 @@ pub(crate) const MAX_ENTITIES: usize = 32;
 #[query_data(mutable)]
 pub(crate) struct OwnPlayer {
     transform: &'static mut Transform,
-    old: &'static mut OldTransform,
     motion: Option<&'static LocalMotion>,
     attributes: Option<&'static AttributeInstances>,
     vitals: Option<&'static Vitals>,
@@ -233,11 +231,6 @@ impl ControlledClient<'_, '_> {
             .transform
             .reborrow()
             .map_unchanged(|transform| &mut transform.rotation)
-            .set_if_neq(rotation);
-        player
-            .old
-            .reborrow()
-            .map_unchanged(|old| &mut old.0.rotation)
             .set_if_neq(rotation);
         Ok(())
     }

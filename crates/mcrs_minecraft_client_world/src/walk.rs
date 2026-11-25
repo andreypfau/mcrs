@@ -189,7 +189,8 @@ mod tests {
     #[cfg(not(target_family = "wasm"))]
     mod wire {
         use super::*;
-        use crate::test_session::{Joined, Server, joined};
+        use crate::previous_transform::PreviousTransform;
+        use crate::test_session::{Joined, Server, joined, take_column};
         use mcrs_minecraft_core::Look;
         use mcrs_minecraft_pose::Pose;
         use mcrs_minecraft_protocol::Packet;
@@ -279,12 +280,7 @@ mod tests {
                 connection,
             } = joined(session.app);
             let spawn_column = ColumnPos::new(0, 0);
-            let column = {
-                let mut columns = app.world_mut().resource_mut::<ColumnStore>();
-                let column = columns.get(spawn_column).unwrap().as_ref().clone();
-                columns.remove(spawn_column);
-                column
-            };
+            let column = take_column(&mut app, spawn_column);
             receive(&mut app, connection, login(GameMode::Survival));
             app.insert_resource(MovementInput {
                 shift: true,
@@ -332,12 +328,7 @@ mod tests {
                 connection,
             } = joined(session.app);
             let spawn_column = ColumnPos::new(0, 0);
-            let column = {
-                let mut columns = app.world_mut().resource_mut::<ColumnStore>();
-                let column = columns.get(spawn_column).unwrap().as_ref().clone();
-                columns.remove(spawn_column);
-                column
-            };
+            let column = take_column(&mut app, spawn_column);
             receive(&mut app, connection, login(GameMode::Survival));
             receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
             for _ in 0..5 {
@@ -421,6 +412,60 @@ mod tests {
             let (landed, falling) = ground_flags.split_last().expect("the player moves");
             assert!(*landed, "the landing move has the ground flag");
             assert!(!falling.is_empty() && falling.iter().all(|ground| !ground));
+        }
+
+        #[test]
+        fn the_previous_transform_is_the_teleport_target_and_then_the_start_of_each_tick() {
+            let session = TestSession::new(DVec3::ZERO);
+            let player = session.player;
+            let Joined {
+                mut app,
+                server: _server,
+                connection,
+            } = joined(session.app);
+            let spawn_column = ColumnPos::new(0, 0);
+            let column = take_column(&mut app, spawn_column);
+            let target = DVec3::new(8.5, FLOOR_TOP + 1.0, 8.5);
+            receive(&mut app, connection, login(GameMode::Survival));
+            receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
+            receive(
+                &mut app,
+                connection,
+                ClientboundPlayerPosition {
+                    teleport_id: VarInt(1),
+                    position: target,
+                    velocity: DVec3::ZERO,
+                    look: Look {
+                        yaw: 30.0,
+                        pitch: 10.0,
+                    },
+                    flags: PositionFlags::default(),
+                },
+            );
+            let transforms = |app: &App| {
+                let world = app.world();
+                (
+                    *world.get::<PhysicsTransform>(player).unwrap(),
+                    world.get::<PreviousTransform>(player).unwrap().0,
+                )
+            };
+
+            app.world_mut().run_schedule(FixedUpdate);
+            let (current, previous) = transforms(&app);
+            assert_eq!(current.translation, target, "the teleport lands");
+            assert_eq!(previous, current, "a teleport while loading leaves no gap");
+
+            app.world_mut()
+                .resource_mut::<ColumnStore>()
+                .insert(spawn_column, column);
+            let mut start = current;
+            for _ in 0..3 {
+                app.world_mut().run_schedule(FixedUpdate);
+                let (current, previous) = transforms(&app);
+                assert_eq!(previous, start, "the previous transform is the tick start");
+                start = current;
+            }
+            assert!(start.translation.y < target.y, "the player falls");
         }
     }
 }

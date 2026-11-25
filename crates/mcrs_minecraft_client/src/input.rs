@@ -2,7 +2,7 @@ use bevy::input::mouse::{AccumulatedMouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_engine_item::Selected;
-use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
+use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_item::LAST_HOTBAR_SLOT;
@@ -260,20 +260,16 @@ pub(crate) fn apply_mouse_look(
     motion: Res<AccumulatedMouseMotion>,
     options: Res<ClientOptions>,
     window: Single<&CursorOptions, With<PrimaryWindow>>,
-    player: Single<(&mut PhysicsTransform, &mut OldTransform), With<Player>>,
+    transform: Single<&mut PhysicsTransform, With<Player>>,
 ) {
     if window.grab_mode == CursorGrabMode::None || motion.delta == Vec2::ZERO {
         return;
     }
-    let (transform, previous) = player.into_inner();
     let turn = motion.delta * degrees_per_motion_unit(options.sensitivity);
     let rotation = transform.rotation.turn(turn.x, turn.y);
     transform
+        .into_inner()
         .map_unchanged(|transform| &mut transform.rotation)
-        .set_if_neq(rotation);
-    let rotation = previous.rotation.turn(turn.x, turn.y);
-    previous
-        .map_unchanged(|previous| &mut previous.0.rotation)
         .set_if_neq(rotation);
 }
 

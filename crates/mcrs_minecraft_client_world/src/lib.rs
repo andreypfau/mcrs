@@ -32,6 +32,7 @@ pub mod player_killed;
 pub mod player_load;
 pub mod player_view;
 mod pong;
+pub mod previous_transform;
 mod received;
 pub mod registries;
 pub mod request_respawn;
