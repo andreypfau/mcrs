@@ -228,7 +228,8 @@ fn container_packets_are_the_games_bytes() {
             carried_item: ProtoStack::default(),
         },
     );
-    let (packet, _) = decode::<ServerboundSetCreativeModeSlot>(f, "set_creative_mode_slot");
+    let (packet, bytes) = decode::<ServerboundSetCreativeModeSlot>(f, "set_creative_mode_slot");
+    assert_eq!(encoded(&packet), bytes);
     assert_eq!(packet.slot, 36);
     assert_eq!(packet.item.read(&names), Ok(Some(sword_stack(f))));
     check(

@@ -83,7 +83,9 @@ fn the_length_prefixed_stack_reads_the_vanilla_stream_codec() {
     let mut input = bytes.as_slice();
     let frame = WireStackWithLength::decode(&mut input).unwrap();
     assert!(input.is_empty(), "{} bytes are left", input.len());
-    assert_eq!(frame.bytes(), bytes);
+    let mut encoded = Vec::new();
+    frame.encode(&mut encoded).unwrap();
+    assert_eq!(encoded, bytes);
 
     let read = frame.read(&names).unwrap().unwrap();
     let lock = ComponentType(DataComponentType::CreativeSlotLock as u16);
@@ -92,7 +94,34 @@ fn the_length_prefixed_stack_reads_the_vanilla_stream_codec() {
     );
     assert_eq!(locks.len(), 1, "{locks:?}");
     let expected = sword_stack(&names, false).unwrap().unwrap();
+    assert_eq!(read.kind, expected.kind);
+    assert_eq!(read.count, expected.count);
     assert_eq!(rest, expected.patch().iter().collect::<Vec<_>>());
+
+    let written = WireStackWithLength::write(Some(&read), &names).unwrap();
+    assert_eq!(written.read(&names), Ok(Some(read)));
+    assert_eq!(sorted_entries(written.bytes()), sorted_entries(&bytes));
+}
+
+fn sorted_entries(frame: &[u8]) -> (Vec<&[u8]>, Vec<i32>) {
+    let mut input = frame;
+    let mut next = || VarInt::decode(&mut input).unwrap().0;
+    let [_count, _item, values, removals] = [next(), next(), next(), next()];
+    let mut entries = Vec::new();
+    for _ in 0..values {
+        let start = input;
+        VarInt::decode(&mut input).unwrap();
+        let length = usize::try_from(VarInt::decode(&mut input).unwrap().0).unwrap();
+        input = &input[length..];
+        entries.push(&start[..start.len() - input.len()]);
+    }
+    entries.sort();
+    let mut removed: Vec<i32> = (0..removals)
+        .map(|_| VarInt::decode(&mut input).unwrap().0)
+        .collect();
+    removed.sort();
+    assert!(input.is_empty(), "the frame ends after its removals");
+    (entries, removed)
 }
 
 #[test]
