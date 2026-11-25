@@ -274,6 +274,25 @@ mod tests {
     }
 
     #[test]
+    fn nested_translations_stop_at_the_node_bound() {
+        let language =
+            Language::from_json(br#"{"grow":"%1$s%1$s%1$s%1$s%1$s%1$s%1$s%1$s","none":""}"#)
+                .expect("valid JSON");
+        for (levels, expected) in [(5, "!"), (6, "")] {
+            let mut text: Text<ItemHover> = Text::translate_args("none", Vec::new());
+            for _ in 0..levels {
+                text = Text::translate_args("grow", vec![text.into()]);
+            }
+            text.extra.push(Text::text("!"));
+            let mut out = String::new();
+            flatten(&language, &text, Projection::Plain, |run, _| {
+                out.push_str(run)
+            });
+            assert_eq!(out, expected, "{levels} levels");
+        }
+    }
+
+    #[test]
     fn an_empty_string_argument_takes_one_piece_of_the_bound() {
         let language = Language::from_json(br#"{"grow":"%1$s%1$s%1$s%1$s"}"#).expect("valid JSON");
         for (leaf, expected) in [("\"\"", ""), (r#"{"text":"","bold":true}"#, "!")] {
