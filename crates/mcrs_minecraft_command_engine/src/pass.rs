@@ -53,6 +53,7 @@ type PlayerRow = (
     PlayerBody,
 );
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 pub(crate) fn commands_pending(
     queue: Res<CommandQueue>,
     handoffs: Option<Res<Messages<CommandHandoff>>>,
@@ -67,14 +68,6 @@ pub(crate) fn commands_pending(
         reason = "command handlers run as systems against the whole dimension world"
     )
 )]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "runs only on ticks with pending command lines, and each command line allocates its own parse and output"
-    )
-)]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(10))]
 pub(crate) fn run_commands<S: CommandSet>(world: &mut World) {
     world.try_resource_scope(|world, mut buffers: Mut<PassBuffers>| {
         let Some(here) = world.get_resource::<DimensionLabel>().map(|label| label.0) else {

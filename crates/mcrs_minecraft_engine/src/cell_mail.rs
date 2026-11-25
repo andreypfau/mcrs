@@ -118,6 +118,7 @@ impl Plugin for CellMailPlugin {
     }
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn inbox_holds_messages(inbox: Res<CellInbox>) -> bool {
     !inbox.0.is_empty()
 }
@@ -133,14 +134,6 @@ fn halo_changes_pending(halo: Res<HaloBlockChanges>) -> bool {
         reason = "spawns the players that cross from another cell with their persisted components, which needs the whole world"
     )
 )]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "allocates only when a player crosses from another cell, and its run condition skips the ticks without mail"
-    )
-)]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn receive_cell_mail(world: &mut World) {
     let Some(mut inbox) = world.get_resource_mut::<CellInbox>() else {
         return;

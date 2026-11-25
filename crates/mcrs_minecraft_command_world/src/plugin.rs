@@ -50,18 +50,11 @@ impl Plugin for ForcedColumnsPlugin {
     }
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn sprint_reported(pace: Option<Res<TickPace>>) -> bool {
     pace.is_some_and(|pace| pace.has_report())
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "the `sprint_reported` run condition admits the system only when a finished sprint has a report, and the two sites build that one report message"
-    )
-)]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
 fn report_sprint(mut pace: ResMut<TickPace>, mut packets: MessageWriter<OutboundPlayerPacket>) {
     let Some(report) = pace.take_report() else {
         return;

@@ -1178,6 +1178,7 @@ impl LightStep<'_> {
     }
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn columns_unsettled(arrivals: Res<Arrivals>, store: Res<ColumnStore>) -> bool {
     !arrivals.queue.is_empty()
         || store.has_changes()
@@ -1192,14 +1193,6 @@ fn columns_unsettled(arrivals: Res<Arrivals>, store: Res<ColumnStore>) -> bool {
         reason = "the chunk batch rate that the client reports to the server is measured in wall-clock time"
     )
 )]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "gated by columns_unsettled, so it runs only while arrivals or light work are pending; the light solver builds its work sets for each batch of arrived columns"
-    )
-)]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(25))]
 fn settle_columns(
     mut arrivals: ResMut<Arrivals>,
     mut store: ResMut<ColumnStore>,

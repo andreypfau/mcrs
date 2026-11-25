@@ -6,14 +6,6 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundTabList;
 use mcrs_minecraft_text::{RawText, Text};
 use smallvec::SmallVec;
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "the registration runs the system only when a session placement changes or is removed, and the one site is the header text of the tab list that it then sends"
-    )
-)]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 pub fn send_online_count(
     placements: Query<&SessionPlacement>,
     placed: Query<(&Session, &SessionPlacement), Changed<SessionPlacement>>,
