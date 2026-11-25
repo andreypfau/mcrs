@@ -58,6 +58,10 @@ impl CreativeScreenState {
         self.apply_selection(tab, SearchReset::Keep, content);
     }
 
+    pub fn focus_search(&mut self, now_ms: u64) {
+        self.search.focus(now_ms);
+    }
+
     pub fn select(&mut self, tab: CreativeTabIndex, content: &CreativeTabContent) {
         if !content.visible_tabs().contains(tab) {
             return;

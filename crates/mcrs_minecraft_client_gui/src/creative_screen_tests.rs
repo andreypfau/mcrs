@@ -499,6 +499,36 @@ fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
     }
 }
 
+#[test]
+fn the_search_caret_blinks_from_the_time_that_the_search_got_the_focus() {
+    let mut state = opened(&VANILLA);
+    state.select(SEARCH, &VANILLA);
+    state.focus_search(450);
+    let width = |text: &str| 6 * i32::try_from(text.chars().count()).unwrap();
+    let shows = |now_ms: u64| {
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        state.search_box().draw(
+            CreativeGeometry::SEARCH_BOX,
+            now_ms,
+            &width,
+            None,
+            None,
+            EditBoxHighlight::Off,
+            &[],
+            &mut |part| parts.push(part),
+        );
+        parts.iter().any(|part| {
+            matches!(
+                part,
+                EditBoxPart::CaretBar { .. } | EditBoxPart::CaretUnderscore { .. }
+            )
+        })
+    };
+    assert!(shows(450), "on at the focus time");
+    assert!(shows(749), "on for 300 ms");
+    assert!(!shows(750), "off for the next 300 ms");
+}
+
 struct SearchRow {
     text: &'static str,
     found: &'static [&'static str],
