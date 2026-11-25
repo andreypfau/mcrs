@@ -593,7 +593,8 @@ Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: DL
 | `text` | the value, escaped (DLG-ACT-008) | String of the value, not escaped |
 
 - **Edge cases:** two inputs with the same key: the later input in `inputs` gives the value, for
-  a template value and for a tag value. The load reports a warning (DLG-DEV-005).
+  a template value and for a tag value. The load reports a warning (DLG-DEV-005). The fixture
+  does not show this case ("Unresolved", item 23).
 
 Provenance: source_suggested_black_box_confirmed: `docs/spec/fixtures/dialog/dlg-exp-005-values.txt`.
 Kind: semantic. Confidence: medium. Experiment: DLG-EXP-005.
@@ -1563,6 +1564,9 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
 22. **A key of an input that is a key of `additions`** (DLG-ACT-004). Show a `dynamic/custom`
     action with `additions` that hold a key of an input, and capture `custom_click_action`. The
     fixture of DLG-EXP-005 holds no `additions`. Does the value of the input replace the entry?
+23. **Two inputs with one key** (DLG-ACT-005, edge case). Show a `dynamic/custom` action of a
+    dialog with two inputs that have the same key, and capture `custom_click_action`. The fixture
+    of DLG-EXP-005 has no such dialog. Does the later input give the value?
 
 ---
 
