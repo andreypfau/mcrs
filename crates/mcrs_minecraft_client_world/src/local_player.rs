@@ -31,7 +31,7 @@ use crate::player::Player;
 use crate::player_killed::{self, PlayerKilled};
 use crate::player_load::{self, PlayerLoad};
 use crate::player_view::{PendingTeleports, PlayerViewPlugin, ServerTeleport};
-use crate::previous_transform::capture_previous_transform;
+use crate::previous_position::capture_previous_position;
 use crate::request_respawn::{self, RequestRespawn};
 use crate::respawn_screen;
 use crate::scripted_input::ScriptedInput;
@@ -129,7 +129,7 @@ impl Plugin for LocalPlayerPlugin {
                         .before(SendSelectedSlot)
                         .before(LocalPlayerTick),
                     (
-                        capture_previous_transform,
+                        capture_previous_position,
                         (
                             local_motion::write_motion_inputs,
                             walk.run_if(resource_exists::<ColumnStore>)

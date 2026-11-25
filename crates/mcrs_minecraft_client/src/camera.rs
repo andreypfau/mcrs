@@ -9,7 +9,7 @@ use mcrs_minecraft_client_world::local_motion::{self, LocalMotion};
 use mcrs_minecraft_client_world::local_player::{LocalPlayerTick, Sprint};
 use mcrs_minecraft_client_world::player::{Player, look_direction};
 use mcrs_minecraft_client_world::player_view::{ChunkCacheRadius, RequestedViewDistance};
-use mcrs_minecraft_client_world::previous_transform::PreviousTransform;
+use mcrs_minecraft_client_world::previous_position::PreviousPosition;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_render::{CameraOrigin, RenderDistance};
@@ -257,7 +257,7 @@ fn place_camera(
     player: Single<
         (
             &PhysicsTransform,
-            &PreviousTransform,
+            &PreviousPosition,
             Option<&LocalMotion>,
             Option<&Abilities>,
             &Sprint,
@@ -283,9 +283,7 @@ fn place_camera(
     );
     let partial_tick = time.overstep_fraction();
 
-    let frame_position = previous
-        .translation
-        .lerp(current.translation, time.overstep_fraction_f64());
+    let frame_position = previous.lerp(current.translation, time.overstep_fraction_f64());
     let eye = frame_position + DVec3::Y * f64::from(filters.eye.at(partial_tick));
     let placed = Transform {
         translation: eye.as_vec3(),

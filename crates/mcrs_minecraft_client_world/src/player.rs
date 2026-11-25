@@ -9,7 +9,7 @@ use mcrs_minecraft_engine_world::entity::physics::{
 use crate::hotbar_sync::LastSentHotbarSlot;
 use crate::local_player::{LastSentMovement, Sprint};
 use crate::player_load::PlayerLoad;
-use crate::previous_transform::PreviousTransform;
+use crate::previous_position::PreviousPosition;
 
 #[derive(Component)]
 #[require(LastSentHotbarSlot, PlayerLoad)]
@@ -30,7 +30,7 @@ pub fn player_at(position: DVec3, yaw: f32, pitch: f32) -> impl Bundle {
     (
         Player,
         physics,
-        PreviousTransform(physics),
+        PreviousPosition(position),
         Velocity(DVec3::ZERO),
         Sprint::default(),
         LastSentMovement::default(),
