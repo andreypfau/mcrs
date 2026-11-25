@@ -79,8 +79,7 @@ pub(crate) fn draw_leaf(
             draw_caption(widget, now_ms, &atlas.font, out);
         }
         WidgetKind::EditBox(ref edit) => {
-            draw_sprites(menu, widget, atlas, out);
-            draw_edit_box(menu, widget, edit, now_ms, &atlas.font, out);
+            draw_edit_box(menu, widget, edit, now_ms, atlas, out);
         }
         _ => {
             draw_sprites(menu, widget, atlas, out);
@@ -198,14 +197,6 @@ fn draw_sprites(menu: &Menu, widget: &Widget, atlas: &GuiAtlasData, out: &mut Ve
                 ButtonSprite::Normal => GuiSpriteId::Button,
                 ButtonSprite::Highlighted => GuiSpriteId::ButtonHighlighted,
                 ButtonSprite::Disabled => GuiSpriteId::ButtonDisabled,
-            };
-            atlas.sprite(id).draw(irect(rect), out);
-        }
-        Some(WidgetSprite::TextField { highlighted }) => {
-            let id = if highlighted {
-                GuiSpriteId::TextFieldHighlighted
-            } else {
-                GuiSpriteId::TextField
             };
             atlas.sprite(id).draw(irect(rect), out);
         }
@@ -497,7 +488,7 @@ mod tests {
             const BOX: WidgetId = WidgetId(1);
             let rect = GuiRect::new(10, 20, 150, 20);
             let (tx, ty) = (14, 26);
-            let text = EditBoxLook::Form.text_color();
+            let text = 0xFFE0_E0E0;
             let after_a = tx + ATLAS.font.str_width("a");
             let after_end = tx + ATLAS.font.str_width("ab") + 1;
             let underscore = [

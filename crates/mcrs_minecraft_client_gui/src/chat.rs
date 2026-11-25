@@ -5,14 +5,14 @@ use mcrs_minecraft_chat::MAX_INPUT;
 use mcrs_minecraft_chat_client::{
     ARGUMENT_COLOURS, ChatScreen, Highlight, Tag, Tooltip as SuggestionTooltip,
 };
-use mcrs_minecraft_client_widget::GuiRect;
+use mcrs_minecraft_client_widget::{EditBoxHighlight, EditBoxPart, GuiRect};
 
 use crate::chat_suggestions;
+use crate::edit_box_draw;
 use crate::font::{self, Font, Hover, Span};
 use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
-use crate::menu_draw;
-use crate::scene::{self, GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize};
+use crate::scene::{self, GuiAtlas, GuiAtlasData, GuiConfig, GuiQuad, GuiScene, GuiSize};
 use crate::text::{self, Wrap};
 use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_world::chat::{Chat, ChatInput};
@@ -292,7 +292,7 @@ pub(crate) fn input_bounds(size: GuiSize) -> GuiRect {
 
 fn input_box(
     size: GuiSize,
-    font: &Font,
+    atlas: &GuiAtlasData,
     screen: &ChatScreen,
     caret_on: bool,
     out: &mut Vec<GuiQuad>,
@@ -303,10 +303,21 @@ fn input_box(
     });
     let input = screen.input();
     let caret = screen.edit().caret();
-    let layout = screen
-        .edit()
-        .layout(input_bounds(size), 0, &|text| font.str_width(text));
-    let visible = layout.visible;
+    let font = &atlas.font;
+    let mut visible = 0..0;
+    let mut selection = None;
+    screen.edit().draw(
+        input_bounds(size),
+        0,
+        &|text| font.str_width(text),
+        None,
+        EditBoxHighlight::Off,
+        &mut |part| match part {
+            EditBoxPart::Text { range, .. } => visible = range,
+            EditBoxPart::Selection { .. } => selection = Some(part),
+            _ => {}
+        },
+    );
     let y = size.height - 12;
     let mut x = 4.0;
     let mut start = 0;
@@ -340,11 +351,8 @@ fn input_box(
             out,
         );
     }
-    if let Some(rect) = layout.selection {
-        out.push(GuiQuad::Highlight {
-            rect: menu_draw::irect(rect),
-            invert: screen.edit().look().invert(),
-        });
+    if let Some(part) = selection {
+        edit_box_draw::draw_edit_box_part(atlas, part, out);
     }
     if caret_on && in_view {
         if at_end {
@@ -418,7 +426,7 @@ pub fn draw(
     }
     let screen = &input.0;
     let caret_on = (time.elapsed().as_millis() / CARET_BLINK_MS).is_multiple_of(2);
-    input_box(size, font, screen, caret_on, &mut scene.quads);
+    input_box(size, &atlas.0, screen, caret_on, &mut scene.quads);
     if let Some((list, rows)) = screen
         .commands
         .list()

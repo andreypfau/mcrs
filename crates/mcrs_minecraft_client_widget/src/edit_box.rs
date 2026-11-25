@@ -2,9 +2,9 @@ use alloc::string::String;
 use core::ops::Range;
 
 use crate::anchor::Anchor;
-use crate::caret::Caret;
-use crate::edit_box_layout::EditBoxLayout;
+use crate::edit_box_highlight::EditBoxHighlight;
 use crate::edit_box_look::EditBoxLook;
+use crate::edit_box_part::EditBoxPart;
 use crate::gui_key::GuiKey;
 use crate::gui_point::GuiPoint;
 use crate::gui_rect::GuiRect;
@@ -171,22 +171,12 @@ impl EditBox {
     }
 
     #[must_use]
-    pub const fn look(&self) -> EditBoxLook {
-        self.look
-    }
-
-    #[must_use]
     pub const fn is_editable(&self) -> bool {
         self.editable
     }
 
     pub fn set_editable(&mut self, editable: bool) {
         self.editable = editable;
-    }
-
-    #[must_use]
-    pub fn suggestion(&self) -> Option<&str> {
-        self.suggestion.as_deref()
     }
 
     pub fn set_suggestion(&mut self, suggestion: Option<String>) {
@@ -359,18 +349,21 @@ impl EditBox {
         self.editable && self.caret != self.anchor && self.remove_to(self.caret)
     }
 
-    #[must_use]
-    pub fn layout(
-        &self,
+    pub fn draw<'a, H>(
+        &'a self,
         rect: GuiRect,
         now_ms: u64,
         width: &impl Fn(&str) -> i32,
-    ) -> EditBoxLayout {
+        hint: Option<H>,
+        highlight: EditBoxHighlight,
+        out: &mut impl FnMut(EditBoxPart<'a, H>),
+    ) {
         let View {
             origin, visible, ..
         } = self.view(rect, width);
         let (first, last) = (visible.start, visible.end);
-        let shown_width = width(self.text.get(visible.clone()).unwrap_or_default());
+        let shown = self.text.get(visible.clone()).unwrap_or_default();
+        let shown_width = width(shown);
         let underscore =
             self.caret == self.text.len() && self.unit.length(&self.text) < self.max_length;
         let cursor_x = if !underscore {
@@ -384,15 +377,45 @@ impl EditBox {
         let in_view = first <= self.caret && self.caret <= last;
         let blink_on = (now_ms.saturating_sub(self.focus_ms) / BLINK_MS).is_multiple_of(2);
         let top = origin.y.saturating_sub(1);
-        let caret = (self.editing && blink_on && in_view).then(|| {
-            if underscore {
-                Caret::Underscore(GuiPoint::new(cursor_x, origin.y))
-            } else {
-                Caret::Bar(GuiRect::new(cursor_x, top, 1, CURSOR_HEIGHT))
-            }
+        let color = if self.editable {
+            self.look.text_color()
+        } else {
+            EditBoxLook::UNEDITABLE_COLOR
+        };
+        if self.look.border() {
+            out(EditBoxPart::Frame {
+                rect,
+                highlighted: self.editing || highlight == EditBoxHighlight::On,
+            });
+        }
+        out(EditBoxPart::Text {
+            at: origin,
+            text: shown,
+            range: visible,
+            color,
         });
-        let right = rect.x.saturating_add(rect.width);
-        let selection = (self.anchor != self.caret).then(|| {
+        if let Some(hint) = hint
+            && self.text.is_empty()
+            && !self.editing
+        {
+            out(EditBoxPart::Hint { at: origin, hint });
+        }
+        if let Some(text) = self.suggestion.as_deref()
+            && underscore
+        {
+            let x = if first == last {
+                origin.x.saturating_sub(1)
+            } else {
+                origin.x.saturating_add(shown_width)
+            };
+            out(EditBoxPart::Suggestion {
+                at: GuiPoint::new(x, origin.y),
+                text,
+                color: EditBoxLook::SUGGESTION_COLOR,
+            });
+        }
+        if self.anchor != self.caret {
+            let right = rect.x.saturating_add(rect.width);
             let anchor = self.anchor.max(first).min(last);
             let before = self.text.get(first..anchor).unwrap_or_default();
             let anchor_x = origin.x.saturating_add(width(before)).saturating_sub(1);
@@ -406,29 +429,23 @@ impl EditBox {
             let (anchor_x, cursor_x) = (anchor_x.min(right), cursor_x.min(right));
             let left = anchor_x.min(cursor_x);
             let span = anchor_x.max(cursor_x).saturating_sub(left);
-            GuiRect::new(left, top, span, CURSOR_HEIGHT)
-        });
-        let hint = (self.text.is_empty() && !self.editing).then_some(origin);
-        let suggestion = (self.suggestion.is_some() && underscore).then(|| {
-            let x = if first == last {
-                origin.x.saturating_sub(1)
+            out(EditBoxPart::Selection {
+                rect: GuiRect::new(left, top, span, CURSOR_HEIGHT),
+                invert: self.look.invert(),
+            });
+        }
+        if self.editing && blink_on && in_view {
+            if underscore {
+                out(EditBoxPart::CaretUnderscore {
+                    at: GuiPoint::new(cursor_x, origin.y),
+                    color,
+                });
             } else {
-                origin.x.saturating_add(shown_width)
-            };
-            GuiPoint::new(x, origin.y)
-        });
-        EditBoxLayout {
-            origin,
-            visible,
-            color: if self.editable {
-                self.look.text_color()
-            } else {
-                EditBoxLook::UNEDITABLE_COLOR
-            },
-            caret,
-            selection,
-            hint,
-            suggestion,
+                out(EditBoxPart::CaretBar {
+                    rect: GuiRect::new(cursor_x, top, 1, CURSOR_HEIGHT),
+                    color,
+                });
+            }
         }
     }
 

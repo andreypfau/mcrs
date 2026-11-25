@@ -158,12 +158,8 @@ impl Widgets {
             | WidgetKind::WidgetList(_)
             | WidgetKind::ScrollPanel(_)
             | WidgetKind::SectionLabel
-            | WidgetKind::TabBar(_) => None,
-            WidgetKind::EditBox(ref edit) => {
-                edit.look().border().then_some(WidgetSprite::TextField {
-                    highlighted: edit.is_editing() || highlighted,
-                })
-            }
+            | WidgetKind::TabBar(_)
+            | WidgetKind::EditBox(_) => None,
         }
     }
 

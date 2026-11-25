@@ -6,7 +6,7 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::input::keyboard::NativeKey;
 use bevy::prelude::*;
 use mcrs_minecraft_client_options::ClientOptions;
-use mcrs_minecraft_client_widget::KeyModifiers;
+use mcrs_minecraft_client_widget::{EditBoxHighlight, EditBoxPart, KeyModifiers};
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
@@ -472,10 +472,22 @@ fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
             "{}: the copied text",
             row.name
         );
-        let first = search
-            .layout(CreativeGeometry::SEARCH_BOX, 0, &width)
-            .visible
-            .start;
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        search.draw(
+            CreativeGeometry::SEARCH_BOX,
+            0,
+            &width,
+            None,
+            EditBoxHighlight::Off,
+            &mut |part| parts.push(part),
+        );
+        let first = parts
+            .iter()
+            .find_map(|part| match part {
+                EditBoxPart::Text { range, .. } => Some(range.start),
+                _ => None,
+            })
+            .unwrap_or_default();
         assert_eq!(
             first > 0,
             row.scrolled,

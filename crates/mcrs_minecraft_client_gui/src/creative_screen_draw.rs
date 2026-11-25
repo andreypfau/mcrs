@@ -1,7 +1,7 @@
 use bevy::math::{IRect, IVec2};
 use bevy::prelude::*;
 use bevy::time::Real;
-use mcrs_minecraft_client_widget::{GuiPoint, GuiRect};
+use mcrs_minecraft_client_widget::{EditBoxHighlight, GuiPoint, GuiRect};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_engine_inventory_menu::{MenuParts, Menus};
 use mcrs_minecraft_engine_item::Slots;
@@ -183,9 +183,10 @@ fn creative_screen(
         edit_box_draw::draw_edit_box_in(
             offset(window, CreativeGeometry::SEARCH_BOX),
             None,
+            EditBoxHighlight::Off,
             state.search_box(),
             frame.now_ms,
-            &frame.atlas.font,
+            frame.atlas,
             &mut scene.quads,
         );
     }

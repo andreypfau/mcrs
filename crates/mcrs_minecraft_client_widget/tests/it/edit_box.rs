@@ -1,6 +1,7 @@
 use mcrs_minecraft_client_widget::{
-    Anchor, Caret, EditBox, EditBoxLook, GuiKey, GuiPoint, GuiRect, KeyModifiers, LengthUnit,
-    PointerButton, PointerPress, Step, WidgetEvent, WidgetId, WidgetKind, Widgets,
+    Anchor, EditBox, EditBoxHighlight, EditBoxLook, EditBoxPart, GuiKey, GuiPoint, GuiRect,
+    KeyModifiers, LengthUnit, PointerButton, PointerPress, Step, WidgetEvent, WidgetId, WidgetKind,
+    Widgets,
 };
 
 use crate::screen::{button, key, mono, press, screen_of, widget};
@@ -24,6 +25,21 @@ fn edit_of(screen: &Widgets) -> EditBox {
         Some(WidgetKind::EditBox(edit)) => edit.clone(),
         _ => EditBox::default(),
     }
+}
+
+fn parts_of(edit: &EditBox, now_ms: u64) -> Vec<EditBoxPart<'_>> {
+    let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+    edit.draw(
+        BOX,
+        now_ms,
+        &mono,
+        None,
+        EditBoxHighlight::Off,
+        &mut |part| {
+            parts.push(part);
+        },
+    );
+    parts
 }
 
 fn set(screen: &mut Widgets, value: &str, caret: usize, anchor: Anchor) {
@@ -202,8 +218,16 @@ fn the_view_moves_by_width_to_keep_the_cursor_inside() {
         for pressed in keys {
             screen.key_press(*pressed, KeyModifiers::NONE, 0, &font, &mut events);
         }
-        let layout = edit_of(&screen).layout(BOX, 0, &font);
-        assert_eq!(layout.visible, visible, "{name}");
+        let edit = edit_of(&screen);
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        edit.draw(BOX, 0, &font, None, EditBoxHighlight::Off, &mut |part| {
+            parts.push(part);
+        });
+        let drawn = parts.into_iter().find_map(|part| match part {
+            EditBoxPart::Text { range, .. } => Some(range),
+            _ => None,
+        });
+        assert_eq!(drawn, Some(visible), "{name}");
     }
 }
 
@@ -310,7 +334,7 @@ fn the_cursor_blinks_in_phases_of_300_ms_from_the_focus() {
     screen.focus_initial(Some(ID), 1000, &mut Vec::new());
     screen.type_text("a", &mono, &mut Vec::new());
     screen.type_text("b", &mono, &mut Vec::new());
-    let underscore = Some(Caret::Underscore(GuiPoint::new(27, 26)));
+    let underscore = Some(GuiPoint::new(27, 26));
     let cases = [
         (1000, underscore),
         (1299, underscore),
@@ -320,11 +344,14 @@ fn the_cursor_blinks_in_phases_of_300_ms_from_the_focus() {
         (1900, None),
     ];
     for (now_ms, caret) in cases {
-        assert_eq!(
-            edit_of(&screen).layout(BOX, now_ms, &mono).caret,
-            caret,
-            "at {now_ms}"
-        );
+        let edit = edit_of(&screen);
+        let drawn = parts_of(&edit, now_ms)
+            .into_iter()
+            .find_map(|part| match part {
+                EditBoxPart::CaretUnderscore { at, .. } => Some(at),
+                _ => None,
+            });
+        assert_eq!(drawn, caret, "at {now_ms}");
     }
 }
 
@@ -461,7 +488,11 @@ fn the_options_of_a_box_filter_cut_keep_the_focus_and_colour_it() {
         screen.type_text("a1b", &mono, &mut Vec::new());
         let edit = edit_of(&screen);
         assert_eq!(edit.text(), text, "{name}");
-        assert_eq!(edit.layout(BOX, 0, &mono).color, color, "{name}");
+        let drawn = parts_of(&edit, 0).into_iter().find_map(|part| match part {
+            EditBoxPart::Text { color, .. } => Some(color),
+            _ => None,
+        });
+        assert_eq!(drawn, Some(color), "{name}");
         press(&mut screen, 20.0, 55.0, PointerButton::Left);
         assert_eq!(screen.focused(), Some(WidgetId(2)), "{name}");
         assert_eq!(edit_of(&screen).is_editing(), editing_after, "{name}");

@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use bevy::prelude::Resource;
 use mcrs_minecraft_client_widget::{
-    Alignment, Child, CycleButton, EditBox, EditBoxLayout, Grid, GridChild, GuiExtent, GuiInput,
+    Alignment, Child, CycleButton, EditBox, EditBoxHint, Grid, GridChild, GuiExtent, GuiInput,
     GuiRect, LayoutCell, LengthUnit, Overflow, Padding, Stack, Tab, TabBar, TooltipDelay, Widget,
     WidgetEvent, WidgetId, WidgetKind, Widgets, text_line_extent,
 };
@@ -269,7 +269,7 @@ pub(crate) fn create_world_menu(
         widget: SEED,
         text: vec![Span::new(
             language.get("selectWorld.seedInfo"),
-            EditBoxLayout::HINT_COLOR,
+            EditBoxHint::DEFAULT_COLOR,
         )],
     }];
     Some(menu)
