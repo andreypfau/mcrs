@@ -300,8 +300,10 @@ Load `orchestrate` before you start a second agent.
 
 ## Shipping
 
-- Merge only with `scripts/agent/pr-land <pr>`. It waits for the checks and the review bot,
-  requires zero open review threads and squash merges.
+- Merge only with `scripts/agent/pr-land <pr> [<reviewed head sha>]`. It waits for the checks
+  and the review bot, requires zero open review threads and squash merges. For a pull request
+  from a fork whose workflows wait for approval, give the head SHA after you reviewed that
+  head; the script approves the runs only for that head.
 - A pull request that changes a crate `*client*`, `*render*`, `mesh` or `model` needs a run of
   the skill `run-client` before you report it as done.
 - A release, a tag and a version commit belong to the owner.

@@ -61,7 +61,8 @@ game's result. Where the game's result depends on the order in which columns wer
 trees at the border of two columns do, that is a defect of the game
 ([MC-55596](https://bugs.mojang.com/browse/MC/issues/MC-55596) is one), and mcrs decides by
 coordinates alone. One seed gives one world. Light spreads over all cores at once. The game
-moves entities one after another, each seeing what the earlier ones did. In mcrs an entity
+moves entities one after another, each seeing what the earlier ones did (PHY-ORD-010 of
+`docs/spec/entity-physics.md` states that order). In mcrs an entity
 moves, collides and pushes its neighbours from a snapshot taken at the start of the tick and
 writes only its own state. Where the result of the game depends on the order inside a tick, as
 with explosions and with entities that collide, mcrs runs a sequential group in a fixed order of
@@ -108,10 +109,9 @@ is better than a silent wrong value.
 
 One model at the boundary. A developer who uses a crate holds one model of it in mind, and that
 model is the one the rest of the project already uses. Entity rows were faster than components
-at one million entities, 30.6 ms against 35.3 ms a tick (issue #97; the command was not
-recorded), but they were a second way to store an entity. They grew workarounds that rebuilt the
-ECS the project stands on, and anyone who touched entities would have had to know both. They
-were removed.
+at one million entities (issue #97), but they were a second way to store an entity. They grew
+workarounds that rebuilt the ECS the project stands on, and anyone who touched entities would
+have had to know both. They were removed.
 
 Simple where people build, complex where they swap. Some parts of mcrs are taken whole or
 replaced whole. A developer uses the vanilla world generator or writes another one, and nobody
@@ -154,6 +154,23 @@ Momentum. The part that gives most of the result ships first. A feature can be m
 design cannot be wrong.
 
 When these conflict, correctness comes first, then clarity, then speed of delivery.
+
+## Options
+
+The maintainer considered these other missions and rejected them.
+
+- A server first, and crates later. The crates would take the shape of the one server, and a
+  proxy or a bot could not take them on their own.
+- The design of the Java server, written again in Rust. The limit of one thread would stay.
+- A mod or a plugin for the Java server. The tick would stay on one thread, and no part could be
+  taken alone.
+
+## What would reopen this
+
+- The crates are released, and no project outside this repository depends on them. Then the
+  mission does not hold.
+- A measurement shows that the tick on an ECS does not scale on the target machine. Then the
+  choice "In parallel" does not hold.
 
 ## Objections
 

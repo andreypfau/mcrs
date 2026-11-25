@@ -178,6 +178,21 @@ accountable, and a prompt that gives it a persona does not change that.
 Agents write the code and the text of mcrs. A person answers for it, the game and the tests
 confirm it, and the maintainer makes the decisions that shape it.
 
+## Options
+
+The maintainer considered these other forms of review and rejected them.
+
+- A person reads every diff. With the amount of work that agents do, this is not possible, and
+  the maintainer's attention is the scarcest thing the project has.
+- No review. Agents make mistakes often enough that a change without review is not ready.
+- Several agents review one pull request. It costs more, and `review-pr` asks for one pass.
+
+## What would reopen this
+
+- A defect reaches `main` that the tests, the screenshots and the review should have found and
+  did not.
+- A model can answer for its work.
+
 ## Objections
 
 These are the strongest objections that the text does not already answer.
