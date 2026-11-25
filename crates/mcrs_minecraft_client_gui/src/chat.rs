@@ -312,6 +312,7 @@ fn input_box(
         now_ms,
         &|text| font.str_width(text),
         None,
+        None,
         EditBoxHighlight::Off,
         &[],
         &mut |part| match part {

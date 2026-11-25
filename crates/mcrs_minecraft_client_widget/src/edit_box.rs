@@ -36,7 +36,6 @@ pub struct EditBox {
     look: EditBoxLook,
     width_limit: Option<i32>,
     editable: bool,
-    suggestion: Option<String>,
     filter: Option<fn(&str) -> bool>,
 }
 
@@ -154,7 +153,6 @@ impl EditBox {
             look,
             width_limit: None,
             editable: true,
-            suggestion: None,
             filter: None,
         }
     }
@@ -178,10 +176,6 @@ impl EditBox {
 
     pub fn set_editable(&mut self, editable: bool) {
         self.editable = editable;
-    }
-
-    pub fn set_suggestion(&mut self, suggestion: Option<String>) {
-        self.suggestion = suggestion;
     }
 
     #[must_use]
@@ -356,6 +350,7 @@ impl EditBox {
         now_ms: u64,
         width: &impl Fn(&str) -> i32,
         hint: Option<H>,
+        suggestion: Option<&'a str>,
         highlight: EditBoxHighlight,
         runs: &[EditBoxRun],
         out: &mut impl FnMut(EditBoxPart<'a, H>),
@@ -397,7 +392,7 @@ impl EditBox {
         {
             out(EditBoxPart::Hint { at: origin, hint });
         }
-        if let Some(text) = self.suggestion.as_deref()
+        if let Some(text) = suggestion
             && underscore
         {
             let x = if first == last {

@@ -357,6 +357,7 @@ fn the_caret_blinks_from_the_time_that_the_chat_opened() {
             now_ms,
             &|text| text.chars().count() as i32 * 6,
             None,
+            None,
             EditBoxHighlight::Off,
             &[],
             &mut |part| parts.push(part),

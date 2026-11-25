@@ -34,6 +34,7 @@ fn parts_of(edit: &EditBox, now_ms: u64) -> Vec<EditBoxPart<'_>> {
         now_ms,
         &mono,
         None,
+        None,
         EditBoxHighlight::Off,
         &[],
         &mut |part| {
@@ -225,6 +226,7 @@ fn the_view_moves_by_width_to_keep_the_cursor_inside() {
             BOX,
             0,
             &font,
+            None,
             None,
             EditBoxHighlight::Off,
             &[],
@@ -579,6 +581,7 @@ fn colour_runs_split_the_visible_text_and_clip_to_it() {
             0,
             &mono,
             None,
+            None,
             EditBoxHighlight::Off,
             &runs,
             &mut |part| parts.push(part),
@@ -596,6 +599,36 @@ fn colour_runs_split_the_visible_text_and_clip_to_it() {
                 _ => None,
             })
             .collect();
+        assert_eq!(drawn, expected, "{name}");
+    }
+}
+
+#[test]
+fn a_suggestion_follows_the_text_only_while_the_cursor_is_an_underscore() {
+    let cases = [
+        ("after the text", "ab", 2, Some((26, "xy"))),
+        ("an empty box", "", 0, Some((13, "xy"))),
+        ("the cursor inside the text", "ab", 1, None),
+    ];
+    for (name, text, caret, expected) in cases {
+        let mut edit = EditBox::default();
+        edit.set(text);
+        edit.set_caret(caret, Anchor::Move);
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        edit.draw(
+            BOX,
+            0,
+            &mono,
+            None,
+            Some("xy"),
+            EditBoxHighlight::Off,
+            &[],
+            &mut |part| parts.push(part),
+        );
+        let drawn = parts.iter().find_map(|part| match part {
+            EditBoxPart::Suggestion { at, text, .. } => Some((at.x, *text)),
+            _ => None,
+        });
         assert_eq!(drawn, expected, "{name}");
     }
 }
