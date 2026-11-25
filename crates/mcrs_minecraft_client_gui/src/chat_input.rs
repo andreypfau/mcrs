@@ -35,10 +35,7 @@ use mcrs_minecraft_client_world::screen::Screen;
 pub struct ChatLines {
     pub lines: mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
     pub events: SpanEvents,
-    synced_with_events: usize,
 }
-
-const REBUILD_AFTER_EVENT_MESSAGES: usize = 100;
 
 pub struct ChatScreenPlugin;
 
@@ -73,20 +70,24 @@ fn project_lines(
     if !changed && !chat.is_changed() {
         return;
     }
-    let font = &atlas.0.font;
-    let ChatLines {
-        lines,
-        events,
-        synced_with_events,
-    } = &mut *lines;
-    let changed = changed || *synced_with_events >= REBUILD_AFTER_EVENT_MESSAGES;
-    if changed {
+    let open = (*screen == Screen::Chat).then(|| chat_view::per_page(ChatFocus::Focused));
+    project(&chat, open, &language, &atlas.0.font, changed, &mut lines);
+}
+
+fn project(
+    chat: &Chat,
+    open: Option<usize>,
+    language: &ClientLanguage,
+    font: &Font,
+    rebuild: bool,
+    lines: &mut ChatLines,
+) {
+    let ChatLines { lines, events } = lines;
+    if rebuild {
         events.clear();
-        *synced_with_events = 0;
     }
-    let before = events.len();
     let wrap_message = |text: &Text, tag: Option<Tag>, rows: &mut Vec<Vec<Span>>| {
-        let spans = text::text_spans_with_events(text, &language, WHITE, events);
+        let spans = text::text_spans_with_events(text, language, WHITE, events);
         text::wrap(
             &spans,
             chat_view::wrap_width(tag),
@@ -95,15 +96,12 @@ fn project_lines(
             rows,
         );
     };
-    if changed {
+    if rebuild {
         lines.rebuild(&chat.log, wrap_message);
     } else {
-        let open = (*screen == Screen::Chat).then(|| chat_view::per_page(ChatFocus::Focused));
         lines.sync(&chat.log, open, wrap_message);
-        if events.len() > before {
-            *synced_with_events += 1;
-        }
     }
+    events.retain_referenced(lines.lines().flat_map(|line| line.content.iter()));
 }
 
 const MODIFIER_KEYS: [KeyCode; 8] = [
@@ -521,6 +519,52 @@ fn mouse(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_text::IntoText;
+
+    #[test]
+    fn trimmed_events_keep_the_scroll_and_stay_bounded() {
+        let mut chat = Chat::default();
+        let mut lines = ChatLines::default();
+        let language = ClientLanguage::default();
+        let font = Font::default();
+        let open = Some(chat_view::per_page(ChatFocus::Focused));
+        for tick in 0..30 {
+            chat.log.push(
+                Text::text(format!("m{tick}")).on_hover_show_text("tip"),
+                tick,
+                None,
+            );
+        }
+        project(&chat, open, &language, &font, true, &mut lines);
+        lines
+            .lines
+            .scroll_by(5, chat_view::per_page(ChatFocus::Focused));
+        let scroll = lines.lines.scroll();
+        assert_eq!(scroll, 5);
+        for tick in 30..330 {
+            chat.log.push(
+                Text::text(format!("m{tick}")).on_hover_show_text("tip"),
+                tick,
+                None,
+            );
+            project(&chat, open, &language, &font, false, &mut lines);
+            assert!(
+                lines.events.len() <= 100,
+                "events follow the 100 line limit"
+            );
+        }
+        let newest = lines
+            .lines
+            .lines()
+            .next()
+            .and_then(|line| line.content.first());
+        let hover = newest.and_then(|span| span.hover);
+        assert!(hover.and_then(|index| lines.events.hover(index)).is_some());
+        assert_eq!(
+            lines.lines.scroll(),
+            100 - chat_view::per_page(ChatFocus::Focused)
+        );
+    }
 
     #[test]
     fn held_modifiers_survive_chat_capture_across_frames() {
