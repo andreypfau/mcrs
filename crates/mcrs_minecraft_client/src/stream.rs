@@ -91,7 +91,6 @@ impl Plugin for StreamPlugin {
                 (
                     follow_camera,
                     remesh_on_light_options,
-                    adopt_columns,
                     bake_catalog.run_if(in_state(VanillaAssets::Ready)),
                     tint_columns,
                     place_meshes,
@@ -119,9 +118,11 @@ impl Plugin for StreamPlugin {
             )
             .add_systems(
                 Update,
-                collect_column_changes
+                adopt_columns
                     .in_set(ClientTerrainSet::Build)
-                    .before(adopt_columns)
+                    .after(remesh_on_light_options)
+                    .before(bake_catalog)
+                    .run_if(resource_exists::<Blocks>)
                     .run_if(resource_exists::<ColumnStore>),
             );
     }
@@ -132,7 +133,6 @@ type FarthestResidents = ([i32; 3], BinaryHeap<(u32, [i32; 3])>);
 
 #[derive(Resource)]
 pub struct Loader {
-    changes: Vec<ColumnChange>,
     columns: usize,
     sections_total: usize,
     sections: Sections,
@@ -289,7 +289,6 @@ impl Streaming<'_> {
 impl Loader {
     pub fn new(budget: &Budget) -> Self {
         Self {
-            changes: Vec::new(),
             columns: 0,
             sections_total: 0,
             sections: Sections::default(),
@@ -557,8 +556,9 @@ impl Loader {
         clippy::excessive_nesting,
         reason = "diagonal neighbours stay beside the arrival that stales them"
     )]
-    fn adopt(
+    fn adopt<'a>(
         &mut self,
+        changes: impl IntoIterator<Item = &'a ColumnChange>,
         store: &ColumnStore,
         definitions: &BlockDefinitions,
         catalog: &mut BlockCatalog,
@@ -567,10 +567,9 @@ impl Loader {
     ) {
         let extent = store.extent();
         catalog.cover(definitions);
-        let mut changes = std::mem::take(&mut self.changes);
-        for change in changes.drain(..) {
+        for change in changes {
             match change {
-                ColumnChange::Departed(pos, column) => {
+                &ColumnChange::Departed(pos, ref column) => {
                     #[cfg(feature = "dev")]
                     self.trace.push(TraceEvent::Forget(pos));
                     self.columns -= 1;
@@ -584,7 +583,7 @@ impl Loader {
                         self.evict(at, cave);
                     }
                 }
-                ColumnChange::Arrived(pos, column) => {
+                &ColumnChange::Arrived(pos, ref column) => {
                     #[cfg(feature = "dev")]
                     self.trace
                         .push(TraceEvent::mark(pos, ColumnStage::Received));
@@ -603,12 +602,12 @@ impl Loader {
                 }
                 ColumnChange::Filled(_) => self.sections_total += 1,
                 ColumnChange::Signed(_) => {}
-                ColumnChange::Reblocked(at, state) => {
+                &ColumnChange::Reblocked(at, state) => {
                     catalog.owe(state.number());
                     self.mark_stale_around(at);
                 }
-                ColumnChange::Relit(pos, rows) => {
-                    for sy in rows {
+                &ColumnChange::Relit(pos, ref rows) => {
+                    for &sy in rows {
                         for dy in -1..=1 {
                             for dz in -1..=1 {
                                 for dx in -1..=1 {
@@ -620,7 +619,6 @@ impl Loader {
                 }
             }
         }
-        self.changes = changes;
     }
 
     fn reserve(&mut self, mesh: &SectionMesh) -> Option<[Block; 3]> {
@@ -1437,10 +1435,6 @@ fn follow_camera(
     }
 }
 
-fn collect_column_changes(mut changes: MessageReader<ColumnChange>, mut loader: ResMut<Loader>) {
-    loader.changes.extend(changes.read().cloned());
-}
-
 #[cfg_attr(
     mcrs_lint,
     expect(
@@ -1449,6 +1443,7 @@ fn collect_column_changes(mut changes: MessageReader<ColumnChange>, mut loader: 
     )
 )]
 fn adopt_columns(
+    mut changes: MessageReader<ColumnChange>,
     mut loader: ResMut<Loader>,
     mut catalog: ResMut<BlockCatalog>,
     mut tints: ResMut<ColumnTints>,
@@ -1456,11 +1451,18 @@ fn adopt_columns(
     store: Res<ColumnStore>,
     definitions: Res<Blocks>,
 ) {
-    if loader.changes.is_empty() {
+    if changes.is_empty() {
         return;
     }
     let _adopting = info_span!("stream adopt").entered();
-    loader.adopt(&store, &definitions, &mut catalog, &mut tints, &mut cave);
+    loader.adopt(
+        changes.read(),
+        &store,
+        &definitions,
+        &mut catalog,
+        &mut tints,
+        &mut cave,
+    );
 }
 
 #[cfg_attr(
@@ -1831,8 +1833,8 @@ mod tests {
         }
     }
 
-    fn loader() -> Loader {
-        Loader::new(&Budget {
+    fn budget() -> Budget {
+        Budget {
             quads: 1 << 12,
             models: 1 << 12,
             faces: 1 << 16,
@@ -1840,14 +1842,20 @@ mod tests {
             sections: 1 << 8,
             upload: 0,
             tint_size: [512; 2],
-        })
+        }
+    }
+
+    fn loader() -> Loader {
+        Loader::new(&budget())
     }
 
     fn adopt(loader: &mut Loader, store: &mut ColumnStore, cave: &mut CaveCull) {
         let mut catalog = BlockCatalog::new();
         let mut tints = ColumnTints::new([512; 2]);
-        store.drain_changes(&mut loader.changes);
+        let mut changes = Vec::new();
+        store.drain_changes(&mut changes);
         loader.adopt(
+            &changes,
             store,
             &mcrs_minecraft_engine_registries::test_corpus().0.0,
             &mut catalog,
@@ -2489,13 +2497,21 @@ mod tests {
     #[test]
     fn a_column_that_arrives_before_the_camera_is_kept_for_the_mesher() {
         let mut app = App::new();
-        app.init_resource::<ColumnStore>()
-            .insert_resource(loader())
-            .add_message::<ColumnChange>()
-            .add_systems(
-                Update,
-                collect_column_changes.run_if(resource_exists::<ColumnStore>),
-            );
+        app.add_plugins(StreamPlugin::new(
+            Arc::new(budget()),
+            Uploads::default(),
+            MeshPacing {
+                per_frame: 1,
+                in_flight: 1,
+            },
+        ))
+        .init_resource::<ColumnStore>()
+        .insert_resource(CaveCull::new(1 << 8, false))
+        .insert_resource(Blocks(Arc::clone(
+            &mcrs_minecraft_engine_registries::test_corpus().0.0,
+        )))
+        .add_message::<ColumnChange>()
+        .add_message::<mcrs_minecraft_network::client::ConnectionEnded>();
         let pos = ColumnPos::new(2, 3);
         app.world_mut().write_message(ColumnChange::Arrived(
             pos,
@@ -2507,10 +2523,11 @@ mod tests {
         for _ in 0..3 {
             app.update();
         }
+        app.world_mut()
+            .spawn((Camera3d::default(), GlobalTransform::default()));
+        app.update();
 
-        let changes = &app.world().resource::<Loader>().changes;
-        assert_eq!(changes.len(), 1);
-        assert!(matches!(changes[0], ColumnChange::Arrived(at, _) if at == pos));
+        assert_eq!(app.world().resource::<Loader>().columns, 1);
     }
 
     mod exhaustive {
