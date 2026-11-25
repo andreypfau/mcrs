@@ -454,7 +454,6 @@ impl EditBox {
             out(EditBoxPart::Text {
                 at: origin,
                 text: self.text.get(visible.clone()).unwrap_or_default(),
-                range: visible,
                 color,
             });
             return;
@@ -469,7 +468,6 @@ impl EditBox {
             out(EditBoxPart::Text {
                 at: GuiPoint::new(origin.x.saturating_add(width(before)), origin.y),
                 text,
-                range: from..to,
                 color: run.color,
             });
         }

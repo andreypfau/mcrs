@@ -1,5 +1,3 @@
-use core::ops::Range;
-
 use crate::edit_box_hint::EditBoxHint;
 use crate::gui_point::GuiPoint;
 use crate::gui_rect::GuiRect;
@@ -14,7 +12,6 @@ pub enum EditBoxPart<'a, H = EditBoxHint<'a>> {
     Text {
         at: GuiPoint,
         text: &'a str,
-        range: Range<usize>,
         color: u32,
     },
     Hint {

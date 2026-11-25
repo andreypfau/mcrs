@@ -483,17 +483,17 @@ fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
             &[],
             &mut |part| parts.push(part),
         );
-        let first = parts
+        let shown = parts
             .iter()
             .find_map(|part| match part {
-                EditBoxPart::Text { range, .. } => Some(range.start),
+                EditBoxPart::Text { text, .. } => Some(*text),
                 _ => None,
             })
             .unwrap_or_default();
         assert_eq!(
-            first > 0,
+            shown.len() < row.text.len(),
             row.scrolled,
-            "{}: the first visible position {first}",
+            "{}: the shown text {shown:?}",
             row.name
         );
     }

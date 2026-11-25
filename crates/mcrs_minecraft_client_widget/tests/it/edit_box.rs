@@ -235,10 +235,10 @@ fn the_view_moves_by_width_to_keep_the_cursor_inside() {
             },
         );
         let drawn = parts.into_iter().find_map(|part| match part {
-            EditBoxPart::Text { range, .. } => Some(range),
+            EditBoxPart::Text { text, .. } => Some(text),
             _ => None,
         });
-        assert_eq!(drawn, Some(visible), "{name}");
+        assert_eq!(drawn, typed.get(visible), "{name}");
     }
 }
 
@@ -554,22 +554,19 @@ fn colour_runs_split_the_visible_text_and_clip_to_it() {
             "two runs",
             "hello world",
             vec![EditBoxRun::new(0..5, 1), EditBoxRun::new(5..11, 2)],
-            vec![(14, "hello", 0..5, 1), (44, " world", 5..11, 2)],
+            vec![(14, "hello", 1), (44, " world", 2)],
         ),
         (
             "a gap draws nothing",
             "hello world",
             vec![EditBoxRun::new(6..11, 2)],
-            vec![(50, "world", 6..11, 2)],
+            vec![(50, "world", 2)],
         ),
         (
             "runs clip to the end of the view",
             thirty.as_str(),
             vec![EditBoxRun::new(0..10, 1), EditBoxRun::new(10..30, 2)],
-            vec![
-                (14, &thirty[..10], 0..10, 1),
-                (74, &thirty[..13], 10..23, 2),
-            ],
+            vec![(14, &thirty[..10], 1), (74, &thirty[..13], 2)],
         ),
     ];
     for (name, text, runs, expected) in cases {
@@ -590,12 +587,8 @@ fn colour_runs_split_the_visible_text_and_clip_to_it() {
             .iter()
             .filter_map(|part| match part {
                 EditBoxPart::Text {
-                    at,
-                    text,
-                    range,
-                    color,
-                    ..
-                } => Some((at.x, *text, range.clone(), *color)),
+                    at, text, color, ..
+                } => Some((at.x, *text, *color)),
                 _ => None,
             })
             .collect();
