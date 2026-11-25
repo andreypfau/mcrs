@@ -16,9 +16,9 @@ use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_stack::WireError;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::matches_hashed;
-use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::Decode;
@@ -234,7 +234,9 @@ fn stack_with(component: ComponentType, wire: &str) -> ItemStack {
     let mut frame = vec![0x01, 0x01, 0x01, 0x00, type_id];
     frame.extend(var_int(value.len()));
     frame.extend(value);
-    read_wire_with_length(&mut frame.as_slice(), &Names)
+    WireStackWithLength::decode(&mut frame.as_slice())
+        .expect("the game wrote a valid component")
+        .read(&Names)
         .expect("the game wrote a valid component")
         .expect("the stack is not empty")
 }

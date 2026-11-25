@@ -614,9 +614,10 @@ component. The reader does this:
 | the wire form of the component needs more bytes than the length | a decode error |
 | the wire form of the component uses fewer bytes than the length | a decode error |
 
-After the component, the reader continues at the first byte after the length. The length has no
-maximum of its own. A writer must write the exact length. The last case of the table is stricter
-than the reference. Deviation D4 records the reference behaviour.
+After the component, the reader continues at the first byte after the length. The table applies
+to the value entry of each component type, also of a type whose value the reader does not keep.
+The length has no maximum of its own. A writer must write the exact length. The last case of the
+table is stricter than the reference. Deviation D4 records the reference behaviour.
 
 ### 6.5 Where a nested format applies
 

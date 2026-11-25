@@ -2,8 +2,10 @@ use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::Kind;
-use mcrs_minecraft_protocol_game::item::{DelimitedStack, ProtoStack};
-use mcrs_minecraft_registries::WireId;
+use mcrs_minecraft_item_stack::WireStackWithLength;
+use mcrs_minecraft_protocol::Decode;
+use mcrs_minecraft_protocol::Encode;
+use mcrs_minecraft_protocol::VarInt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,15 +72,17 @@ impl PredictedStack {
         }
     }
 
-    pub(crate) fn delimited(stack: Option<Self>) -> DelimitedStack {
-        let Some(stack) = stack else {
-            return DelimitedStack::default();
+    pub(crate) fn with_length(
+        stack: Option<Self>,
+    ) -> mcrs_minecraft_protocol::Result<WireStackWithLength> {
+        let Some(stack) = stack.filter(|stack| stack.count > 0 && stack.item != Item::Air) else {
+            return Ok(WireStackWithLength::EMPTY);
         };
-        DelimitedStack(ProtoStack {
-            id: WireId::from(stack.item.id()),
-            count: stack.count,
-            components: Default::default(),
-        })
+        let mut bytes = Vec::new();
+        VarInt(stack.count).encode(&mut bytes)?;
+        VarInt(i32::from(stack.item.id().number())).encode(&mut bytes)?;
+        bytes.extend_from_slice(&[0, 0]);
+        WireStackWithLength::decode(&mut bytes.as_slice())
     }
 }
 

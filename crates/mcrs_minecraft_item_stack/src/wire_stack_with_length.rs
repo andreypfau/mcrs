@@ -10,8 +10,8 @@ use crate::Kind;
 use crate::NameLookup;
 use crate::WireError;
 use crate::wire::Entries;
-use crate::wire::read_wire_with_length;
-use crate::wire::write_wire_with_length;
+use crate::wire::read_frame;
+use crate::wire::write_frame;
 use crate::wire_frame::WireFrame;
 use crate::wire_frame::codec_error;
 
@@ -23,12 +23,13 @@ impl WireStackWithLength {
 
     pub fn write<L: NameLookup>(stack: Option<&ItemStack>, names: &L) -> Result<Self, WireError> {
         let mut bytes = Vec::new();
-        write_wire_with_length(stack, names, &mut bytes)?;
+        write_frame(stack, names, Entries::LengthPrefixed, &mut bytes)?;
         WireFrame::written(bytes).map(Self)
     }
 
     pub fn read<L: NameLookup>(&self, names: &L) -> Result<Option<ItemStack>, WireError> {
-        self.0.read(|input| read_wire_with_length(input, names))
+        self.0
+            .read(|input| read_frame(input, names, Entries::LengthPrefixed))
     }
 
     #[must_use]

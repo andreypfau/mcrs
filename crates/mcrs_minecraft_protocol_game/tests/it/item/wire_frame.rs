@@ -5,7 +5,6 @@ use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_item_stack::WireStack;
 use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_protocol::{Decode, Encode, ErrorKind, VarInt};
-use mcrs_minecraft_protocol_game::item::DelimitedStack;
 use mcrs_minecraft_protocol_game::item::ProtoStack;
 use mcrs_minecraft_protocol_game::item::for_each_data_component;
 use mcrs_minecraft_registries::Wire;
@@ -175,9 +174,9 @@ fn stack_with(kind: DataComponentType, value: &[u8]) -> Vec<u8> {
 fn agrees_with_the_old_decoder(case: &Case) -> bool {
     let bytes = stack_with(case.kind, &case.value);
     let mut old = &bytes[..];
-    let Ok(proto) = ProtoStack::<Wire>::decode(&mut old) else {
+    if ProtoStack::<Wire>::decode(&mut old).is_err() {
         return false;
-    };
+    }
     let mut new = &bytes[..];
     let frame = WireStack::decode(&mut new).unwrap_or_else(|error| {
         panic!(
@@ -190,8 +189,14 @@ fn agrees_with_the_old_decoder(case: &Case) -> bool {
     frame.encode(&mut encoded).unwrap();
     assert_eq!(encoded, bytes[..bytes.len() - old.len()], "{:?}", case.kind);
 
-    let mut delimited = Vec::new();
-    DelimitedStack(proto).encode(&mut delimited).unwrap();
+    let header = bytes.len() - case.value.len() - 2;
+    let value = &bytes[header..bytes.len() - old.len()];
+    let delimited = [
+        &bytes[..header],
+        &var_int(i32::try_from(value.len()).unwrap()),
+        value,
+    ]
+    .concat();
     let mut input = &delimited[..];
     let frame = WireStackWithLength::decode(&mut input).unwrap();
     assert!(input.is_empty(), "{:?}: end of {delimited:02x?}", case.kind);

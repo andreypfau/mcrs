@@ -18,14 +18,13 @@ use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_item_entity::{ItemEntity, Start};
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_item_stack::{Count, ItemStack, Kind};
+use mcrs_minecraft_item_stack::{Count, ItemStack, Kind, WireStackWithLength};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::Direction;
-use mcrs_minecraft_protocol_game::item::DelimitedStack;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundContainerClick, ServerboundContainerClose, ServerboundPlayerAction,
@@ -163,7 +162,7 @@ fn send(server: &mut PlayServer, anchor: Entity, sent: Sent) {
             for part in [i32::from(count), i32::from(item.id().number()), 0, 0] {
                 VarInt(part).encode(&mut bytes).unwrap();
             }
-            let item = DelimitedStack::decode(&mut bytes.as_slice()).unwrap();
+            let item = WireStackWithLength::decode(&mut bytes.as_slice()).unwrap();
             server.queue(anchor, &ServerboundSetCreativeModeSlot { slot, item });
         }
     }
