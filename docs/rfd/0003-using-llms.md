@@ -182,10 +182,13 @@ confirm it, and the maintainer makes the decisions that shape it.
 
 The maintainer considered these other forms of review and rejected them.
 
-- A person reads every diff. With the amount of work that agents do, this is not possible, and
-  the maintainer's attention is the scarcest thing the project has.
-- No review. Agents make mistakes often enough that a change without review is not ready.
-- Several agents review one pull request. It costs more, and `review-pr` asks for one pass.
+- A person reads every diff. It finds defects that no test, screenshot or number exercises.
+  With the amount of work that agents do, it is not possible, and the maintainer's attention is
+  the scarcest thing the project has.
+- No review. It is the fastest and costs nothing. Agents make mistakes often enough that a
+  change without review is not ready.
+- Several agents review one pull request. Their blind spots differ, so they find more. It costs
+  more, and `review-pr` asks for one pass.
 
 ## What would reopen this
 

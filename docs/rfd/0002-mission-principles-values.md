@@ -159,11 +159,12 @@ When these conflict, correctness comes first, then clarity, then speed of delive
 
 The maintainer considered these other missions and rejected them.
 
-- A server first, and crates later. The crates would take the shape of the one server, and a
-  proxy or a bot could not take them on their own.
-- The design of the Java server, written again in Rust. The limit of one thread would stay.
-- A mod or a plugin for the Java server. The tick would stay on one thread, and no part could be
-  taken alone.
+- A server first, and crates later. A playable server comes sooner. The crates would take the
+  shape of the one server, and a proxy or a bot could not take them on their own.
+- The design of the Java server, written again in Rust. The design is known, and parity is
+  easier to reach. The limit of one thread would stay.
+- A mod or a plugin for the Java server. It runs with the real game and its plugins. The tick
+  would stay on one thread, and no part could be taken alone.
 
 ## What would reopen this
 
