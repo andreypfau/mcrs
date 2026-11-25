@@ -273,3 +273,55 @@ fn the_frame_refuses_bytes_that_have_no_bounds() {
         );
     }
 }
+
+#[derive(Clone, Copy)]
+enum Nesting {
+    ContainerSlot,
+    BundleList,
+    BlockPredicate,
+}
+
+fn nested_value(nesting: Nesting, kind: &[u8], levels: usize) -> Vec<u8> {
+    let mut value = match nesting {
+        Nesting::ContainerSlot | Nesting::BundleList => vec![0x01, 0x01, 0x00, 0x00],
+        Nesting::BlockPredicate => vec![0x00, 0x00, 0x00, 0x00, 0x00],
+    };
+    for level in 1..=levels {
+        value = match nesting {
+            Nesting::ContainerSlot => [&[0x01, 0x01][..], &value].concat(),
+            Nesting::BundleList | Nesting::BlockPredicate => [&[0x01][..], &value].concat(),
+        };
+        if level < levels {
+            value = match nesting {
+                Nesting::ContainerSlot | Nesting::BundleList => {
+                    [&[0x01, 0x01, 0x01, 0x00][..], kind, &value].concat()
+                }
+                Nesting::BlockPredicate => {
+                    [&[0x00, 0x00, 0x00, 0x01][..], kind, &value, &[0x00]].concat()
+                }
+            };
+        }
+    }
+    value
+}
+
+#[test]
+fn the_frame_refuses_a_stack_nested_past_the_depth_limit() {
+    let rows = [
+        (Nesting::ContainerSlot, DataComponentType::Container, 127),
+        (Nesting::BundleList, DataComponentType::BundleContents, 170),
+        (Nesting::BlockPredicate, DataComponentType::CanPlaceOn, 511),
+    ];
+    for (nesting, kind, limit) in rows {
+        let id = var_int(i32::from(kind.id().number()));
+        for (levels, fits) in [(limit, true), (limit + 1, false)] {
+            let bytes = stack_with(kind, &nested_value(nesting, &id, levels));
+            let mut input = &bytes[..];
+            let result = WireStack::decode(&mut input);
+            assert_eq!(result.is_ok(), fits, "{kind:?} nested {levels} levels");
+            if fits {
+                assert_eq!(input, [0xab, 0xcd], "{kind:?} nested {levels} levels");
+            }
+        }
+    }
+}
