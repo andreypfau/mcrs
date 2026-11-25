@@ -1,7 +1,8 @@
 use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_protocol_game::item::stack::HashedPatchMap;
-use mcrs_minecraft_protocol_game::item::{DelimitedStack, HashedStack, ProtoStack};
+use mcrs_minecraft_item_stack::HashedStack;
+use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_protocol_game::item::{DelimitedStack, ProtoStack};
 use mcrs_minecraft_registries::WireId;
 use serde::{Deserialize, Serialize};
 
@@ -62,9 +63,10 @@ pub struct PredictedStack {
 impl PredictedStack {
     pub(crate) fn hashed(self) -> HashedStack {
         HashedStack {
-            id: self.item.id(),
+            kind: Kind(self.item.id().number()),
             count: self.count,
-            components: HashedPatchMap::default(),
+            values: Vec::new(),
+            removals: Vec::new(),
         }
     }
 

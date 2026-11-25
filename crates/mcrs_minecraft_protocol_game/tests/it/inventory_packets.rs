@@ -4,7 +4,17 @@ use std::sync::LazyLock;
 
 use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_core::codec::Bounded as Range;
+use mcrs_minecraft_engine_registries::RegistryNames;
+use mcrs_minecraft_engine_registries::test_item_table;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_stack::HashScratch;
+use mcrs_minecraft_item_stack::HashedStack;
+use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::hash_stack;
+use mcrs_minecraft_item_stack::matches_hashed;
 use mcrs_minecraft_menu_key::menu_keys::MenuType;
 use mcrs_minecraft_nbt::{NbtBudget, NbtQuotaExceeded};
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, VarInt};
@@ -12,8 +22,8 @@ use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::clientbound::*;
 use mcrs_minecraft_protocol_game::item::Text as ItemText;
 use mcrs_minecraft_protocol_game::item::{
-    ComponentMap, ComponentPatch, CustomName, Damage, DelimitedStack, HashedStack, ItemCost,
-    MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage, Unbreakable,
+    ComponentMap, ComponentPatch, CustomName, Damage, DelimitedStack, ItemCost, MaxStackSize,
+    MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage, Unbreakable,
 };
 use mcrs_minecraft_protocol_game::serverbound::*;
 use mcrs_minecraft_protocol_game::text::{RawText, Text};
@@ -85,6 +95,11 @@ fn sword(fixture: &Fixture) -> ProtoStack {
     patch.set(CustomName(ItemText::text("named")));
     patch.set(Unbreakable);
     ProtoStack::new(item(fixture, "diamond_sword"), 1, patch)
+}
+
+fn one(fixture: &Fixture, path: &str) -> ItemStack {
+    let count = Count::new(1).expect("1 is a count");
+    ItemStack::new(Kind(item(fixture, path).number()), count)
 }
 
 fn plain(f: &Fixture, path: &str, n: i32) -> ProtoStack<Wire> {
@@ -411,14 +426,22 @@ fn container_click_carries_hashed_slots() {
     let [(4, None), (3, Some(changed))] = &packet.changed_slots.0[..] else {
         panic!("{:?}", packet.changed_slots);
     };
-    assert!(changed.matches(&sword(f), &lookup()));
+    let items = test_item_table();
+    let names = RegistryNames::new(test_registries(), &items);
+    let mut scratch = HashScratch::default();
+    let sword = one(f, "diamond_sword")
+        .set(mcrs_minecraft_item_stack::Damage(7))
+        .set(mcrs_minecraft_item_stack::CustomName(
+            mcrs_minecraft_text::Text::text("named"),
+        ))
+        .set(mcrs_minecraft_item_stack::Unbreakable);
+    assert_eq!(
+        matches_hashed(Some(changed), Some(&sword), &names, &mut scratch),
+        Ok(true)
+    );
     assert_eq!(
         packet.carried_item,
-        HashedStack::create(
-            &ProtoStack::new(item(f, "apple"), 1, ComponentPatch::EMPTY),
-            &lookup()
-        )
-        .unwrap()
+        hash_stack(Some(&one(f, "apple")), &names, &mut scratch).unwrap()
     );
 }
 
