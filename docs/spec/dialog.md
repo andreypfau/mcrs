@@ -513,7 +513,8 @@ Kind: semantic. Confidence: medium. Experiment: DLG-EXP-001.
      (DLG-ACT-005).
   4. The server reports a warning at load. The warning names the dialog and the key
      (DLG-DEV-005).
-- **Postconditions:** the load result and the wire are the same as for distinct keys.
+- **Postconditions:** the loaded dialog and its wire form keep both inputs, each with its own
+  key, in the order of `inputs`. The load and the wire do not merge or remove an input.
 
 Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: "Unresolved",
 item 23. The warning of step 4 is a design choice (DLG-DEV-005).
@@ -610,14 +611,16 @@ Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: DL
 
 - **Edge cases:** two inputs with the same key give one value (DLG-IN-006).
 
-Provenance: source_suggested_black_box_confirmed: `docs/spec/fixtures/dialog/dlg-exp-005-values.txt`.
-Kind: semantic. Confidence: medium. Experiment: DLG-EXP-005.
+Provenance: the column "Tag value" is source_suggested_black_box_confirmed:
+`docs/spec/fixtures/dialog/dlg-exp-005-values.txt`. The column "Template value" is
+source_suggested, because that fixture holds no command ("Unresolved", item 10). Kind:
+semantic. Confidence: medium. Experiment: DLG-EXP-005.
 
 ### DLG-ACT-006: Value of a `number_range`
 
 - **Inputs:** the slider position `t` in [0, 1], and the fields of DLG-IN-003.
 - **Behavior:**
-  1. The initial position is `pos(i, start, end)`, with `i` = `initial`, or `(start + end) / 2`
+  1. The initial position is `pos(i, start, end)`, with `i` = `initial`, or `start/2 + end/2`
      when `initial` is absent. When `start` = `end`, the initial position is 0.5.
   2. The raw value is `v = lerp(t, start, end)`.
   3. With no `step`, the value is `v`.
@@ -629,9 +632,17 @@ Kind: semantic. Confidence: medium. Experiment: DLG-EXP-005.
     `step` 4, the values are 3 and 7. The position 0 gives 3, because −1 is out of the range.
     The position 1 gives 7, because 11 is out of the range.
   - The thumb of the slider does not move to the value. Only the value and the caption snap.
-- **Edge cases:** all arithmetic is in 32-bit float.
+  - The midpoint `start/2 + end/2` is finite for each finite `start` and `end`. It is equal to
+    `(start + end) / 2` when that sum is finite and each half is a normal number
+    (DLG-DEV-006). With `start` 2¹²⁷ and `end` 3·2¹²⁶, the sum overflows, but the midpoint is
+    5·2¹²⁵ and the initial position is 0.5.
+- **Edge cases:**
+  - When `end − start` is finite, all arithmetic is in 32-bit float.
+  - Else, steps 1 to 6 use 64-bit float, and the value rounds to a 32-bit float
+    (DLG-DEV-006). Example: `start` −3·10³⁸ and `end` 3·10³⁸ give the initial position 0.5.
 
-Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: DLG-EXP-006.
+Provenance: source_suggested. Kind: deviation: see DLG-DEV-006. Confidence: medium.
+Experiment: DLG-EXP-006.
 
 ### DLG-ACT-007: Number string
 
@@ -793,7 +804,9 @@ Experiment: DLG-EXP-004, DLG-EXP-005.
   1. The id has at most 32767 code units.
   2. The payload length `L` is at most 65536. An `L` greater than 65536 is a decode error of
      the packet, and the server disconnects the client. An `L` of 65536 decodes.
-  3. The NBT budget of the server is `nbt-quota.md` (NBQ-UNIT-001). A quota error is a decode
+  3. An `L` of 0 is a decode error, and the server disconnects the client. The `L` bytes must
+     hold one network NBT (DLG-WIRE-005), and the shortest one is the one byte 0.
+  4. The NBT budget of the server is `nbt-quota.md` (NBQ-UNIT-001). A quota error is a decode
      error (NBQ-REF-002).
 - **Postconditions:** the client sends the packet in the configuration phase and in the play
   phase.
@@ -1455,6 +1468,18 @@ Provenance: `design`. Kind: wire. Confidence: medium.
 - **Bug reference:** `none`.
 - **Test:** a differential test ignores the warnings of the server.
 
+### DLG-DEV-006: A slider of a large range stays in its range
+
+- **Rule:** DLG-ACT-006.
+- **Reference:** the midpoint is `(start + end) / 2` in 32-bit float, and each step of the
+  value is in 32-bit float. When the sum or `end − start` overflows, the initial position, the
+  value and the caption can be wrong, infinite or not a number.
+- **Reason:** a position of a slider must be in [0, 1], and a value must be in its range.
+- **Visible to the client:** yes, only for a range whose sum or width is larger than the
+  largest finite 32-bit float. The caption shows a number in the range.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not use such a range.
+
 ---
 
 ## 16. Experiments
@@ -1502,8 +1527,8 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
 - **DLG-EXP-008, payload length.** Open a raw connection to the vanilla server. Send
   `custom_click_action` in the configuration phase with `L` = 0, 1, 2, 65536 and 65537. Send
   payloads of sizes on each side of 32768 bytes, and compounds nested on each side of 16 levels.
-  Expected: DLG-WIRE-006 and DLG-DEV-004. A value of `L` up to 65536 decodes, and 65537
-  disconnects. The output is in
+  Expected: DLG-WIRE-006 and DLG-DEV-004. A value of `L` from 1 to 65536 with one network NBT
+  decodes. The values 0 and 65537 disconnect. The output is in
   `docs/spec/fixtures/dialog/dlg-exp-008-payload-length.txt`.
 - **DLG-EXP-009, layout.** Read the widget rectangles of DLG-SCR-006, of a `confirmation` and of a
   `multi_action` with 5 buttons in 2 and in 3 columns. Expected: DLG-SCR-001 to DLG-SCR-006,
@@ -1593,7 +1618,9 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
     DLG-EXP-008 names each raw connection with a label, for example `A32768` and `D16`. The saved
     logs do not hold the `L` and the NBT that each connection sent. Record `L`, the size of the
     payload and the nesting depth of each case with its result. Does `L` = 65536 decode and
-    `L` = 65537 disconnect? Which size of payload and which depth does the budget accept?
+    `L` = 65537 disconnect? Which size of payload and which depth does the budget accept? The
+    line of `Raw0` shows no decode error, but a read of the reference gives a decode error for
+    `L` = 0. Does `L` = 0 disconnect?
 25. **The claims that no fixture shows** (section 0.2). The fixture of DLG-EXP-001 holds error
     cases only. Run each case again with a client that is online, and record the whole command
     and the decoded fields. Which of these claims are correct?
