@@ -9,9 +9,8 @@ use mcrs_minecraft_client_world::local_motion::{self, LocalMotion};
 use mcrs_minecraft_client_world::local_player::{LocalPlayerTick, Sprint};
 use mcrs_minecraft_client_world::player::{Player, look_direction};
 use mcrs_minecraft_client_world::player_view::{ChunkCacheRadius, RequestedViewDistance};
-use mcrs_minecraft_engine_world::entity::physics::{
-    OldTransform, Rotation, Transform as PhysicsTransform,
-};
+use mcrs_minecraft_client_world::previous_transform::PreviousTransform;
+use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_render::{CameraOrigin, RenderDistance};
 
@@ -167,14 +166,6 @@ fn orientation(yaw: f32, pitch: f32) -> Quat {
 }
 
 #[must_use]
-fn frame_rotation(previous: Rotation, current: Rotation, partial_tick: f32) -> Quat {
-    let turn = (current.yaw() - previous.yaw() + 180.0).rem_euclid(360.0) - 180.0;
-    let yaw = previous.yaw() + turn * partial_tick;
-    let pitch = previous.pitch() + (current.pitch() - previous.pitch()) * partial_tick;
-    orientation(yaw, pitch)
-}
-
-#[must_use]
 fn render_distance(requested: u8, server_radius: i32) -> u8 {
     match u8::try_from(server_radius) {
         Ok(radius) if radius > 0 => requested.min(radius),
@@ -266,7 +257,7 @@ fn place_camera(
     player: Single<
         (
             &PhysicsTransform,
-            &OldTransform,
+            &PreviousTransform,
             Option<&LocalMotion>,
             Option<&Abilities>,
             &Sprint,
@@ -298,7 +289,7 @@ fn place_camera(
     let eye = frame_position + DVec3::Y * f64::from(filters.eye.at(partial_tick));
     let placed = Transform {
         translation: eye.as_vec3(),
-        rotation: frame_rotation(previous.rotation, current.rotation, partial_tick),
+        rotation: orientation(current.rotation.yaw(), current.rotation.pitch()),
         ..Transform::IDENTITY
     };
     camera.set_if_neq(placed);
@@ -320,6 +311,7 @@ fn place_camera(
 mod tests {
     use super::*;
     use crate::options::ClientOptionsPlugin;
+    use mcrs_minecraft_engine_world::entity::physics::Rotation;
     use mcrs_minecraft_physics::PlayerState;
     use mcrs_minecraft_pose::Pose;
 
@@ -461,7 +453,7 @@ mod tests {
             (45.0, -90.0),
         ] {
             let rotation = Rotation::new(yaw, pitch);
-            let view = frame_rotation(rotation, rotation, 0.5) * Vec3::NEG_Z;
+            let view = orientation(rotation.yaw(), rotation.pitch()) * Vec3::NEG_Z;
             let facing = look_direction(yaw, pitch);
             assert!(
                 view.abs_diff_eq(facing, 1e-5),

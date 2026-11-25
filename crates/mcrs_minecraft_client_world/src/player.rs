@@ -3,12 +3,13 @@ use bevy::prelude::*;
 
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_world::entity::physics::{
-    OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
+    Rotation, Transform as PhysicsTransform, Velocity,
 };
 
 use crate::hotbar_sync::LastSentHotbarSlot;
 use crate::local_player::{LastSentMovement, Sprint};
 use crate::player_load::PlayerLoad;
+use crate::previous_transform::PreviousTransform;
 
 #[derive(Component)]
 #[require(LastSentHotbarSlot, PlayerLoad)]
@@ -29,7 +30,7 @@ pub fn player_at(position: DVec3, yaw: f32, pitch: f32) -> impl Bundle {
     (
         Player,
         physics,
-        OldTransform(physics),
+        PreviousTransform(physics),
         Velocity(DVec3::ZERO),
         Sprint::default(),
         LastSentMovement::default(),

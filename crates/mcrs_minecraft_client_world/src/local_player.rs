@@ -1,7 +1,7 @@
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{
-    OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
+    Rotation, Transform as PhysicsTransform, Velocity,
 };
 use mcrs_minecraft_entity::SPRINT_MODIFIER;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
@@ -31,6 +31,7 @@ use crate::player::Player;
 use crate::player_killed::{self, PlayerKilled};
 use crate::player_load::{self, PlayerLoad};
 use crate::player_view::{PendingTeleports, PlayerViewPlugin, ServerTeleport};
+use crate::previous_transform::capture_previous_transform;
 use crate::request_respawn::{self, RequestRespawn};
 use crate::respawn_screen;
 use crate::scripted_input::ScriptedInput;
@@ -128,15 +129,18 @@ impl Plugin for LocalPlayerPlugin {
                         .before(SendSelectedSlot)
                         .before(LocalPlayerTick),
                     (
-                        capture_old_transform,
-                        local_motion::write_motion_inputs,
-                        walk.run_if(resource_exists::<ColumnStore>)
-                            .run_if(resource_exists::<ClientPhysicsTables>),
-                        give_sprint_modifier,
+                        capture_previous_transform,
+                        (
+                            local_motion::write_motion_inputs,
+                            walk.run_if(resource_exists::<ColumnStore>)
+                                .run_if(resource_exists::<ClientPhysicsTables>),
+                            give_sprint_modifier,
+                        )
+                            .chain()
+                            .run_if(not(player_load::player_loading)),
                     )
                         .chain()
-                        .in_set(LocalPlayerTick)
-                        .run_if(not(player_load::player_loading)),
+                        .in_set(LocalPlayerTick),
                     send_movement.after(LocalPlayerTick),
                 ),
             )
@@ -182,7 +186,6 @@ fn accept_teleports(
     player: Single<
         (
             &mut PhysicsTransform,
-            &mut OldTransform,
             &mut Velocity,
             &mut LastSentMovement,
             &mut LocalMotion,
@@ -198,8 +201,7 @@ fn accept_teleports(
     if pending.0.is_empty() {
         return;
     }
-    let (mut transform, mut old_transform, mut velocity, mut last_sent, mut motion) =
-        player.into_inner();
+    let (mut transform, mut velocity, mut last_sent, mut motion) = player.into_inner();
     let mut position = position.map(|position| position.0);
     for teleport in pending.0.drain(..) {
         apply_server_teleport(&mut motion.0, &mut transform, &mut velocity, &teleport);
@@ -219,9 +221,6 @@ fn accept_teleports(
             look: transform.rotation.into(),
         });
         last_sent.place(transform.translation, transform.rotation);
-        if old_transform.0 != *transform {
-            old_transform.0 = *transform;
-        }
     }
 }
 
@@ -288,13 +287,6 @@ fn input_flags(input: MovementInput) -> PlayerInputFlags {
         .with_jump(input.jump)
         .with_shift(input.shift)
         .with_sprint(input.sprint)
-}
-
-fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), With<Player>>) {
-    let (transform, mut old_transform) = player.into_inner();
-    if old_transform.0 != *transform {
-        old_transform.0 = *transform;
-    }
 }
 
 fn give_sprint_modifier(
