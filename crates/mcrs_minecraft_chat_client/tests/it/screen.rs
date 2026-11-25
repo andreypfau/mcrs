@@ -4,7 +4,7 @@ use mcrs_minecraft_chat_client::{
     ChatScreen, ClickMode, Closed, History, HistoryChange, InputStyle, Key, Outcome, Outgoing,
     Signing, StyleClick, UnsentDraft, keeps_draft,
 };
-use mcrs_minecraft_client_widget::{Anchor, EditBoxHighlight, EditBoxPart, GuiRect, Step};
+use mcrs_minecraft_client_widget::{Anchor, EditBoxFrame, EditBoxPart, GuiRect, Step};
 use mcrs_minecraft_protocol_game::text::ClickEvent;
 
 #[test]
@@ -353,12 +353,8 @@ fn the_caret_blinks_from_the_time_that_the_chat_opened() {
     let shows = |now_ms: u64| {
         let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
         screen.edit().draw(
-            rect,
-            now_ms,
+            EditBoxFrame::new(rect, now_ms),
             &|text| text.chars().count() as i32 * 6,
-            None,
-            None,
-            EditBoxHighlight::Off,
             &[],
             &mut |part| parts.push(part),
         );

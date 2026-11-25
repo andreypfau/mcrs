@@ -2,6 +2,7 @@ use alloc::string::String;
 use core::ops::Range;
 
 use crate::anchor::Anchor;
+use crate::edit_box_frame::EditBoxFrame;
 use crate::edit_box_highlight::EditBoxHighlight;
 use crate::edit_box_look::EditBoxLook;
 use crate::edit_box_part::EditBoxPart;
@@ -346,15 +347,18 @@ impl EditBox {
 
     pub fn draw<'a, H>(
         &'a self,
-        rect: GuiRect,
-        now_ms: u64,
+        frame: EditBoxFrame<'a, H>,
         width: &impl Fn(&str) -> i32,
-        hint: Option<H>,
-        suggestion: Option<&'a str>,
-        highlight: EditBoxHighlight,
         runs: &[EditBoxRun],
         out: &mut impl FnMut(EditBoxPart<'a, H>),
     ) {
+        let EditBoxFrame {
+            rect,
+            now_ms,
+            hint,
+            suggestion,
+            highlight,
+        } = frame;
         let View {
             origin, visible, ..
         } = self.view(rect, width);

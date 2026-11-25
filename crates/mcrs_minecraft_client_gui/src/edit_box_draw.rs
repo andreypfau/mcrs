@@ -1,5 +1,5 @@
 use mcrs_minecraft_client_widget::{
-    EditBox, EditBoxHighlight, EditBoxPart, GuiPoint, GuiRect, Widget,
+    EditBox, EditBoxFrame, EditBoxHighlight, EditBoxPart, GuiPoint, GuiRect, Widget,
 };
 
 use crate::font::{Span, draw_str, draw_text};
@@ -41,12 +41,12 @@ pub(crate) fn draw_edit_box_in(
     out: &mut Vec<GuiQuad>,
 ) {
     edit.draw(
-        rect,
-        now_ms,
+        EditBoxFrame {
+            hint,
+            highlight,
+            ..EditBoxFrame::new(rect, now_ms)
+        },
         &|text| atlas.font.str_width(text),
-        hint,
-        None,
-        highlight,
         &[],
         &mut |part| draw_edit_box_part(atlas, part, out),
     );

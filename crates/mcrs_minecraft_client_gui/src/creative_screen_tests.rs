@@ -6,7 +6,7 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::input::keyboard::NativeKey;
 use bevy::prelude::*;
 use mcrs_minecraft_client_options::ClientOptions;
-use mcrs_minecraft_client_widget::{EditBoxHighlight, EditBoxPart, KeyModifiers};
+use mcrs_minecraft_client_widget::{EditBoxFrame, EditBoxPart, KeyModifiers};
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
@@ -474,12 +474,8 @@ fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
         );
         let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
         search.draw(
-            CreativeGeometry::SEARCH_BOX,
-            0,
+            EditBoxFrame::new(CreativeGeometry::SEARCH_BOX, 0),
             &width,
-            None,
-            None,
-            EditBoxHighlight::Off,
             &[],
             &mut |part| parts.push(part),
         );
@@ -508,12 +504,8 @@ fn the_search_caret_blinks_from_the_time_that_the_search_got_the_focus() {
     let shows = |now_ms: u64| {
         let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
         state.search_box().draw(
-            CreativeGeometry::SEARCH_BOX,
-            now_ms,
+            EditBoxFrame::new(CreativeGeometry::SEARCH_BOX, now_ms),
             &width,
-            None,
-            None,
-            EditBoxHighlight::Off,
             &[],
             &mut |part| parts.push(part),
         );

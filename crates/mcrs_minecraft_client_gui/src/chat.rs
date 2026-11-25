@@ -4,7 +4,7 @@ use bevy::time::Real;
 use mcrs_minecraft_chat_client::{
     ARGUMENT_COLOURS, ChatScreen, Highlight, Tag, Tooltip as SuggestionTooltip,
 };
-use mcrs_minecraft_client_widget::{EditBoxHighlight, EditBoxRun, GuiRect};
+use mcrs_minecraft_client_widget::{EditBoxFrame, EditBoxRun, GuiRect};
 
 use crate::chat_suggestions;
 use crate::edit_box_draw;
@@ -305,12 +305,11 @@ fn input_box(
     runs.clear();
     input_runs(screen, runs);
     screen.edit().draw(
-        input_bounds(size),
-        now_ms,
+        EditBoxFrame {
+            suggestion: screen.commands.list().and_then(|list| list.ghost(input)),
+            ..EditBoxFrame::new(input_bounds(size), now_ms)
+        },
         &|text| font.str_width(text),
-        None,
-        screen.commands.list().and_then(|list| list.ghost(input)),
-        EditBoxHighlight::Off,
         runs,
         &mut |part| edit_box_draw::draw_edit_box_part(atlas, part, out),
     );

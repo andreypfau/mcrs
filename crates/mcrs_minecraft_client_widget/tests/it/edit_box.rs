@@ -1,7 +1,7 @@
 use mcrs_minecraft_client_widget::{
-    Anchor, EditBox, EditBoxHighlight, EditBoxLook, EditBoxPart, EditBoxRun, GuiKey, GuiPoint,
-    GuiRect, KeyModifiers, LengthUnit, PointerButton, PointerPress, Step, WidgetEvent, WidgetId,
-    WidgetKind, Widgets,
+    Anchor, EditBox, EditBoxFrame, EditBoxLook, EditBoxPart, EditBoxRun, GuiKey, GuiPoint, GuiRect,
+    KeyModifiers, LengthUnit, PointerButton, PointerPress, Step, WidgetEvent, WidgetId, WidgetKind,
+    Widgets,
 };
 
 use crate::screen::{button, key, mono, press, screen_of, widget};
@@ -29,18 +29,9 @@ fn edit_of(screen: &Widgets) -> EditBox {
 
 fn parts_of(edit: &EditBox, now_ms: u64) -> Vec<EditBoxPart<'_>> {
     let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
-    edit.draw(
-        BOX,
-        now_ms,
-        &mono,
-        None,
-        None,
-        EditBoxHighlight::Off,
-        &[],
-        &mut |part| {
-            parts.push(part);
-        },
-    );
+    edit.draw(EditBoxFrame::new(BOX, now_ms), &mono, &[], &mut |part| {
+        parts.push(part);
+    });
     parts
 }
 
@@ -222,18 +213,9 @@ fn the_view_moves_by_width_to_keep_the_cursor_inside() {
         }
         let edit = edit_of(&screen);
         let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
-        edit.draw(
-            BOX,
-            0,
-            &font,
-            None,
-            None,
-            EditBoxHighlight::Off,
-            &[],
-            &mut |part| {
-                parts.push(part);
-            },
-        );
+        edit.draw(EditBoxFrame::new(BOX, 0), &font, &[], &mut |part| {
+            parts.push(part);
+        });
         let drawn = parts.into_iter().find_map(|part| match part {
             EditBoxPart::Text { text, .. } => Some(text),
             _ => None,
@@ -573,16 +555,9 @@ fn colour_runs_split_the_visible_text_and_clip_to_it() {
         let mut edit = EditBox::default();
         edit.set(text);
         let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
-        edit.draw(
-            BOX,
-            0,
-            &mono,
-            None,
-            None,
-            EditBoxHighlight::Off,
-            &runs,
-            &mut |part| parts.push(part),
-        );
+        edit.draw(EditBoxFrame::new(BOX, 0), &mono, &runs, &mut |part| {
+            parts.push(part)
+        });
         let drawn: Vec<_> = parts
             .iter()
             .filter_map(|part| match part {
@@ -609,12 +584,11 @@ fn a_suggestion_follows_the_text_only_while_the_cursor_is_an_underscore() {
         edit.set_caret(caret, Anchor::Move);
         let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
         edit.draw(
-            BOX,
-            0,
+            EditBoxFrame {
+                suggestion: Some("xy"),
+                ..EditBoxFrame::new(BOX, 0)
+            },
             &mono,
-            None,
-            Some("xy"),
-            EditBoxHighlight::Off,
             &[],
             &mut |part| parts.push(part),
         );
