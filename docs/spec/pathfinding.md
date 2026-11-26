@@ -298,13 +298,19 @@ PATH-NOD-005. A later specification states them.
 ground has the position `(bx, sy, bz)`. Here `bx` and `bz` come from the mob block position. `sy`
 comes from these steps:
 
-1. If `can_float` is true and the mob is in a fluid of the tag `entity_floatable`, start at the
-   block of the mob. Go up while that block has a fluid of that tag. `sy` is the last block with
-   the fluid.
+1. If `can_float` is true and the mob is in a fluid of the tag `entity_floatable`, look at the
+   column of the mob block position, from the mob block `y` up:
+   - when the block at the mob block position has a fluid of the tag, `sy` is the highest `y` of
+     the unbroken run of blocks with a fluid of the tag that starts at the mob block `y`;
+   - when the block at the mob block position has no fluid of the tag, `sy` is the mob block `y`
+     minus 1.
 2. Else, if the on-ground flag is true, `sy = floor(y + 0.5)`.
-3. Else go down from `floor(y + 1.0)`. In each step, let `sy` be the current `y`, then read the
-   block below. Stop when that block is not air and is not pathfindable on land. Also stop when
-   the current `y` is the lowest `y` of the dimension.
+3. Else let `t = floor(y + 1.0)` and let `m` be the lowest `y` of the dimension:
+   - when `t` is at or below `m`, `sy` is the mob block `y`, `floor(y)`;
+   - when `t` is more than `m`, `sy` is the highest `y` from `m + 1` to `t` whose block below is
+     not air and is not pathfindable on land. When every block from `m` to `t - 1` is air or
+     pathfindable on land, `sy` is `m + 1`.
+   So `sy` is never `m`.
 
 A mob that can stand on a fluid has another start rule. No mob of the gold farm can, so this document does not state it.
 
