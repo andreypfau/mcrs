@@ -120,6 +120,7 @@ impl<I: TextTypes> Style<I> {
     pub fn resolve<'a>(&'a self, parent: ResolvedStyle<'a, I>) -> ResolvedStyle<'a, I> {
         ResolvedStyle {
             color: self.color.or(parent.color),
+            shadow_color: self.shadow_color.or(parent.shadow_color),
             obfuscated: self.obfuscated.unwrap_or(parent.obfuscated),
             bold: self.bold.unwrap_or(parent.bold),
             strikethrough: self.strikethrough.unwrap_or(parent.strikethrough),
@@ -137,6 +138,7 @@ impl<I: TextTypes> Style<I> {
 #[non_exhaustive]
 pub struct ResolvedStyle<'a, I: TextTypes = ItemHover> {
     pub color: Option<Color>,
+    pub shadow_color: Option<ArgbInt>,
     pub obfuscated: bool,
     pub bold: bool,
     pub strikethrough: bool,
@@ -160,6 +162,7 @@ impl<I: TextTypes> Default for ResolvedStyle<'_, I> {
     fn default() -> Self {
         Self {
             color: None,
+            shadow_color: None,
             obfuscated: false,
             bold: false,
             strikethrough: false,

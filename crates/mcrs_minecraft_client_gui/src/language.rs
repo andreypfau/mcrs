@@ -60,6 +60,10 @@ impl TextHost for ClientLanguage {
     fn translation<'a>(&'a self, key: &'a str) -> Option<&'a str> {
         self.0.translation(key)
     }
+
+    fn translates_keybind_name(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]

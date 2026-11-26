@@ -149,7 +149,7 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
                 finished += 1;
                 self.finished += 1;
             }
-            if self.mentions_event(condition) {
+            if self.mentions_event(condition) || self.change_guard(condition, Polarity::Unchanged) {
                 event += 1;
                 self.event += 1;
             }
@@ -169,7 +169,10 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
             ExprKind::If(condition, ..) => {
                 let compares = compares(condition);
                 let finished = calls_is_finished(condition);
-                let event = usize::from(self.mentions_event(condition));
+                let event = usize::from(
+                    self.mentions_event(condition)
+                        || self.change_guard(condition, Polarity::Changed),
+                );
                 self.event += event;
                 self.conditional += 1;
                 self.guarded += 1;
@@ -495,6 +498,37 @@ impl<'tcx> Scanner<'_, 'tcx> {
         }
     }
 
+    fn change_guard(&self, expr: &'tcx Expr<'tcx>, wanted: Polarity) -> bool {
+        match expr.kind {
+            ExprKind::Unary(UnOp::Not, inner) => self.change_guard(inner, wanted.flipped()),
+            ExprKind::DropTemps(inner) => self.change_guard(inner, wanted),
+            ExprKind::Binary(op, left, right) => {
+                let either = matches!(
+                    (op.node, wanted),
+                    (BinOpKind::And, Polarity::Changed) | (BinOpKind::Or, Polarity::Unchanged)
+                );
+                let joined = matches!(op.node, BinOpKind::And | BinOpKind::Or);
+                joined
+                    && if either {
+                        self.change_guard(left, wanted) || self.change_guard(right, wanted)
+                    } else {
+                        self.change_guard(left, wanted) && self.change_guard(right, wanted)
+                    }
+            }
+            _ => wanted == Polarity::Changed && self.is_change_check(expr),
+        }
+    }
+
+    fn is_change_check(&self, expr: &'tcx Expr<'tcx>) -> bool {
+        call(self.typeck, expr).is_some_and(|Call { callee, .. }| {
+            self.tcx.crate_name(callee.krate).as_str() == "bevy_ecs"
+                && matches!(
+                    self.tcx.item_name(callee).as_str(),
+                    "is_changed" | "is_added"
+                )
+        })
+    }
+
     fn owner(&self) -> LocalDefId {
         self.owners.last().copied().unwrap_or(self.root)
     }
@@ -608,6 +642,21 @@ impl<'tcx> Scanner<'_, 'tcx> {
         self.anchors
             .partial_eq
             .is_some_and(|partial_eq| implements(self.tcx, self.root, partial_eq, [ty, ty]))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Polarity {
+    Changed,
+    Unchanged,
+}
+
+impl Polarity {
+    fn flipped(self) -> Polarity {
+        match self {
+            Polarity::Changed => Polarity::Unchanged,
+            Polarity::Unchanged => Polarity::Changed,
+        }
     }
 }
 

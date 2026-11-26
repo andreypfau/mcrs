@@ -61,7 +61,10 @@ impl<H: TextHost, F> Walk<'_, H, F> {
                 let host = self.host;
                 match host.keybind_label(keybind) {
                     Some(label) => self.piece(label, style),
-                    None => self.translate(keybind, None, &[], style),
+                    None if host.translates_keybind_name() => {
+                        self.translate(keybind, None, &[], style)
+                    }
+                    None => self.piece(keybind, style),
                 }
             }
             TextContent::EntityNames { selector, .. } => self.piece(selector, style),
@@ -271,6 +274,25 @@ mod tests {
     }
 
     #[test]
+    fn nested_translations_stop_at_the_node_bound() {
+        let language =
+            Language::from_json(br#"{"grow":"%1$s%1$s%1$s%1$s%1$s%1$s%1$s%1$s","none":""}"#)
+                .expect("valid JSON");
+        for (levels, expected) in [(5, "!"), (6, "")] {
+            let mut text: Text<ItemHover> = Text::translate_args("none", Vec::new());
+            for _ in 0..levels {
+                text = Text::translate_args("grow", vec![text.into()]);
+            }
+            text.extra.push(Text::text("!"));
+            let mut out = String::new();
+            flatten(&language, &text, Projection::Plain, |run, _| {
+                out.push_str(run)
+            });
+            assert_eq!(out, expected, "{levels} levels");
+        }
+    }
+
+    #[test]
     fn an_empty_string_argument_takes_one_piece_of_the_bound() {
         let language = Language::from_json(br#"{"grow":"%1$s%1$s%1$s%1$s"}"#).expect("valid JSON");
         for (leaf, expected) in [("\"\"", ""), (r#"{"text":"","bold":true}"#, "!")] {
@@ -287,17 +309,32 @@ mod tests {
         }
     }
 
+    struct Client(Language);
+
+    impl TextHost for Client {
+        fn translation<'a>(&'a self, key: &'a str) -> Option<&'a str> {
+            self.0.translation(key)
+        }
+
+        fn translates_keybind_name(&self) -> bool {
+            true
+        }
+    }
+
     #[test]
-    fn a_keybind_name_without_a_mapping_goes_through_the_translation_path() {
-        let language =
-            Language::from_json(br#"{"key.a":"100%%","key.b":"%s"}"#).expect("valid JSON");
-        for (json, expected) in [
-            (r#"{"keybind":"key.a"}"#, "100%"),
-            (r#"{"keybind":"key.b"}"#, "%s"),
-            (r#"{"keybind":"key.c"}"#, "key.c"),
+    fn only_a_client_translates_a_keybind_name_without_a_mapping() {
+        let table = br#"{"key.a":"100%%","key.b":"%s","gui.yes":"Yes"}"#;
+        let client = Client(Language::from_json(table).expect("valid JSON"));
+        let server = Language::from_json(table).expect("valid JSON");
+        for (json, on_client, on_server) in [
+            (r#"{"keybind":"key.a"}"#, "100%", "key.a"),
+            (r#"{"keybind":"key.b"}"#, "%s", "key.b"),
+            (r#"{"keybind":"key.c"}"#, "key.c", "key.c"),
+            (r#"{"keybind":"gui.yes"}"#, "Yes", "gui.yes"),
         ] {
             for projection in [Projection::Drawn, Projection::Plain] {
-                assert_eq!(shown(&language, json, projection), expected, "{json}");
+                assert_eq!(shown(&client, json, projection), on_client, "{json}");
+                assert_eq!(shown(&server, json, projection), on_server, "{json}");
             }
         }
     }
@@ -331,6 +368,11 @@ mod tests {
                 r#"{"translate":"%2$s %1$s %s","with":["a","b"]}"#,
                 "b a a",
                 "b a a",
+            ),
+            (
+                r#"{"translate":"%s|%s|%s","with":[1.0E10,2.0,true]}"#,
+                "10000000000|2|true",
+                "10000000000|2|true",
             ),
             (
                 r#"{"translate":"no.such.key","fallback":"fb %s!","with":["X"]}"#,
@@ -430,6 +472,28 @@ mod tests {
                 ("-".to_owned(), red, false),
                 ("c".to_owned(), red, false),
                 ("!".to_owned(), red, false),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_child_and_an_argument_inherit_the_shadow_colour() {
+        let text: Text<ItemHover> = Text::from_str(
+            r#"{"translate":"%s-%s","shadow_color":1,"with":[{"text":"a","shadow_color":2},"b"],"extra":[{"text":"c","shadow_color":3,"extra":["d"]}]}"#,
+        )
+        .expect("valid JSON");
+        let mut runs = Vec::new();
+        flatten(&NoHost, &text, Projection::Plain, |run, style| {
+            runs.push((run.to_owned(), style.shadow_color.map(|color| color.0)));
+        });
+        assert_eq!(
+            runs,
+            [
+                ("a".to_owned(), Some(2)),
+                ("-".to_owned(), Some(1)),
+                ("b".to_owned(), Some(1)),
+                ("c".to_owned(), Some(3)),
+                ("d".to_owned(), Some(3)),
             ]
         );
     }

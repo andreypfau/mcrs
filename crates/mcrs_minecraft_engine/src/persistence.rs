@@ -480,6 +480,7 @@ pub(crate) fn advance_autosave_cadence(mut cadence: ResMut<AutosaveCadence>) {
     cadence.advance();
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 pub(crate) fn autosave_due(cadence: Res<AutosaveCadence>) -> bool {
     cadence.is_due()
 }

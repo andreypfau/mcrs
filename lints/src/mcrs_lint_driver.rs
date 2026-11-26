@@ -21,6 +21,7 @@ mod callbacks;
 mod collect;
 mod config_node;
 mod ecs_lint;
+mod event_conditions;
 mod facts;
 mod lints;
 mod resolve;
