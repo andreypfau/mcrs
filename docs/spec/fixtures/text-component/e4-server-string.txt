@@ -1,0 +1,114 @@
+# Experiment E4 of docs/spec/text-component.md, section 8.7: the plain string of a server and the unresolved contents.
+# Source: the log of the vanilla server, and the log of the vanilla client. An item replace command with a custom name
+# sends the name to the player and to the console as an unresolved text. A loot table of a data pack
+# gives a text that the game read from JSON. The data pack is in the folder pack-json of this directory.
+# The line of the client shows the plain string of the client. The line of the server shows the plain string of the server.
+# The command wraps the name of the item in square brackets.
+# The player is the offline test player Recorder. The vanilla client of the project version joined the vanilla server
+# on 127.0.0.1. The server ran in offline mode. The console of the server gave each command.
+# Each case has a header line with the id, the line of the command, and the log lines that the case wrote.
+# A line that starts with "C " is a line of the client log. A line that starts with "S " is a line of the server log.
+# A command with no output line wrote nothing in that log. The text after "[CHAT] " is the plain string that the process makes.
+#
+# case UNR-all
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name=[{selector:"@e[ type = cow ]"},"|",{score:{name:"@s",objective:"o"}},"|",{nbt:"Health",entity:"@s"},"|",{keybind:"key.jump"},"|",{atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:"FB"}]]
+C [01:44:35] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [@e[ type = cow ]|||Space|FB]]
+S [01:44:35] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [@e[ type = cow ]|||key.jump|FB]
+# case DSP001-f-item
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={selector:"@e[type=cow]",extra:["!"]}]
+C [01:44:35] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [@e[type=cow]!]]
+S [01:44:35] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [@e[type=cow]!]
+# case UNR-selector
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={selector:"@e[type=cow]"}]
+C [01:44:36] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [@e[type=cow]]]
+S [01:44:36] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [@e[type=cow]]
+# case UNR-selector-spaces
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={selector:"@e[ type = cow ]"}]
+C [01:44:36] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [@e[ type = cow ]]]
+S [01:44:36] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [@e[ type = cow ]]
+# case UNR-selector-separator
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={selector:"@e[type=cow]",separator:", "}]
+C [01:44:37] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [@e[type=cow]]]
+S [01:44:37] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [@e[type=cow]]
+# case UNR-score
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name=["a",{score:{name:"@s",objective:"o"}},"b"]]
+C [01:44:37] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [ab]]
+S [01:44:37] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [ab]
+# case UNR-nbt
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name=["a",{nbt:"Health",entity:"@s"},"b"]]
+C [01:44:38] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [ab]]
+S [01:44:38] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [ab]
+# case UNR-nbt-separator
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name=["a",{nbt:"Health",entity:"@s",separator:"X"},"b"]]
+C [01:44:38] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [ab]]
+S [01:44:38] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [ab]
+# case UNR-keybind
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={keybind:"key.jump"}]
+C [01:44:39] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [Space]]
+S [01:44:39] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [key.jump]
+# case UNR-keybind-nonmapping
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={keybind:"gui.yes"}]
+C [01:44:39] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [Yes]]
+S [01:44:39] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [gui.yes]
+# case UNR-keybind-unbound
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={keybind:"key.spectatorOutlines"}]
+C [01:44:40] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [Not Bound]]
+S [01:44:40] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [key.spectatorOutlines]
+# case UNR-object-blocks
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={atlas:"minecraft:blocks",sprite:"minecraft:block/stone"}]
+C [01:44:40] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [[block/stone]]]
+S [01:44:40] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [[block/stone]]
+# case UNR-object-items
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={atlas:"minecraft:items",sprite:"minecraft:item/diamond"}]
+C [01:44:41] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [[item/diamond@items]]]
+S [01:44:41] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [[item/diamond@items]]
+# case UNR-object-custom
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={atlas:"my:atl",sprite:"foo/bar"}]
+C [01:44:41] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [[foo/bar@my:atl]]]
+S [01:44:41] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [[foo/bar@my:atl]]
+# case UNR-object-fallback
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:"FB"}]
+C [01:44:42] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [FB]]
+S [01:44:42] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [FB]
+# case UNR-object-fallback-styled
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:{text:"x",extra:["y"]}}]
+C [01:44:42] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [xy]]
+S [01:44:42] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [xy]
+# case UNR-object-fallback-empty
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:""}]
+C [01:44:43] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with []]
+S [01:44:43] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with []
+# case UNR-player-name
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={player:{name:"Steve"}}]
+C [01:44:44] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [[Steve head]]]
+S [01:44:44] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [[Steve head]]
+# case UNR-player-id
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={player:{id:[I;1,2,3,4]}}]
+C [01:44:44] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [[unknown player head]]]
+S [01:44:44] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [[unknown player head]]
+# case UNR-section
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={text:"§cR§lB§zX§"}]
+C [01:44:45] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [§cR§lB§zX§]]
+S [01:44:45] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [§cR§lB§zX§]
+# case UNR-translate
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={translate:"chat.type.text",with:["P",{keybind:"key.jump"}]}]
+C [01:44:45] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [<P> Space]]
+S [01:44:45] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [<P> key.jump]
+# case UNR-translate-table
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={translate:"gui.yes"}]
+C [01:44:46] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [Yes]]
+S [01:44:46] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [Yes]
+# case UNR-translate-fallback
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={translate:"no.such.key",fallback:"fb %s",with:["x"]}]
+C [01:44:46] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [fb x]]
+S [01:44:46] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [fb x]
+# case PACK-json-boolean
+> loot replace entity Recorder weapon.mainhand loot txt:json_boolean
+S [01:44:47] [Server thread/INFO]: System chat: Dropped 1 [true|false|tu]
+# case PACK-json-numbers
+> loot replace entity Recorder weapon.mainhand loot txt:json_numbers
+S [01:44:47] [Server thread/INFO]: System chat: Dropped 1 [1|-2|1.5|10000000000|0.1]
+# case UNR-boolean-snbt
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={translate:"%s|%s",with:[true,false]}]
+C [01:44:48] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [1|0]]
+S [01:44:48] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [1|0]
