@@ -135,13 +135,7 @@ fn decorate(
         })
         .collect::<Vec<_>>();
     let mut text = Text::translate(decoration.translation_key.clone(), arguments);
-    let style = &decoration.style;
-    text.style.color = style.color;
-    text.style.bold = style.bold;
-    text.style.italic = style.italic;
-    text.style.underlined = style.underlined;
-    text.style.strikethrough = style.strikethrough;
-    text.style.obfuscated = style.obfuscated;
+    text.style = decoration.style.formatting();
     text
 }
 

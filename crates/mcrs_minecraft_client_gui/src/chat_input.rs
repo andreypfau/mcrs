@@ -240,6 +240,7 @@ fn chat_keys(
     } else {
         return;
     };
+    let now_ms = menu_input::menu_clock(&time);
     let lookup = world.lookup();
     let source = Source::new(world.level(), &lookup);
     let cx = chat::context(
@@ -256,7 +257,7 @@ fn chat_keys(
     };
     let rect = chat_view::input_bounds(keys.scene.size);
     if let Some((initial, style)) = opened {
-        state.input.0.open(&initial, style, &cx);
+        state.input.0.open(&initial, style, now_ms, &cx);
         state.input.0.scroll_input(rect, &width);
         state.screen.set_if_neq(Screen::Chat);
         grab(&mut cursor, false);

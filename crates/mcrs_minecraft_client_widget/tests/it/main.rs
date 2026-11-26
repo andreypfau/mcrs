@@ -11,3 +11,4 @@ mod scroll;
 mod slider;
 mod tab;
 mod tooltip;
+mod value;

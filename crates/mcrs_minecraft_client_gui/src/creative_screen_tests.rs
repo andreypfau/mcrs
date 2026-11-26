@@ -6,7 +6,7 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::input::keyboard::NativeKey;
 use bevy::prelude::*;
 use mcrs_minecraft_client_options::ClientOptions;
-use mcrs_minecraft_client_widget::KeyModifiers;
+use mcrs_minecraft_client_widget::{EditBoxFrame, EditBoxPart, KeyModifiers};
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
@@ -472,17 +472,53 @@ fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
             "{}: the copied text",
             row.name
         );
-        let first = search
-            .layout(CreativeGeometry::SEARCH_BOX, 0, &width)
-            .visible
-            .start;
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        search.draw(
+            EditBoxFrame::new(CreativeGeometry::SEARCH_BOX, 0),
+            &width,
+            &[],
+            &mut |part| parts.push(part),
+        );
+        let shown = parts
+            .iter()
+            .find_map(|part| match part {
+                EditBoxPart::Text { text, .. } => Some(*text),
+                _ => None,
+            })
+            .unwrap_or_default();
         assert_eq!(
-            first > 0,
+            shown.len() < row.text.len(),
             row.scrolled,
-            "{}: the first visible position {first}",
+            "{}: the shown text {shown:?}",
             row.name
         );
     }
+}
+
+#[test]
+fn the_search_caret_blinks_from_the_time_that_the_search_got_the_focus() {
+    let mut state = opened(&VANILLA);
+    state.select(SEARCH, &VANILLA);
+    state.focus_search(450);
+    let width = |text: &str| 6 * i32::try_from(text.chars().count()).unwrap();
+    let shows = |now_ms: u64| {
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        state.search_box().draw(
+            EditBoxFrame::new(CreativeGeometry::SEARCH_BOX, now_ms),
+            &width,
+            &[],
+            &mut |part| parts.push(part),
+        );
+        parts.iter().any(|part| {
+            matches!(
+                part,
+                EditBoxPart::CaretBar { .. } | EditBoxPart::CaretUnderscore { .. }
+            )
+        })
+    };
+    assert!(shows(450), "on at the focus time");
+    assert!(shows(749), "on for 300 ms");
+    assert!(!shows(750), "off for the next 300 ms");
 }
 
 struct SearchRow {

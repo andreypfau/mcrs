@@ -248,7 +248,7 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_instrument`: The Instrument value of the instrument registry: its sound event, use duration, range, description and durability damage.
 - `mcrs_minecraft_jukebox_song`: The JukeboxSong value of the jukebox song registry: its sound event, description, length in seconds and comparator output.
 - `mcrs_minecraft_keys`: Names of the vanilla registries no crate keys by a type, with their entries and tags
-- `mcrs_minecraft_lang`: A language file of the game: translation patterns by key, and the filler of their placeholders
+- `mcrs_minecraft_lang`: A language file of the game: translation patterns by key, and the strict parser of their placeholders
 - `mcrs_minecraft_map_decoration`: The keys of the map decoration type registry
 - `mcrs_minecraft_mesh`: Section meshing: greedy cube faces, fluids, block models, the packed quad layout and the buffer arena
 - `mcrs_minecraft_mob_control`: The per-tick controls of a mob without Bevy: the path follower of a straight route, the move control, the jump control, the look control and the body rotation

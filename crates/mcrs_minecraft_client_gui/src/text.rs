@@ -1,33 +1,9 @@
 use mcrs_minecraft_protocol_game::text::color::RgbColor;
-use mcrs_minecraft_protocol_game::text::{Color, Text, TextContent, TranslateArg};
+use mcrs_minecraft_protocol_game::text::{Color, GlyphFont, Text};
+use mcrs_minecraft_text_flatten::{Projection, UnitBudget, flatten};
 
-use crate::font::{ClickEvent, Font, Hover, Span};
+use crate::font::{Font, Span};
 use crate::language::ClientLanguage;
-
-#[derive(Clone, Copy)]
-struct Inherited<'a> {
-    color: u32,
-    bold: bool,
-    hover: Option<&'a Hover>,
-    click: Option<&'a ClickEvent>,
-    insertion: Option<&'a str>,
-}
-
-impl Inherited<'_> {
-    fn apply(self, span: Span) -> Span {
-        Span {
-            bold: span.bold || self.bold,
-            hover: span
-                .hover
-                .or_else(|| self.hover.map(|hover| Box::new(hover.clone()))),
-            click: span
-                .click
-                .or_else(|| self.click.map(|click| Box::new(click.clone()))),
-            insertion: span.insertion.or_else(|| self.insertion.map(Box::from)),
-            ..span
-        }
-    }
-}
 
 pub fn argb(color: Color) -> u32 {
     let rgb = match color {
@@ -37,80 +13,26 @@ pub fn argb(color: Color) -> u32 {
     0xFF00_0000 | u32::from(rgb.r) << 16 | u32::from(rgb.g) << 8 | u32::from(rgb.b)
 }
 
-fn push(out: &mut Vec<Span>, text: impl Into<String>, style: Inherited) {
-    let text = text.into();
-    if !text.is_empty() {
-        out.push(style.apply(Span::new(text, style.color)));
-    }
-}
-
-fn collect<'a>(
-    text: &'a Text,
-    language: &ClientLanguage,
-    parent: Inherited<'a>,
-    out: &mut Vec<Span>,
-) {
-    let style = Inherited {
-        color: text.style.color.map_or(parent.color, argb),
-        bold: text.style.bold.unwrap_or(parent.bold),
-        hover: text.style.hover_event.as_ref().or(parent.hover),
-        click: text.style.click_event.as_ref().or(parent.click),
-        insertion: text.style.insertion.as_deref().or(parent.insertion),
-    };
-    match &text.content {
-        TextContent::Text { text } => push(out, text.as_ref(), style),
-        TextContent::Translate {
-            translate,
-            fallback,
-            with,
-        } => {
-            let args: Vec<Vec<Span>> = with
-                .iter()
-                .map(|arg| {
-                    let mut spans = Vec::new();
-                    match arg {
-                        TranslateArg::Text(text) => collect(text, language, style, &mut spans),
-                        TranslateArg::Bool(value) => push(&mut spans, value.to_string(), style),
-                        TranslateArg::Number(tag) => {
-                            push(&mut spans, mcrs_minecraft_lang::primitive_text(tag), style)
-                        }
-                    }
-                    spans
-                })
-                .collect();
-            let key = match fallback {
-                Some(fallback) if !language.contains(translate) => fallback.as_ref(),
-                _ => translate.as_ref(),
-            };
-            out.extend(
-                language
-                    .translate(key, style.color, &args)
-                    .into_iter()
-                    .map(|span| style.apply(span)),
-            );
-        }
-        TextContent::Keybind { keybind } => push(out, language.get(keybind), style),
-        _ => {}
-    }
-    for child in &text.extra {
-        collect(child, language, style, out);
-    }
-}
-
 pub fn text_spans(text: &Text, language: &ClientLanguage, color: u32) -> Vec<Span> {
     let mut out = Vec::new();
-    collect(
-        text,
-        language,
-        Inherited {
-            color,
-            bold: false,
-            hover: None,
-            click: None,
-            insertion: None,
-        },
-        &mut out,
-    );
+    let mut budget = UnitBudget::new();
+    flatten(language, text, Projection::Drawn, |run, style| {
+        if matches!(style.font, Some(GlyphFont::Object(_))) {
+            return;
+        }
+        let run = budget.take(run);
+        if run.is_empty() {
+            return;
+        }
+        out.push(Span {
+            text: run.to_owned(),
+            color: style.color.map_or(color, argb),
+            bold: style.bold,
+            hover: style.hover_event.map(|hover| Box::new(hover.clone())),
+            click: style.click_event.map(|click| Box::new(click.clone())),
+            insertion: style.insertion.map(Box::from),
+        });
+    });
     out
 }
 
@@ -228,6 +150,22 @@ mod tests {
     use super::*;
     use crate::font::corpus_font;
     use mcrs_minecraft_protocol_game::text::IntoText;
+    use mcrs_minecraft_text_flatten::MAX_UNITS;
+
+    #[test]
+    fn drawn_spans_stop_at_the_unit_bound() {
+        let language = ClientLanguage::from_json(br#"{"grow":"%1$s%1$s%1$s%1$s"}"#);
+        let mut text = Text::text("a".repeat(30_000));
+        for _ in 0..3 {
+            text = Text::translate_args("grow", vec![text.into()]);
+        }
+        let spans = text_spans(&text, &language, 0xFFFF_FFFF);
+        let units: usize = spans
+            .iter()
+            .map(|span| span.text.encode_utf16().count())
+            .sum();
+        assert_eq!(units, MAX_UNITS);
+    }
 
     #[test]
     fn click_event_and_insertion_pass_to_children_and_survive_wrapping() {

@@ -11,7 +11,7 @@ use crate::signing::Signing;
 use crate::style_click::StyleClick;
 use crate::tab_direction::TabDirection;
 use mcrs_minecraft_chat::{MAX_INPUT, normalize};
-use mcrs_minecraft_client_widget::{Anchor, EditBox, GuiRect, LengthUnit};
+use mcrs_minecraft_client_widget::{Anchor, EditBox, EditBoxLook, GuiRect, LengthUnit};
 use mcrs_minecraft_command_argument_vanilla::VanillaLookup;
 use mcrs_minecraft_protocol_game::text::{ClickEvent, TextTypes};
 use mcrs_minecraft_wire::utf16_len;
@@ -28,8 +28,7 @@ pub struct ChatScreen {
 
 impl Default for ChatScreen {
     fn default() -> Self {
-        let mut edit = EditBox::default();
-        edit.border = false;
+        let mut edit = EditBox::new(EditBoxLook::Chat);
         edit.set_max_length(MAX_INPUT, LengthUnit::Characters);
         Self {
             edit,
@@ -47,9 +46,11 @@ impl ChatScreen {
         &mut self,
         initial: &str,
         style: InputStyle,
+        now_ms: u64,
         cx: &Context<'_, L>,
     ) {
         self.edit.set(initial);
+        self.edit.focus(now_ms);
         self.recall = Recall::default();
         self.draft = style == InputStyle::Draft;
         self.commands.auto = false;
