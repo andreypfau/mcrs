@@ -301,6 +301,7 @@ fn status_due(publisher: Res<StatusPublisher>, clock: Res<StatusClock>) -> bool 
         reason = "the `status_due` run condition admits the system only when the status changes or its period elapses, and each frame moves into the status channel"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 #[cfg_attr(
     mcrs_lint,
     expect(

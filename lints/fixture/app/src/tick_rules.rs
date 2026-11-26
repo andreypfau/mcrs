@@ -52,6 +52,7 @@ fn load() {
 }
 
 #[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn allocates(scores: Query<&Score>) {
     let values: Vec<u8> = scores.iter().map(|score| score.0).collect();
     drop(values);
@@ -66,6 +67,83 @@ fn reuses(mut buffer: Local<Vec<u8>>, scores: Query<&Score>) {
     let units: Vec<()> = scores.iter().map(|_| ()).collect();
     drop(units);
     drop(async { load() });
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn grows_local(scores: Query<&Score>) {
+    let mut values = Vec::new();
+    for score in &scores {
+        values.push(score.0);
+    }
+    drop(values);
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn grows_a_deque(scores: Query<&Score>) {
+    let mut values = std::collections::VecDeque::new();
+    for score in &scores {
+        values.push_back(score.0);
+    }
+    drop(values);
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn fills_through_helper(scores: Query<&Score>) {
+    let mut values = Vec::new();
+    fill(&mut values, &scores);
+    for value in &values {
+        assert!(*value < 10, "fixture scores are small");
+    }
+}
+
+fn fill(buffer: &mut Vec<u8>, scores: &Query<&Score>) {
+    buffer.extend(scores.iter().map(|score| score.0));
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn formats_a_label(scores: Query<&Score>) {
+    for score in &scores {
+        drop(format!("score {}", score.0));
+    }
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_site_count, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn states_a_wrong_count(scores: Query<&Score>) {
+    let first: Vec<u8> = scores.iter().map(|score| score.0).collect();
+    let second: Vec<u8> = scores.iter().map(|score| score.0 + 1).collect();
+    drop((first, second));
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_site_count, reason = "fixture"))]
+fn states_no_count(scores: Query<&Score>) {
+    let values: Vec<u8> = scores.iter().map(|score| score.0).collect();
+    drop(values);
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
+fn states_the_right_count(scores: Query<&Score>) {
+    let first: Vec<u8> = scores.iter().map(|score| score.0).collect();
+    let second: Vec<u8> = scores.iter().map(|score| score.0 + 1).collect();
+    drop((first, second));
+}
+
+pub struct Holder {
+    pub items: Vec<u8>,
+}
+
+fn moves_a_new_vec(scores: Query<&Score>) {
+    let items = Vec::new();
+    let holder = Holder { items };
+    let unused: Vec<u8> = Vec::new();
+    drop((holder, unused, scores));
 }
 
 #[cfg_attr(mcrs_lint, expect(mcrs::per_frame_insert_resource, reason = "fixture"))]
@@ -198,6 +276,14 @@ pub fn build_tick_rules(app: &mut App) {
             reads_clock,
             reads_file_through_helper,
             allocates,
+            grows_local,
+            grows_a_deque,
+            fills_through_helper,
+            formats_a_label,
+            states_a_wrong_count,
+            states_no_count,
+            states_the_right_count,
+            moves_a_new_vec,
             reuses,
             inserts,
             inserts_once,

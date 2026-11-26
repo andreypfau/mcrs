@@ -915,6 +915,7 @@ pub fn write_player(world: &mut World, player: Entity, cause: CaptureCause) {
         reason = "runs only on a save request, and each player file moves into the save queue"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 pub fn autosave_players(world: &mut World) {
     let players: Vec<Entity> = world
         .query_filtered::<Entity, With<Player>>()

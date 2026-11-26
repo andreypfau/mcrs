@@ -100,6 +100,14 @@ fn dress_due(skins: Res<ProfileSkins>, added: Query<(), (Added<ClientEntity>, Dr
     !skins.updated.is_empty() || !added.is_empty()
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "gated by dress_due, so it runs only when a skin arrives or a player appears; the trusted skin URL is an owned string for the download task"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn dress_players(
     mut commands: Commands,
     mut skins: ResMut<ProfileSkins>,

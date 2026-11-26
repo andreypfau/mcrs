@@ -200,6 +200,7 @@ fn spawn(mut commands: Commands) {
         reason = "formats the header text only while the F6 chunk map debug view is visible"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(12))]
 fn render(
     map: Res<ChunkMap>,
     mut root: Query<&mut Visibility, With<ChunkMapRoot>>,

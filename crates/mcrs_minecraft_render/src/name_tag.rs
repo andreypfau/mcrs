@@ -83,8 +83,7 @@ impl Plugin for NameTagRenderPlugin {
 struct NameTagPass {
     view_layout: BindGroupLayoutDescriptor,
     texture_layout: BindGroupLayoutDescriptor,
-    shader: Handle<Shader>,
-    pipelines: Option<[CachedRenderPipelineId; 2]>,
+    pipelines: [CachedRenderPipelineId; 2],
     buffer: Option<Buffer>,
     capacity: u64,
     revision: Option<u64>,
@@ -95,18 +94,43 @@ struct NameTagPass {
     texture: Option<(AssetId<Image>, TextureViewId, BindGroup)>,
 }
 
-fn init_pass(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<RenderDevice>) {
+fn init_pass(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    device: Res<RenderDevice>,
+    cache: Res<PipelineCache>,
+) {
+    let view_layout = world_text_view::layout();
+    let texture_layout = world_text_textures::layout();
+    let shader = asset_server.load("embedded://mcrs_minecraft_render/shaders/name_tag.wesl");
+    let pipelines = [
+        queue_pipeline(
+            &view_layout,
+            &texture_layout,
+            &shader,
+            &cache,
+            "name tag through",
+            CompareFunction::Always,
+        ),
+        queue_pipeline(
+            &view_layout,
+            &texture_layout,
+            &shader,
+            &cache,
+            "name tag",
+            DEPTH_COMPARE,
+        ),
+    ];
     commands.insert_resource(NameTagPass {
-        view_layout: world_text_view::layout(),
-        texture_layout: world_text_textures::layout(),
+        view_layout,
+        texture_layout,
         view_buffer: device.create_buffer(&BufferDescriptor {
             label: Some("name tag view"),
             size: TEXT_FRAME_SIZE,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }),
-        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/name_tag.wesl"),
-        pipelines: None,
+        pipelines,
         buffer: None,
         capacity: 0,
         revision: None,
@@ -128,16 +152,18 @@ fn attribute(format: VertexFormat, offset: u64, shader_location: u32) -> VertexA
 }
 
 fn queue_pipeline(
-    pass: &NameTagPass,
+    view_layout: &BindGroupLayoutDescriptor,
+    texture_layout: &BindGroupLayoutDescriptor,
+    shader: &Handle<Shader>,
     cache: &PipelineCache,
     label: &str,
     depth_compare: CompareFunction,
 ) -> CachedRenderPipelineId {
-    let layout = vec![pass.view_layout.clone(), pass.texture_layout.clone()];
+    let layout = vec![view_layout.clone(), texture_layout.clone()];
     let descriptor = descriptor(
         label.into(),
         layout,
-        &pass.shader,
+        shader,
         "vertex".into(),
         "fragment".into(),
         WORLD_IMAGE_FORMAT,
@@ -178,7 +204,6 @@ fn prepare(
     pass: Option<ResMut<NameTagPass>>,
     tags: Option<Res<NameTags>>,
     frame_view: Option<Res<FrameView>>,
-    cache: Res<PipelineCache>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
@@ -195,12 +220,6 @@ fn prepare(
                 _pad_76: 0,
             }),
         );
-    }
-    if pass.pipelines.is_none() {
-        pass.pipelines = Some([
-            queue_pipeline(&pass, &cache, "name tag through", CompareFunction::Always),
-            queue_pipeline(&pass, &cache, "name tag", DEPTH_COMPARE),
-        ]);
     }
     if pass.revision == Some(tags.revision) {
         return;
@@ -290,9 +309,8 @@ fn draw_name_tags(
     cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
-    let (Some(frame), Some(ids), Some(buffer), Some(view_group), Some((_, _, texture_group))) = (
+    let (Some(frame), Some(buffer), Some(view_group), Some((_, _, texture_group))) = (
         frame,
-        pass.pipelines,
         pass.buffer.as_ref(),
         pass.view.as_ref(),
         pass.texture.as_ref(),
@@ -300,8 +318,8 @@ fn draw_name_tags(
         return;
     };
     let (Some(through), Some(world)) = (
-        cache.get_render_pipeline(ids[0]),
-        cache.get_render_pipeline(ids[1]),
+        cache.get_render_pipeline(pass.pipelines[0]),
+        cache.get_render_pipeline(pass.pipelines[1]),
     ) else {
         return;
     };

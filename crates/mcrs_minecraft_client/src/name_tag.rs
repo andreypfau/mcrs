@@ -220,6 +220,7 @@ fn publish<T: DerefMut<Target = NameTags>>(
         reason = "the spans and the pieces are built only for the few named entities that show a tag near the camera"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 fn sync_name_tags(
     mut assets: ResMut<TextAssets>,
     mut images: ResMut<Assets<Image>>,

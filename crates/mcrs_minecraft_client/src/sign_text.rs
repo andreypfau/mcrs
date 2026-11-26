@@ -145,6 +145,7 @@ fn holds_signs(store: &ColumnStore, scene: &SignScene, pos: ColumnPos) -> bool {
         reason = "a column rebuilds only when its signs change or the camera crosses an outline range, and the built vertices move into `SignScene`"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(5))]
 #[cfg_attr(
     mcrs_lint,
     expect(

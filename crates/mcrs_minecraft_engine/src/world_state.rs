@@ -299,6 +299,7 @@ impl WorldStateSources<'_> {
         reason = "runs only when an autosave is due, and the snapshot moves into the background writer"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn autosave_world_state(sources: WorldStateSources, mut writer: ResMut<WorldStateWriter>) {
     if let Some(write) = sources.snapshot() {
         writer.submit(write);

@@ -44,6 +44,7 @@ pub(crate) struct SyncScratch {
         reason = "the slot list of a full content send moves into the outbound packet"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 pub(crate) fn sync_menus(
     mut queue: ResMut<MenuQueue>,
     mut menus: Query<(Entity, &MenuOf, &MenuLayout, &MenuParts, &mut MenuSync)>,

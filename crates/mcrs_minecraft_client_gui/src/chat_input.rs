@@ -223,6 +223,7 @@ fn opening(
         reason = "allocates only when the chat opens or closes"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 fn chat_keys(
     mut keys: ChatKeys,
     mut state: ChatState,

@@ -1435,6 +1435,7 @@ pub(crate) fn can_stream(
         reason = "the queue buckets are allocated once, and the eviction heap is rebuilt only when the camera enters another section"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn follow_camera(
     mut loader: ResMut<Loader>,
     mut focus: ResMut<StreamFocus>,
@@ -1462,6 +1463,7 @@ fn refocus(loader: &mut Loader, mut focus: StreamFocus, eye: Vec3) -> StreamFocu
         reason = "allocates only on a frame with column changes, and the early return skips the other frames"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn adopt_columns(
     mut changes: MessageReader<ColumnChange>,
     mut loader: ResMut<Loader>,
@@ -1494,6 +1496,7 @@ fn adopt_columns(
         reason = "allocates only on the frame that starts a bake for new block states or publishes its result"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
 fn bake_catalog(
     mut catalog: ResMut<BlockCatalog>,
     uploads: Res<Uploads>,
@@ -1526,6 +1529,7 @@ fn bake_catalog(
         reason = "the tints are derived only after the registries change"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 fn derive_biome_tints(
     registries: Res<CurrentRegistries>,
     catalog: Res<BlockCatalog>,
@@ -1605,6 +1609,7 @@ type Landed = ([i32; 3], u32, (SectionMesh, Scratch));
         reason = "allocates only when meshes land or sections go stale, and the geometry moves into the upload queue"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(6))]
 fn place_meshes(
     mut loader: ResMut<Loader>,
     mut drawn: ResMut<Messages<SectionDrawn>>,
@@ -1654,6 +1659,7 @@ fn project_camera_section_ready(
         reason = "allocates only when the geometry is dirty, and the runs move into the upload queue of the render world"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(9))]
 pub(crate) fn flush_streams(
     mut loader: ResMut<Loader>,
     focus: Res<StreamFocus>,
@@ -1700,6 +1706,7 @@ fn remesh_on_light_options(
         reason = "allocates only while sections wait to mesh, within the per-frame mesh budget"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 fn admit_meshing(
     mut loader: ResMut<Loader>,
     catalog: Res<BlockCatalog>,

@@ -329,6 +329,7 @@ fn input_box(
         reason = "the immediate-mode GUI takes owned text spans, and the fade of each line changes its colour on each frame, so a span cache would be rebuilt on each frame too"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(28))]
 pub fn draw(
     (chat, lines): (Res<Chat>, Res<crate::chat_input::ChatLines>),
     input: Res<ChatInput>,

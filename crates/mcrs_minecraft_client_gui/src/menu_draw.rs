@@ -111,6 +111,7 @@ pub fn request_menu_tooltip(menu: &mut Menu, now_ms: u64, font: &Font, tooltip: 
         reason = "the tooltip wraps the widget text only when a new widget tooltip shows"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(6))]
 pub(crate) fn draw(
     mut menu: ResMut<Menu>,
     atlas: Option<Res<GuiAtlas>>,

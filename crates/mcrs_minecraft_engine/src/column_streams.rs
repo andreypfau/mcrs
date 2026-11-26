@@ -322,6 +322,7 @@ fn light_change(column: ColumnPos, light_data: LightData<'static>) -> ColumnChan
         reason = "allocates only for a column that is ready in this tick, and the encoded packet moves into the outbound column message"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(15))]
 pub(crate) fn land_viewed_columns(
     mut store: ResMut<ColumnStoreLink>,
     dims: Single<(&mut ColumnStreams, &ColumnLoading, Has<HasSkyLight>)>,
@@ -593,6 +594,7 @@ fn encode_ready(
         reason = "allocates only for a column that is ready in this tick, and the encoded packet moves into the outbound column message"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(18))]
 fn publish_ready_columns(
     mut dims: Query<(&ColumnIndex, &mut ColumnStreams, Has<HasSkyLight>)>,
     snapshots: ColumnSnapshots,

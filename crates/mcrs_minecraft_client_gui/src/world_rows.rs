@@ -24,6 +24,14 @@ pub(crate) struct ShownRows {
     dots_frame: u64,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "rebuilds the rows only when the world list, the language or the search text changes, or the loading dots advance; the search text lives in the menu widgets, and the dots follow the wall clock, so no event announces them"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(26))]
 pub(crate) fn project_world_rows(
     mut menu: ResMut<Menu>,
     worlds: Res<WorldList>,

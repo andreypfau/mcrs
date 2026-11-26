@@ -37,6 +37,11 @@ use callbacks::LintCallbacks;
 use rustc_session::EarlyDiagCtxt;
 use rustc_session::config::ErrorOutputType;
 
+const TOOL_ARGS: [&str; 2] = [
+    "-Zcrate-attr=feature(register_tool)",
+    "-Zcrate-attr=register_tool(mcrs)",
+];
+
 fn main() -> ExitCode {
     #[expect(
         clippy::disallowed_methods,
@@ -59,6 +64,7 @@ fn main() -> ExitCode {
         if is_wrapper_call(&args) {
             args.remove(0);
         }
+        args.extend(TOOL_ARGS.map(str::to_owned));
         rustc_driver::run_compiler(&args, &mut LintCallbacks);
     })
 }

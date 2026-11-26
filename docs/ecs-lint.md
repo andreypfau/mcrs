@@ -48,6 +48,8 @@ cargo check (or build, test, rust-analyzer)
   `rustc-dev` compiles as before, without the lints.
 - `cargo clippy` sets its own workspace wrapper, so clippy runs without these lints. CI runs
   `cargo check` and `cargo clippy`.
+- The `push` trigger of `xtask` runs the check `ecs-lint`, so the pre-push hook runs the lints
+  before a push. The `commit` trigger does not run it.
 - The driver is linked with an rpath to the sysroot of its toolchain. It compares its build
   toolchain with `RUSTUP_TOOLCHAIN`. On a difference, it writes a warning and runs plain rustc,
   so a toolchain update never mixes two compilers.
@@ -121,6 +123,25 @@ expression lint on a `let` statement or on the enclosing function.
 fn tick_dimensions(world: &mut World) { /* ... */ }
 ```
 
+An `#[expect]` of `alloc_in_tick` also states the number of allocation sites of the system. The
+number goes in a tool attribute next to the expectation:
+
+```rust
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "one buffer for each chunk"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
+fn mesh_chunks(chunks: Query<&Chunk>) { /* ... */ }
+```
+
+- The driver registers the tool `mcrs` for attributes with `-Zcrate-attr`, so a crate needs no
+  `register_tool` of its own.
+- The lint `alloc_site_count` is an error when the number differs from the number of sites, or
+  when the expectation has no `alloc_sites` attribute. The message reads "system X allocates
+  at N sites, the expectation states M", and it labels each site. `#[expect]` of
+  `alloc_in_tick` does not suppress `alloc_site_count`.
+- Several sites in one macro call count as one site.
+- A new allocation in a system with an expectation changes the number. The author of the change
+  reads the sites and updates the number.
+
 Rules on systems. A "tick system" is a system in a tick schedule. "Reach" is the body of the
 system, its closures, and the local functions that it calls, at any depth. An `async` block and a closure in `observe` or `add_observer` are not in the reach. A task
 pool or an event runs them outside the system.
@@ -131,7 +152,8 @@ pool or an event runs them outside the system.
 | `exclusive_observer` | Bevy panics on an exclusive observer | an observer with a `&mut World` parameter, from `add_observer` or `observe` |
 | `ungated_system` | "Systems are gated by run conditions" | a tick system with no run condition, and with no `Single`, `Populated`, `If` or `PopulatedMessageReader` parameter |
 | `blocking_in_system` | "The tick never waits" | the reach of a tick system calls `Instant::now`, `SystemTime::now`, `thread::sleep`, a `std::fs` function, a `File` or `TcpStream` method, `Receiver::recv`, `JoinHandle::join` without an `is_finished` check, or a `block_on` |
-| `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace`, `mem::swap` and a `new` or `default` with no arguments do not count. A system with a run condition that fires on an event (§10) is not checked. A call on an event path does not count: in a `for` loop over messages, removed components or a query with `Changed` or `Added`, or in an `if` on them |
+| `alloc_in_tick` | "No allocation in a steady-state tick" | the reach of a tick system has a call that returns `Vec`, `String`, `Box`, a `std`, `alloc`, `hashbrown` or `indexmap` collection; `mem::take`, `mem::replace`, `mem::swap` and a `new` or `default` with no arguments do not count. A `let` binding that holds a `new` or `default` of such a type is a site when the reach grows it with `push`, `extend`, `insert`, `push_str`, `append`, `resize` or `reserve`, or passes `&mut` of it to a call; the site is the `let` initializer. A move of the binding by value into an assignment, a struct field, a `return` or an argument ends the tracking. A site inside an external macro, for example `format!`, is reported at the macro call. A system with a run condition that fires on an event (§10) is not checked. A call on an event path does not count: in a `for` loop over messages, removed components or a query with `Changed` or `Added`, or in an `if` on them |
+| `alloc_site_count` | An expectation states what it covers | a system with `#[expect(mcrs::alloc_in_tick)]` has another number of sites than its `mcrs::alloc_sites(N)` states, or has no such attribute |
 | `per_frame_insert_resource` | Do not insert a resource on each run | the body of a tick system calls `insert_resource` outside an `if`, a `match`, a loop or a comparing early exit, and no run condition of the system fires on an event (§10) |
 | `marker_toggle` | "State that flips often is a value, not a marker" | the body of a tick system inserts and removes the same unit component |
 | `time_clock_mismatch` | Read the clock of the schedule | a system in a `Fixed*` schedule reads `Res<Time<Real>>` or `Res<Time<Virtual>>` |
