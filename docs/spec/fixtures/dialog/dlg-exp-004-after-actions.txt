@@ -1,0 +1,14 @@
+# Experiment DLG-EXP-004 of docs/spec/dialog.md, section 16: after actions.
+# Source: the capture of the wire between the vanilla client and the vanilla server, in the play
+# phase. A line has the time in seconds, the direction, the phase, the packet id, the packet name,
+# the length of the packet in bytes and the packet bytes in hexadecimal.
+# Lines that start with "# " are notes of the fixture. The other lines are the raw capture lines.
+# The line numbers in these notes count the raw capture lines only.
+# Line 1, show_dialog, id 143: the VarInt 3 follows the packet id. The dialog is entry 2 of the
+# registry data in the fixture of DLG-EXP-007. Its field "no" holds a button with the label
+# "No C" and a custom action with the id "t:no".
+# Line 2, custom_click_action, id 68: the id "t:no", the payload length 1 and the one byte 0.
+# The saved capture shows the packet only. It does not show the screen after the click.
+#
+1795607531.578 s2c play 143 show_dialog 3 8f0103
+1795607532.348 c2s play 68 custom_click_action 8 4404743a6e6f0100
