@@ -486,7 +486,7 @@ plan carries each one in a step, with a check.
 |---|---|---|---|---|
 | In a world, each `Default` screen blurs the world and the HUD before its texture. The pause screen and the options screens are such screens. | WID-SCR-004, WID-SCR-005, WID-SCR-008 | The blur node and `BackdropBlur` in `mcrs_minecraft_render`; the split of the draw and `project_backdrop` in `gui_render` | 2d | A pixel test of the blur with the radius 5 against the postconditions of WID-SCR-005, and a test that the radius 0 runs no pass. A screenshot of the pause screen in a world. |
 | The death screen and the confirmation of its title button draw `Gradient { top: 60500000, bottom: A0803030 }`, with no texture and no blur. | WID-SCR-008, PLD-SCR-004 | `gui_session` | 2b | A test that opens the death screen and reads the backdrop layer: one gradient quad of these colours, no texture quad, `BackdropBlur` 0. |
-| The pause with no menu exists. F3 and Escape open it, and it has `Backdrop::None`. | WID-SCR-008, MENU-PAUSE-001 | `gui_menus` | 2b | A test that sends the chord with a player and no screen: the stack holds the kind with no `Menu`, the backdrop layer is empty and `BackdropBlur` is 0. |
+| The pause with no menu exists. F3 and Escape open it, and it has `Backdrop::None`. | WID-SCR-008, MENU-PAUSE-007 to 010 | `gui_menus` | 2b | A test that sends the chord in a local world with no screen: the stack holds the kind, its menu holds only the title "Game Paused", the backdrop layer is empty and `BackdropBlur` is 0. |
 
 The blur needs render work, not only a new setting. Today `mcrs_minecraft_render` blurs only the
 panorama, in a pass that runs before the transparent pass of the world. The HUD draws later, in the
@@ -497,10 +497,11 @@ between them. The option "Menu Background Blur" (`options.accessibility.menu_bac
 is a new field of `client_options`, with a slider in the accessibility screen. Step 2d adds it.
 
 The pause with no menu is a second kind, `PauseOverlay`, in `gui_menus`. It requires
-`Backdrop = None`, has no `Menu` and has no widget. The pause opener spawns it on F3 and Escape,
-and the plain Escape still opens the pause screen with its menu. The specification of
-MENU-PAUSE-001 names this case and does not state it yet. Its author states the rule for the close
-key and for the pause of the game before step 2b starts.
+`Backdrop = None`. Its menu holds one widget, the title "Game Paused" (MENU-PAUSE-008). The pause
+opener spawns it on F3 and Escape in a local world that is not open to LAN; on a server the chord
+opens the pause screen with its menu (MENU-PAUSE-007). The plain Escape still opens the pause
+screen. Only Escape closes it, and no game key acts while it shows (MENU-PAUSE-010). It pauses
+the local world and releases the cursor (MENU-PAUSE-009).
 
 **The initial screen.** `GuiPlugin` loses its field `screen`. The client app spawns the first
 screen kind that its configuration names.
