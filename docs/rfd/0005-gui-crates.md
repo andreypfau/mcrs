@@ -89,7 +89,9 @@ The maintainer decided these points. The numbers are the numbers of this page.
    allow the findings.
 2. **The font is its own resource and its own crate**, `mcrs_minecraft_font`, in layer 3. It is
    no field of the atlas. It has no dependency on `client_jar`. The caller gives the font bytes,
-   so a map viewer can take the crate alone. `mcrs_minecraft_client` reads the jar.
+   so a map viewer can take the crate alone. `mcrs_minecraft_client` reads the jar. The font
+   reads pack files through `PackFiles` of a new Bevy-free crate `mcrs_minecraft_resource_pack`
+   (layer 3), not through `ResourceSet` of `mcrs_minecraft_model`.
 3. **The scene knows no screen.** No module of the scene names a screen, and no screen orders
    itself against another screen.
 4. **A screen is an entity.** Its kind is a component that the crate of the screen owns. The
@@ -493,9 +495,15 @@ included.
   `wire`, `core` and `profile`. No cheap path exists.
 - The code says: `Text` comes from `protocol_game::text`, a re-export of `mcrs_minecraft_text`.
   The font takes it from `text` and drops the edge to `protocol_game`. `ResourceSet` and
-  `decode_png` come from `mcrs_minecraft_model`, which needs Bevy and `client_jar`. Step 4
-  replaces `ResourceSet` with a trait that returns bytes by location, with one empty host, and
-  decodes the PNG without `model`.
+  `decode_png` come from `mcrs_minecraft_model`, which needs Bevy and `client_jar`, and
+  `full_id` and `split_id` come from `mcrs_minecraft_model_file`. Only the file lookup is used.
+  That lookup is `PackFiles` of `model_file`, which has no Bevy; `ResourceSet::files` returns
+  it. Step 4 moves `PackFiles` and a PNG decoder (the `png` crate, not the Bevy image) down into
+  a new Bevy-free crate `mcrs_minecraft_resource_pack`. `model_file`, the model, the atlas, the
+  font and the language take them from there. The font takes `&PackFiles`. `full_id` and
+  `split_id` end; `ResourceLocation::read` of `mcrs_minecraft_resource` replaces them. The new
+  crate is not part of `mcrs_minecraft_resource`, because a user of locations alone must not pay
+  for the PNG decoder.
 - The code says: `font.rs` still re-exports `draw_text` and its siblings from `text_draw`. The
   re-export ends in step 4. `font_definition` uses `bevy::log::warn`, which becomes an error
   value. `font_unihex` names `client_jar::Directory`. The loader instead takes the bytes from its
