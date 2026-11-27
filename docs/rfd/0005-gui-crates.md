@@ -104,8 +104,9 @@ The maintainer decided these points. The numbers are the numbers of this page.
    crates do not depend on `gui_chat`.
 7. **`gui_render` is separate.** A headless client and a bot take no wgpu.
 8. **`sign_text` moves into `mcrs_minecraft_client`.** It lays out sign text and draws no GUI.
-9. **The screen steps may cross more than one crate group.** The maintainer waives the limit for steps 2a
-   to 2c only. The other path is a second screen model for the length of the migration.
+9. **The migration lands as one pull request.** Each step is one commit in it, and each commit
+   builds and passes the tests. A step may touch any crate group. The maintainer is a code owner,
+   so the limits on the size and the crate groups of a pull request do not apply.
 10. **The scene is retained.** Each screen or HUD entity owns a `GuiLayer`. A draw system writes
     its layer only on a change. The order is the key of the layer, not the order of the systems.
     `GuiPhase` shrinks to `Begin`, `Draw` and `Batch`, and keeps its name.
@@ -175,8 +176,7 @@ provisional crates `gui_creative_state` and `gui_gesture`, and the review after 
 
 ### Layers and names
 
-The names follow `CLAUDE.md`. The prefix `mcrs_minecraft_gui_` groups the GUI crates, so that one
-pull request names one crate group. The font and the scene are useful without a client, so the
+The names follow `CLAUDE.md`. The prefix `mcrs_minecraft_gui_` groups the GUI crates. The font and the scene are useful without a client, so the
 word `client` is not in their names. Each crate keeps private modules and re-exports its public
 names at the root. One public path exists for each item.
 
@@ -757,7 +757,7 @@ The 32 leaks fall into these groups. Each group has one owner and one fix.
 | Gestures | `MenuGesture::release`, `MenuGesture::remembered`, `OpenDrag::kind` (3) | `container_gesture` | Methods on the kernel types | 1c |
 | Small | `Pointer::buttons`, `Table::stored`, `MenuLabelText::title`, `MenuLabelText::inventory`, `TitleScreenState::logo` (5) | `gui_scene`, `font`, `gui_container`, `gui_menus` | `GuiPointer`; a length method on `Table`; a label method; data of `TitleScreen` | 1b, 1c, 2b |
 
-No pull request moves a leak to a new crate. Each leak ends before the move of its owner.
+No step moves a leak to a new crate. Each leak ends before the move of its owner.
 
 ### Dialog readiness
 
@@ -786,8 +786,8 @@ The limits that the split puts on it:
 
 ## Migration
 
-Each step is one pull request of fewer than about 3,000 added lines. A moved line counts as an
-added line. Each step leaves `main` green. The step that moves the last caller of a path deletes
+The migration is one pull request. Each step is one commit, and each commit builds and passes
+the tests. The step that moves the last caller of a path deletes
 the path. The old crate loses modules as they leave. A step that changes a client crate runs the
 skill `run-client`.
 
@@ -813,14 +813,11 @@ added lines.
 | 10 | `gui_chat` | Move chat | about 1,350 |
 | 11 | `gui_container` | Move the container screens | about 2,700 |
 | 12 | `gui_creative` | Move the creative screen | about 2,900 |
-| 13 | `gui_hud`, `gui_debug` | One pull request each: the HUD, then the F3 screen | about 900, 1,400 |
-| 14 | `gui_session`, `gui_menus`, `gui_worlds` | One pull request each, in this order | about 1,000, 1,600, 1,800 |
+| 13 | `gui_hud`, `gui_debug` | The HUD, then the F3 screen | about 900, 1,400 |
+| 14 | `gui_session`, `gui_menus`, `gui_worlds` | In this order | about 1,000, 1,600, 1,800 |
 | 15 | `client`, workspace | Delete `client_gui`; update `docs/crates.md` | small |
 
-Step 3 is independent. It can land at any time before step 15. Steps 6 and 12 sit close to the
-limit. If the diff of step 6 passes 3,000 lines, the scene moves first and the primitives
-follow. If step 12 passes it, step 9 already took the search type out, and the test modules move
-in a second pull request.
+Step 3 is independent. It can come at any point before step 15.
 
 ### Step 1: done
 
@@ -890,9 +887,9 @@ because they match on `Screen`. The work is about 5,800 added lines, so it split
 - **2d** adds the option "Menu Background Blur", `BackdropBlur`, the blur node after the HUD band and
   the split draw of the batch. Each `Default` screen in a world then blurs the world and the HUD.
 
-Step 2d crosses the crate groups of the render crate, the options crate and the GUI crate. The blur
-needs a node, a radius and a split draw in one change. A split in two would leave a node with no
-writer. It stays under 1,000 lines.
+Step 2d changes the render crate, the options crate and the GUI crate in one commit. The blur
+needs a node, a radius and a split draw together. A split in two would leave a node with no
+writer.
 
 Between 2a and 2c, `Screen` loses variants as screens move. A system that asks "is a screen
 open" reads both the enum and `ScreenStack` until 2c. That is one migration with one end. 2c
@@ -912,7 +909,7 @@ the app has a window.
 
 ### What deslop-please and the ECS lint report
 
-The first row is the measured state. The other rows are predictions that each pull request
+The first row is the measured state. The other rows are predictions that each step
 checks. A step must not add a finding or an expectation. "Entries" is the count of entries in
 the old `src/`, which stays one `wide-directory` finding until the crate ends.
 
@@ -975,7 +972,7 @@ The maintainer considered these options.
   screens with title, pause and options. This page splits those three and states the force.
 - **Moves before the redesign.** Rejected (determination 13). Each move would carry the
   immediate-mode scene and the central modules into the new crates. Each later fix would then
-  cross crate groups. A redesign inside one crate costs one crate group per step.
+  edit several new crates. A redesign inside one crate edits each file once.
 - **The F3 screen stays in `gui_hud`.** Rejected (determination 15). It adds `render_probe` and
   `volume` to a crate that otherwise needs neither.
 - **The title depends on `gui_worlds`.** Rejected (determination 16). A client that only joins
