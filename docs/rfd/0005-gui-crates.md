@@ -12,7 +12,7 @@ is not one crate.
 This is the second draft. Step 1 of the first draft is done in the working tree. A review of
 2026-11-27 measured the result and found that the first draft kept the cause of most lint
 expectations. The maintainer then decided four points (determinations 10 to 13). Later answers
-added determinations 15 to 18. The text marks each fact that the code changed with the words
+added determinations 15 to 20. The text marks each fact that the code changed with the words
 "The code says". Section "Open questions" lists what is still open.
 
 ## The problem
@@ -146,6 +146,28 @@ The maintainer decided these points. The numbers are the numbers of this page.
     `GuiTick` only while a visible line is in its fade window (age 180 to 200). A named
     condition with `mcrs::event_condition` is true in these cases only. The action-bar overlay
     stores the GUI tick at which it was set and follows the same rule.
+20. **The backdrop belongs to the kind of the screen, and the world is a fact of the client.**
+    `client_screen` defines one enum component, `Backdrop`. Its variants follow WID-SCR-004 and
+    WID-SCR-008 in `docs/spec/client-widget.md`.
+
+    | Variant | What it draws |
+    |---|---|
+    | `Default` | With no world: the panorama, the blur and the menu background texture. In a world: the blur of the world and the HUD, then the in-world texture. |
+    | `Panorama` | The panorama only. The title uses it. |
+    | `PanoramaOverWorld` | The panorama, the blur and the texture, also in a world. The message screen and the level loading screen use it. |
+    | `InGameGradient` | The gradient `C0101010` to `D0101010`. No blur and no texture. |
+    | `Gradient { top, bottom }` | A vertical gradient of two ARGB colours. |
+    | `None` | Nothing. The chat screen uses it. The game mode switcher also uses it, and draws its
+      own texture in its own layer, so no texture name crosses into `client_screen`. |
+
+    `ScreenEntry` requires `Backdrop`, and the value is `Default`. A kind overrides it with
+    `#[require(Backdrop = ...)]`. Whether a world exists is not a field of a screen. The resource
+    `WorldShown(bool)` of `client_screen` holds it. The client app is its one writer, from its
+    world state, with `set_if_neq`. A dialog of the configuration phase sees `false`. One system
+    in `gui_render` reads `Backdrop` of the top screen and `WorldShown`. It names no screen kind.
+    `WorldPresence`, its `Player` query and the field `MenuBackground` of `Menu` end. No central
+    table of screens exists. So `menus` needs no edge to `session` or to `worlds`, and a new
+    screen picks its backdrop with its own `require`.
 Determinations 10 to 13 replace three decisions of the first draft: the three menu crates, the
 provisional crates `gui_creative_state` and `gui_gesture`, and the review after step 8.
 
@@ -164,9 +186,9 @@ names at the root. One public path exists for each item.
 | `mcrs_minecraft_container_gesture` | 3 | yes | The click, drag and quick-move gestures of a container | No Bevy. A bot takes it without a GUI. |
 | `mcrs_minecraft_gui_scene` | 6 | no: Bevy asset, image, window | Layers, GUI size, pointer, clock, phases, atlas layout and load | The base of each draw |
 | `mcrs_minecraft_gui_primitives` | 6 | no: Bevy | Text, tooltip, item icon, decorations, tile, box | The limit of 15 entries: scene and primitives hold 23 modules |
-| `mcrs_minecraft_gui_render` | 6 | no: wgpu | The batch, the pipeline, the extract | wgpu (determination 7) |
+| `mcrs_minecraft_gui_render` | 6 | no: wgpu | The batch, the pipeline, the extract, the backdrop and the panorama view | wgpu (determination 7) |
 | `mcrs_minecraft_gui_menu` | 6 | no: Bevy | The host of a widget menu: layout state, draw, input, cursor | `client_widget`, `client_options` |
-| `mcrs_minecraft_client_screen` | Client, above 4 | yes | The screen stack and the shared parts of a screen | `bevy_ecs` only (determination 5) |
+| `mcrs_minecraft_client_screen` | Client, above 4 | yes | The screen stack, the shared parts of a screen, `Backdrop`, `WorldShown` | `bevy_ecs` only (determination 5) |
 | `mcrs_minecraft_gui_chat` | 7 | no: Bevy | Chat lines, chat screen, chat key, suggestions | `chat_client`, `command` |
 | `mcrs_minecraft_gui_container` | 7 | no: Bevy | Container screens, hotbar, inventory figure, item tooltip | `entity_render`, the inventory crates |
 | `mcrs_minecraft_gui_creative` | 7 | no: Bevy | The creative screen | `creative_content`, `creative_report` |
@@ -174,7 +196,7 @@ names at the root. One public path exists for each item.
 | `mcrs_minecraft_gui_debug` | 7 | no: Bevy | F3 screen, chunk map, light levels | `render_probe`, `volume` (determination 15) |
 | `mcrs_minecraft_gui_session` | 7 | no: Bevy | Death, disconnect, level loading, message, the session flow | `network` |
 | `mcrs_minecraft_gui_worlds` | 7 | no: Bevy | World list, world create, world delete | `save` |
-| `mcrs_minecraft_gui_menus` | 7 | no: Bevy | Title, pause, options and its sub screens | `render` (the title panorama) |
+| `mcrs_minecraft_gui_menus` | 7 | no: Bevy | Title, pause, options and its sub screens | The count of the modules |
 
 The code says: the review estimated about eleven crates. Three more are forced.
 
@@ -207,7 +229,7 @@ font <- scene <- primitives <- menu <- chat
                      +-- render
 
 container_gesture (layer 3, no Bevy) <- container, creative
-client_screen (bevy_ecs only) <- render, chat, container, creative, hud,
+client_screen (bevy_ecs only) <- render, menu, chat, container, creative, hud,
                                  session, worlds, menus, dialog (later)
 ```
 
@@ -223,6 +245,10 @@ Four rules hold for the graph.
 - The chat key has no edge. `gui_chat` reads `AllowsChat` (determination 6).
 - `render` is the only crate that needs the render world. It reads `ScreenStack` to find the
   top screen. A headless client leaves `render` out and keeps the rest.
+- `render` depends on `mcrs_minecraft_render` for `PanoramaView`. It is the lowest crate that
+  has this edge and sits below every screen crate, because no screen crate depends on `render`.
+  `menu` depends on `client_screen` to read `WorldShown`. `client_screen` depends on no GUI
+  crate. So the backdrop adds no upward edge, and `menus` loses its edge to `mcrs_minecraft_render`.
 
 The code says: `mcrs_minecraft_client_world` does not need `client_screen`. No module of it reads
 the screen after `Screen` ends. Only its chat systems change, because `ChatInput` ends.
@@ -249,8 +275,9 @@ Examples of keys:
 | Layer | Key |
 |---|---|
 | Hotbar, health, chat lines, F3 screen | (`Hud`, 0, 0 to 3) |
-| Title screen: menu, then logo | (`Screen`, depth, 0) and (`Screen`, depth, 1) on a child |
-| Create world screen with its message | (`Screen`, depth, 0) and (`Screen`, depth, 1) on a child |
+| Backdrop of the top screen | (`Screen`, depth, 0) on a child |
+| Title screen: menu, then logo | (`Screen`, depth, 1) and (`Screen`, depth, 2) on a child |
+| Create world screen with its message | (`Screen`, depth, 1) and (`Screen`, depth, 2) on a child |
 | Tooltip, drag preview, title fade | (`Overlay`, 0, 0 to 2) |
 
 **The draw.** One draw system writes one kind of layer. It runs only on a change of its inputs.
@@ -374,6 +401,8 @@ Three kinds reuse a type that exists.
 | `TopScreen` | A marker on the entity at the top. The observers of `ScreenEntry` move it. |
 | `EscapeRefused` | A marker. A kind requires it when Escape must not close the screen. |
 | `AllowsChat` | A marker. A kind requires it when the chat key may open the chat above it. |
+| `Backdrop` | An enum component. `ScreenEntry` requires it with `Default`. A kind overrides it (determination 20). |
+| `WorldShown` | A resource, `WorldShown(bool)`. The client app writes it. |
 | `close_top_screen` | The one Escape system. |
 
 **Open, close and replace are observers.** To open a screen, a system spawns an entity with the
@@ -415,9 +444,63 @@ A container screen refuses and sends the close request through its own path. The
 `gui_menus` runs on the same input when the stack is empty and a player exists. It reads the
 stack before the despawn applies, so one key press never closes a screen and opens the pause.
 
-**The background.** `WorldPresence` ends. `MenuBackground` carries the texture set: the title set
-or the in-world set. The opener chooses it at spawn. A sub screen copies the background of the
-screen that opened it.
+**The background.** The kind of the screen selects its backdrop (determination 20). The opener
+chooses nothing, and a sub screen needs no copy. One system, `project_backdrop`, belongs to
+`gui_render`. It runs on a change of `TopScreen`, of the `Backdrop` of the top screen or of
+`WorldShown`. It does two things.
+
+- It writes `PanoramaView` and `BackdropBlur` for the render world. `draw` is `Hidden`, `Plain` or
+  `Blurred`. `BackdropBlur` is the radius of the blur, a `Copy` resource of `mcrs_minecraft_render`.
+  The radius is the option "Menu Background Blur" (0 to 10, default 5, 0 is off) when the backdrop
+  blurs, and 0 otherwise.
+- It writes the texture quad or the gradient quad into the backdrop layer of the top screen. The
+  layer is a child of the screen entity with the key (`Screen`, depth, 0). The system spawns it
+  when the screen becomes the top. A draw system of a kind uses the parts 1 and up.
+
+| `Backdrop` | `PanoramaView.draw` | `BackdropBlur` | Quad of the backdrop layer |
+|---|---|---|---|
+| `Default`, no world | `Blurred` | The option | The menu background texture over the window |
+| `Default`, in a world | `Hidden` | The option | The in-world texture over the window |
+| `Panorama` | `Plain` | 0 | None |
+| `PanoramaOverWorld` | `Blurred` | The option | The texture of the world state of `WorldShown` |
+| `InGameGradient` | `Hidden` | 0 | The gradient `C0101010` to `D0101010` |
+| `Gradient { top, bottom }` | `Hidden` | 0 | The gradient of the variant |
+| `None` | `Hidden` | 0 | None |
+
+With no world, the panorama pass blurs the panorama with the radius of `BackdropBlur`. In a world,
+the blur node of `mcrs_minecraft_render` runs after the HUD band and before the screen layers. It
+blurs the image of the world and the HUD with the same six passes (WID-SCR-005). The backdrop
+quads draw over the result, so they stay sharp.
+
+The spin of the panorama is a separate system in `gui_render`. It runs each frame while
+`PanoramaView.draw` is not `Hidden`, because the angle changes on each frame. It writes
+`spin_degrees` with `set_if_neq`. The backdrop system does not write the angle.
+
+`Menu` draws its header and footer separators with the textures of the world state. It reads
+`WorldShown` for them and redraws on `resource_changed::<WorldShown>`. It draws no backdrop.
+
+**The three behaviours that the split fixes.** The specification corrects three screens. The
+plan carries each one in a step, with a check.
+
+| Behaviour | Rule | Owner | Step | Check |
+|---|---|---|---|---|
+| In a world, each `Default` screen blurs the world and the HUD before its texture. The pause screen and the options screens are such screens. | WID-SCR-004, WID-SCR-005, WID-SCR-008 | The blur node and `BackdropBlur` in `mcrs_minecraft_render`; the split of the draw and `project_backdrop` in `gui_render` | 2d | A pixel test of the blur with the radius 5 against the postconditions of WID-SCR-005, and a test that the radius 0 runs no pass. A screenshot of the pause screen in a world. |
+| The death screen and the confirmation of its title button draw `Gradient { top: 60500000, bottom: A0803030 }`, with no texture and no blur. | WID-SCR-008, PLD-SCR-004 | `gui_session` | 2b | A test that opens the death screen and reads the backdrop layer: one gradient quad of these colours, no texture quad, `BackdropBlur` 0. |
+| The pause with no menu exists. F3 and Escape open it, and it has `Backdrop::None`. | WID-SCR-008, MENU-PAUSE-001 | `gui_menus` | 2b | A test that sends the chord with a player and no screen: the stack holds the kind with no `Menu`, the backdrop layer is empty and `BackdropBlur` is 0. |
+
+The blur needs render work, not only a new setting. Today `mcrs_minecraft_render` blurs only the
+panorama, in a pass that runs before the transparent pass of the world. The HUD draws later, in the
+GUI pass. So two changes are necessary. First, the blur node of `mcrs_minecraft_render` takes the
+radius from `BackdropBlur` and runs a second time on the target after the HUD band. Second,
+`gui_render` splits the draw of the batch into the HUD band and the rest, and the blur node runs
+between them. The option "Menu Background Blur" (`options.accessibility.menu_background_blurriness`)
+is a new field of `client_options`, with a slider in the accessibility screen. Step 2d adds it.
+
+The pause with no menu is a second kind, `PauseOverlay`, in `gui_menus`. It requires
+`Backdrop = None`, has no `Menu` and has no widget. The pause opener spawns it on F3 and Escape,
+and the plain Escape still opens the pause screen with its menu. The specification of
+MENU-PAUSE-001 names this case and does not state it yet. Its author states the rule for the close
+key and for the pause of the game before step 2b starts.
 
 **The initial screen.** `GuiPlugin` loses its field `screen`. The client app spawns the first
 screen kind that its configuration names.
@@ -433,6 +516,11 @@ screen kind that its configuration names.
 | `TopScreen` | Materialized from `ScreenStack`, for query selectivity | The observers of `ScreenEntry` |
 | The previous screen, the depth | Derived from `ScreenStack` | Nobody. Each reader computes it. |
 | `MenuEvent` | Temporal fact | The menu input |
+| `Backdrop` | Authoritative, fixed by the kind at spawn | The kind that requires it |
+| `WorldShown` | Derived from the world state of the client | The client app, the one writer |
+| `PanoramaView.draw`, the backdrop layer | Materialized from `Backdrop` and `WorldShown`, for the render world and the batch | `project_backdrop` |
+| `BackdropBlur` | Materialized from `Backdrop` and the option, for the render world | `project_backdrop` |
+| `PanoramaView.spin_degrees` | Temporal fact (the angle) | The spin system of `gui_render` |
 
 ### No central dispatcher
 
@@ -547,18 +635,24 @@ included.
 `gui_batch_build`, `gui_items`, `gui_glint` (→), `glyph_uploads` (→), `gui_batch_extract` (→).
 
 - Public names: `GuiRenderPlugin`, `GuiBatch`, `GuiDraw`, `GuiDrawKind`, `GLINT_ALPHA`.
-- Dependencies: `primitives`, `scene`, `font`, `client_screen`, the Bevy render crates, wgpu.
+- Determination 20 adds the modules `project_backdrop` (→) and `panorama_spin`. The first holds
+  the one backdrop system. The second holds `spin` from today's `panorama_view`. Both leave
+  `gui_menus`. Step 2d splits the draw of the batch into the HUD band and the rest, so that the
+  blur node of `mcrs_minecraft_render` runs between them. The crate then has 10 files.
+- Dependencies: `primitives`, `scene`, `font`, `client_screen`, `client_options` (the blur radius),
+  `mcrs_minecraft_render`, the Bevy render crates, wgpu.
 
 **`mcrs_minecraft_gui_menu`** (15 files). Modules: `menu`, `menu_draw`, `menu_input`,
 `menu_plugin`, `menu_cursor`, `menu_event`, `menu_input_systems`, `scroll_area_draw`,
 `tab_bar_draw`, `edit_box_draw`, `leaf_draw`, `cursor_grab`, `edit_input`, `search_input`.
 
-- Public names: `Menu`, `MenuBackground`, `MenuEvent`, `MenuPlugin`, `MenuInputSystems`,
+- Public names: `Menu`, `MenuEvent`, `MenuPlugin`, `MenuInputSystems`,
   `draw_menu`, `screen_key`, `pastes`, `clipboard_text`, `copy_text`, `grab`, `SearchInput`.
 - The code says: `edit_input` maps keys to `Key` and `TabDirection` of `chat_client`. So the menu
   host depends on `chat_client`, a crate without Bevy.
 - The crate is at the limit.
-- Dependencies: `primitives`, `scene`, `font`, `client_widget`, `client_options`, `chat_client`.
+- Dependencies: `primitives`, `scene`, `font`, `client_screen`, `client_widget`, `client_options`,
+  `chat_client`.
 
 **`mcrs_minecraft_client_screen`** (about 8 files, new). Modules: `screen_entry`, `screen_stack`,
 `top_screen`, `escape_refused`, `allows_chat`, `close_top_screen`, `client_screen_plugin`.
@@ -638,11 +732,13 @@ plugin inserts `SingleplayerEntry` (determination 16). It depends on `session` f
 and the level loading screens, on `menus` for `SingleplayerEntry`, and on `save`.
 
 **`mcrs_minecraft_gui_menus`** (15 files). Modules: `title_screen`, `title_draw`,
-`panorama_view`, `pause_screen`, `options_screen`, `option_sub_screen`, `option_caption`,
+`pause_screen`, `options_screen`, `option_sub_screen`, `option_caption`,
 `accessibility_settings_screen`, `controls_screen`, `mouse_settings_screen`,
 `video_settings_screen`, `menu_options_systems`, `menus_plugin` (→), and `singleplayer_entry` (→),
-which holds the resource of determination 16. It depends on neither `worlds` nor `session`: the
-opener chooses the background, so the panorama needs no session kind.
+which holds the resource of determination 16. It depends on neither `worlds` nor `session`. Each
+kind of the crate requires its own `Backdrop` (determination 20). The title requires `Panorama`.
+The pause screen and the options screens keep `Default`. `PauseOverlay` requires `Backdrop = None`.
+`panorama_view` moves to `gui_render`.
 
 **Not in a GUI crate.** `sign_text` (763 lines) reads `SignFamily` and `SignMount` from the
 client world and draws no GUI. It moves into `mcrs_minecraft_client` (determination 8), beside
@@ -674,8 +770,9 @@ The limits that the split puts on it:
   does not depend on `client_world`, on a player or on a container crate. A dialog can show in
   the configuration phase, where no world exists (DLG-FLOW-005). The scene has no edge to the
   client world, so this holds.
-- It draws through the atlas and the font only. That is why `WorldPresence` ends and the opener
-  chooses `MenuBackground`.
+- It draws through the atlas and the font only. That is why `WorldPresence` ends and the kind
+  requires `Backdrop` (determination 20). The dialog requires nothing, and `Default` applies,
+  as WID-SCR-008 states for a server dialog. `WorldShown` is `false` in the configuration phase.
 - A dialog kind requires `EscapeRefused`, because Escape runs the cancel action (DLG-KEY-002).
 - A dialog replaces a dialog with `replace: Top` (DLG-FLOW-002). A `close` after action despawns
   the top, and the previous screen becomes the top. A disconnect uses `replace: All`
@@ -705,6 +802,7 @@ added lines.
 | 2a | `client_screen`, `client_world`, `chat_client`, `inventory_client`, `client_gui`, `client` | The stack (`no_std`), chat, container, creative and the game mode switcher as entities | about 1,900 |
 | 2b | `client_gui`, `client` | `Menu` as a component, the session screens, title, pause and options as entities | about 2,200 |
 | 2c | `client_gui`, `client_world`, `client` | The world screens as entities; `SingleplayerEntry`; delete `Screen`, `next_screen`, `follow_menu_events`, `project_menu` | about 1,700 |
+| 2d | `mcrs_minecraft_render`, `client_options`, `client_gui` | The option "Menu Background Blur" and its slider; `BackdropBlur`; the blur node after the HUD band; the split of the batch draw; the radius in `project_backdrop` | about 900 |
 | 3 | `client` | Move `sign_text` | about 780 |
 | 4 | `font`, `client` | Move the font; `client` reads the jar | about 2,000 |
 | 5 | `container_gesture` | Move the kernel as a `no_std` crate | about 600 |
@@ -781,16 +879,28 @@ because they match on `Screen`. The work is about 5,800 added lines, so it split
   ends. `CreativeScreen` moves to the open-menu entity, and `mark_creative_screen` ends. The
   chat view API ends six leaks. `ClickState` loses two fields.
 - **2b** makes `Menu` a component, adds the layout system of each kind, and moves the session
-  screens, the title, the pause screen and the options screens. `WorldPresence` ends. The
-  central modules lose the arms of these screens.
+  screens, the title, the pause screen and the options screens. `WorldPresence` and
+  `MenuBackground` end. `Backdrop` and `WorldShown` join `client_screen`. `project_backdrop` is a module of `client_gui`
+  until step 7 moves it to `gui_render`. The table of
+  `panorama_view` ends. The client app writes `WorldShown`. The death screen and its confirmation
+  require `Backdrop::Gradient`. `PauseOverlay` arrives with the chord F3 and Escape. The central
+  modules lose the arms of these screens.
 - **2c** moves the world screens, deletes the central modules, and deletes `Screen` and its three
   parent enums from `client_world`. The title opens the world list through `SingleplayerEntry`.
+- **2d** adds the option "Menu Background Blur", `BackdropBlur`, the blur node after the HUD band and
+  the split draw of the batch. Each `Default` screen in a world then blurs the world and the HUD.
+
+Step 2d crosses the crate groups of the render crate, the options crate and the GUI crate. The blur
+needs a node, a radius and a split draw in one change. A split in two would leave a node with no
+writer. It stays under 1,000 lines.
 
 Between 2a and 2c, `Screen` loses variants as screens move. A system that asks "is a screen
 open" reads both the enum and `ScreenStack` until 2c. That is one migration with one end. 2c
 deletes the old path.
 
-Each step reproduces today's screens, their parents and their Escape rules. It adds no feature.
+Each step reproduces today's screens, their parents and their Escape rules. It adds no feature,
+except the three behaviours of section "The screen model": step 2b carries the death gradient and
+the pause with no menu, and step 2d carries the blur of the world.
 
 ### Steps 3 to 15: the moves
 
@@ -872,6 +982,14 @@ The maintainer considered these options.
   servers would take `save`. A `SystemId` in the resource is a second choice: it needs a
   registration and a deferred run, and a function pointer needs neither. A trait object is
   not allowed.
+- **A central table from screen to backdrop.** Rejected (determination 20). Today `panorama_view`
+  maps 19 variants of `Screen` to three panorama modes. In `gui_menus` such a table must know the
+  kinds of `session` and `worlds`. A `Backdrop` component on each kind needs no table.
+- **Several marker components for the backdrop.** Rejected (determination 20). The variants
+  exclude each other, and a set of markers allows a contradiction. One enum states one backdrop.
+- **`WorldPresence` or `MenuBackground` as a field of a screen.** Rejected (determination 20). A
+  world is a fact of the client app, not of a screen. A screen would copy it from the opener and
+  would go stale when the world appears or ends.
 - **Bevy `States` for the screen.** Rejected. `States` holds one value at a time and has no
   stack. The set of values is closed.
 - **A stack of ids, or the `Screen` enum with a stack.** Rejected. An id table is a second
@@ -918,7 +1036,7 @@ These are the strongest objections that the text does not already answer.
 
 ## Open questions
 
-None is left. Determinations 15 to 19 answer the questions of the second draft.
+None is left. Determinations 15 to 20 answer the questions of the second draft.
 
 ## References
 
