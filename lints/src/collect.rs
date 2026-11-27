@@ -1,3 +1,4 @@
+use rustc_data_structures::fx::FxHashSet;
 use rustc_hir::BodyId;
 use rustc_hir::Expr;
 use rustc_hir::ExprKind;
@@ -72,12 +73,14 @@ pub struct Collected<'tcx> {
     pub sets: Vec<(Option<String>, String, Placement)>,
     pub sites: Vec<Site<'tcx>>,
     pub observers: Vec<Leaf<'tcx>>,
+    pub condition_uses: FxHashSet<DefId>,
 }
 
 pub fn collect<'tcx>(
     tcx: TyCtxt<'tcx>,
     anchors: &Anchors,
     helper_crates: &[u64],
+    event_conditions: &FxHashSet<String>,
 ) -> Collected<'tcx> {
     let mut out = Collected::default();
     for owner in tcx.hir_body_owners() {
@@ -91,6 +94,7 @@ pub fn collect<'tcx>(
             owner,
             anchors,
             helper_crates,
+            event_conditions,
             out: &mut out,
         };
         collector.visit_body(body);
@@ -114,6 +118,7 @@ struct Collector<'a, 'tcx> {
     owner: LocalDefId,
     anchors: &'a Anchors,
     helper_crates: &'a [u64],
+    event_conditions: &'a FxHashSet<String>,
     out: &'a mut Collected<'tcx>,
 }
 
@@ -176,6 +181,12 @@ impl<'tcx> Collector<'_, 'tcx> {
             return;
         };
         let name = self.tcx.item_name(call.callee);
+        if self.is_config_method(call.callee)
+            && (name.as_str().starts_with("run_if") || name.as_str() == "distributive_run_if")
+            && let Some(condition) = call.args.get(1).copied()
+        {
+            self.note_condition_uses(condition);
+        }
         if self
             .anchors
             .method_host(self.tcx, call.callee)
@@ -332,9 +343,43 @@ impl<'tcx> Collector<'_, 'tcx> {
         }
     }
 
+    fn note_condition_uses(&mut self, condition: &'tcx Expr<'tcx>) {
+        match condition.kind {
+            ExprKind::MethodCall(_, receiver, args, _) => {
+                self.note_condition_uses(receiver);
+                for arg in args {
+                    self.note_condition_uses(arg);
+                }
+            }
+            ExprKind::Call(callee, args) => {
+                self.note_condition_uses(callee);
+                for arg in args {
+                    self.note_condition_uses(arg);
+                }
+            }
+            ExprKind::Path(..) => {
+                if let TyKind::FnDef(def, _) = *self.typeck.expr_ty(condition).kind() {
+                    self.out.condition_uses.insert(def);
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn is_event_condition(&self, expr: &'tcx Expr<'tcx>) -> bool {
-        self.condition_name(expr)
-            .is_some_and(|name| EVENT_CONDITIONS.contains(&name.as_str()))
+        let TyKind::FnDef(def, generics) = *self.typeck.expr_ty(expr).kind() else {
+            return false;
+        };
+        if !CONDITION_CRATES.contains(&self.tcx.crate_name(def.krate).as_str()) {
+            return self.event_conditions.contains(&key(self.tcx, def));
+        }
+        let name = self.tcx.item_name(def);
+        EVENT_CONDITIONS.contains(&name.as_str())
+            || (name.as_str() == "any_match_filter"
+                && generics
+                    .skip_binder()
+                    .types()
+                    .any(|ty| self.anchors.mentions_change(ty)))
     }
 
     fn condition_name(&self, expr: &'tcx Expr<'tcx>) -> Option<Symbol> {

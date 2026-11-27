@@ -1,9 +1,10 @@
 use bevy::prelude::Resource;
 
 use crate::font::Span;
-use mcrs_minecraft_lang::{EN_US, Language, Piece};
+use mcrs_minecraft_lang::{EN_US, FormatError, Language, Piece, template_pieces};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_text::{Text, TextTypes};
+use mcrs_minecraft_text_flatten::TextHost;
 
 #[derive(Resource, Debug, Default)]
 pub struct ClientLanguage(Language);
@@ -24,23 +25,30 @@ impl ClientLanguage {
     }
 
     pub fn plain_text<I: TextTypes>(&self, text: &Text<I>) -> String {
-        mcrs_minecraft_text_flatten::plain_text(&self.0, text)
+        mcrs_minecraft_text_flatten::plain_text(self, text)
     }
 
     pub fn translate(&self, key: &str, color: u32, args: &[Vec<Span>]) -> Vec<Span> {
         let mut spans = Vec::new();
         let mut literal = String::new();
-        mcrs_minecraft_lang::fill_pattern(self.get(key), |piece| match piece {
-            Piece::Literal(text) => literal.push_str(text),
-            Piece::Argument(index) => {
-                if !literal.is_empty() {
-                    spans.push(Span::new(std::mem::take(&mut literal), color));
-                }
-                if let Some(arg) = args.get(index) {
-                    spans.extend(arg.iter().cloned());
+        let template = self.get(key);
+        let pieces = match template_pieces(template, args.len()) {
+            Ok(pieces) => pieces,
+            Err(FormatError) => return vec![Span::new(template.to_owned(), color)],
+        };
+        for piece in pieces {
+            match piece {
+                Piece::Literal(text) => literal.push_str(text),
+                Piece::Argument(index) => {
+                    if !literal.is_empty() {
+                        spans.push(Span::new(std::mem::take(&mut literal), color));
+                    }
+                    if let Some(arg) = args.get(index) {
+                        spans.extend(arg.iter().cloned());
+                    }
                 }
             }
-        });
+        }
         if !literal.is_empty() {
             spans.push(Span::new(literal, color));
         }
@@ -48,8 +56,22 @@ impl ClientLanguage {
     }
 }
 
+impl TextHost for ClientLanguage {
+    fn translation<'a>(&'a self, key: &'a str) -> Option<&'a str> {
+        self.0.translation(key)
+    }
+
+    fn translates_keybind_name(&self) -> bool {
+        true
+    }
+}
+
 #[cfg(test)]
 impl ClientLanguage {
+    pub(crate) fn from_json(bytes: &[u8]) -> Self {
+        Self(Language::from_json(bytes).unwrap())
+    }
+
     pub(crate) fn corpus() -> &'static ClientLanguage {
         static LANGUAGE: std::sync::LazyLock<ClientLanguage> =
             std::sync::LazyLock::new(|| ClientLanguage::load(ResourceSet::corpus()).unwrap());

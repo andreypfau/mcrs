@@ -290,17 +290,11 @@ fn insert_status(app: &mut App, sender: watch::Sender<Bytes>) {
     );
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn status_due(publisher: Res<StatusPublisher>, clock: Res<StatusClock>) -> bool {
     publisher.is_changed() || clock.built_at.elapsed() >= STATUS_PERIOD
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "the `status_due` run condition admits the system only when the status changes or its period elapses, and each frame moves into the status channel"
-    )
-)]
 #[cfg_attr(
     mcrs_lint,
     expect(

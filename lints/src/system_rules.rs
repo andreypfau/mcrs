@@ -1,3 +1,4 @@
+use rustc_ast::LitKind;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::fx::FxHashSet;
 use rustc_data_structures::fx::FxIndexMap;
@@ -6,10 +7,12 @@ use rustc_errors::MultiSpan;
 use rustc_hir::HirId;
 use rustc_hir::def_id::DefId;
 use rustc_hir::def_id::LocalDefId;
+use rustc_lint::Level;
 use rustc_lint::Lint;
 use rustc_middle::ty::Ty;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
+use rustc_span::Symbol;
 
 use crate::anchors::Anchors;
 use crate::anchors::adt_of;
@@ -23,6 +26,7 @@ use crate::collect::LeafKind;
 use crate::collect::key;
 use crate::facts::AlwaysChanged;
 use crate::lints::ALLOC_IN_TICK;
+use crate::lints::ALLOC_SITE_COUNT;
 use crate::lints::BLOCKING_IN_SYSTEM;
 use crate::lints::EXCLUSIVE_OBSERVER;
 use crate::lints::EXCLUSIVE_SYSTEM;
@@ -195,17 +199,42 @@ fn check_system<'tcx>(
         });
     }
 
-    let mut allocs = deep.iter().flat_map(|facts| &facts.allocs);
-    if !on_event && let Some(span) = allocs.next() {
-        let count = 1 + allocs.count();
-        emit(tcx, ALLOC_IN_TICK, &target, *span, |diag| {
+    let mut sites: Vec<Span> = deep
+        .iter()
+        .flat_map(|facts| facts.allocs.iter().map(|span| span.source_callsite()))
+        .collect();
+    let mut seen_sites = FxHashSet::default();
+    sites.retain(|site| seen_sites.insert(*site));
+    if !on_event && !sites.is_empty() {
+        let count = sites.len();
+        let noun = if count == 1 { "site" } else { "sites" };
+        emit_sites(tcx, ALLOC_IN_TICK, &target, &sites, |diag| {
             diag.primary_message(format!(
-                "system `{}` allocates a heap collection on each `{schedule}` run ({count} {})",
-                target.name,
-                if count == 1 { "site" } else { "sites" }
+                "system `{}` allocates a heap collection on each `{schedule}` run ({count} {noun})",
+                target.name
             ));
             diag.help("keep the buffer in a `Local` or a resource and `clear()` it");
         });
+        let stated = stated_sites(tcx, target.hir_id);
+        let expected = tcx
+            .lint_level_spec_at_node(ALLOC_IN_TICK, target.hir_id)
+            .level()
+            == Level::Expect;
+        if expected && stated != Some(count) {
+            emit_sites(tcx, ALLOC_SITE_COUNT, &target, &sites, |diag| {
+                let found = match stated {
+                    Some(stated) => format!("the expectation states {stated}"),
+                    None => "the expectation states no count".to_owned(),
+                };
+                diag.primary_message(format!(
+                    "system `{}` allocates at {count} {noun}, {found}",
+                    target.name
+                ));
+                diag.help(format!(
+                    "state the number with `#[cfg_attr(mcrs_lint, mcrs::alloc_sites({count}))]` next to the expectation"
+                ));
+            });
+        }
     }
 
     if let Some(span) = direct
@@ -349,11 +378,49 @@ fn emit(
     span: Span,
     decorate: impl FnOnce(&mut Diag<'_, ()>),
 ) {
+    let span = span.source_callsite();
     let mut spans = MultiSpan::from_span(span);
     if span != target.span {
         spans.push_span_label(target.span, "the system");
     }
     crate::lints::emit(tcx, lint, target.hir_id, spans, decorate);
+}
+
+fn emit_sites(
+    tcx: TyCtxt<'_>,
+    lint: &'static Lint,
+    target: &Target,
+    sites: &[Span],
+    decorate: impl FnOnce(&mut Diag<'_, ()>),
+) {
+    let Some(first) = sites.first() else {
+        return;
+    };
+    let mut spans = MultiSpan::from_span(first.source_callsite());
+    for site in sites {
+        spans.push_span_label(site.source_callsite(), "allocation site");
+    }
+    spans.push_span_label(target.span, "the system");
+    crate::lints::emit(tcx, lint, target.hir_id, spans, decorate);
+}
+
+fn stated_sites(tcx: TyCtxt<'_>, hir_id: HirId) -> Option<usize> {
+    let tool = Symbol::intern("mcrs");
+    let name = Symbol::intern("alloc_sites");
+    std::iter::once(hir_id)
+        .chain(tcx.hir_parent_id_iter(hir_id))
+        .flat_map(|id| tcx.hir_attrs(id))
+        .filter(|attr| attr.path_matches(&[tool, name]))
+        .find_map(|attr| {
+            let items = attr.meta_item_list()?;
+            let [item] = items.as_slice() else {
+                return None;
+            };
+            match item.lit()?.kind {
+                LitKind::Int(count, _) => usize::try_from(count.get()).ok(),
+                _ => None,
+            }
+        })
 }
 
 #[expect(

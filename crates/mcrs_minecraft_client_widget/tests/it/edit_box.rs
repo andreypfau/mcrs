@@ -1,6 +1,7 @@
 use mcrs_minecraft_client_widget::{
-    Anchor, Caret, EditBox, GuiKey, GuiPoint, GuiRect, KeyModifiers, LengthUnit, PointerButton,
-    PointerPress, Step, WidgetEvent, WidgetId, WidgetKind, Widgets,
+    Anchor, EditBox, EditBoxFrame, EditBoxLook, EditBoxPart, EditBoxRun, GuiKey, GuiPoint, GuiRect,
+    KeyModifiers, LengthUnit, PointerButton, PointerPress, Step, WidgetEvent, WidgetId, WidgetKind,
+    Widgets,
 };
 
 use crate::screen::{button, key, mono, press, screen_of, widget};
@@ -20,10 +21,18 @@ fn editing(edit: EditBox) -> Widgets {
 }
 
 fn edit_of(screen: &Widgets) -> EditBox {
-    match screen.get(ID).map(|widget| &widget.kind) {
+    match screen.get(ID).map(|widget| widget.kind()) {
         Some(WidgetKind::EditBox(edit)) => edit.clone(),
         _ => EditBox::default(),
     }
+}
+
+fn parts_of(edit: &EditBox, now_ms: u64) -> Vec<EditBoxPart<'_>> {
+    let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+    edit.draw(EditBoxFrame::new(BOX, now_ms), &mono, &[], &mut |part| {
+        parts.push(part);
+    });
+    parts
 }
 
 fn set(screen: &mut Widgets, value: &str, caret: usize, anchor: Anchor) {
@@ -202,8 +211,16 @@ fn the_view_moves_by_width_to_keep_the_cursor_inside() {
         for pressed in keys {
             screen.key_press(*pressed, KeyModifiers::NONE, 0, &font, &mut events);
         }
-        let layout = edit_of(&screen).layout(BOX, 0, &font);
-        assert_eq!(layout.visible, visible, "{name}");
+        let edit = edit_of(&screen);
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        edit.draw(EditBoxFrame::new(BOX, 0), &font, &[], &mut |part| {
+            parts.push(part);
+        });
+        let drawn = parts.into_iter().find_map(|part| match part {
+            EditBoxPart::Text { text, .. } => Some(text),
+            _ => None,
+        });
+        assert_eq!(drawn, typed.get(visible), "{name}");
     }
 }
 
@@ -290,8 +307,7 @@ fn shift_click_keeps_the_anchor_and_a_double_click_selects_a_word() {
 
 #[test]
 fn dragging_beyond_the_right_edge_stops_at_the_visible_end() {
-    let mut edit = EditBox::default();
-    edit.border = false;
+    let mut edit = EditBox::new(EditBoxLook::Chat);
     edit.set("abcdefghijklmnop");
     let rect = GuiRect::new(0, 0, 30, 10);
     edit.click(rect, 6.0, Anchor::Move, &mono);
@@ -311,7 +327,7 @@ fn the_cursor_blinks_in_phases_of_300_ms_from_the_focus() {
     screen.focus_initial(Some(ID), 1000, &mut Vec::new());
     screen.type_text("a", &mono, &mut Vec::new());
     screen.type_text("b", &mono, &mut Vec::new());
-    let underscore = Some(Caret::Underscore(GuiPoint::new(27, 26)));
+    let underscore = Some(GuiPoint::new(27, 26));
     let cases = [
         (1000, underscore),
         (1299, underscore),
@@ -321,11 +337,14 @@ fn the_cursor_blinks_in_phases_of_300_ms_from_the_focus() {
         (1900, None),
     ];
     for (now_ms, caret) in cases {
-        assert_eq!(
-            edit_of(&screen).layout(BOX, now_ms, &mono).caret,
-            caret,
-            "at {now_ms}"
-        );
+        let edit = edit_of(&screen);
+        let drawn = parts_of(&edit, now_ms)
+            .into_iter()
+            .find_map(|part| match part {
+                EditBoxPart::CaretUnderscore { at, .. } => Some(at),
+                _ => None,
+            });
+        assert_eq!(drawn, caret, "at {now_ms}");
     }
 }
 
@@ -372,7 +391,7 @@ fn copy_and_cut_give_the_selection_and_nothing_without_one() {
         screen.change_edit_box(ID, &mono, &mut Vec::new(), |edit| {
             edit.set("abc");
             edit.set_caret(anchor, Anchor::Keep);
-            edit.editable = editable;
+            edit.set_editable(editable);
             false
         });
         let mut events = Vec::new();
@@ -417,43 +436,50 @@ fn tab_and_activation_start_edit_mode_and_an_arrow_does_not() {
 
 #[test]
 fn the_options_of_a_box_filter_cut_keep_the_focus_and_colour_it() {
-    let cases: [(&str, fn(&mut EditBox), &str, bool, u32); 5] = [
-        ("defaults", |_| {}, "a1b", false, 0xFFE0_E0E0),
+    let cases: [(&str, fn() -> EditBox, &str, bool, u32); 6] = [
+        ("defaults", EditBox::default, "a1b", false, 0xFFE0_E0E0),
         (
             "a filter refuses a value",
-            |edit| edit.filter = Some(|value| !value.contains(char::is_numeric)),
+            || EditBox::default().with_filter(|value| !value.contains(char::is_numeric)),
             "ab",
             false,
             0xFFE0_E0E0,
         ),
         (
             "a width limit refuses a wider value",
-            |edit| edit.width_limit = Some(12),
+            || EditBox::default().with_width_limit(12),
             "a1",
             false,
             0xFFE0_E0E0,
         ),
         (
             "a box that cannot lose the focus stays in edit mode",
-            |edit| edit.can_lose_focus = false,
+            || EditBox::new(EditBoxLook::CreativeSearch),
+            "a1b",
+            true,
+            0xFFFF_FFFF,
+        ),
+        (
+            "the chat box stays in edit mode",
+            || EditBox::new(EditBoxLook::Chat),
             "a1b",
             true,
             0xFFE0_E0E0,
         ),
         (
             "a box that is not editable takes its colour",
-            |edit| {
-                edit.editable = false;
-                edit.uneditable_color = 0xFF12_3456;
+            || {
+                let mut edit = EditBox::default();
+                edit.set_editable(false);
+                edit
             },
             "",
             false,
-            0xFF12_3456,
+            0xFF70_7070,
         ),
     ];
-    for (name, configure, text, editing_after, color) in cases {
-        let mut edit = EditBox::default();
-        configure(&mut edit);
+    for (name, build, text, editing_after, color) in cases {
+        let edit = build();
         let mut screen = screen_of([
             widget(1, BOX, WidgetKind::EditBox(edit)),
             button(2, 10, 50, 150, 20),
@@ -462,7 +488,11 @@ fn the_options_of_a_box_filter_cut_keep_the_focus_and_colour_it() {
         screen.type_text("a1b", &mono, &mut Vec::new());
         let edit = edit_of(&screen);
         assert_eq!(edit.text(), text, "{name}");
-        assert_eq!(edit.layout(BOX, 0, &mono).color, color, "{name}");
+        let drawn = parts_of(&edit, 0).into_iter().find_map(|part| match part {
+            EditBoxPart::Text { color, .. } => Some(color),
+            _ => None,
+        });
+        assert_eq!(drawn, Some(color), "{name}");
         press(&mut screen, 20.0, 55.0, PointerButton::Left);
         assert_eq!(screen.focused(), Some(WidgetId(2)), "{name}");
         assert_eq!(edit_of(&screen).is_editing(), editing_after, "{name}");
@@ -488,12 +518,84 @@ fn a_paste_replaces_the_selection_and_reports_a_new_value() {
         let mut screen = editing(EditBox::default());
         set(&mut screen, "abc", anchor, Anchor::Keep);
         screen.change_edit_box(ID, &mono, &mut Vec::new(), |edit| {
-            edit.editable = editable;
+            edit.set_editable(editable);
             false
         });
         let mut events = Vec::new();
         screen.paste(pasted, &mono, &mut events);
         assert_eq!(edit_of(&screen).text(), value, "{name}");
         assert_eq!(events.contains(&CHANGED), changed, "{name}");
+    }
+}
+
+#[test]
+fn colour_runs_split_the_visible_text_and_clip_to_it() {
+    let thirty = "a".repeat(30);
+    let cases = [
+        (
+            "two runs",
+            "hello world",
+            vec![EditBoxRun::new(0..5, 1), EditBoxRun::new(5..11, 2)],
+            vec![(14, "hello", 1), (44, " world", 2)],
+        ),
+        (
+            "a gap draws nothing",
+            "hello world",
+            vec![EditBoxRun::new(6..11, 2)],
+            vec![(50, "world", 2)],
+        ),
+        (
+            "runs clip to the end of the view",
+            thirty.as_str(),
+            vec![EditBoxRun::new(0..10, 1), EditBoxRun::new(10..30, 2)],
+            vec![(14, &thirty[..10], 1), (74, &thirty[..13], 2)],
+        ),
+    ];
+    for (name, text, runs, expected) in cases {
+        let mut edit = EditBox::default();
+        edit.set(text);
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        edit.draw(EditBoxFrame::new(BOX, 0), &mono, &runs, &mut |part| {
+            parts.push(part)
+        });
+        let drawn: Vec<_> = parts
+            .iter()
+            .filter_map(|part| match part {
+                EditBoxPart::Text {
+                    at, text, color, ..
+                } => Some((at.x, *text, *color)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(drawn, expected, "{name}");
+    }
+}
+
+#[test]
+fn a_suggestion_follows_the_text_only_while_the_cursor_is_an_underscore() {
+    let cases = [
+        ("after the text", "ab", 2, Some((26, "xy"))),
+        ("an empty box", "", 0, Some((13, "xy"))),
+        ("the cursor inside the text", "ab", 1, None),
+    ];
+    for (name, text, caret, expected) in cases {
+        let mut edit = EditBox::default();
+        edit.set(text);
+        edit.set_caret(caret, Anchor::Move);
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        edit.draw(
+            EditBoxFrame {
+                suggestion: Some("xy"),
+                ..EditBoxFrame::new(BOX, 0)
+            },
+            &mono,
+            &[],
+            &mut |part| parts.push(part),
+        );
+        let drawn = parts.iter().find_map(|part| match part {
+            EditBoxPart::Suggestion { at, text, .. } => Some((at.x, *text)),
+            _ => None,
+        });
+        assert_eq!(drawn, expected, "{name}");
     }
 }

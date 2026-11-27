@@ -1,5 +1,5 @@
 use mcrs_minecraft_text::color::NamedColor;
-use mcrs_minecraft_text::{Color, Style, TextTypes};
+use mcrs_minecraft_text::{Color, ResolvedStyle, TextTypes};
 
 use crate::BedrockDrops;
 
@@ -11,40 +11,16 @@ pub(crate) struct BedrockStyle {
     pub(crate) italic: bool,
 }
 
-impl BedrockStyle {
-    #[must_use]
-    pub(crate) fn update_with<I: TextTypes>(
-        self,
-        style: &Style<I>,
-        drops: &mut BedrockDrops,
-    ) -> Self {
-        if style.click_event.is_some() {
-            drops.click_events = drops.click_events.saturating_add(1);
-        }
-        if style.hover_event.is_some() {
-            drops.hover_events = drops.hover_events.saturating_add(1);
-        }
-        if style.font.is_some() {
-            drops.fonts = drops.fonts.saturating_add(1);
-        }
-        if style.strikethrough == Some(true) {
-            drops.strikethrough = drops.strikethrough.saturating_add(1);
-        }
-        if style.underlined == Some(true) {
-            drops.underlined = drops.underlined.saturating_add(1);
-        }
-
-        let color = match style.color {
-            Some(Color::Named(named)) => Some(named),
-            Some(Color::Rgb(rgb)) => Some(rgb.to_named_lossy()),
-            None => self.color,
-        };
-
+impl<I: TextTypes> From<ResolvedStyle<'_, I>> for BedrockStyle {
+    fn from(style: ResolvedStyle<'_, I>) -> Self {
         Self {
-            color,
-            obfuscated: style.obfuscated.unwrap_or(self.obfuscated),
-            bold: style.bold.unwrap_or(self.bold),
-            italic: style.italic.unwrap_or(self.italic),
+            color: style.color.map(|color| match color {
+                Color::Named(named) => named,
+                Color::Rgb(rgb) => rgb.to_named_lossy(),
+            }),
+            obfuscated: style.obfuscated,
+            bold: style.bold,
+            italic: style.italic,
         }
     }
 }

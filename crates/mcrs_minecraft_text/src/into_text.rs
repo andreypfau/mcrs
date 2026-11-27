@@ -1,6 +1,8 @@
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
 
+use uuid::Uuid;
+
 use super::{ClickEvent, Color, HoverEvent, ItemHover, Text, TextTypes};
 
 pub trait IntoText<I: TextTypes = ItemHover>: Sized {
@@ -9,6 +11,12 @@ pub trait IntoText<I: TextTypes = ItemHover>: Sized {
     fn color(self, color: impl Into<Color>) -> Text<I> {
         let mut value = self.into_text();
         value.style.color = Some(color.into());
+        value
+    }
+
+    fn default_color(self, color: impl Into<Color>) -> Text<I> {
+        let mut value = self.into_text();
+        value.style.color = value.style.color.or_else(|| Some(color.into()));
         value
     }
 
@@ -84,6 +92,18 @@ pub trait IntoText<I: TextTypes = ItemHover>: Sized {
         value.style.click_event = Some(ClickEvent::SuggestCommand {
             command: command.into(),
         });
+        value
+    }
+
+    fn on_click_open_url(self, url: impl Into<Cow<'static, str>>) -> Text<I> {
+        let mut value = self.into_text();
+        value.style.click_event = Some(ClickEvent::OpenUrl { url: url.into() });
+        value
+    }
+
+    fn on_hover_show_entity(self, id: I::EntityKey, uuid: Uuid, name: Option<Text<I>>) -> Text<I> {
+        let mut value = self.into_text();
+        value.style.hover_event = Some(HoverEvent::<I>::ShowEntity { id, uuid, name });
         value
     }
 

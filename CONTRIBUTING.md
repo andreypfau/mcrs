@@ -31,8 +31,8 @@ refactor and a second fix go in their own pull requests.
 
 - At most 1000 added lines, generated data excluded.
 - One crate group, such as `mcrs_minecraft_worldgen_*`.
-- No new crate, no new dependency, no new subsystem without a design note that the team accepted in
-  the issue.
+- No new crate, no new dependency, no new subsystem without a published RFD. See
+  [docs/rfd/0001-requests-for-discussion.md](docs/rfd/0001-requests-for-discussion.md).
 - No change to `.github/`, `xtask/`, `.config/`, `clippy.toml` or `AGENTS.md` unless the issue asks
   for it.
 
@@ -51,10 +51,6 @@ did, for example code, tests, a specification, a review or the pull request text
 you used no model. This helps the review.
 
 Answer review questions in your own words.
-
-### Two open pull requests per person
-
-You can have 2 open pull requests. A third is closed when you open it.
 
 ### Keep it mergeable
 

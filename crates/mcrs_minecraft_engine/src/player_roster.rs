@@ -56,6 +56,7 @@ type RosterQuery<'w, 's> = Populated<
         reason = "the roster moves to the coordinator by value on each tick, and the profile keeps the name as a `String`, so each row clones it"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 pub(crate) fn report_own_players(
     label: Res<DimensionLabel>,
     players: RosterQuery,

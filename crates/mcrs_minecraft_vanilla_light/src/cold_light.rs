@@ -67,6 +67,7 @@ fn cold_light_due(
         reason = "copies the player columns only when a player enters another column, and the copy moves to the light thread"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn send_cold_light(
     mut production: ResMut<ColumnProduction>,
     mut light: ResMut<ColdLightLink>,
@@ -101,6 +102,7 @@ fn cold_light_answered(light: Res<ColdLightLink>) -> bool {
         reason = "the lit sections of each answered column move into the column production"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn land_cold_light(mut production: ResMut<ColumnProduction>, mut light: ResMut<ColdLightLink>) {
     for output in light.0.outputs() {
         let LightOutput::Lit(columns) = output else {

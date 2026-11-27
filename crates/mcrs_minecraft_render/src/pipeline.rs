@@ -277,6 +277,7 @@ pub(crate) fn frame_ready(
         reason = "the pipelines are queued only when the terrain first appears or when improved transparency switches on"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(28))]
 #[cfg_attr(
     mcrs_lint,
     expect(

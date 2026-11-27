@@ -25,7 +25,7 @@ An agent reports and stops at 200k tokens of context. The main session writes a 
 Raise the effort before you change the model. Above `high`, use the next model at `medium`
 instead of `xhigh` or `max`. The agent files in `.claude/agents/` set the model and effort of
 each role. The main session runs Opus at `medium`, or Fable for a large migration. Mechanical
-work, `mcrs-update-docs` and the CI watch in `ship` run on Sonnet.
+work, `mcrs-update-docs` and a CI watch run on Sonnet.
 
 - Set the model of one job with the `model` parameter of the agent call. Do not edit the agent
   file for one job.

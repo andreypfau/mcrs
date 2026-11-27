@@ -1,0 +1,29 @@
+# Experiment DLG-EXP-007 of docs/spec/dialog.md, section 16: wire.
+# Source: the capture of the wire between the vanilla client and the vanilla server. A line has the
+# time in seconds, the direction, the phase, the packet id, the packet name, the length of the
+# packet in bytes and the packet bytes in hexadecimal. The capture keeps at most 400 bytes of a
+# packet.
+# Lines that start with "# " are notes of the fixture. The other lines are the raw capture lines.
+# The line numbers in these notes count the raw capture lines only.
+# Line 1, registry_data of the registry minecraft:dialog, configuration phase. It lists the entries
+# in this order: t:a, t:b, t:c, and the entries after t:c, which the capture cuts off.
+# Lines 2 to 7, show_dialog, id 143, play phase: the VarInt after the packet id is 1, 2, 3, 5, 7
+# and 6, and no more data follows. Entry n-1 of line 1 is the dialog. The VarInt 3 gives t:c.
+# Lines 8 and 10, show_dialog with the VarInt 0 and one network NBT. It is an inline dialog of
+# the type minecraft:notice with the title "N". Line 12 is an inline dialog of the same type with
+# the after action wait_for_response.
+# Lines 9, 11 and 13, clear_dialog, id 142: the packet has no field after its id.
+#
+1795607417.431 s2c configuration 7 registry_data 678 07106d696e6563726166743a6469616c6f670703743a61010a08000e65787465726e616c5f7469746c65000545787420410800057469746c6500084469616c6f6720410a0004626f6479080008636f6e74656e7473000748656c6c6f20410800047479706500176d696e6563726166743a706c61696e5f6d657373616765000800047479706500106d696e6563726166743a6e6f746963650003743a62010a0800057469746c6500084469616c6f6720420a0004626f6479080008636f6e74656e7473000748656c6c6f20420800047479706500176d696e6563726166743a706c61696e5f6d657373616765000800047479706500106d696e6563726166743a6e6f746963650003743a63010a08000e65787465726e616c5f7469746c65000545787420430a00026e6f0a0006616374696f6e08000269640004743a6e6f0800047479706500106d696e6563726166743a637573746f6d000800056c6162656c00044e6f2043000a00037965730a0006616374696f6e08000269640005743a7965730800047479706500106d696e6563
+1795607530.029 s2c play 143 show_dialog 3 8f0101
+1795607530.831 s2c play 143 show_dialog 3 8f0102
+1795607531.578 s2c play 143 show_dialog 3 8f0103
+1795607532.385 s2c play 143 show_dialog 3 8f0105
+1795607533.132 s2c play 143 show_dialog 3 8f0107
+1795607533.931 s2c play 143 show_dialog 3 8f0106
+1795607534.733 s2c play 143 show_dialog 50 8f01000a0800057469746c6500014e0800047479706500106d696e6563726166743a6e6f7469636501000570617573650000
+1795607535.778 s2c play 142 clear_dialog 2 8e01
+1795607536.629 s2c play 143 show_dialog 50 8f01000a0800057469746c6500014e0800047479706500106d696e6563726166743a6e6f7469636501000570617573650000
+1795607537.738 s2c play 142 clear_dialog 2 8e01
+1795607538.682 s2c play 143 show_dialog 106 8f01000a08000c61667465725f616374696f6e0011776169745f666f725f726573706f6e73650a0006616374696f6e0800056c6162656c0002476f000800057469746c6500014e0800047479706500106d696e6563726166743a6e6f7469636501000570617573650000
+1795607539.782 s2c play 142 clear_dialog 2 8e01

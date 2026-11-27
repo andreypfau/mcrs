@@ -37,6 +37,10 @@ pub static ALLOC_IN_TICK: &Lint = &lint(
     "mcrs::alloc_in_tick",
     "a tick system allocates a heap collection on each run",
 );
+pub static ALLOC_SITE_COUNT: &Lint = &lint(
+    "mcrs::alloc_site_count",
+    "the expectation of `alloc_in_tick` states another number of sites than the system has",
+);
 pub static PER_FRAME_INSERT_RESOURCE: &Lint = &lint(
     "mcrs::per_frame_insert_resource",
     "a tick system inserts a resource on each run",
@@ -76,12 +80,18 @@ pub static ALWAYS_CHANGED_FILTER: &Lint = &lint(
     "a `Changed<T>` filter on a component that a tick system writes on each run",
 );
 
-pub static LINTS: [&Lint; 15] = [
+pub static INVALID_EVENT_CONDITION: &Lint = &lint(
+    "mcrs::invalid_event_condition",
+    "`mcrs::event_condition` marks an item that is not a run condition",
+);
+
+pub static LINTS: [&Lint; 17] = [
     EXCLUSIVE_SYSTEM,
     EXCLUSIVE_OBSERVER,
     UNGATED_SYSTEM,
     BLOCKING_IN_SYSTEM,
     ALLOC_IN_TICK,
+    ALLOC_SITE_COUNT,
     PER_FRAME_INSERT_RESOURCE,
     MARKER_TOGGLE,
     TIME_CLOCK_MISMATCH,
@@ -92,6 +102,7 @@ pub static LINTS: [&Lint; 15] = [
     TOO_MANY_ARGUMENTS,
     UNIT_IN_BUNDLE,
     ALWAYS_CHANGED_FILTER,
+    INVALID_EVENT_CONDITION,
 ];
 
 pub fn emit(

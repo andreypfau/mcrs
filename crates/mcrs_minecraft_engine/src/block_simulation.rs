@@ -392,6 +392,7 @@ impl DropOutlet<'_> {
         reason = "the broadcast marks allocate only for a section whose blocks change in this tick, and the update entries move into the outbound packet"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'static>(
     mut requests: MessageReader<BlockSetRequest>,
     mut blocks: WorldViewMut,

@@ -98,9 +98,6 @@ impl Default for Transform {
     }
 }
 
-#[derive(Copy, Clone, Debug, Component, Deref)]
-pub struct OldTransform(pub Transform);
-
 #[derive(Copy, Clone, Debug, Deref, DerefMut, Component)]
 pub struct Velocity(pub DVec3);
 

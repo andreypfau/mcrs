@@ -81,8 +81,8 @@ impl OptionList {
             self.screen_width,
             text_line_extent(font.str_width(text), None),
         )?;
-        let mut label = Widget::new(id, rect, text.to_owned(), WidgetKind::SectionLabel);
-        label.area = Some(AreaSlot { area: LIST, row });
+        let label = Widget::new(id, rect, text.to_owned(), WidgetKind::SectionLabel)
+            .in_area(AreaSlot { area: LIST, row });
         Some(label)
     }
 
@@ -96,10 +96,9 @@ impl OptionList {
         Some(widgets.map(|widget| {
             let at = WidgetList::option_origin(self.screen_width, rect, column);
             column = column.saturating_add(1);
-            let mut widget =
-                widget.with_rect(GuiRect::new(at.x, at.y, BUTTON_WIDTH, BUTTON_HEIGHT));
-            widget.area = Some(AreaSlot { area: LIST, row });
             widget
+                .with_rect(GuiRect::new(at.x, at.y, BUTTON_WIDTH, BUTTON_HEIGHT))
+                .in_area(AreaSlot { area: LIST, row })
         }))
     }
 

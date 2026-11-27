@@ -1,4 +1,5 @@
 pub mod component;
+mod component_value_seed;
 pub mod definition;
 pub mod dialog;
 pub mod enchantment;
@@ -6,8 +7,6 @@ pub mod enchantment;
 pub mod consume_effect_type_keys;
 #[rustfmt::skip]
 pub mod data_component_predicate_type_keys;
-#[rustfmt::skip]
-pub mod data_component_type_keys;
 #[rustfmt::skip]
 pub mod dialog_action_type_keys;
 #[rustfmt::skip]
@@ -63,7 +62,8 @@ pub use definition::{ItemDefinitions, ItemEntry, ItemTableError};
 pub use inventory::{LAST_HOTBAR_SLOT, slots};
 pub use item_hover_map::ItemHoverMap;
 pub use kind::{ItemComponentValue, ItemDataComponent};
+pub use mcrs_minecraft_item_stack::data_component_type_keys;
 pub use patch::{ComponentMap, ComponentPatch};
-pub use stack::{HashedPatchMap, ItemStackValue, ItemStackWithSlot, ProtoStack, Template};
+pub use stack::{ItemStackValue, ItemStackWithSlot, ProtoStack, Template};
 
 pub type Text<M = mcrs_minecraft_registries::Resolved> = mcrs_minecraft_text::Text<Template<M>>;

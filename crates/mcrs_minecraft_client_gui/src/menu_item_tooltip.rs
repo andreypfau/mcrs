@@ -297,6 +297,7 @@ fn hovered_entry<'a>(
         reason = "the tooltip caches its lines, so it allocates only when the hovered stack or the tooltip style changes"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(12))]
 pub(crate) fn request_menu_item_tooltip(
     player: Query<(&PlayerHolders, &Menus, Option<&AttributeInstances>)>,
     menus: Query<(&MenuLayout, &MenuParts)>,

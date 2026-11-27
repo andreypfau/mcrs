@@ -5,7 +5,7 @@ use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_item_stack::Kind;
-use mcrs_minecraft_item_stack::write_wire_with_length;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
@@ -148,7 +148,9 @@ fn inv_cre_004_the_creative_packet_sets_a_stack_with_its_patch() {
         world.resource::<CurrentRegistries>(),
         world.resource::<ItemTable>(),
     );
-    write_wire_with_length(Some(&patched_stone()), &names, &mut body).expect("the stack encodes");
+    let stack =
+        WireStackWithLength::write(Some(&patched_stone()), &names).expect("the stack encodes");
+    body.extend_from_slice(stack.bytes());
     world.trigger(Received::<ServerboundSetCreativeModeSlot>::new(
         player,
         body.into(),

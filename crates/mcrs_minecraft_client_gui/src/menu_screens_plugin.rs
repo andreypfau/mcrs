@@ -36,7 +36,7 @@ use crate::mouse_settings_screen;
 use crate::option_sub_screen;
 use crate::options_screen;
 use crate::pause_screen;
-use crate::project_menu::{SingleplayerActive, max_gui_scale, project_menu};
+use crate::project_menu::{MenuExtent, SingleplayerActive, max_gui_scale, project_menu};
 use crate::scene::GuiAtlas;
 use crate::select_world_screen;
 use crate::session_screens::{DisconnectReason, follow_session, show_failed_start};
@@ -58,6 +58,7 @@ impl Plugin for MenuScreensPlugin {
         app.insert_resource(PreselectedWorld(self.preselected_world.clone()))
             .insert_resource(LocalOffset(self.utc_offset))
             .insert_resource(SingleplayerActive(self.singleplayer))
+            .init_resource::<MenuExtent>()
             .init_resource::<DeleteTarget>()
             .init_resource::<WorldList>()
             .init_resource::<WorldTypes>()
@@ -93,7 +94,13 @@ impl Plugin for MenuScreensPlugin {
                             resource_exists::<GuiAtlas>
                                 .and_then(resource_exists::<ClientLanguage>)
                                 .and_then(
-                                    resource_changed::<Screen>.or_else(resource_exists::<Menu>),
+                                    resource_changed::<Screen>
+                                        .or_else(resource_changed::<MenuExtent>)
+                                        .or_else(resource_changed::<ClientOptions>)
+                                        .or_else(resource_changed::<ClientLanguage>)
+                                        .or_else(resource_changed::<NewWorldForm>)
+                                        .or_else(resource_changed::<WorldTypes>)
+                                        .or_else(not(resource_exists::<Menu>)),
                                 ),
                         ),
                     )

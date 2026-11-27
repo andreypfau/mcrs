@@ -99,6 +99,7 @@ pub(crate) fn column_asks_pending(
         reason = "a snapshot is boxed only for a column that another cell asks for, and it moves into the answer mail"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 pub(crate) fn answer_column_asks(
     mut store: ResMut<ColumnStoreLink>,
     owned: Res<OwnedColumns>,

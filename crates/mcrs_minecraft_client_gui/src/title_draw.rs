@@ -67,6 +67,7 @@ pub(crate) struct TitleTexts {
         reason = "caches the notice and version lines, so it allocates only when the GUI size changes"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(8))]
 pub(crate) fn draw(
     mut state: ResMut<TitleScreenState>,
     atlas: Option<Res<GuiAtlas>>,
