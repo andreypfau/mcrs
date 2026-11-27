@@ -27,8 +27,11 @@ architecture.
   keyboard. It draws a background and a list of widgets. At most one screen is open.
 - **Parent screen**: the screen that a screen opens when it closes. A screen can have no parent
   screen.
-- **In-game screen**: a screen that draws over the world with a gradient (WID-SCR-004). Each
-  screen states if it is an in-game screen. `client-menu.md` lists them.
+- **In-game screen**: a screen that draws the gradient of WID-SCR-004, step 2, in place of the
+  panorama, the blur and the menu background texture. WID-SCR-008 lists the in-game screens.
+- **Default background**: the background of WID-SCR-004, step 3.
+- **HUD**: the parts of the GUI that the client draws over the world when no screen is open,
+  for example the hotbar, the health and the chat lines.
 - **Widget**: a part of a screen that has bounds, draws itself and can take input.
 - **Bounds**: the rectangle (`x`, `y`, `w`, `h`) of a widget in GUI units. The left edge `x`
   and the top edge `y` are in the rectangle. The right edge `x + w` and the bottom edge `y + h`
@@ -197,19 +200,32 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 - **Inputs:** the screen, W, H, and whether the client is in a world.
 - **Behavior:**
-  1. An in-game screen fills (0, 0, W, H) with a vertical gradient. The top colour is
-     `C0101010` and the bottom colour is `D0101010`.
-  2. Each other screen draws these parts, in this order:
+  1. The kind of the screen selects its background. WID-SCR-008 states the background of each
+     screen. Whether the client is in a world changes only the parts of step 3 and the texture
+     of step 4.
+  2. An in-game screen fills (0, 0, W, H) with a vertical gradient. The top colour is
+     `C0101010` and the bottom colour is `D0101010`. It draws no panorama, no blur and no menu
+     background texture.
+  3. Each screen that is not an in-game screen and has no own background in WID-SCR-008 draws
+     the default background. It has these parts, in this order:
      1. with no world, the panorama (`client-title-screen.md`, TITLE-PAN-002);
      2. the blur, when WID-SCR-005 asks for it;
      3. the menu background texture over (0, 0, W, H).
-  3. The menu background texture is `minecraft:textures/gui/menu_background.png` with no world,
+  4. The menu background texture is `minecraft:textures/gui/menu_background.png` with no world,
      and `minecraft:textures/gui/inworld_menu_background.png` in a world.
-  4. The texture tiles from the point (0, 0). One tile is the full texture over 32 × 32 GUI
+  5. The texture tiles from the point (0, 0). One tile is the full texture over 32 × 32 GUI
      units.
-- **Postconditions:** in the vanilla resource pack, each pixel of the two textures is
-  `40000000`. The texture darkens the content behind it by the alpha 64/255.
-- **Edge cases:** a screen can draw its own background. `client-menu.md` lists such screens.
+  6. In a world, the client draws the world and then the HUD before the background of the
+     screen. Each background of this rule and of WID-SCR-008 draws over them.
+- **Postconditions:**
+  - in the vanilla resource pack, each pixel of the two textures is `40000000`. The texture
+    darkens the content behind it by the alpha 64/255;
+  - in a world, the default background shows the world and the HUD blurred and darkened. With
+    no world, it shows the panorama blurred and darkened;
+  - with the blur radius 0, the default background shows the world, the HUD or the panorama
+    sharp and darkened.
+- **Edge cases:** a screen can draw its own background in place of steps 2 and 3. WID-SCR-008
+  lists such screens.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the pixel values of
 `assets/minecraft/textures/gui/menu_background.png` and
@@ -220,12 +236,13 @@ each `40000000`). Kind: layout. Confidence: medium.
 
 - **Inputs:** the blur radius `r`, an integer from 0 to 10. In the game, `r` is the option
   "Menu Background Blur" (`options.accessibility.menu_background_blurriness`). Its default is 5.
-  The image `P` is the content that the client drew before the menu background texture, in
-  pixels of the window. `P` has the size of the window framebuffer.
+  The image `P` is the content that the client drew before the background of the screen, in
+  pixels of the window. `P` has the size of the window framebuffer. In a world, `P` holds the
+  world and the HUD. With no world, `P` holds the panorama.
 - **Behavior:**
   1. When `r` is 0, there is no blur.
-  2. When `r` is 1 or more, the client blurs `P`, for example the world or the panorama. The
-     menu background texture and the widgets do not blur.
+  2. When `r` is 1 or more, the client blurs `P`. The parts of the background that the screen
+     draws, for example the menu background texture, do not blur. The widgets do not blur.
   3. The blur is six passes, in this order: horizontal, vertical, horizontal, vertical,
      horizontal, vertical. Each pass reads the result of the previous pass. The first pass reads
      `P`. The result of the sixth pass replaces `P`.
@@ -261,7 +278,7 @@ Provenance: `black_box_confirmed` for the six passes, their order and their dire
 offsets, the weights, the division and the linear filter of each input, by
 `assets/minecraft/shaders/post/box_blur.fsh` and `blur.json` of the client jar. The mean of step
 5 is the arithmetic of these samples. `source_suggested` for the option as the source of `r`, for
-the size of the image in pixels of the window and for the edge of step 6. `design` for the radius
+the content and the size of `P` and for the edge of step 6. `design` for the radius
 of mcrs. Kind: layout. Confidence: medium.
 
 ### WID-SCR-006: Separators of a screen with no list
@@ -298,6 +315,51 @@ the client jar (32 × 2 pixels each). Kind: layout. Confidence: medium.
 - **Postconditions:** a later widget draws over an earlier widget. The tooltip is above all.
 - **Edge cases:** where two widgets overlap, the press goes to the earlier widget
   (WID-PTR-002). That is the widget below.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
+
+### WID-SCR-008: Background of each screen
+
+- **Inputs:** the open screen, its state, and whether the client is in a world.
+- **Behavior:** each screen draws the background of its row. "Default" is the default
+  background of WID-SCR-004, step 3. "In-game" is the gradient of WID-SCR-004, step 2. A dash
+  shows that the screen does not open in that state.
+
+| Screen | No world | In a world | Rule |
+|--------|----------|------------|------|
+| Title screen | the panorama and its overlay; no blur, no menu background texture | — | `client-title-screen.md`, TITLE-SCR-005 |
+| Options screen, "Video Settings", "Accessibility Settings", "Controls", "Mouse Settings", "Key Binds" and each other options screen | default | default | `client-menu.md`, MENU-PROP-001; `client-controls.md` |
+| Select World, confirmation of a delete | default | — | `client-world-screens.md` |
+| Create New World | default, and the tab header texture over the header | — | `client-list.md`, TAB-AREA-001, step 6 |
+| Error screen of the saves folder | a vertical gradient from `FF402020` to `FF501010`; no panorama, no blur, no menu background texture | — | `client-world-screens.md`, WORLD-LIST-007 |
+| Connect screen, disconnected screen | default | — | `client-title-screen.md`, TITLE-PAN-004, step 5 |
+| Message screen | the panorama, the blur, `menu_background.png` | the panorama, the blur, `inworld_menu_background.png`; the panorama covers the world | TITLE-PAN-004, step 3 |
+| Level loading screen, not for a portal | as the message screen | as the message screen; the HUD does not draw | TITLE-PAN-004, step 4 |
+| Pause screen with its menu | — | default | `client-menu.md`, MENU-PAUSE-001 |
+| Pause screen with no menu | — | no background; the world and the HUD show unchanged | `client-menu.md`, MENU-PAUSE-001, edge cases |
+| Death screen, and the confirmation of its title screen button | — | a vertical gradient from `60500000` to `A0803030`; no blur, no menu background texture | `player-death.md`, PLD-SCR-004 |
+| Chat screen | — | no background; the world and the HUD show unchanged | `client-chat.md` |
+| Game mode switcher | — | its own texture only | `client-game-mode-switcher.md`, CGMS-LAY-001 |
+| Each container screen, for example the inventory, the creative inventory and a chest | — | in-game, then the window image of the screen | `client-container-screen.md`, `client-inventory.md` |
+| Sign edit, book view, book edit, book sign, and the edit screens of a command block, a structure block, a jigsaw block and a test block | — | in-game, then the image of the screen | — |
+| Server dialog | default | default | `dialog.md` |
+
+- **Postconditions:**
+  - the background depends first on the kind of the screen. The presence of a world selects
+    only the panorama and the texture of the default background;
+  - in a world, only the default background blurs the world and the HUD. The in-game gradient,
+    the death gradient, the chat screen and the game mode switcher leave them sharp;
+  - with no world, only the default background and the backgrounds of the message screen and
+    the level loading screen draw the panorama. The title screen draws the panorama with no
+    blur;
+  - the message screen and the level loading screen always draw the panorama. In a world, the
+    panorama hides the world.
+- **Edge cases:**
+  - the death gradient has the alpha `60` at the top and `A0` at the bottom. Thus the world
+    is more red and more dark at the bottom of the window;
+  - a level loading screen for a nether portal or an end portal draws an image of the portal
+    over the full window. It is out of scope;
+  - the screen of the end poem and the credits is out of scope.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
@@ -1330,7 +1392,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
    defect?
 3. An inactive checkbox has the same sprite and a white label (WID-CHK-002). Is that the
    intent?
-4. The list of in-game screens, of screens with their own background, and of option sliders
-   that wait 600 ms belongs to `client-menu.md`.
+4. The list of option sliders that wait 600 ms belongs to `client-menu.md`. WID-SCR-008 lists
+   the in-game screens and the screens with their own background.
 5. The tab order groups that the vanilla screens use are not stated. Each widget of this
    document uses the group 0.

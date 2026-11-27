@@ -1210,7 +1210,7 @@ content after a loss of power.
 | "Accessibility Settings" | no | no | of the list (LIST-BG-002) | keeps its widgets | 0 | none |
 
 - **Postconditions:**
-  - Each screen of this document draws the background of WID-SCR-004, step 2. In a world, that
+  - Each screen of this document draws the background of WID-SCR-004, step 3. In a world, that
     is the blur of WID-SCR-005 and then the texture `inworld_menu_background.png`.
   - The pause screen and the options screen draw no separators of WID-SCR-006.
   - No screen of this document names an initial widget (WID-FOC-002, step 1).
