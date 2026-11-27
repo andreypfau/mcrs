@@ -336,7 +336,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 | Message screen | the panorama, the blur, `menu_background.png` | the panorama, the blur, `inworld_menu_background.png`; the panorama covers the world | TITLE-PAN-004, step 3 |
 | Level loading screen, not for a portal | as the message screen | as the message screen; the HUD does not draw | TITLE-PAN-004, step 4 |
 | Pause screen with its menu | — | default | `client-menu.md`, MENU-PAUSE-001 |
-| Pause screen with no menu | — | no background; the world and the HUD show unchanged | `client-menu.md`, MENU-PAUSE-001, edge cases |
+| Pause screen with no menu | — | no background; the world and the HUD show unchanged | `client-menu.md`, MENU-PAUSE-008 |
 | Death screen, and the confirmation of its title screen button | — | a vertical gradient from `60500000` to `A0803030`; no blur, no menu background texture | `player-death.md`, PLD-SCR-004 |
 | Chat screen | — | no background; the world and the HUD show unchanged | `client-chat.md` |
 | Game mode switcher | — | its own texture only | `client-game-mode-switcher.md`, CGMS-LAY-001 |
