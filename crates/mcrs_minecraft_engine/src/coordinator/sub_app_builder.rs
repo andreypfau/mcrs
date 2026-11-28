@@ -9,6 +9,7 @@ use mcrs_engine_store::MemoryDisk;
 use tracing::{error, warn};
 
 use crate::assign_global_entity_id::assign_global_entity_id;
+use crate::block_break::BlockBreakPlugin;
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::cell_mail::CellMailPlugin;
 use crate::command_handoff::CommandHandoff;
@@ -218,7 +219,7 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             .copied()
             .unwrap_or_default();
         (rules.0)(&mut sub_app);
-        sub_app.add_plugins(MinecraftEntityPlugin);
+        sub_app.add_plugins((BlockBreakPlugin, MinecraftEntityPlugin));
         sub_app.add_plugins(DimHeightmapPlugin);
         sub_app.add_plugins(ColumnStorePlugin { owned });
         let default_op_level = app
