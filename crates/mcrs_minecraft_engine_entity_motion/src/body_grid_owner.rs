@@ -1,5 +1,3 @@
-use core::mem;
-
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::change_detection::Tick;
@@ -12,10 +10,7 @@ use bevy_ecs::world::Ref;
 use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
 use mcrs_minecraft_damage::Vitals;
-use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::BodyGrid;
-use mcrs_minecraft_physics::GridRow;
-use mcrs_minecraft_physics::TileBodies;
 use mcrs_minecraft_physics::grid_row;
 
 use crate::MotionId;
@@ -23,12 +18,10 @@ use crate::MotionKind;
 use crate::MotionState;
 use crate::grid_slot::GridSlot;
 use crate::living_flags::living_flags;
+use crate::part_work::PartWork;
 use crate::regrids::Regrids;
-use crate::tile_edits::Arrival;
-use crate::tile_edits::Departure;
 use crate::tile_edits::PARTS;
 use crate::tile_edits::SlotChange;
-use crate::tile_edits::TileBatch;
 use crate::tile_edits::TileEdits;
 
 type Slotted<'a> = (
@@ -43,23 +36,6 @@ type Slotted<'a> = (
 pub(crate) struct GridOwner {
     outside_step: TileEdits,
     parts: Vec<PartWork>,
-}
-
-#[derive(Default)]
-struct PartWork {
-    incoming: Vec<TileBatch>,
-    gone: Vec<Departure>,
-    added: Vec<Arrival>,
-    rows: Vec<GridRow>,
-    tiles: Vec<TileWork>,
-    filled: usize,
-}
-
-#[derive(Default)]
-struct TileWork {
-    tile: TileKey,
-    bodies: TileBodies,
-    reach: f32,
 }
 
 #[cfg_attr(
@@ -158,13 +134,7 @@ fn apply<'a>(
                 continue;
             }
             edited = true;
-            if part.incoming.len() <= source_index {
-                part.incoming
-                    .resize_with(source_index + 1, TileBatch::default);
-            }
-            if let Some(incoming) = part.incoming.get_mut(source_index) {
-                mem::swap(incoming, batch);
-            }
+            part.accept(source_index, batch);
         }
     }
     if !edited {
@@ -178,67 +148,6 @@ fn apply<'a>(
         }
     });
     for part in parts.iter_mut() {
-        let filled = part.tiles.get_mut(..part.filled).unwrap_or_default();
-        for work in filled {
-            grid.swap(work.tile, &mut work.bodies);
-            grid.widen(work.reach);
-        }
-        part.filled = 0;
-    }
-}
-
-impl PartWork {
-    fn build(&mut self, grid: &BodyGrid) {
-        let Self {
-            incoming,
-            gone,
-            added,
-            rows,
-            tiles,
-            filled,
-        } = self;
-        gone.clear();
-        added.clear();
-        for batch in incoming.iter_mut() {
-            gone.append(&mut batch.gone);
-            added.append(&mut batch.added);
-        }
-        gone.sort_unstable();
-        gone.dedup();
-        added.sort_unstable_by_key(|arrival| arrival.tile);
-        *filled = 0;
-        let (mut gone, mut added) = (&gone[..], &added[..]);
-        while let Some(tile) = next_tile(gone, added) {
-            let left = gone.partition_point(|departure| departure.tile <= tile);
-            let (here_gone, rest_gone) = gone.split_at(left);
-            let arrived = added.partition_point(|arrival| arrival.tile <= tile);
-            let (here_added, rest_added) = added.split_at(arrived);
-            (gone, added) = (rest_gone, rest_added);
-            rows.clear();
-            let kept = (grid.tile(tile).rows().iter()).filter(|row| {
-                here_gone
-                    .binary_search_by_key(&row.key, |departure| departure.key)
-                    .is_err()
-            });
-            rows.extend(kept);
-            rows.extend(here_added.iter().map(|arrival| arrival.row));
-            if tiles.len() <= *filled {
-                tiles.push(TileWork::default());
-            }
-            if let Some(work) = tiles.get_mut(*filled) {
-                work.tile = tile;
-                work.reach = work.bodies.fill(tile, rows);
-                *filled += 1;
-            }
-        }
-    }
-}
-
-fn next_tile(gone: &[Departure], added: &[Arrival]) -> Option<TileKey> {
-    match (gone.first(), added.first()) {
-        (Some(departure), Some(arrival)) => Some(departure.tile.min(arrival.tile)),
-        (Some(departure), None) => Some(departure.tile),
-        (None, Some(arrival)) => Some(arrival.tile),
-        (None, None) => None,
+        part.commit(grid);
     }
 }

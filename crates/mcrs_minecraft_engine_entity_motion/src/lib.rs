@@ -14,6 +14,7 @@ mod motion_pass_plugin;
 mod motion_state;
 mod motion_step;
 mod movers;
+mod part_work;
 mod regrids;
 mod section_cache;
 mod step_outcome;
