@@ -17,14 +17,17 @@ pub struct TooltipDisplay {
 
 impl TooltipDisplay {
     #[must_use]
-    pub fn hiding(hidden_components: impl IntoIterator<Item = ComponentType>) -> Self {
+    pub fn new(
+        hide_tooltip: bool,
+        hidden_components: impl IntoIterator<Item = ComponentType>,
+    ) -> Self {
         let mut seen: BTreeSet<ComponentType> = BTreeSet::new();
         let hidden_components: Vec<ComponentType> = hidden_components
             .into_iter()
             .filter(|component_type| seen.insert(*component_type))
             .collect();
         Self {
-            hide_tooltip: false,
+            hide_tooltip,
             hidden_components: Cow::Owned(hidden_components),
         }
     }
