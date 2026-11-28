@@ -6,12 +6,12 @@ use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine_world::palette::BiomePalette;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
-use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
     BlockEntity, SectionBlockEntities,
 };
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnSections, SectionLookup};
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_engine_world::world::storage::section_stage::SectionStage;
 use mcrs_minecraft_heightmap::{
     ColumnHeightmapSet, MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
 };

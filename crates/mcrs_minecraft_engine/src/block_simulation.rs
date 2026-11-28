@@ -19,7 +19,8 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite, VoxelUpdateSet};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
-use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::BlockTicking;
+use mcrs_minecraft_engine_world::world::storage::entity_ticking::EntityTicking;
 use mcrs_minecraft_engine_world::world::storage::random_ticks::{
     RandomListing, RandomTickIndex, RandomTickIndexPlugin,
 };

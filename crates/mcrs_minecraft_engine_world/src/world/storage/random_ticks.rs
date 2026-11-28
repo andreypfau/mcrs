@@ -13,7 +13,7 @@ use mcrs_minecraft_volume::{PaletteBuffer, SectionBlocks, SectionBlocksMut};
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 
-use crate::world::lifecycle::simulation::EntityTicking;
+use crate::world::storage::entity_ticking::EntityTicking;
 
 pub struct RandomTickIndexPlugin;
 

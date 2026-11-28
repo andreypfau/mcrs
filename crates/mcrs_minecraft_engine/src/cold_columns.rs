@@ -6,12 +6,12 @@ use bevy_ecs::resource::Resource;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
-use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::light_gate::{ColumnLightSettled, LightGated};
 use mcrs_minecraft_engine_world::world::storage::block_entity::{BlockEntity, InSection};
 use mcrs_minecraft_engine_world::world::storage::column::{
     ColumnIndex, ColumnSections, SectionLookup,
 };
+use mcrs_minecraft_engine_world::world::storage::section_stage::SectionStage;
 
 use crate::block_simulation::BlockSimulation;
 use crate::column_asks::{ColumnHold, Hold};

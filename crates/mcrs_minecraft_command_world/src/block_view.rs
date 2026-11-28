@@ -3,11 +3,11 @@ use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_command_engine::CommandFailure;
 use mcrs_minecraft_engine::teleport::MAX_XZ_BLOCKS;
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
-use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::column::{
     ColumnIndex, ColumnSections, SectionLookup,
 };
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_engine_world::world::storage::section_stage::SectionStage;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 #[derive(SystemParam)]

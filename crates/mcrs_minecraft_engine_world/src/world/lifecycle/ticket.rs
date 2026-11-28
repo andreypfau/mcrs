@@ -9,10 +9,11 @@ use crate::world::lifecycle::simulation::{
     SectionSimulation, SimulationDistance, raise_simulation_ticket, release_simulation_ticket,
     track_held_simulation_areas, track_simulation_tickets,
 };
-use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged, SectionStages};
 use crate::world::lifecycle::trace::{self, ColumnStage, ColumnTraceLog};
+use crate::world::storage::chunk_spawn_set::ChunkSpawnSet;
 use crate::world::storage::random_ticks::RandomTickIndex;
 use crate::world::storage::section::{SectionBundle, SectionIndex};
+use crate::world::storage::section_stage::{SectionStage, SectionStageChanged, SectionStages};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_voxel::SectionPos;
@@ -21,9 +22,6 @@ const MAX_DESPAWNS_PER_TICK: usize = MAX_SPAWNS_PER_TICK;
 pub const MAX_SPAWNS_PER_TICK: usize = 4096;
 
 pub struct TicketPlugin;
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ChunkSpawnSet;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnCoolSet;

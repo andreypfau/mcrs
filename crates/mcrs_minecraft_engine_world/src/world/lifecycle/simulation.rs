@@ -10,6 +10,7 @@ use crate::owned_columns::{self, OwnedColumns};
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::column_loading::ColumnLoading;
 use crate::world::lifecycle::coverage::Coverage;
+use crate::world::storage::entity_ticking::EntityTicking;
 use crate::world::storage::section::SectionIndex;
 
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
@@ -110,10 +111,6 @@ impl SectionBox {
 #[derive(Component, Clone, Copy, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct BlockTicking;
-
-#[derive(Component, Clone, Copy, Debug, Default)]
-#[component(storage = "SparseSet")]
-pub struct EntityTicking;
 
 #[derive(Component, Debug, Default)]
 pub struct SectionSimulation {
