@@ -26,12 +26,14 @@ use rustc_hash::FxHashMap;
 
 use crate::autosave::AutosaveCadence;
 use crate::banlist::BanList;
+use crate::block_mail::BlockMail;
 use crate::cell_mail::CellMail;
 use crate::channel_types::ToDim;
 use crate::cold_columns::SaveRequest;
 use crate::column_generation::{GenerationAnswer, GenerationAsk};
 use crate::column_request::ColumnRequest;
 use crate::column_store::ColumnStoreOutput;
+use crate::column_store_mail::ColumnStoreMail;
 use crate::command_handoff::CommandHandoff;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
@@ -513,14 +515,20 @@ impl DimCells {
         let CellMail {
             tickets,
             halo,
-            writes,
             crossings,
-            messages,
-            ledgers,
             views,
-            holds,
-            asks,
-            answers,
+            blocks:
+                BlockMail {
+                    writes,
+                    messages,
+                    ledgers,
+                },
+            store:
+                ColumnStoreMail {
+                    holds,
+                    asks,
+                    answers,
+                },
         } = mail;
         for &to in &dim.cells {
             if to == from {
@@ -531,33 +539,33 @@ impl DimCells {
             };
             let inbox = &mut cell.inbox;
             inbox.tickets.extend_from_slice(&tickets);
-            inbox.ledgers.extend_from_slice(&ledgers);
+            inbox.blocks.ledgers.extend_from_slice(&ledgers);
             let index = cell.index;
             inbox.halo.extend(
                 halo.iter()
                     .filter(|write| dim.reads(index, ColumnPos::from(write.pos))),
             );
             inbox.views.extend_from_slice(&views);
-            inbox.holds.extend_from_slice(&holds);
+            inbox.store.holds.extend_from_slice(&holds);
         }
         for ask in asks {
             if let Some(inbox) = inbox(cells, dim.owner(ask.column)) {
-                inbox.asks.push(ask);
+                inbox.store.asks.push(ask);
             }
         }
         for answer in answers {
             if let Some(inbox) = inbox(cells, dim.cell_at(answer.to)) {
-                inbox.answers.push(answer);
+                inbox.store.answers.push(answer);
             }
         }
         for write in writes {
             if let Some(inbox) = inbox(cells, dim.owner(ColumnPos::from(write.pos))) {
-                inbox.writes.push(write);
+                inbox.blocks.writes.push(write);
             }
         }
         for message in messages {
             if let Some(inbox) = inbox(cells, dim.owner(ColumnPos::from(message.section()))) {
-                inbox.messages.push(message);
+                inbox.blocks.messages.push(message);
             }
         }
         let mut moves = Vec::new();

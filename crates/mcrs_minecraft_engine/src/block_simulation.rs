@@ -42,9 +42,9 @@ use mcrs_minecraft_volume::{BlockVolume, PalettedSection};
 use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
+use crate::block_mail::BlockOutbox;
 use crate::block_update::{BroadcastMarks, remove_replaced_block_entities};
 use crate::bus::PacketPayload;
-use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
 use crate::column_change::ColumnChange;
 use crate::column_streams::ColumnStreams;
@@ -334,7 +334,7 @@ impl<T: TickKind> Taken<T> {
 #[derive(SystemParam)]
 struct CellLinks<'w> {
     owned: Option<Res<'w, OwnedColumns>>,
-    outbox: Option<ResMut<'w, CellOutbox>>,
+    outbox: Option<ResMut<'w, BlockOutbox>>,
 }
 
 #[derive(SystemParam)]
