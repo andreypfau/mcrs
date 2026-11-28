@@ -9,7 +9,9 @@ use crate::PlayerTable;
 use crate::Replica;
 use crate::Stage;
 use crate::StageConfig;
+use crate::StageRun;
 use crate::TickContext;
+use crate::TileBrains;
 use crate::TileWork;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
@@ -48,8 +50,27 @@ impl<B> AiDriver<B> {
     }
 
     #[must_use]
-    pub const fn stage(&self) -> &Stage<B> {
-        &self.stage
+    pub fn len(&self) -> usize {
+        self.stage.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.stage.is_empty()
+    }
+
+    #[must_use]
+    pub fn tile_of(&self, mob: EntityId) -> Option<TileKey> {
+        self.stage.tile_of(mob)
+    }
+
+    #[must_use]
+    pub fn evaluations(&self) -> u64 {
+        self.stage.evaluations()
+    }
+
+    pub fn tiles(&self) -> impl Iterator<Item = (TileKey, &TileBrains<B>)> {
+        self.stage.tiles()
     }
 
     #[must_use]
@@ -102,8 +123,9 @@ impl<B> AiDriver<B> {
         &mut self,
         world: &W,
         run: impl FnOnce(&mut [TileWork<'_, B>], &TickContext<'_, W>),
-    ) -> usize {
+    ) -> StageRun {
         let tick = self.tick;
+        let evaluations_before = self.stage.evaluations();
         let cx = TickContext {
             tick,
             config: *self.stage.config(),
@@ -117,6 +139,9 @@ impl<B> AiDriver<B> {
         let decisions = issued.len();
         self.pipeline.ready(issued);
         self.replica.retire(tick.saturating_add(1));
-        decisions
+        StageRun {
+            decisions,
+            evaluations: self.stage.evaluations().saturating_sub(evaluations_before),
+        }
     }
 }
