@@ -5,15 +5,13 @@ use bevy::image::ImageSampler;
 use bevy::math::{Rect, UVec2, Vec2};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use mcrs_minecraft_client_gui::font::Font;
-use mcrs_minecraft_client_gui::font_definition::FontOptions;
-use mcrs_minecraft_client_gui::font_glyph::{
-    ImageSource, MISSING_GLYPH_SIZE, missing_glyph_pixels,
-};
-use mcrs_minecraft_client_gui::glyph_cache::{self, CELL, COLUMNS, ROWS, SLOTS};
 use mcrs_minecraft_client_gui::inflate_zip::inflate_zip;
-use mcrs_minecraft_client_gui::language::ClientLanguage;
 use mcrs_minecraft_client_gui::sign_text::SignQuad;
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::font_definition::FontOptions;
+use mcrs_minecraft_font::font_glyph::{ImageSource, MISSING_GLYPH_SIZE, missing_glyph_pixels};
+use mcrs_minecraft_font::glyph_cache::{self, CELL, COLUMNS, ROWS, SLOTS};
+use mcrs_minecraft_font::language::ClientLanguage;
 
 use crate::stream::BlockCatalog;
 

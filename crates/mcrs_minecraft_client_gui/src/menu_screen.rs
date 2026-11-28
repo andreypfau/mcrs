@@ -10,7 +10,6 @@ use mcrs_minecraft_menu_geometry::{BackgroundPart, MenuGeometry};
 
 use crate::background_region::background_region;
 use crate::figure_placement::FigurePlacement;
-use crate::font::Font;
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_layer::GuiLayer;
 use crate::gui_quad::WHITE;
@@ -22,6 +21,7 @@ use crate::item_icons::ItemIcons;
 use crate::menu_label_text::MenuLabelText;
 use crate::menu_stacks::MenuStacks;
 use crate::slot_icon::SlotIcon;
+use mcrs_minecraft_font::font::Font;
 
 const RECIPE_BOOK_BUTTON: GuiRect = GuiRect::new(104, 61, 20, 18);
 const DRAG_FILL: u32 = 0x80FF_FFFF;
@@ -226,7 +226,8 @@ pub(crate) fn background(
 mod tests {
     use std::sync::LazyLock;
 
-    use crate::font::corpus_font;
+    use crate::corpus_font::corpus_font;
+    use crate::corpus_language::corpus_language;
     use crate::menu_test_app::ATLAS;
     use bevy::app::App;
     use bevy::math::Vec2;
@@ -265,7 +266,6 @@ mod tests {
     use super::*;
     use crate::gui_band::GuiBand;
     use crate::hotbar::hotbar;
-    use crate::language::ClientLanguage;
     use crate::menu_label_text::LABEL_COLOR;
     use crate::menu_test_app::{MODELS, TABLE};
 
@@ -610,10 +610,7 @@ mod tests {
             &[Place::Container(0), Place::Player(0), Place::Cursor],
         );
         let mut labels = MenuLabelText::default();
-        labels.write(
-            Some(&MenuTitle(Text::text("Chest"))),
-            ClientLanguage::corpus(),
-        );
+        labels.write(Some(&MenuTitle(Text::text("Chest"))), corpus_language());
         let geometry = MenuGeometry::of(MenuType::Generic9x3).unwrap();
         let top_left = IVec2::new((427 - 176) / 2, (240 - 168) / 2);
         let cursor = top_left + IVec2::new(8 + 3, 18 + 3);

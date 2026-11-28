@@ -251,6 +251,7 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_environment`: Environment attributes, timelines and world clocks
 - `mcrs_minecraft_falling_block`: The rules of a falling block: which blocks fall, the start, the tick and the landing
 - `mcrs_minecraft_fog`: The fog parameters of one frame of the client: the fog colour and the fog distances
+- `mcrs_minecraft_font`: The fonts, glyphs, text layout and client translations of a resource pack, with no Bevy
 - `mcrs_minecraft_goal_world`: The read-only block world of the goals of mobs: the ground cell of a block position, the build height, the line of sight and the straight route on walkable ground
 - `mcrs_minecraft_goals`: The goals of passive mobs for the AI stage: float, panic, random stroll, look at a player and look around, the random position searches, the goal list of the pig and the brain of each mob type with goals
 - `mcrs_minecraft_heightmap`: The four column heightmaps, the block state predicates they test, and the descent that builds them

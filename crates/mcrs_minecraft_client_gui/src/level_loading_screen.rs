@@ -2,8 +2,8 @@ use mcrs_minecraft_client_widget::{
     GuiExtent, GuiRect, Overflow, Widget, WidgetId, WidgetKind, text_line_extent,
 };
 
-use crate::font::Font;
-use crate::language::ClientLanguage;
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::language::ClientLanguage;
 
 const TEXT: WidgetId = WidgetId(0);
 const TEXT_ABOVE_CENTRE: i32 = 50;

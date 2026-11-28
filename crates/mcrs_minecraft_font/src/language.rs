@@ -1,5 +1,3 @@
-use bevy::prelude::Resource;
-
 use crate::font::Span;
 use crate::language_error::LanguageError;
 use mcrs_minecraft_lang::{EN_US, FormatError, Language, Piece, template_pieces};
@@ -7,7 +5,8 @@ use mcrs_minecraft_resource_pack::PackFiles;
 use mcrs_minecraft_text::{Text, TextTypes};
 use mcrs_minecraft_text_flatten::TextHost;
 
-#[derive(Resource, Debug, Default)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
+#[derive(Debug, Default)]
 pub struct ClientLanguage(Language);
 
 impl ClientLanguage {

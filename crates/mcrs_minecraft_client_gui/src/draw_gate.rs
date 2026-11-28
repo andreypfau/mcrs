@@ -11,15 +11,15 @@ use mcrs_minecraft_model::item_model_bake::ItemModels;
 use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_registries::CurrentRegistries;
 
-use crate::font::Font;
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_config::GuiConfig;
 use crate::gui_pointer::GuiPointer;
 use crate::gui_size::GuiSize;
-use crate::language::ClientLanguage;
 use crate::layer_due::layer_due;
 use crate::shown_drag_preview::ShownDragPreview;
 use crate::slot_icon::SlotIcon;
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::language::ClientLanguage;
 
 type HolderChanged = Or<(
     Changed<PlayerHolders>,

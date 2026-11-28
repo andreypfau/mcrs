@@ -1,6 +1,5 @@
 use crate::batch_glint::{BatchGlint, batch_has_glint};
 use crate::draw_gate::{gui_frame_changed, layer_stale};
-use crate::glyph_cache::GlyphCache;
 use crate::gui_batch::GuiBatch;
 use crate::gui_batch_build::build_gui_batch;
 use crate::gui_config::GuiConfig;
@@ -17,6 +16,7 @@ use crate::tooltip::Tooltip;
 use crate::tooltip_layer::{TooltipLayer, draw_tooltip};
 use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResourcePlugin;
+use mcrs_minecraft_font::glyph_cache::GlyphCache;
 use mcrs_minecraft_item_icon::IconMeshes;
 use mcrs_minecraft_model::item_model_bake::ItemModels;
 

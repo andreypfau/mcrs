@@ -10,11 +10,11 @@ use mcrs_minecraft_client_widget::{
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_save::{NewWorld, NewWorldMode};
 
-use crate::font::{Font, Span};
 use crate::gui_quad::WHITE;
-use crate::language::ClientLanguage;
 use crate::menu::{Menu, MenuBackground, MenuSeparators, WidgetHint, WidgetTooltip};
 use crate::option_caption::option_caption;
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
 
 pub(crate) const TABS: WidgetId = WidgetId(0);
 pub(crate) const NAME_LABEL: WidgetId = WidgetId(1);

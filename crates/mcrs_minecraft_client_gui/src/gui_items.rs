@@ -24,14 +24,14 @@ use mcrs_minecraft_render::{
     DEPTH_COMPARE, RenderPath, Terrain, Words, WorldPass, pipeline_descriptor, uniform_buffer,
 };
 
-use crate::font_unihex::CELL;
-use crate::glyph_cache::{self, GlyphCache};
 use crate::glyph_uploads::{GlyphCell, GlyphUploads, glyphs_pending, queue_glyphs};
 use crate::gui_batch::{GuiBatch, GuiDraw, GuiDrawKind};
 use crate::gui_batch_extract::{extract_gui_batch, gui_batch_extract_due};
 use crate::gui_glint::{GLINT_ALPHA, GuiGlint};
 use crate::gui_images::GuiImages;
 use crate::gui_phase::GuiPhase;
+use mcrs_minecraft_font::glyph_cache::CELL;
+use mcrs_minecraft_font::glyph_cache::{self, GlyphCache};
 
 pub struct GuiItemsPlugin;
 

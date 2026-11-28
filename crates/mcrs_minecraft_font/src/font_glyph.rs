@@ -1,4 +1,4 @@
-use bevy::math::{Rect, Vec2};
+use bevy_math::{Rect, Vec2};
 
 const BOLD_GROWTH: f32 = 0.1;
 

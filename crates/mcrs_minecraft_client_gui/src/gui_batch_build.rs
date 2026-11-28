@@ -1,7 +1,5 @@
 use crate::atlas_quad::AtlasQuad;
 use crate::batch_glint::BatchGlint;
-use crate::font::Font;
-use crate::glyph_cache::GlyphCache;
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_atlas_load::BLANK;
 use crate::gui_batch::{GLINT_BIT, GUI_ATLAS_BIT, GuiBatch, GuiDraw, GuiDrawKind};
@@ -16,6 +14,8 @@ use crate::item_icons::ItemIcons;
 use crate::scene_icon::SceneIcon;
 use bevy::math::{IRect, IVec2};
 use bevy::prelude::*;
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::glyph_cache::GlyphCache;
 use mcrs_minecraft_item_icon::{GuiVertex, IconLayer, IconMeshes, ItemIcon, Overlays};
 use mcrs_minecraft_model::atlas::rgba;
 

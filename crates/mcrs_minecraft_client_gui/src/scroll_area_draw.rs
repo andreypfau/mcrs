@@ -1,7 +1,6 @@
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_client_widget::{SelectionList, Widget, WidgetKind, WidgetPlacement};
 
-use crate::font::Font;
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_quad::GuiQuad;
 use crate::gui_quad::WHITE;
@@ -14,6 +13,7 @@ use crate::outlined_box::BLACK;
 use crate::sprite_draw::draw_sprite;
 use crate::text_draw::draw_text;
 use crate::world_presence::WorldPresence;
+use mcrs_minecraft_font::font::Font;
 
 const BACKGROUND_TILE: i32 = 32;
 const ROW_INSET: i32 = 2;
@@ -190,7 +190,7 @@ mod tests {
         };
 
         use super::*;
-        use crate::font::corpus_font;
+        use crate::corpus_font::corpus_font;
         use crate::gui_size::GuiSize;
         use crate::menu::MenuBackground;
         use crate::menu_draw::draw_menu;

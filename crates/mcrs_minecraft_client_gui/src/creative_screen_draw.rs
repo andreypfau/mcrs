@@ -20,7 +20,6 @@ use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::edit_box_draw;
 use crate::figure_placement::FigurePlacement;
-use crate::font::{Font, Span};
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_band::GuiBand;
 use crate::gui_layer::GuiLayer;
@@ -31,7 +30,6 @@ use crate::gui_size::GuiSize;
 use crate::in_game_gradient::{DIM_BOTTOM, DIM_TOP};
 use crate::irect;
 use crate::item_icons::ItemIcons;
-use crate::language::ClientLanguage;
 use crate::layer_due;
 use crate::menu_label_text::LABEL_COLOR;
 use crate::menu_screen;
@@ -40,6 +38,8 @@ use crate::shown_drag_preview::ShownDragPreview;
 use crate::slot_icon::SlotIcon;
 use crate::text_draw;
 use crate::tooltip::Tooltip;
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
 
 #[derive(Component, Default)]
 #[require(GuiLayer = GuiLayer::new(GuiBand::Screen, 4), Tooltip)]

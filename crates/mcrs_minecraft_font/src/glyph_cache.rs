@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
-use bevy::prelude::Resource;
-
-pub use crate::font_unihex::CELL;
+pub use crate::font_unihex::{CELL, CELL_BYTES};
 
 pub const COLUMNS: usize = 32;
 pub const ROWS: usize = 32;
 pub const SLOTS: usize = COLUMNS * ROWS;
 
-#[derive(Resource, Debug)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
+#[derive(Debug)]
 pub struct GlyphCache {
     frame: u64,
     resident: Vec<Option<char>>,

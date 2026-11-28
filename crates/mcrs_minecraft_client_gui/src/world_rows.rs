@@ -5,12 +5,12 @@ use mcrs_minecraft_client_widget::{WidgetKind, Widgets};
 use mcrs_minecraft_client_world::world_list::WorldList;
 use mcrs_minecraft_save::WorldSummary;
 
-use crate::font::Font;
-use crate::language::ClientLanguage;
 use crate::layer_due::gui_clock;
 use crate::menu::{Menu, RowContent};
 use crate::select_world_screen::{DELETE, LIST, PLAY, search_query, shown_worlds};
 use crate::world_entry::{DOTS_FRAME_MS, LocalOffset, loading_entry, world_entry};
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::language::ClientLanguage;
 
 const ROW_INSET: i32 = 2;
 
@@ -31,7 +31,7 @@ pub(crate) struct ShownRows {
         reason = "rebuilds the rows only when the world list, the language or the search text changes, or the loading dots advance; the search text lives in the menu widgets, and the dots follow the wall clock, so no event announces them"
     )
 )]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(26))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(21))]
 pub(crate) fn project_world_rows(
     mut menu: ResMut<Menu>,
     worlds: Res<WorldList>,

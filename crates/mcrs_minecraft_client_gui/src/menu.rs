@@ -2,10 +2,10 @@ use bevy::math::IVec2;
 use bevy::prelude::Resource;
 use mcrs_minecraft_client_widget::{WidgetId, Widgets};
 
-use crate::font::Span;
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::world_presence::WorldPresence;
+use mcrs_minecraft_font::font::Span;
 
 #[derive(Resource, Debug)]
 pub struct Menu {

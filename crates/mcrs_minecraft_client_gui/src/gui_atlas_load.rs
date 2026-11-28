@@ -1,8 +1,3 @@
-use crate::font::Font;
-use crate::font_definition::FontOptions;
-use crate::font_glyph::{MISSING_GLYPH_SIZE, missing_glyph_pixels};
-use crate::font_unihex::CELL;
-use crate::glyph_cache;
 use crate::gui_atlas_error::GuiAtlasError;
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_image_handles::GuiImageHandles;
@@ -10,7 +5,6 @@ use crate::gui_images::GuiImages;
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::inflate_zip::inflate_zip;
-use crate::language::ClientLanguage;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::stitch_request::StitchRequest;
 use crate::stitch_requests::StitchRequests;
@@ -19,6 +13,12 @@ use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerD
 use bevy::math::{IRect, IVec2, UVec2};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::font_definition::FontOptions;
+use mcrs_minecraft_font::font_glyph::{MISSING_GLYPH_SIZE, missing_glyph_pixels};
+use mcrs_minecraft_font::glyph_cache;
+use mcrs_minecraft_font::glyph_cache::CELL;
+use mcrs_minecraft_font::language::ClientLanguage;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_resource_pack::{MISSING_SIZE, RgbaImage, missing_pixels};
 use std::collections::HashMap;
@@ -388,7 +388,7 @@ pub(crate) fn crop(pixels: &[u8], stride: u32, width: u32, height: u32) -> Vec<u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::font::corpus_font;
+    use crate::corpus_font::corpus_font;
     use crate::menu_test_app::{ATLAS, stitch_requests};
 
     #[test]

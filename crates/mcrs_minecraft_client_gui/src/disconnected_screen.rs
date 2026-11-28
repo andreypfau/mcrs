@@ -3,9 +3,9 @@ use mcrs_minecraft_client_widget::{
     Widget, WidgetId, WidgetKind, text_line_extent, text_lines_extent,
 };
 
-use crate::font::{Font, Span};
-use crate::language::ClientLanguage;
-use crate::text::{self, Wrap};
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::text::{self, Wrap};
 
 pub(crate) const TITLE: WidgetId = WidgetId(0);
 pub(crate) const REASON: WidgetId = WidgetId(1);

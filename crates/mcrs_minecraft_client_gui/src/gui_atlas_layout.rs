@@ -1,11 +1,11 @@
-use crate::font_glyph::ImageSource;
-use crate::font_unihex::CELL;
-use crate::glyph_cache::{self, GlyphCache};
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::sprite::GuiSprite;
 use bevy::math::{IRect, IVec2, Rect, Vec2};
 use bevy::prelude::*;
+use mcrs_minecraft_font::font_glyph::ImageSource;
+use mcrs_minecraft_font::glyph_cache::CELL;
+use mcrs_minecraft_font::glyph_cache::{self, GlyphCache};
 use std::collections::HashMap;
 
 #[derive(Resource, Clone, Debug)]

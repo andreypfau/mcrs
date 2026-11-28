@@ -12,7 +12,6 @@ use crate::chat_view::{
 };
 use crate::draw_gate::layer_stale;
 use crate::edit_box_draw;
-use crate::font::{Font, Hover, Span};
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_band::GuiBand;
 use crate::gui_config::GuiConfig;
@@ -23,15 +22,16 @@ use crate::gui_quad::GuiQuad;
 use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
 use crate::irect;
-use crate::language::ClientLanguage;
 use crate::layer_due;
-use crate::span_events::SpanEvents;
-use crate::text::{self, Wrap};
 use crate::text_draw;
 use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_world::GuiTick;
 use mcrs_minecraft_client_world::chat::{Chat, ChatInput};
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_font::font::{Font, Hover, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::span_events::SpanEvents;
+use mcrs_minecraft_font::text::{self, Wrap};
 
 const INPUT_FILL: u32 = 0x8000_0000;
 const INPUT_TEXT: u32 = 0xFFE0_E0E0;
@@ -409,9 +409,14 @@ impl Plugin for ChatDrawPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::font::corpus_font;
-    use crate::font_glyph::Weight;
-    use crate::text::row_texts;
+    use crate::corpus_font::corpus_font;
+    use crate::corpus_language::corpus_language;
+    use mcrs_minecraft_font::font_glyph::Weight;
+    fn row_texts(rows: &[Vec<mcrs_minecraft_font::font::Span>]) -> Vec<String> {
+        rows.iter()
+            .map(|row| row.iter().map(|span| span.text.as_str()).collect())
+            .collect()
+    }
 
     #[test]
     fn a_closed_chat_redraws_only_on_the_ticks_where_a_line_fades() {
@@ -447,7 +452,7 @@ mod tests {
                     &hover,
                     427,
                     advanced,
-                    ClientLanguage::corpus(),
+                    corpus_language(),
                     corpus_font(),
                     &mut rows,
                 );
@@ -480,11 +485,7 @@ mod tests {
             let mut lines = mcrs_minecraft_chat_client::ChatLines::default();
             chat.log.push(Text::text("hi"), 0, None);
             lines.sync(&chat.log, None, |text, _, rows| {
-                rows.push(text::text_spans(
-                    text,
-                    ClientLanguage::corpus(),
-                    0xFFFF_FFFF,
-                ));
+                rows.push(text::text_spans(text, corpus_language(), 0xFFFF_FFFF));
             });
             let size = GuiSize {
                 width: 400,

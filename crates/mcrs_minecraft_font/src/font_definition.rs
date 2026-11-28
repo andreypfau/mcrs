@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use bevy::math::{Rect, URect, UVec2};
+use bevy_math::{Rect, URect, UVec2};
 
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource_pack::{PackFiles, RgbaImage, pack_path};

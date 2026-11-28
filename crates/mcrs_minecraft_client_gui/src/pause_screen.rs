@@ -3,8 +3,8 @@ use mcrs_minecraft_client_widget::{
     RowFill, Widget, WidgetId, WidgetKind, text_line_extent,
 };
 
-use crate::font::Font;
-use crate::language::ClientLanguage;
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::language::ClientLanguage;
 
 pub(crate) const TITLE: WidgetId = WidgetId(0);
 pub(crate) const BACK_TO_GAME: WidgetId = WidgetId(1);

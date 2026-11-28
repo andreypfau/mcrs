@@ -11,11 +11,11 @@ use mcrs_minecraft_client_widget::{
 };
 
 use crate::edit_input::clipboard_text;
-use crate::font::Font;
 use crate::gui_pointer::GuiPointer;
 use crate::layer_due::gui_clock;
 use crate::menu::Menu;
 use crate::menu_event::MenuEvent;
+use mcrs_minecraft_font::font::Font;
 
 const BUTTONS: [(MouseButton, PointerButton); 3] = [
     (MouseButton::Left, PointerButton::Left),

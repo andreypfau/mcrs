@@ -1,7 +1,6 @@
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_client_widget::{TabBar, TabSprite, Widget, WidgetKind};
 
-use crate::font::Font;
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_quad::GuiQuad;
 use crate::gui_sprite_id::GuiSpriteId;
@@ -10,6 +9,7 @@ use crate::irect::{irect, point};
 use crate::menu::Menu;
 use crate::sprite_draw::draw_sprite;
 use crate::text_draw::draw_str;
+use mcrs_minecraft_font::font::Font;
 
 const HEADER_TILE: i32 = 16;
 const BACKGROUND_TILE: i32 = 32;
@@ -116,7 +116,7 @@ mod tests {
         use mcrs_minecraft_client_widget::{GuiExtent, GuiInput, GuiPoint, Tab, WidgetId, Widgets};
 
         use super::*;
-        use crate::font::corpus_font;
+        use crate::corpus_font::corpus_font;
         use crate::gui_size::GuiSize;
         use crate::menu::MenuBackground;
         use crate::menu_draw::draw_menu;

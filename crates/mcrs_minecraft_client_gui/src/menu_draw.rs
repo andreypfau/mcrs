@@ -3,7 +3,6 @@ use bevy::prelude::*;
 use bevy::time::Real;
 use mcrs_minecraft_client_widget::{TOOLTIP_WRAP_WIDTH, Widget, WidgetKind, WidgetPlacement};
 
-use crate::font::Font;
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_band::GuiBand;
 use crate::gui_layer::GuiLayer;
@@ -15,9 +14,10 @@ use crate::layer_due::gui_clock;
 use crate::leaf_draw::draw_leaf;
 use crate::menu::{Menu, MenuBackground};
 use crate::scroll_area_draw::draw_scroll_area;
-use crate::text::{self, Wrap};
 use crate::tooltip::{LineGap, Tooltip};
 use crate::world_presence::WorldPresence;
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::text::{self, Wrap};
 
 const ERROR_GRADIENT_TOP: u32 = 0xFF40_2020;
 const ERROR_GRADIENT_BOTTOM: u32 = 0xFF50_1010;
@@ -158,7 +158,7 @@ fn draw_background(menu: &Menu, size: GuiSize, atlas: &GuiAtlasLayout, out: &mut
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::font::{Span, corpus_font};
+    use crate::corpus_font::corpus_font;
     use crate::gui_quad::WHITE;
     use crate::gui_sprite_id::GuiSpriteId;
     use crate::irect::irect;
@@ -169,6 +169,7 @@ mod tests {
         EditBox, EditBoxLook, GuiExtent, GuiInput, GuiKey, GuiPoint, GuiRect, KeyModifiers,
         Overflow, Slider, TooltipDelay as Delay, WidgetId, Widgets,
     };
+    use mcrs_minecraft_font::font::Span;
 
     const GUI: GuiSize = GuiSize {
         width: 320,
@@ -307,14 +308,14 @@ mod tests {
                     glyph: '_',
                     image: corpus_font().glyph('_').image.unwrap(),
                     color: shadow_color(text),
-                    weight: crate::font_glyph::Weight::Regular,
+                    weight: mcrs_minecraft_font::font_glyph::Weight::Regular,
                 },
                 GuiQuad::Glyph {
                     pen: Vec2::new((after_end) as f32, (ty) as f32),
                     glyph: '_',
                     image: corpus_font().glyph('_').image.unwrap(),
                     color: text,
-                    weight: crate::font_glyph::Weight::Regular,
+                    weight: mcrs_minecraft_font::font_glyph::Weight::Regular,
                 },
             ];
             let bar = GuiQuad::Fill {

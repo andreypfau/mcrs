@@ -1,0 +1,34 @@
+[package]
+name = "mcrs_minecraft_font"
+description = "The fonts, glyphs, text layout and client translations of a resource pack, with no Bevy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_lang.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_resource_pack.workspace = true
+mcrs_minecraft_text.workspace = true
+mcrs_minecraft_text_flatten.workspace = true
+bevy_ecs = { workspace = true, optional = true }
+bevy_math.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]
+
+[dev-dependencies]
+mcrs_minecraft_client_jar.workspace = true
+mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_model.workspace = true

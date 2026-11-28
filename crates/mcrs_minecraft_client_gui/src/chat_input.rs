@@ -20,22 +20,22 @@ use crate::chat_suggestions;
 use crate::chat_view::{self, ChatFocus};
 use crate::cursor_grab::grab;
 use crate::edit_input::{clipboard_text, copy_text, pastes, screen_key};
-use crate::font::{Font, Span};
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_pointer::GuiPointer;
 use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
 use crate::irect;
-use crate::language::ClientLanguage;
 use crate::layer_due;
 use crate::menu_input;
-use crate::span_events::SpanEvents;
-use crate::text::{self, Wrap};
 use mcrs_minecraft_client_world::chat::{
     self, Chat, ChatInput, ClientLookup, CommandWorld, SendChat,
 };
 use mcrs_minecraft_client_world::chat_history::CommandHistoryFile;
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::span_events::SpanEvents;
+use mcrs_minecraft_font::text::{self, Wrap};
 
 #[derive(Resource, Default)]
 pub struct ChatLines {

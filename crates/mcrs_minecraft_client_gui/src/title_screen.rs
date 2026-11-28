@@ -3,11 +3,11 @@ use mcrs_minecraft_client_widget::{
 };
 use mcrs_minecraft_core::VERSION;
 
-use crate::font::{Font, Span};
 use crate::gui_quad::WHITE;
 use crate::gui_sprite_id::GuiSpriteId;
-use crate::language::ClientLanguage;
 use crate::menu::{WidgetIcon, WidgetTooltip};
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
 
 pub(crate) const SINGLEPLAYER: WidgetId = WidgetId(0);
 pub(crate) const ACCESSIBILITY: WidgetId = WidgetId(1);
@@ -153,12 +153,13 @@ mod tests {
         use mcrs_minecraft_client_widget::GuiPoint;
 
         use super::super::*;
-        use crate::font::corpus_font;
+        use crate::corpus_font::corpus_font;
+        use crate::corpus_language::corpus_language;
         use crate::menu_test_app::GUI;
 
         #[test]
         fn the_title_widgets_and_the_notice_lines_sit_where_the_title_screen_places_them() {
-            let language = ClientLanguage::corpus();
+            let language = corpus_language();
             let font = corpus_font();
             let version = format!("Minecraft {}", mcrs_minecraft_core::VERSION.name);
             let cases = [

@@ -2,9 +2,9 @@ use mcrs_minecraft_client_widget::{
     BUTTON_HEIGHT, DONE_BUTTON_WIDTH, GuiExtent, GuiRect, Widget, WidgetId, WidgetKind,
 };
 
-use crate::font::Font;
-use crate::language::ClientLanguage;
 use crate::option_sub_screen::{OptionList, option_sub_screen};
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::language::ClientLanguage;
 
 pub(crate) const MOUSE_SETTINGS: WidgetId = WidgetId(3);
 

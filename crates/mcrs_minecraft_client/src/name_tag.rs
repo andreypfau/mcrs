@@ -4,12 +4,12 @@ use bevy::math::{DMat4, DQuat, DVec3, Rect, Vec2, Vec3};
 use bevy::prelude::*;
 use bevy::transform::TransformSystems;
 use mcrs_minecraft_client_gui::sign_text::{SignQuad, span_quads};
-use mcrs_minecraft_client_gui::text::text_spans;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_render::{EntityClock, EntitySlotSystems, EntityViews};
 use mcrs_minecraft_entity_visual::{
     CameraEntity, ClientEntity, EntityLight, Motion, NameTag, SyncedData, box_height, name_text,
 };
+use mcrs_minecraft_font::text::text_spans;
 use mcrs_minecraft_render::name_tag::{NameTagVertex, NameTags, SOLID_UV};
 
 use crate::glyph_page::{GlyphPage, TextAssets, ensure_loaded, linear};
@@ -337,7 +337,7 @@ fn push_piece(
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_client_gui::font_glyph::ImageSource;
+    use mcrs_minecraft_font::font_glyph::ImageSource;
 
     use super::*;
 

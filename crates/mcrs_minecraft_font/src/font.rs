@@ -1,5 +1,4 @@
-use bevy::ecs::resource::Resource;
-use bevy::math::IVec2;
+use bevy_math::IVec2;
 
 use crate::event_index::EventIndex;
 use crate::font_definition::{BitmapPage, FontOptions, Kind, Loading, Source};
@@ -12,7 +11,8 @@ use mcrs_minecraft_resource_pack::PackFiles;
 
 const DEFAULT_FONT: &str = "minecraft:default";
 
-#[derive(Resource, Clone, Debug, Default)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
+#[derive(Clone, Debug, Default)]
 pub struct Font {
     sources: Vec<Source>,
     options: FontOptions,
@@ -117,7 +117,7 @@ impl Font {
     }
 }
 
-pub(crate) fn styled(text: &str, mut bold: bool) -> impl Iterator<Item = (char, bool)> + '_ {
+pub fn styled(text: &str, mut bold: bool) -> impl Iterator<Item = (char, bool)> + '_ {
     let mut chars = text.chars().peekable();
     std::iter::from_fn(move || {
         loop {

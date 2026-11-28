@@ -2,8 +2,8 @@ use bevy::ecs::component::Component;
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_client_widget::{GuiExtent, TooltipRequest, WidgetId};
 
-use crate::font::{Font, Span};
 use crate::sprite_draw::draw_sprite;
+use mcrs_minecraft_font::font::{Font, Span};
 
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_quad::GuiQuad;

@@ -5,7 +5,6 @@ use mcrs_minecraft_client_widget::{
 };
 
 use crate::edit_box_draw::draw_edit_box;
-use crate::font::Font;
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_quad::{GuiQuad, WHITE};
 use crate::gui_sprite_id::GuiSpriteId;
@@ -15,6 +14,7 @@ use crate::outlined_box::draw_outlined_box;
 use crate::sprite_draw::draw_sprite;
 use crate::tab_bar_draw::draw_tab_bar;
 use crate::text_draw::draw_str;
+use mcrs_minecraft_font::font::Font;
 
 const ELLIPSIS: &str = "...";
 

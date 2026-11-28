@@ -4,15 +4,15 @@ use mcrs_minecraft_client_widget::{GuiExtent, GuiPoint, GuiRect};
 use mcrs_minecraft_client_world::screen::{Screen, ScreenMessage};
 use mcrs_minecraft_client_world::world_list::WorldTypes;
 
-use crate::font::Font;
 use crate::gui_band::GuiBand;
 use crate::gui_layer::GuiLayer;
 use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
 use crate::irect::irect;
-use crate::language::ClientLanguage;
 use crate::outlined_box::draw_outlined_box;
 use crate::text_draw::draw_str;
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::language::ClientLanguage;
 
 const PADDING: i32 = 12;
 const BOX_HEIGHT: i32 = 33;

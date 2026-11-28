@@ -3,7 +3,7 @@ use std::io::Write;
 use bevy::color::{ColorToPacked, Hsva, Srgba};
 use bevy::math::{IRect, IVec2, Vec2};
 
-use crate::font::Font;
+use mcrs_minecraft_font::font::Font;
 
 use crate::gui_quad::GuiQuad;
 use crate::text_draw::draw_str;
@@ -78,9 +78,9 @@ pub fn decorations(origin: IVec2, stack: &Decorated, font: &Font, out: &mut Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::font::corpus_font;
-    use crate::font_glyph::Weight;
+    use crate::corpus_font::corpus_font;
     use bevy::math::Vec2;
+    use mcrs_minecraft_font::font_glyph::Weight;
 
     #[test]
     fn bar_width_and_hue_follow_the_damage() {

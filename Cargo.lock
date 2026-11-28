@@ -4403,6 +4403,7 @@ dependencies = [
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_fog",
+ "mcrs_minecraft_font",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_inventory_client",
@@ -4551,6 +4552,7 @@ dependencies = [
  "mcrs_minecraft_entity_render",
  "mcrs_minecraft_entity_visual",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_font",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_inventory_click",
@@ -4563,7 +4565,6 @@ dependencies = [
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_item_tooltip",
- "mcrs_minecraft_lang",
  "mcrs_minecraft_menu_geometry",
  "mcrs_minecraft_menu_key",
  "mcrs_minecraft_model",
@@ -4581,7 +4582,6 @@ dependencies = [
  "mcrs_minecraft_resource_pack",
  "mcrs_minecraft_save",
  "mcrs_minecraft_text",
- "mcrs_minecraft_text_flatten",
  "mcrs_minecraft_volume",
  "mcrs_test_alloc",
  "mcrs_voxel",
@@ -5688,6 +5688,26 @@ name = "mcrs_minecraft_fog"
 version = "0.5.8"
 dependencies = [
  "libm",
+]
+
+[[package]]
+name = "mcrs_minecraft_font"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
+ "bevy_math",
+ "mcrs_minecraft_client_jar",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_lang",
+ "mcrs_minecraft_model",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
+ "mcrs_minecraft_text",
+ "mcrs_minecraft_text_flatten",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

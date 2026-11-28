@@ -3,10 +3,10 @@ use mcrs_minecraft_client_widget::{
     text_lines_extent,
 };
 
-use crate::font::{Font, Span};
 use crate::gui_quad::WHITE;
-use crate::language::ClientLanguage;
-use crate::text::{self, Wrap};
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::text::{self, Wrap};
 
 const TITLE: WidgetId = WidgetId(0);
 const REASON: WidgetId = WidgetId(1);

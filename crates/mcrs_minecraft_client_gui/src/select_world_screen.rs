@@ -6,9 +6,9 @@ use mcrs_minecraft_client_widget::{
 use mcrs_minecraft_client_world::world_list::WorldList;
 use mcrs_minecraft_save::WorldSummary;
 
-use crate::font::{Font, Span};
-use crate::language::ClientLanguage;
 use crate::menu::WidgetHint;
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
 
 pub(crate) const TITLE: WidgetId = WidgetId(0);
 pub(crate) const SEARCH: WidgetId = WidgetId(1);
@@ -188,9 +188,10 @@ mod tests {
         use time::UtcOffset;
 
         use super::super::*;
+        use crate::corpus_font::corpus_font;
+        use crate::corpus_language::corpus_language;
         use crate::create_world_screen::{NewWorldForm, create_world_menu};
         use crate::delete_world_screen::delete_world_screen;
-        use crate::font::corpus_font;
         use crate::menu_test_app::{GUI, world, world_types};
         use crate::project_menu::widgets_of;
         use crate::world_entry::world_entry;
@@ -202,7 +203,7 @@ mod tests {
             reason = "one table lists the bounds of every widget of the world screens"
         )]
         fn the_world_screens_sit_where_their_rules_place_them() {
-            let language = ClientLanguage::corpus();
+            let language = corpus_language();
             let font = corpus_font();
             let (select, _) = select_world_screen(GUI, language, font).unwrap();
             let delete = delete_world_screen(GUI, language, font, "Alpha").unwrap();

@@ -18,7 +18,7 @@ use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::rl;
 
 use crate::creative_search_index::CreativeSearchIndex;
-use crate::language::ClientLanguage;
+use mcrs_minecraft_font::language::ClientLanguage;
 
 #[derive(Clone, Copy, Debug)]
 pub struct CreativeInputs<'a> {

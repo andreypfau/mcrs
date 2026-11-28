@@ -18,18 +18,18 @@ use mcrs_minecraft_text::{Color, IntoText, Text};
 use crate::creative_screen_draw::{self, CreativeLayer, ENTRY_SIZE};
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
-use crate::font::Font;
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_config::GuiConfig;
 use crate::gui_layer::GuiLayer;
 use crate::gui_pointer::GuiPointer;
 use crate::gui_size::GuiSize;
-use crate::language::ClientLanguage;
 use crate::layer_due;
 use crate::menu_item_tooltip::{
     self, HoveredItem, HoveredStack, LineSources, MenuItemTooltip, TooltipSlot, TooltipStyle,
 };
 use crate::tooltip::Tooltip;
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::language::ClientLanguage;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AddedParts {

@@ -4,13 +4,13 @@ use mcrs_minecraft_client_world::sign::{SignFamily, SignMount};
 use mcrs_minecraft_protocol_game::text::{IntoText, Text};
 use mcrs_voxel::BlockPos;
 
-use crate::font::{Font, Span};
+use mcrs_minecraft_font::font::{Font, Span};
 
-use crate::font_glyph::ImageSource;
 use crate::gui_quad::GuiQuad;
-use crate::language::ClientLanguage;
-use crate::text::{Wrap, text_spans, wrap};
 use crate::text_draw::{Shadow, draw_glyphs};
+use mcrs_minecraft_font::font_glyph::ImageSource;
+use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::text::{Wrap, text_spans, wrap};
 
 pub const FULL_BRIGHT_LIGHT: u32 = 15_728_880;
 pub const BLACK_GLOW_OUTLINE: u32 = 0xFFF0_EBCC;
@@ -328,7 +328,8 @@ pub fn span_quads(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::font::corpus_font;
+    use crate::corpus_font::corpus_font;
+    use crate::corpus_language::corpus_language;
     use mcrs_minecraft_client_world::sign::yaw_of;
     use serde::Deserialize;
 
@@ -625,7 +626,7 @@ mod tests {
                 SignFamily::Standing,
                 0xFF00_0000,
                 font,
-                ClientLanguage::corpus(),
+                corpus_language(),
             );
             assert_eq!(got.len(), 4);
             assert_eq!(got[0].width, font.str_width("Hello"));
@@ -638,7 +639,7 @@ mod tests {
                 SignFamily::Hanging,
                 0xFF00_0000,
                 font,
-                ClientLanguage::corpus(),
+                corpus_language(),
             );
             assert!(hanging[1].width <= 60);
         }
@@ -662,7 +663,7 @@ mod tests {
                 SignFamily::Standing,
                 0xFF11_1111,
                 font,
-                ClientLanguage::corpus(),
+                corpus_language(),
             );
             assert_eq!(lines[0].spans, [Span::new("red", 0xFFFF_5555)]);
             assert_eq!(lines[1].spans, [Span::new("sign.x.y", 0xFF11_1111)]);
@@ -696,7 +697,7 @@ mod tests {
                 SignFamily::Standing,
                 0xFF11_1111,
                 font,
-                ClientLanguage::corpus(),
+                corpus_language(),
             );
             assert_eq!(got[0].spans, [Span::new("pc", 0xFFFF_5555).bold()]);
             assert_eq!(got[1].spans, [Span::new("fallback text", 0xFF11_1111)]);

@@ -2,7 +2,6 @@ use mcrs_minecraft_client_widget::{
     EditBox, EditBoxFrame, EditBoxHighlight, EditBoxPart, GuiPoint, Widget,
 };
 
-use crate::font::{Font, Span};
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_quad::GuiQuad;
 use crate::gui_sprite_id::GuiSpriteId;
@@ -10,6 +9,7 @@ use crate::irect::{irect, point};
 use crate::menu::Menu;
 use crate::sprite_draw::draw_sprite;
 use crate::text_draw::{draw_str, draw_text};
+use mcrs_minecraft_font::font::{Font, Span};
 
 const UNDERSCORE: &str = "_";
 

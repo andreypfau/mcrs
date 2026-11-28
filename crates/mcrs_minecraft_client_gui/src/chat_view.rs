@@ -3,8 +3,8 @@ use bevy::math::IVec2;
 use mcrs_minecraft_chat_client::Tag;
 use mcrs_minecraft_client_widget::GuiRect;
 
-use crate::font::{self, Font, Span};
 use crate::gui_size::GuiSize;
+use mcrs_minecraft_font::font::{self, Font, Span};
 
 pub(crate) const LINE: i32 = 9;
 pub(crate) const TEXT_OFFSET: i32 = 8;

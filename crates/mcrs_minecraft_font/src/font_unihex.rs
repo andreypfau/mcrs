@@ -3,7 +3,7 @@ use crate::inflated_file::InflatedFile;
 use crate::unihex_error::UnihexError;
 
 pub const CELL: usize = 16;
-pub(crate) const CELL_BYTES: usize = CELL * CELL * 4;
+pub const CELL_BYTES: usize = CELL * CELL * 4;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SizeOverride {

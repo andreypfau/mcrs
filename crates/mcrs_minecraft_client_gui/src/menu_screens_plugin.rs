@@ -26,7 +26,6 @@ use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_layer::spawn_layer;
 use crate::gui_phase::GuiPhase;
 use crate::gui_size::GuiSize;
-use crate::language::ClientLanguage;
 use crate::menu::Menu;
 use crate::menu_draw::MenuLayer;
 use crate::menu_event::MenuEvent;
@@ -46,6 +45,7 @@ use crate::video_settings_screen::{self, wheel_gui_scale};
 use crate::world_entry::LocalOffset;
 use crate::world_presence::world_presence;
 use crate::world_rows::{PreselectedWorld, project_world_rows};
+use mcrs_minecraft_font::language::ClientLanguage;
 
 pub struct MenuScreensPlugin {
     pub preselected_world: Option<String>,
@@ -292,7 +292,8 @@ mod tests {
         use super::super::*;
         use crate::accessibility_settings_screen::accessibility_settings_screen;
         use crate::controls_screen::controls_screen;
-        use crate::font::corpus_font;
+        use crate::corpus_font::corpus_font;
+        use crate::corpus_language::corpus_language;
         use crate::gui_config::GuiConfig;
         use crate::gui_pointer::GuiPointer;
         use crate::gui_size::GuiSize;
@@ -403,7 +404,7 @@ mod tests {
 
         #[test]
         fn the_widgets_sit_where_the_screens_place_them() {
-            let language = ClientLanguage::corpus();
+            let language = corpus_language();
             let font = corpus_font();
             let pause = pause_screen(GUI, language, font, "menu.returnToMenu").unwrap();
             let options = options_screen(GUI, language, font, 70).unwrap();

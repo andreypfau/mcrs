@@ -32,13 +32,13 @@ use crate::gui_pointer::GuiPointer;
 use crate::gui_quad::GuiQuad;
 use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
-use crate::language::ClientLanguage;
 use crate::mark_creative_screen::mark_creative_screen;
 use crate::menu_test_app::{ATLAS, MODELS, TABLE, insert_gui_assets};
 use crate::scene_icon::SceneIcon;
 use crate::shown_drag_preview::ShownDragPreview;
 use crate::slot_icon::SlotIconPlugin;
 use crate::tooltip::Tooltip;
+use mcrs_minecraft_font::language::ClientLanguage;
 
 const BUILDING_BLOCKS: usize = 0;
 const SEARCH: usize = 6;

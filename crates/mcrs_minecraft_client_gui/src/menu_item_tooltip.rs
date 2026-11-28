@@ -25,17 +25,17 @@ use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_text::Text;
 
 use crate::container_draw::ContainerLayer;
-use crate::font::{Font, Span};
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_config::GuiConfig;
 use crate::gui_layer::GuiLayer;
 use crate::gui_pointer::GuiPointer;
 use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
-use crate::language::ClientLanguage;
 use crate::layer_due;
-use crate::text::{self, Wrap};
 use crate::tooltip::{LineGap, Tooltip};
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::text::{self, Wrap};
 
 const GRID_WIDGETS: u32 = 1 << 16;
 

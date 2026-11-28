@@ -3,13 +3,13 @@ use mcrs_minecraft_chat_client::{ChatScreen, Hint, LIST_ROWS, SuggestionMenu};
 use mcrs_minecraft_item::ItemHoverMap;
 
 use crate::chat_view::{GRAY, RED};
-use crate::font::{Font, Span};
 use crate::gui_quad::GuiQuad;
 use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
-use crate::language::ClientLanguage;
-use crate::text;
 use crate::text_draw;
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::text;
 
 const ROW: i32 = 12;
 const ROW_FILL: u32 = 0xD000_0000;

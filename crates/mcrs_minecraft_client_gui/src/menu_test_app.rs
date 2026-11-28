@@ -21,18 +21,18 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_save::{ListedLevel, WorldSummary};
 use time::UtcOffset;
 
+use crate::corpus_font::corpus_font;
 use crate::creative_screen_plugin::CreativeScreenPlugin;
-use crate::font::corpus_font;
 use crate::gui_atlas_load::{GuiAtlasParts, build_gui_atlas};
 use crate::gui_config::GuiConfig;
 use crate::gui_pointer::GuiPointer;
 use crate::gui_size::GuiSize;
 use crate::inventory_clicks::InventoryClicksPlugin;
-use crate::language::ClientLanguage;
 use crate::menu::Menu;
 use crate::menu_plugin::MenuPlugin;
 use crate::menu_screens_plugin::MenuScreensPlugin;
 use crate::stitch_requests::StitchRequests;
+use mcrs_minecraft_font::language::ClientLanguage;
 
 pub(crate) static ATLAS: LazyLock<GuiAtlasParts> = LazyLock::new(|| {
     build_gui_atlas(ResourceSet::corpus(), corpus_font(), &stitch_requests()).unwrap()

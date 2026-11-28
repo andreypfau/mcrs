@@ -50,7 +50,7 @@ mcrs_minecraft_item_key.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_tooltip.workspace = true
-mcrs_minecraft_lang.workspace = true
+mcrs_minecraft_font = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_menu_geometry.workspace = true
 mcrs_minecraft_model.workspace = true
 mcrs_minecraft_model_file.workspace = true
@@ -64,7 +64,6 @@ mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_resource_pack.workspace = true
 mcrs_minecraft_save.workspace = true
 mcrs_minecraft_text.workspace = true
-mcrs_minecraft_text_flatten.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_voxel.workspace = true
 serde.workspace = true

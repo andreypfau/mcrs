@@ -1,10 +1,10 @@
-use crate::font::Font;
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_band::GuiBand;
 use crate::gui_layer::GuiLayer;
 use crate::gui_size::GuiSize;
 use crate::tooltip::{self, Tooltip};
 use bevy::prelude::*;
+use mcrs_minecraft_font::font::Font;
 
 #[derive(Component, Default)]
 #[require(GuiLayer = GuiLayer::new(GuiBand::Overlay, 0))]

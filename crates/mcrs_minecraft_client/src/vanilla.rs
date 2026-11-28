@@ -11,11 +11,11 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use mcrs_minecraft_client_jar::{self as client_jar, Files, IndexLayer, Progress};
 
 use mcrs_minecraft_client_gui::draw_centered_text;
-use mcrs_minecraft_client_gui::font::{Font, Span};
-use mcrs_minecraft_client_gui::font_definition::FontOptions;
-use mcrs_minecraft_client_gui::font_glyph::ImageSource;
 use mcrs_minecraft_client_gui::inflate_zip::inflate_zip;
 use mcrs_minecraft_client_gui::scene::GuiQuad;
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::font_definition::FontOptions;
+use mcrs_minecraft_font::font_glyph::ImageSource;
 use mcrs_minecraft_model::resource_set::{ResourceSet, is_resource};
 use mcrs_minecraft_model::vanilla_source::{fill, register_source};
 

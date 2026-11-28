@@ -19,12 +19,10 @@ use crate::death_screen::DeathScreen;
 use crate::delete_world_screen::delete_world_screen;
 use crate::disconnected_screen::disconnected_screen;
 use crate::follow_menu_events::DeleteTarget;
-use crate::font::{Font, Span};
 use crate::gui_pointer::GuiPointer;
 use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
 use crate::gui_size::window_framebuffer;
-use crate::language::ClientLanguage;
 use crate::layer_due::gui_clock;
 use crate::level_loading_screen::level_loading_screen;
 use crate::menu::{Menu, MenuBackground};
@@ -37,6 +35,8 @@ use crate::title_screen::{self, accessibility_tooltip, title_screen};
 use crate::video_settings_screen::{self, video_settings_screen};
 use crate::world_list_error_screen::world_list_error_screen;
 use crate::world_presence::world_presence;
+use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::language::ClientLanguage;
 #[derive(Resource)]
 pub(crate) struct SingleplayerActive(pub(crate) bool);
 

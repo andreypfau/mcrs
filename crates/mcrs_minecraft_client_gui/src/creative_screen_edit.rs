@@ -9,10 +9,10 @@ use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_search_edit;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::edit_input;
-use crate::font::Font;
 use crate::layer_due;
 use crate::menu_input;
 use crate::search_input::SearchInput;
+use mcrs_minecraft_font::font::Font;
 
 #[derive(SystemParam)]
 pub(crate) struct CreativeScreenEdit<'w> {

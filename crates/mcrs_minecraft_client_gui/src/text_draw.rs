@@ -1,8 +1,8 @@
 use bevy::math::{IVec2, Vec2};
 
-use crate::font::{Font, Span, styled};
-use crate::font_glyph::Weight;
 use crate::gui_quad::GuiQuad;
+use mcrs_minecraft_font::font::{Font, Span, styled};
+use mcrs_minecraft_font::font_glyph::Weight;
 
 pub fn shadow_color(color: u32) -> u32 {
     (color & 0xFF00_0000) | ((color & 0x00FC_FCFC) >> 2)
@@ -135,7 +135,7 @@ pub fn draw_centered_text(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::font::corpus_font;
+    use crate::corpus_font::corpus_font;
 
     mod jar {
         use super::*;

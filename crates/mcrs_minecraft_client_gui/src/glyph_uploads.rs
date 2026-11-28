@@ -1,10 +1,10 @@
 use bevy::asset::AssetEvent;
 use bevy::prelude::*;
 
-use crate::font::Font;
-use crate::font_unihex::CELL_BYTES;
-use crate::glyph_cache::GlyphCache;
 use crate::gui_images::GuiImages;
+use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::glyph_cache::CELL_BYTES;
+use mcrs_minecraft_font::glyph_cache::GlyphCache;
 
 pub(crate) struct GlyphCell {
     pub(crate) cell: usize,
@@ -62,8 +62,8 @@ mod tests {
 
     use super::*;
     use crate::corpus_pack::corpus_pack;
-    use crate::font_definition::FontOptions;
     use crate::inflate_zip::inflate_zip;
+    use mcrs_minecraft_font::font_definition::FontOptions;
 
     const GLYPHS: [char; 3] = ['\u{4E00}', '\u{4E01}', '\u{4E8C}'];
 
