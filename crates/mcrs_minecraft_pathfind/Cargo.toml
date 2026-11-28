@@ -1,0 +1,21 @@
+[package]
+name = "mcrs_minecraft_pathfind"
+description = "Path type queries and ground node evaluation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_physics.workspace = true
+mcrs_voxel.workspace = true
+rustc-hash.workspace = true
+
+[dev-dependencies]
+glam.workspace = true
+mcrs_minecraft_physics = { workspace = true, features = ["testing"] }

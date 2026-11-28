@@ -46,6 +46,14 @@ impl WidgetKind {
         matches!(self, Self::Text { .. } | Self::MultiLineText { .. })
     }
 
+    #[must_use]
+    pub const fn is_scroll_container(&self) -> bool {
+        matches!(
+            self,
+            Self::SelectionList(_) | Self::WidgetList(_) | Self::ScrollPanel(_)
+        )
+    }
+
     pub(crate) fn scroll_area(&self, rect: GuiRect) -> Option<ScrollArea> {
         match self {
             Self::SelectionList(list) => Some(list.scroll_area(rect)),

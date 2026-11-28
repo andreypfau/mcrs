@@ -35,8 +35,8 @@ Before you open a pull request, get the login of your user with
 - **Any other user** is an outside contributor. Follow `CONTRIBUTING.md` before
   you write code. If the task breaks one of its rules, tell the user which rule
   and do not open the pull request. Typical cases: no issue, an issue that is
-  taken, more than 1000 added lines, a new crate or dependency without an
-  accepted design note, or a third open pull request.
+  taken, more than 1000 added lines, or a new crate or dependency without a
+  published RFD.
   In the section "Models" of the pull request body, list your model and what
   you did, and each other model that took part.
 
@@ -113,7 +113,7 @@ implement one.
   `docs/spec/` in the style of `docs/spec/README.md`. A domain without a
   specification gets one before its code.
 - The author of a specification can read the reference; the implementer reads
-  the specification, its design note and the fixtures, never the reference. A
+  the specification, its RFD and the fixtures, never the reference. A
   gap in a specification is a question to its author.
 - No class, method or field name of the game's code, and no path into it,
   appears in code, comments, tests, specifications, notes, commit messages or
@@ -256,8 +256,9 @@ this file wins.
   issue with `Refs #N`. An umbrella issue lists its steps as issues.
 - No code before the issue's Decision is settled and its specification has no
   open question.
-- A design note with the crate names, the layers and the migration path comes
-  before the first code pull request of a new subsystem.
+- A published RFD (`docs/rfd/0001-requests-for-discussion.md`) with the crate
+  names, the layers and the migration path comes before the first code pull
+  request of a new crate, dependency or subsystem.
 - Split a pull request above about 3k added lines, generated data excluded, or
   across more than one crate group (crates of one domain prefix, such as
   `mcrs_minecraft_worldgen_*`). A draft never merges.
@@ -268,7 +269,7 @@ this file wins.
 - Verify what a command or a test can decide yourself; do not ask the owner to.
 - One way to do one thing. A migration ends with the old path deleted, in the PR
   that moves its last caller. At most three migrations are open at once.
-- A design note that adds a second model beside a first one names the pull request
+- An RFD that adds a second model beside a first one names the pull request
   that deletes the first.
 - Before you write a helper, a value type or a test fixture, read `docs/crates.md`
   and search the workspace for it. Use the one that exists. When the canonical
@@ -299,4 +300,10 @@ Load `orchestrate` before you start a second agent.
 
 ## Shipping
 
-Load `ship` for the path from a working tree to a merged pull request.
+- Merge only with `scripts/agent/pr-land <pr> [<reviewed head sha>]`. It waits for the checks
+  and the review bot, requires zero open review threads and squash merges. For a pull request
+  from a fork whose workflows wait for approval, give the head SHA after you reviewed that
+  head; the script approves the runs only for that head.
+- A pull request that changes a crate `*client*`, `*render*`, `mesh` or `model` needs a run of
+  the skill `run-client` before you report it as done.
+- A release, a tag and a version commit belong to the owner.

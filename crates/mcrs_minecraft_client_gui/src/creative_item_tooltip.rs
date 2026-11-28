@@ -38,6 +38,7 @@ enum AddedParts {
         reason = "the tooltip caches its lines, so it allocates only when the hovered stack or the tooltip style changes"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(13))]
 pub(crate) fn request_creative_item_tooltip(
     player: Query<(&PlayerHolders, &Menus, Option<&AttributeInstances>), With<Player>>,
     menus: Query<(&MenuLayout, &MenuParts)>,

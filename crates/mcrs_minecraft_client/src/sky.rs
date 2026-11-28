@@ -84,7 +84,9 @@ impl Plugin for SkyPlugin {
             .add_systems(OnEnter(VanillaAssets::Ready), request_sources)
             .add_systems(
                 Update,
-                assemble_arrays.run_if(resource_exists::<SkySources>),
+                assemble_arrays.run_if(
+                    resource_exists::<SkySources>.and_then(on_message::<AssetEvent<Image>>),
+                ),
             )
             .add_systems(
                 Update,

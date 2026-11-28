@@ -1,5 +1,6 @@
 use bevy::prelude::Resource;
 use mcrs_minecraft_client_widget::EditBox;
+use mcrs_minecraft_client_widget::EditBoxLook;
 use mcrs_minecraft_client_widget::LengthUnit;
 use mcrs_minecraft_creative_content::SearchQuery;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -12,7 +13,6 @@ use crate::creative_tab_content::CreativeTabContent;
 use crate::creative_tab_view::CreativeTabView;
 
 const SEARCH_MAX_LENGTH: usize = 50;
-const SEARCH_TEXT_COLOR: u32 = 0xFFFF_FFFF;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SearchReset {
@@ -32,13 +32,9 @@ pub struct CreativeScreenState {
 
 impl Default for CreativeScreenState {
     fn default() -> Self {
-        let mut search = EditBox::default();
+        let mut search = EditBox::new(EditBoxLook::CreativeSearch);
         search.set_max_length(SEARCH_MAX_LENGTH, LengthUnit::CodeUnits);
-        search.border = false;
-        search.text_color = SEARCH_TEXT_COLOR;
-        search.invert = false;
-        search.can_lose_focus = false;
-        search.set_editing(true);
+        search.focus(0);
         Self {
             selected: CreativeTabIndex::FIRST,
             scroll: 0.0,
@@ -60,6 +56,10 @@ impl CreativeScreenState {
         self.search.set("");
         self.match_search(content);
         self.apply_selection(tab, SearchReset::Keep, content);
+    }
+
+    pub fn focus_search(&mut self, now_ms: u64) {
+        self.search.focus(now_ms);
     }
 
     pub fn select(&mut self, tab: CreativeTabIndex, content: &CreativeTabContent) {

@@ -100,6 +100,7 @@ pub(crate) fn columns_cooling(dims: Query<&ColumnLoading>) -> bool {
         reason = "each snapshot is built only for a column that cools in this tick, and it moves into the column store"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(6))]
 pub(crate) fn write_cold_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     columns: Query<ColumnMarks>,
@@ -161,6 +162,7 @@ pub(crate) fn write_cold_columns(
         reason = "runs only on a save request, and each snapshot moves into the column store"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(8))]
 pub(crate) fn save_dirty_loaded_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     columns: Query<ColumnMarks>,
@@ -236,6 +238,7 @@ fn dirty_sections(column: &ColumnSections, marks: &Query<SectionMarks>) -> Vec<E
         reason = "runs only on a save request, and each snapshot moves into the column store"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(6))]
 pub(crate) fn save_all_loaded_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     snapshots: ColumnSnapshots,

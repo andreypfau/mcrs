@@ -248,7 +248,7 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_instrument`: The Instrument value of the instrument registry: its sound event, use duration, range, description and durability damage.
 - `mcrs_minecraft_jukebox_song`: The JukeboxSong value of the jukebox song registry: its sound event, description, length in seconds and comparator output.
 - `mcrs_minecraft_keys`: Names of the vanilla registries no crate keys by a type, with their entries and tags
-- `mcrs_minecraft_lang`: A language file of the game: translation patterns by key, and the filler of their placeholders
+- `mcrs_minecraft_lang`: A language file of the game: translation patterns by key, and the strict parser of their placeholders
 - `mcrs_minecraft_map_decoration`: The keys of the map decoration type registry
 - `mcrs_minecraft_mesh`: Section meshing: greedy cube faces, fluids, block models, the packed quad layout and the buffer arena
 - `mcrs_minecraft_mob_control`: The per-tick controls of a mob without Bevy: the path follower of a straight route, the move control, the jump control, the look control and the body rotation
@@ -258,6 +258,7 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_pack_file`: Files of an entity pack: lenient JSON, the client entity file, load diagnostics and the compile of Molang fields
 - `mcrs_minecraft_painting_variant`: The value of the painting variant registry
 - `mcrs_minecraft_particle`: Particle types and their options as data packs and attributes write them
+- `mcrs_minecraft_pathfind`: Path type queries and ground node evaluation
 - `mcrs_minecraft_physics`: The entity physics kernel: boxes, block shapes, the collision algorithm, step-up and the move procedure
 - `mcrs_minecraft_player_holders`: The holders of a player, their vanilla slot policy and the restore of their stacks
 - `mcrs_minecraft_pose`: The pose of an entity with its wire codec, and the dimensions of a player in each pose

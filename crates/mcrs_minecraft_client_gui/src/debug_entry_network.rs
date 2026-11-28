@@ -23,6 +23,7 @@ type Connection<'a> = (
         reason = "runs only on a debug screen refresh, at most ten times a second while the F3 overlay shows or when the stats log is due"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(9))]
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     connection: Option<Single<Connection, With<ClientConnection>>>,

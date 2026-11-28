@@ -96,6 +96,7 @@ fn on_player_info_remove(
 
 type Dressed = Or<(Without<HostEntity>, With<InventoryFigure>)>;
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn dress_due(skins: Res<ProfileSkins>, added: Query<(), (Added<ClientEntity>, Dressed)>) -> bool {
     !skins.updated.is_empty() || !added.is_empty()
 }

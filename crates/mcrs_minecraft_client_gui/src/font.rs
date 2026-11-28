@@ -5,6 +5,7 @@ use crate::font_definition::{FontOptions, Kind, Source, sources};
 use crate::font_glyph::{Glyph, ImageSource, MISSING, Weight};
 use crate::font_unihex::CELL_BYTES;
 use crate::scene::GuiQuad;
+use crate::span_events::EventIndex;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 
 const DEFAULT_FONT: &str = "minecraft:default";
@@ -157,8 +158,8 @@ pub struct Span {
     pub text: String,
     pub color: u32,
     pub bold: bool,
-    pub hover: Option<Box<Hover>>,
-    pub click: Option<Box<ClickEvent>>,
+    pub hover: Option<EventIndex>,
+    pub click: Option<EventIndex>,
     pub insertion: Option<Box<str>>,
 }
 

@@ -77,6 +77,7 @@ pub(crate) fn fetch_loading_columns(
         reason = "allocates only for a column that the store returns in this tick, and the landed sections move into the section entities"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 pub(crate) fn land_stored_columns(
     dim: Single<(Entity, &mut SectionIndex), With<Dimension>>,
     mut random_ticks: Option<ResMut<RandomTickIndex>>,

@@ -15,9 +15,9 @@ use crate::volume::{BRICK_SIDE, Volume};
 
 const WORKGROUP: u64 = 64;
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub(crate) struct ColourPipelines {
-    stages: Option<[CachedComputePipelineId; 3]>,
+    stages: [CachedComputePipelineId; 3],
 }
 
 pub(crate) fn colour_layout() -> BindGroupLayoutDescriptor {
@@ -41,36 +41,38 @@ pub(crate) fn colour_pipelines_unsettled(
     pipelines: Res<ColourPipelines>,
     cache: Res<PipelineCache>,
 ) -> bool {
-    pipelines.stages.is_none_or(|stages| {
-        stages.into_iter().any(|id| {
-            !matches!(
-                cache.get_compute_pipeline_state(id),
-                CachedPipelineState::Ok(_)
-            )
-        })
+    pipelines.stages.into_iter().any(|id| {
+        !matches!(
+            cache.get_compute_pipeline_state(id),
+            CachedPipelineState::Ok(_)
+        )
     })
 }
 
-pub(crate) fn prepare_colour_pipelines(
-    mut pipelines: ResMut<ColourPipelines>,
+pub(crate) fn init_colour_pipelines(
+    mut commands: Commands,
     asset_server: Res<AssetServer>,
+    cache: Res<PipelineCache>,
+) {
+    let shader = asset_server.load("embedded://mcrs_minecraft_light_render/shaders/colour.wgsl");
+    let stages = ["gather", "waves", "resolve"].map(|entry| {
+        cache.queue_compute_pipeline(ComputePipelineDescriptor {
+            label: Some(format!("light colour {entry}").into()),
+            layout: vec![colour_layout()],
+            shader: shader.clone(),
+            entry_point: Some(entry.into()),
+            ..default()
+        })
+    });
+    commands.insert_resource(ColourPipelines { stages });
+}
+
+pub(crate) fn prepare_colour_pipelines(
+    pipelines: Res<ColourPipelines>,
     cache: Res<PipelineCache>,
     mut failed: Local<HashSet<CachedComputePipelineId>>,
 ) {
-    if pipelines.stages.is_none() {
-        let shader =
-            asset_server.load("embedded://mcrs_minecraft_light_render/shaders/colour.wgsl");
-        pipelines.stages = Some(["gather", "waves", "resolve"].map(|entry| {
-            cache.queue_compute_pipeline(ComputePipelineDescriptor {
-                label: Some(format!("light colour {entry}").into()),
-                layout: vec![colour_layout()],
-                shader: shader.clone(),
-                entry_point: Some(entry.into()),
-                ..default()
-            })
-        }));
-    }
-    for id in pipelines.stages.into_iter().flatten() {
+    for id in pipelines.stages {
         if let CachedPipelineState::Err(error) = cache.get_compute_pipeline_state(id)
             && !matches!(
                 error,
@@ -114,11 +116,11 @@ pub(crate) fn propagate_colour(
     queue: Res<RenderQueue>,
     mut ctx: RenderContext,
 ) {
-    let (Some(mut volume), Some(stages)) = (volume, pipelines.stages) else {
+    let Some(mut volume) = volume else {
         return;
     };
     let [Some(gather), Some(waves), Some(resolve)] =
-        stages.map(|id| cache.get_compute_pipeline(id))
+        pipelines.stages.map(|id| cache.get_compute_pipeline(id))
     else {
         return;
     };

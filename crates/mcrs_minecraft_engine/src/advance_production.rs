@@ -29,6 +29,7 @@ use crate::foreign_views::ForeignViews;
         reason = "the halo changes move out of the production state each run, and the loaded section data moves on to the column store and the light engine"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 pub(crate) fn advance_production(
     mut production: ResMut<ColumnProduction>,
     mut store: ResMut<ColumnStoreLink>,

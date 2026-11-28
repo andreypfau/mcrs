@@ -1,0 +1,23 @@
+# Experiment DLG-EXP-008 of docs/spec/dialog.md, section 16: payload length.
+# Source: the log of the vanilla server. Each line reports the end of one raw connection. The
+# connection sends custom_click_action. The name of the player is the label of the case. The
+# saved logs do not hold the packet that each case sent, nor the meaning of the label.
+# "lost connection: Disconnected" means that the client closed the connection.
+# A case that has "Failed to decode packet" has a packet that the server rejects.
+# Lines that start with "# " are notes of the fixture. The other lines are the raw log lines.
+# Two edits: the UUID of each connection is replaced with <uuid>, and the name of the exception
+# class is replaced with <decode error>.
+#
+[20:51:04] [Server thread/INFO]: Raw2 (<uuid>) lost connection: Disconnected
+[20:51:08] [Server thread/INFO]: Raw65536 (<uuid>) lost connection: Disconnected
+[20:51:08] [Server thread/INFO]: Raw65537 (<uuid>) lost connection: Internal Exception: <decode error>: Failed to decode packet 'serverbound/minecraft:custom_click_action'
+[20:51:13] [Server thread/INFO]: Raw0 (<uuid>) lost connection: Disconnected
+[20:51:23] [Server thread/INFO]: A32000 (<uuid>) lost connection: Disconnected
+[20:51:23] [Server thread/INFO]: A32768 (<uuid>) lost connection: Internal Exception: <decode error>: Failed to decode packet 'serverbound/minecraft:custom_click_action'
+[20:51:24] [Server thread/INFO]: A33000 (<uuid>) lost connection: Internal Exception: <decode error>: Failed to decode packet 'serverbound/minecraft:custom_click_action'
+[20:51:26] [Server thread/INFO]: A60000 (<uuid>) lost connection: Internal Exception: <decode error>: Failed to decode packet 'serverbound/minecraft:custom_click_action'
+[20:51:31] [Server thread/INFO]: D10 (<uuid>) lost connection: Disconnected
+[20:51:34] [Server thread/INFO]: D15 (<uuid>) lost connection: Disconnected
+[20:51:34] [Server thread/INFO]: D16 (<uuid>) lost connection: Internal Exception: <decode error>: Failed to decode packet 'serverbound/minecraft:custom_click_action'
+[20:51:36] [Server thread/INFO]: D17 (<uuid>) lost connection: Internal Exception: <decode error>: Failed to decode packet 'serverbound/minecraft:custom_click_action'
+[20:51:38] [Server thread/INFO]: D40 (<uuid>) lost connection: Internal Exception: <decode error>: Failed to decode packet 'serverbound/minecraft:custom_click_action'

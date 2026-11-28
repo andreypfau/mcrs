@@ -19,6 +19,11 @@ pub struct Enabled;
 #[derive(Component)]
 pub struct Age(pub u32);
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+pub fn enabled_changed(enabled: Option<Res<Enabled>>) -> bool {
+    enabled.is_some_and(|enabled| enabled.is_changed())
+}
+
 #[cfg_attr(mcrs_lint, expect(mcrs::ungated_system, reason = "fixture"))]
 fn grow(mut ages: Query<&mut Age>) {
     for mut age in &mut ages {

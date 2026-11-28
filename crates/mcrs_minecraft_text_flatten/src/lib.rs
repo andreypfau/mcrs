@@ -1,9 +1,11 @@
 mod flatten;
-mod legacy_text;
 mod plain_text;
-mod run_style;
+mod projection;
+mod text_host;
+mod unit_budget;
 
 pub use flatten::flatten;
-pub use legacy_text::legacy_text;
 pub use plain_text::plain_text;
-pub use run_style::RunStyle;
+pub use projection::Projection;
+pub use text_host::{NoHost, TextHost};
+pub use unit_budget::{MAX_UNITS, UnitBudget};

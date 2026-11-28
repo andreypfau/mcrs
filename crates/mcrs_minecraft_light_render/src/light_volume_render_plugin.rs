@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::render_resource::BindGroup;
 use bevy::render::renderer::{RenderAdapter, RenderDevice};
-use bevy::render::{Render, RenderApp, RenderSystems};
+use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use mcrs_minecraft_render::sky::ExtractedSky;
 use mcrs_minecraft_render::{LightTint, RenderPath, WorldPass};
 
@@ -50,7 +50,7 @@ impl Plugin for LightVolumeRenderPlugin {
                 layout: volume::volume_layout(),
                 bind_group: None,
             })
-            .init_resource::<colour::ColourPipelines>()
+            .add_systems(RenderStartup, colour::init_colour_pipelines)
             .add_systems(
                 Render,
                 (

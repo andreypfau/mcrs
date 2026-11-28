@@ -153,6 +153,14 @@ mod loop_plugin {
             reason = "the hand-off stamp measures wall-clock time for the stalled-writer check, which must not depend on the game clock"
         )
     )]
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::alloc_in_tick,
+            reason = "the sites build the disconnect text of a malformed packet, so a tick allocates only when a peer sends one and then drops its connection"
+        )
+    )]
+    #[cfg_attr(mcrs_lint, mcrs::alloc_sites(15))]
     pub fn run_event_loop(
         mut query: Populated<(
             Entity,

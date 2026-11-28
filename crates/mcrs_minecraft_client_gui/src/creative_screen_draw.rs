@@ -1,7 +1,7 @@
 use bevy::math::{IRect, IVec2};
 use bevy::prelude::*;
 use bevy::time::Real;
-use mcrs_minecraft_client_widget::{GuiPoint, GuiRect};
+use mcrs_minecraft_client_widget::{EditBoxHighlight, GuiPoint, GuiRect};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_engine_inventory_menu::{MenuParts, Menus};
 use mcrs_minecraft_engine_item::Slots;
@@ -62,7 +62,7 @@ pub(crate) fn draw_creative_screen(
     icons: ItemIcons,
     slot_icons: Query<&'static SlotIcon>,
     mut stacks: Local<MenuStacks>,
-    mut text_tooltip: Local<CreativeTextTooltip>,
+    text_tooltip: Res<CreativeTextTooltip>,
     mut scene: ResMut<GuiScene>,
 ) {
     let (Some(atlas), Some(language)) = (atlas, language) else {
@@ -77,9 +77,6 @@ pub(crate) fn draw_creative_screen(
     stacks.collect(layout, parts, player.cursor, |slot| {
         holders.get(slot.holder).ok()?.get(usize::from(slot.index))
     });
-    if language.is_changed() {
-        text_tooltip.shown = None;
-    }
     let no_drag = DragPreview::default();
     let frame = CreativeFrame {
         state: &creative,
@@ -91,7 +88,7 @@ pub(crate) fn draw_creative_screen(
         language: &language,
         now_ms: menu_input::menu_clock(&time),
     };
-    creative_screen(&frame, &icons, &mut text_tooltip, &mut scene);
+    creative_screen(&frame, &icons, &text_tooltip, &mut scene);
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,21 +106,30 @@ impl TextTarget {
     }
 }
 
-#[derive(Default)]
+#[derive(Resource, Default)]
 pub(crate) struct CreativeTextTooltip {
-    shown: Option<TextTarget>,
-    lines: Vec<Vec<Span>>,
+    lines: Vec<(TextTarget, Vec<Vec<Span>>)>,
+}
+
+pub(crate) fn rebuild_creative_text(
+    language: Res<ClientLanguage>,
+    mut tooltip: ResMut<CreativeTextTooltip>,
+) {
+    let targets = CreativeTabIndex::all()
+        .map(TextTarget::Tab)
+        .chain([TextTarget::DestroySlot]);
+    tooltip.lines.clear();
+    for target in targets {
+        let spans = vec![Span::new(language.get(target.key()), WHITE)];
+        tooltip.lines.push((target, vec![spans]));
+    }
 }
 
 impl CreativeTextTooltip {
-    fn request(&mut self, target: TextTarget, language: &ClientLanguage, scene: &mut GuiScene) {
-        if self.shown != Some(target) {
-            self.lines.clear();
-            self.lines
-                .push(vec![Span::new(language.get(target.key()), WHITE)]);
-            self.shown = Some(target);
+    fn request(&self, target: TextTarget, scene: &mut GuiScene) {
+        if let Some((_, lines)) = self.lines.iter().find(|(known, _)| *known == target) {
+            scene.tooltip.request_lines(scene.cursor, lines);
         }
-        scene.tooltip.request_lines(scene.cursor, &self.lines);
     }
 }
 
@@ -153,7 +159,7 @@ impl CreativeFrame<'_> {
 fn creative_screen(
     frame: &CreativeFrame,
     icons: &ItemIcons,
-    text_tooltip: &mut CreativeTextTooltip,
+    text_tooltip: &CreativeTextTooltip,
     scene: &mut GuiScene,
 ) {
     let window = CreativeGeometry::window(scene.size.width, scene.size.height);
@@ -183,9 +189,10 @@ fn creative_screen(
         edit_box_draw::draw_edit_box_in(
             offset(window, CreativeGeometry::SEARCH_BOX),
             None,
+            EditBoxHighlight::Off,
             state.search_box(),
             frame.now_ms,
-            &frame.atlas.font,
+            frame.atlas,
             &mut scene.quads,
         );
     }
@@ -328,7 +335,7 @@ fn draw_entry(frame: &CreativeFrame, at: IVec2, index: u16, scene: &mut GuiScene
 
 fn request_tab_tooltip(
     frame: &CreativeFrame,
-    text_tooltip: &mut CreativeTextTooltip,
+    text_tooltip: &CreativeTextTooltip,
     scene: &mut GuiScene,
     window: GuiPoint,
 ) {
@@ -337,19 +344,19 @@ fn request_tab_tooltip(
     else {
         return;
     };
-    text_tooltip.request(TextTarget::Tab(tab), frame.language, scene);
+    text_tooltip.request(TextTarget::Tab(tab), scene);
 }
 
 fn request_destroy_tooltip(
     frame: &CreativeFrame,
-    text_tooltip: &mut CreativeTextTooltip,
+    text_tooltip: &CreativeTextTooltip,
     scene: &mut GuiScene,
     hit: CreativeHit,
 ) {
     if hit != CreativeHit::DestroySlot || frame.stacks.carried().is_some() {
         return;
     }
-    text_tooltip.request(TextTarget::DestroySlot, frame.language, scene);
+    text_tooltip.request(TextTarget::DestroySlot, scene);
 }
 
 fn highlight_sprite(at: IVec2, region: &'static str) -> GuiQuad {

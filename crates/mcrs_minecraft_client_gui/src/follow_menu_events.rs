@@ -56,6 +56,7 @@ impl TitleActions<'_, '_> {
         reason = "allocates a world folder id only when the player plays or deletes a world"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 pub(crate) fn follow_menu_events(
     mut events: MessageReader<MenuEvent>,
     mut screen: ResMut<Screen>,
@@ -224,7 +225,7 @@ mod tests {
                 let Some(WidgetKind::SelectionList(list)) = menu
                     .widgets
                     .get(select_world_screen::LIST)
-                    .map(|widget| &widget.kind)
+                    .map(|widget| widget.kind())
                 else {
                     panic!("no world list");
                 };

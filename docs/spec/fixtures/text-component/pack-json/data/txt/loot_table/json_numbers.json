@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:generic",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:stone",
+          "modifier": {
+            "type": "minecraft:set_name",
+            "target": "custom_name",
+            "name": {"translate": "%s|%s|%s|%s|%s", "with": [1, -2, 1.5, 1.0E10, 0.1]}
+          }
+        }
+      ]
+    }
+  ]
+}

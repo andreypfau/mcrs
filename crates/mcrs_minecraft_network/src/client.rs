@@ -336,6 +336,7 @@ fn start_joins(
         reason = "the allocations happen only when a join completes or fails"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(5))]
 fn collect_joins(
     mut pending: Populated<(Entity, &mut PendingJoin)>,
     play: Option<Res<ClientPlayTable>>,
@@ -418,6 +419,7 @@ const MAX_BUNDLE_PACKETS: usize = 4096;
         reason = "the allocations happen only on a bundle start, on a malformed packet or when the connection ends"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(19))]
 fn receive_packets(
     mut connections: Populated<(Entity, &mut ClientConnection, &ConnectionState)>,
     mut commands: Commands,
@@ -527,6 +529,7 @@ fn raise_bundle(
         reason = "the reason string exists only when the connection to the server fails"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 #[cfg_attr(
     mcrs_lint,
     expect(

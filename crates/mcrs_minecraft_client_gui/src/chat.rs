@@ -1,18 +1,19 @@
 use bevy::math::{IRect, IVec2};
 use bevy::prelude::*;
 use bevy::time::Real;
-use mcrs_minecraft_chat::MAX_INPUT;
 use mcrs_minecraft_chat_client::{
     ARGUMENT_COLOURS, ChatScreen, Highlight, Tag, Tooltip as SuggestionTooltip,
 };
-use mcrs_minecraft_client_widget::GuiRect;
+use mcrs_minecraft_client_widget::{EditBoxFrame, EditBoxRun, GuiRect};
 
 use crate::chat_suggestions;
+use crate::edit_box_draw;
 use crate::font::{self, Font, Hover, Span};
 use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
-use crate::menu_draw;
-use crate::scene::{self, GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize};
+use crate::menu_input;
+use crate::scene::{self, GuiAtlas, GuiAtlasData, GuiConfig, GuiQuad, GuiScene, GuiSize};
+use crate::span_events::SpanEvents;
 use crate::text::{self, Wrap};
 use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_world::chat::{Chat, ChatInput};
@@ -29,7 +30,6 @@ const INPUT_FILL: u32 = 0x8000_0000;
 const INPUT_TEXT: u32 = 0xFFE0_E0E0;
 pub(super) const GRAY: u32 = 0xFFAA_AAAA;
 pub(super) const RED: u32 = 0xFFFF_5555;
-const GHOST: u32 = 0xFF80_8080;
 const ARGUMENT_PALETTE: [u32; ARGUMENT_COLOURS as usize] = [
     0xFF55_FFFF,
     0xFFFF_FF55,
@@ -37,7 +37,6 @@ const ARGUMENT_PALETTE: [u32; ARGUMENT_COLOURS as usize] = [
     0xFFFF_55FF,
     0xFFFF_AA00,
 ];
-const CARET_BLINK_MS: u128 = 300;
 const TAG_TOOLTIP_WIDTH: i32 = 210;
 const MODIFIED_ICON: &str = "icon/chat_modified";
 
@@ -89,6 +88,7 @@ pub(crate) fn chat_lines<'c>(
     size: GuiSize,
     chat: &Chat,
     lines: &'c mcrs_minecraft_chat_client::ChatLines<Vec<Span>>,
+    events: &'c SpanEvents,
     mut pointer: Option<Pointer<'_>>,
     out: &mut Vec<GuiQuad>,
     font: &Font,
@@ -103,7 +103,10 @@ pub(crate) fn chat_lines<'c>(
     let text_origin = |slot: usize| text_origin(size, slot);
     let (hovered, hovered_message) = pointer.as_ref().map_or((None, None), |pointer| {
         text_under(lines, page, text_origin, pointer.at, font).map_or((None, None), |under| {
-            (under.span.hover.as_deref(), Some(under.message))
+            (
+                under.span.hover.and_then(|index| events.hover(index)),
+                Some(under.message),
+            )
         })
     });
     let mut message = 0;
@@ -258,18 +261,18 @@ fn hover_lines(
     }
 }
 
-fn for_each_input_run(screen: &ChatScreen, mut run: impl FnMut(&str, u32)) {
+fn input_runs(screen: &ChatScreen, runs: &mut Vec<EditBoxRun>) {
     let input = screen.input();
     if screen.is_draft() {
-        return run(input, GRAY);
+        return runs.push(EditBoxRun::new(0..input.len(), GRAY));
     }
     if !screen.commands.is_command() || screen.commands.input() != input {
-        return run(input, INPUT_TEXT);
+        return runs.push(EditBoxRun::new(0..input.len(), INPUT_TEXT));
     }
     let mut at = 0;
     for &(span, highlight) in screen.commands.highlights() {
         if span.start > at {
-            run(input.get(at..span.start).unwrap_or_default(), GRAY);
+            runs.push(EditBoxRun::new(at..span.start, GRAY));
         }
         let colour = match highlight {
             Highlight::Argument(index) => ARGUMENT_PALETTE
@@ -278,11 +281,11 @@ fn for_each_input_run(screen: &ChatScreen, mut run: impl FnMut(&str, u32)) {
                 .unwrap_or(GRAY),
             Highlight::Trailing => RED,
         };
-        run(input.get(span.start..span.end).unwrap_or_default(), colour);
+        runs.push(EditBoxRun::new(span.start..span.end, colour));
         at = span.end.max(at);
     }
     if at < input.len() {
-        run(input.get(at..).unwrap_or_default(), GRAY);
+        runs.push(EditBoxRun::new(at..input.len(), GRAY));
     }
 }
 
@@ -292,9 +295,10 @@ pub(crate) fn input_bounds(size: GuiSize) -> GuiRect {
 
 fn input_box(
     size: GuiSize,
-    font: &Font,
+    atlas: &GuiAtlasData,
     screen: &ChatScreen,
-    caret_on: bool,
+    now_ms: u64,
+    runs: &mut Vec<EditBoxRun>,
     out: &mut Vec<GuiQuad>,
 ) {
     out.push(GuiQuad::Fill {
@@ -302,67 +306,18 @@ fn input_box(
         color: INPUT_FILL,
     });
     let input = screen.input();
-    let caret = screen.edit().caret();
-    let layout = screen
-        .edit()
-        .layout(input_bounds(size), 0, &|text| font.str_width(text));
-    let visible = layout.visible;
-    let y = size.height - 12;
-    let mut x = 4.0;
-    let mut start = 0;
-    for_each_input_run(screen, |text, color| {
-        let from = visible.start.saturating_sub(start).min(text.len());
-        let to = visible.end.saturating_sub(start).min(text.len());
-        start += text.len();
-        x = font::draw_str(
-            font,
-            Vec2::new(x, y as f32),
-            text.get(from..to).unwrap_or_default(),
-            color,
-            false,
-            out,
-        );
-    });
-    let caret_x = 4 + font.str_width(input.get(visible.start..caret).unwrap_or_default());
-    let at_end = caret == input.len();
-    let in_view = visible.start <= caret && caret <= visible.end;
-    if at_end
-        && in_view
-        && input.chars().count() < MAX_INPUT
-        && let Some(ghost) = screen.commands.list().and_then(|list| list.ghost(input))
-    {
-        font::draw_str(
-            font,
-            Vec2::new(caret_x as f32 - 1.0, y as f32),
-            ghost,
-            GHOST,
-            false,
-            out,
-        );
-    }
-    if let Some(rect) = layout.selection {
-        out.push(GuiQuad::Highlight {
-            rect: menu_draw::irect(rect),
-            invert: screen.edit().invert,
-        });
-    }
-    if caret_on && in_view {
-        if at_end {
-            font::draw_str(
-                font,
-                Vec2::new(caret_x as f32, y as f32),
-                "_",
-                INPUT_TEXT,
-                false,
-                out,
-            );
-        } else {
-            out.push(GuiQuad::Fill {
-                rect: IRect::new(caret_x, y - 1, caret_x + 1, y + 10),
-                color: 0xFFD0_D0D0,
-            });
-        }
-    }
+    let font = &atlas.font;
+    runs.clear();
+    input_runs(screen, runs);
+    screen.edit().draw(
+        EditBoxFrame {
+            suggestion: screen.commands.list().and_then(|list| list.ghost(input)),
+            ..EditBoxFrame::new(input_bounds(size), now_ms)
+        },
+        &|text| font.str_width(text),
+        runs,
+        &mut |part| edit_box_draw::draw_edit_box_part(atlas, part, out),
+    );
 }
 
 #[cfg_attr(
@@ -379,6 +334,7 @@ fn input_box(
         reason = "the immediate-mode GUI takes owned text spans, and the fade of each line changes its colour on each frame, so a span cache would be rebuilt on each frame too"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(27))]
 pub fn draw(
     (chat, lines): (Res<Chat>, Res<crate::chat_input::ChatLines>),
     input: Res<ChatInput>,
@@ -387,6 +343,7 @@ pub fn draw(
     time: Res<Time<Real>>,
     config: Res<GuiConfig>,
     mut scene: ResMut<GuiScene>,
+    mut runs: Local<Vec<EditBoxRun>>,
 ) {
     let (Some(atlas), Some(language)) = (atlas, language) else {
         return;
@@ -402,7 +359,15 @@ pub fn draw(
         tooltip: &mut scene.tooltip,
         icon: atlas.0.chat_modified.size(),
     });
-    let hovered = chat_lines(size, &chat, &lines.0, pointer, &mut scene.quads, font);
+    let hovered = chat_lines(
+        size,
+        &chat,
+        &lines.lines,
+        &lines.events,
+        pointer,
+        &mut scene.quads,
+        font,
+    );
     if let Some((text, alpha)) = chat.overlay.shown(0.0) {
         let spans = text::text_spans(text, &language, u32::from(alpha) << 24 | 0x00FF_FFFF);
         font::draw_centered_text(
@@ -417,8 +382,8 @@ pub fn draw(
         return;
     }
     let screen = &input.0;
-    let caret_on = (time.elapsed().as_millis() / CARET_BLINK_MS).is_multiple_of(2);
-    input_box(size, font, screen, caret_on, &mut scene.quads);
+    let now_ms = menu_input::menu_clock(&time);
+    input_box(size, &atlas.0, screen, now_ms, &mut runs, &mut scene.quads);
     if let Some((list, rows)) = screen
         .commands
         .list()
@@ -517,7 +482,15 @@ mod tests {
             };
             let mut out = Vec::new();
             chat.tick = 20;
-            chat_lines(size, &chat, &lines, None, &mut out, font);
+            chat_lines(
+                size,
+                &chat,
+                &lines,
+                &SpanEvents::default(),
+                None,
+                &mut out,
+                font,
+            );
             assert_eq!(
                 out[0],
                 GuiQuad::Fill {
@@ -538,7 +511,15 @@ mod tests {
             );
             out.clear();
             chat.tick = 200;
-            chat_lines(size, &chat, &lines, None, &mut out, font);
+            chat_lines(
+                size,
+                &chat,
+                &lines,
+                &SpanEvents::default(),
+                None,
+                &mut out,
+                font,
+            );
             assert!(out.is_empty());
         }
     }

@@ -57,6 +57,7 @@ impl EntityRenderState {
         reason = "the queued uploads move to the render state on each frame, and the full resend and the library clone happen only after an asset reload"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(10))]
 pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<EntityRenderState>) {
     if let Some(clock) = main.get_resource::<EntityClock>()
         && state.clock != *clock
@@ -135,6 +136,7 @@ fn merge(pending: &mut SlotUpload, next: SlotUpload) {
         reason = "the GPU objects are built only when the entity library loads, the depth pyramid changes or the figure targets change"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(86))]
 pub(crate) fn prepare_entities(
     mut state: ResMut<EntityRenderState>,
     terrain: Option<Res<Terrain>>,

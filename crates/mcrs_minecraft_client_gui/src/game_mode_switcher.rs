@@ -176,6 +176,7 @@ pub fn draw(
     table: Option<Res<ItemTable>>,
     icons: ItemIcons,
     mut stacks: Local<IconStacks>,
+    text: Res<SwitcherText>,
     mut scene: ResMut<GuiScene>,
 ) {
     if let Some(table) = table.filter(DetectChanges::is_changed) {
@@ -184,17 +185,34 @@ pub fn draw(
     let Screen::GameModeSwitcher(selected) = *screen else {
         return;
     };
-    let (Some(atlas), Some(language)) = (atlas, language) else {
+    let (Some(atlas), Some(_)) = (atlas, language) else {
         return;
     };
-    switcher(&mut scene, selected, &atlas, &language, &icons, &stacks);
+    switcher(&mut scene, selected, &atlas, &text, &icons, &stacks);
+}
+
+#[derive(Resource, Default)]
+pub struct SwitcherText {
+    names: Vec<(GameMode, Vec<Span>)>,
+    hint: Vec<Span>,
+}
+
+pub fn rebuild_switcher_text(language: Res<ClientLanguage>, mut text: ResMut<SwitcherText>) {
+    text.names.clear();
+    for mode in ICONS {
+        let name = vec![Span::new(language.get(mode.translation_key()), WHITE)];
+        text.names.push((mode, name));
+    }
+    let key = vec![Span::new(language.get(SWITCH_KEY_NAME), AQUA)];
+    let hint = language.translate("debug.gamemodes.select_next", WHITE, &[key]);
+    text.map_unchanged(|text| &mut text.hint).set_if_neq(hint);
 }
 
 fn switcher(
     scene: &mut GuiScene,
     selected: GameMode,
     atlas: &GuiAtlas,
-    language: &ClientLanguage,
+    text: &SwitcherText,
     icons: &ItemIcons,
     stacks: &IconStacks,
 ) {
@@ -205,17 +223,13 @@ fn switcher(
         IVec2::new(125, 75),
         "container/gamemode_switcher",
     ));
-    let name = [Span::new(language.get(selected.translation_key()), WHITE)];
-    draw_centered_text(
-        font,
-        cx,
-        cy - SLOT_AREA_PADDED - 20,
-        &name,
-        &mut scene.quads,
-    );
-    let key = vec![Span::new(language.get(SWITCH_KEY_NAME), AQUA)];
-    let hint = language.translate("debug.gamemodes.select_next", WHITE, &[key]);
-    draw_centered_text(font, cx, cy + 5, &hint, &mut scene.quads);
+    let name = text
+        .names
+        .iter()
+        .find(|(mode, _)| *mode == selected)
+        .map_or(&[][..], |(_, name)| name.as_slice());
+    draw_centered_text(font, cx, cy - SLOT_AREA_PADDED - 20, name, &mut scene.quads);
+    draw_centered_text(font, cx, cy + 5, &text.hint, &mut scene.quads);
     for (index, (&mode, stack)) in ICONS.iter().zip(stacks).enumerate() {
         let at = IVec2::new(
             cx - ALL_SLOTS_WIDTH / 2 + index as i32 * SLOT_AREA_PADDED,
@@ -398,7 +412,15 @@ mod tests {
                 .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
                 .insert_resource(*TABLE)
                 .insert_resource(MODELS.clone())
-                .add_systems(Update, draw.run_if(switcher_shown));
+                .init_resource::<SwitcherText>()
+                .add_systems(
+                    Update,
+                    (
+                        rebuild_switcher_text.run_if(resource_exists_and_changed::<ClientLanguage>),
+                        draw.run_if(switcher_shown),
+                    )
+                        .chain(),
+                );
             app.update();
 
             let scene = app.world().resource::<GuiScene>();

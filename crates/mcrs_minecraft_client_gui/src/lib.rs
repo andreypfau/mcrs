@@ -110,6 +110,7 @@ mod select_world_screen;
 mod session_screens;
 pub mod sign_text;
 pub mod slot_icon;
+pub mod span_events;
 pub mod sprite;
 mod tab_bar_draw;
 pub mod text;
