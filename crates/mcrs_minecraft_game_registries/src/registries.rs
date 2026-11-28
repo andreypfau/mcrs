@@ -34,7 +34,7 @@ use mcrs_minecraft_item::{
 };
 use mcrs_minecraft_loot_condition::{ConditionFile, FloatProviderFile, IntProviderFile};
 use mcrs_minecraft_loot_table::{LootTableFile, ModifierFile};
-use mcrs_minecraft_registries::{Declaration, Stage};
+use mcrs_minecraft_registries::{Declaration, DeclarationSources, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
 use serde::Deserialize;
 
@@ -171,10 +171,9 @@ pub fn declarations(
         fixed.push(Declaration::fixed((*key).into(), names));
     }
     let stages = data_registries(report)?;
-    Ok(Declaration::assemble(
-        fixed,
-        typed_declarations(),
+    let sources = DeclarationSources {
+        typed: typed_declarations(),
         extra,
-        stages,
-    ))
+    };
+    Ok(sources.assemble(fixed, stages))
 }

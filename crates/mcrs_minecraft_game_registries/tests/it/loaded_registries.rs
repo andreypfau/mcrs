@@ -693,7 +693,8 @@ fn embedded_pack_overrides_vanilla_below_root_packs_and_is_sent() {
 
     for ids in [&["extra", "extra"][..], &["file/zz_world"], &[VANILLA_PACK]] {
         match load_registries(&source, embedding(ids)) {
-            Err(RegistryLoadError::Declarations(message)) => {
+            Err(error @ RegistryLoadError::Pack(_)) => {
+                let message = error.to_string();
                 assert!(message.contains(ids.last().unwrap()), "{ids:?}: {message}")
             }
             Ok(_) => panic!("{ids:?}: the load succeeds"),

@@ -5,8 +5,8 @@ use crate::filter::Filter;
 use crate::metadata::{self, Metadata};
 use crate::pack::PackKind;
 use crate::{
-    AvailablePack, Features, KnownPack, PackDiagnostic, PackSelection, PackStack, StackedPack,
-    VANILLA_PACK,
+    AvailablePack, Features, KnownPack, PackDiagnostic, PackSelection, PackStack, SelectedStack,
+    StackedPack, VANILLA_PACK,
 };
 
 struct Candidate<'a> {
@@ -206,7 +206,7 @@ pub fn pack_stack(
     available: &[AvailablePack],
     features: &Features,
     safe_mode: bool,
-) -> (PackStack, Vec<PackDiagnostic>) {
+) -> SelectedStack {
     let mut diagnostics = Vec::new();
     let candidates = candidates(available, features, &mut diagnostics);
     let mut chosen: Vec<&Candidate<'_>> = Vec::new();
@@ -238,11 +238,11 @@ pub fn pack_stack(
     enabled_features.dedup();
 
     let packs = stacked(chosen, &mut diagnostics);
-    (
-        PackStack {
+    SelectedStack {
+        stack: PackStack {
             packs,
             enabled_features,
         },
         diagnostics,
-    )
+    }
 }

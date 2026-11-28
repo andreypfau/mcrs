@@ -4,7 +4,7 @@ use std::path::{Component, Path, PathBuf};
 
 use crate::{
     AvailablePack, Features, PackConflict, PackDiagnostic, PackFiles, PackSelection, PackStack,
-    StackedPack, pack_stack,
+    SelectedStack, StackedPack, pack_stack,
 };
 
 pub const PACKS_ROOT: &str = "mcrs/datapacks";
@@ -58,7 +58,7 @@ impl fmt::Display for ReadError {
     }
 }
 
-impl std::error::Error for ReadError {}
+impl core::error::Error for ReadError {}
 
 pub struct DirectoryEntry {
     pub name: String,
@@ -267,7 +267,7 @@ impl RootPacks {
         standard_packs: &[String],
         local_packs: &[String],
         embedded_packs: Vec<String>,
-    ) -> Result<(PackStack, Vec<PackDiagnostic>), PackConflict> {
+    ) -> Result<SelectedStack, PackConflict> {
         if let Some(name) = standard_packs
             .iter()
             .find(|name| local_packs.contains(name))
@@ -307,9 +307,11 @@ impl RootPacks {
             let enabled = local_ids.into_iter().map(str::to_owned).chain(standard_ids);
             selection.enabled.extend(enabled);
         }
-        let (stack, mut found) = pack_stack(&selection, &available, &Features::vanilla(), false);
-        found.extend(self.unavailable.iter().cloned());
-        Ok((stack, found))
+        let mut selected = pack_stack(&selection, &available, &Features::vanilla(), false);
+        selected
+            .diagnostics
+            .extend(self.unavailable.iter().cloned());
+        Ok(selected)
     }
 
     pub fn read_files(
