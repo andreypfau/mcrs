@@ -14,9 +14,6 @@ struct Case {
     json: serde_json::Value,
     hash: i32,
     wire: String,
-    /// Vanilla emits `state` and NBT compounds in hash order, so an unordered
-    /// case compares through the decoded value and the order-independent hash
-    /// instead of its bytes.
     ordered: bool,
 }
 
@@ -90,7 +87,6 @@ fn predicate_errors_read_like_vanilla() {
             "{\"predicates\":{\"minecraft:max_stack_size\":\"junk\"}}",
             "invalid type: string \"junk\", expected a map",
         ),
-        ("{\"foo\":1}", "unknown field `foo`"),
         (
             "{\"state\":{\"lit\":\"true\",\"lit\":\"false\"}}",
             "Duplicate key 'lit'",
@@ -118,10 +114,6 @@ fn predicate_errors_read_like_vanilla() {
         (
             "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":\"x\"}}}}",
             "invalid type: string \"x\", expected a number",
-        ),
-        (
-            "{\"predicates\":{\"minecraft:damage\":{\"foo\":1}}}",
-            "unknown field `foo`, expected `durability` or `damage`",
         ),
         (
             "{\"predicates\":{\"minecraft:enchantments\":{}}}",
@@ -218,8 +210,6 @@ fn predicate_errors_read_like_vanilla() {
     }
 }
 
-/// A predicate the wire carries in a shape its codec refuses fails to decode
-/// instead of passing through.
 #[test]
 fn malformed_predicate_values_are_refused_on_the_wire() {
     for (wire, expected) in [
@@ -254,9 +244,6 @@ fn the_partial_predicate_list_is_capped_on_the_wire() {
     );
 }
 
-/// `-0.0` and `0.0` are distinct bounds, so this range is not a point. It
-/// stays out of the golden table because vanilla's own wire folds every zero
-/// into one tag and loses the sign.
 #[test]
 fn a_double_range_between_the_two_zeros_is_kept() {
     let input = "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":-0.0,\"max\":0.0}}]}}}}";
@@ -268,9 +255,6 @@ fn a_double_range_between_the_two_zeros_is_kept() {
     assert_eq!(hash_ops::hash(&named(&value)).unwrap(), 816994624);
 }
 
-/// Partial predicates are a map, so two predicate lists that differ only in
-/// order are the same value; the NBT predicate compares by key rather than
-/// by position.
 #[test]
 fn predicate_order_does_not_affect_equality() {
     let lookup = lookup();
@@ -314,6 +298,31 @@ fn a_predicate_key_reads_with_or_without_its_namespace() {
         from_json(DataComponentType::CanBreak, &input)
     };
     assert_eq!(read("damage"), read("minecraft:damage"));
+}
+
+#[test]
+fn an_unknown_field_of_a_predicate_is_ignored() {
+    for (with_field, without) in [
+        ("{\"foo\":1}", "{}"),
+        (
+            "[{\"blocks\":\"minecraft:stone\",\"foo\":1}]",
+            "{\"blocks\":\"minecraft:stone\"}",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":1},\"foo\":1}}}",
+            "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":1}}}}",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:enchantments\":[{\"enchantments\":\"minecraft:sharpness\",\"foo\":1}]}}",
+            "{\"predicates\":{\"minecraft:enchantments\":[{\"enchantments\":\"minecraft:sharpness\"}]}}",
+        ),
+    ] {
+        assert_eq!(
+            from_json(DataComponentType::CanBreak, with_field),
+            from_json(DataComponentType::CanBreak, without),
+            "{with_field}"
+        );
+    }
 }
 
 #[test]

@@ -19,8 +19,6 @@ use std::time::Duration;
 use tokio::time::timeout;
 use tracing::debug;
 
-/// The game calls a client older than protocol 754 outdated, and names its own version in
-/// either reason.
 fn unsupported_version_reason(protocol_version: i32) -> Text {
     let key = if protocol_version < 754 {
         "multiplayer.disconnect.outdated_client"
@@ -73,7 +71,6 @@ async fn refuse_login<S: ByteStream>(mut io: PacketIo<S>, reason: &Text) -> anyh
 }
 
 async fn close_gracefully<S: ByteStream>(io: PacketIo<S>) {
-    // A client that never closes only costs the timeout; everything to send is already sent.
     let _ = timeout(REFUSAL_CLOSE_TIMEOUT, io.close()).await;
 }
 

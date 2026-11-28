@@ -12,7 +12,6 @@ enum Signedness {
 
 #[derive(Clone, Copy)]
 struct Suffix {
-    /// `None` when the suffix has no `s` or `u`, so the radix decides.
     signedness: Option<Signedness>,
     ty: IntegerType,
 }
@@ -221,7 +220,6 @@ impl<'a, B: Build> Reader<'a, B> {
     }
 }
 
-/// The value of an integer literal as `ty`, sign-extended to 64 bits.
 fn integer_value(literal: IntLiteral<'_>, ty: IntegerType) -> Result<i64, SnbtErrorKind> {
     let signed = literal
         .suffix
@@ -267,7 +265,6 @@ fn integer_value(literal: IntLiteral<'_>, ty: IntegerType) -> Result<i64, SnbtEr
     Ok((raw << shift) >> shift)
 }
 
-/// The type of an element is its own, or the type of the array.
 pub(crate) fn array_element(
     literal: IntLiteral<'_>,
     kind: ArrayKind,
@@ -286,8 +283,6 @@ pub(crate) fn array_element(
 
 const FLOAT_TEXT: usize = 128;
 
-/// The value rounded once from the decimal text, or `None` when it is infinite.
-/// The value and whether it is not zero.
 fn float_value(negative: bool, parts: &FloatParts<'_>) -> Option<(Scalar, bool)> {
     let mut stack = [0u8; FLOAT_TEXT];
     let mut heap = Vec::new();

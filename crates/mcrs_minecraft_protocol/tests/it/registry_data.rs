@@ -11,7 +11,6 @@ fn compound(name: &str, value: i32) -> NbtCompound {
     compound
 }
 
-/// Each entry's NBT stops at its own end, so the next entry and the packet after it decode.
 #[test]
 fn registry_data_decodes_exactly_its_own_bytes() {
     {

@@ -1,31 +1,31 @@
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder};
 use mcrs_engine_link::{InFlight, Step, TaskOutcome};
+use mcrs_minecraft_anvil::{ChunkStructures, StructureStart};
 use mcrs_minecraft_engine::column_generation::GenerationAnswer;
-use mcrs_minecraft_engine::stored_column::{StoredColumn, StoredSection};
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
+use mcrs_minecraft_region_disk::stored_column::{StoredColumn, StoredSection};
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_minecraft_worldgen_generator::staging::{
     ColumnDelta, FilledSnapshot, Stage, StagingStore,
 };
 use mcrs_minecraft_worldgen_generator::task::{CancellationToken, ColumnSource};
+use mcrs_minecraft_worldgen_structure::piece::PieceContext;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 use std::collections::BTreeSet;
 use std::mem;
 use std::ops::Range;
 use std::sync::{Arc, OnceLock};
-use tracing::{trace, warn};
+use tracing::{error, trace, warn};
 
 use crate::generated_ticks;
 use crate::generation_input::GenerationInput;
 
-/// The pool that every generation stage of the process runs its ladder stages on.
 pub(crate) static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
 
-/// Builds [`CHUNK_TASK_POOL`] unless it is built already.
 pub(crate) fn init_chunk_task_pool(config: &SchedulerConfig) {
     CHUNK_TASK_POOL.get_or_init(|| {
         TaskPoolBuilder::new()
@@ -35,42 +35,27 @@ pub(crate) fn init_chunk_task_pool(config: &SchedulerConfig) {
     });
 }
 
-/// The order of the wanted columns: nearest to a player first, then by position.
 #[derive(Ord, PartialOrd, Eq, PartialEq, Clone, Copy, Debug)]
 pub(crate) struct ColumnKey {
     pub(crate) distance_sq: i32,
     pub(crate) col: ColumnPos,
 }
 
-/// One stage of one column, in flight on the generation pool.
-///
-/// A halo column owns no entity, so nothing here names one: the store is keyed
-/// by position alone, and the sections a generated column owes are read off the
-/// request that wanted it, at the moment it is emitted.
 pub(crate) struct InFlightStage {
     pub(crate) col: ColumnPos,
     pub(crate) cancel: CancellationToken,
 }
 
-/// What a ladder stage hands back. A cancelled fill hands back nothing, and its task ends
-/// dropped.
 pub(crate) enum StageResult {
     Filled(Box<FilledSnapshot>),
     Ran(usize, Vec<(ColumnPos, ColumnDelta)>),
     Merged(usize, Box<FilledSnapshot>),
 }
 
-/// Concurrency limits of a dimension's generation stage.
 #[derive(Clone, Debug)]
 pub(crate) struct SchedulerConfig {
-    /// Maximum number of concurrent stage tasks. A column's fill and the run
-    /// and merge of each of its rungs all share this budget, so it bounds the
-    /// pool, not the column count.
     pub(crate) max_in_flight: usize,
-    /// Maximum stages one dispatch pass hands to the pool. A pass runs in each step of the
-    /// generation stage.
     pub(crate) max_dispatch_per_pass: usize,
-    /// Number of threads in the chunk generation thread pool.
     pub(crate) num_threads: usize,
 }
 
@@ -87,40 +72,19 @@ impl Default for SchedulerConfig {
     }
 }
 
-/// The generation of one dimension's columns.
-///
-/// `priority_index` holds the columns a view wants generated. An entry stays there for the
-/// whole of its ladder. Everything the
-/// ladder materialises — filled snapshots and the deltas one merge each
-/// consumes — lives in `store`, keyed by position alone.
-///
-/// Each finished ladder stage changes what its own 3×3 is owed, so the step dispatches from
-/// there, and a column that is newly wanted owes its whole shell; nothing walks every wanted
-/// column again.
 pub(crate) struct GenerationStage {
     pub(crate) ctx: Option<FillContext>,
-    /// The section rows of the dimension, which a generated column carries.
     rows: Range<i32>,
     pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
-    pub(crate) in_flight: InFlight<InFlightStage, Task<()>>,
-    /// Columns whose stage changed since the last dispatch: they and their 3×3 may owe a
-    /// stage now.
+    pub(crate) in_flight: InFlight<InFlightStage, Option<Task<()>>>,
     pub(crate) touched: Vec<ColumnPos>,
-    /// Wanted columns whose shells nobody has walked yet, nearest first.
     pub(crate) fresh: BTreeSet<ColumnKey>,
-    /// Columns whose stage was cancelled since the last dispatch, and that may owe a fill again.
     pub(crate) forgotten: Vec<ColumnPos>,
-    /// Columns whose stage moved, or that became wanted, since the last emission: the ones
-    /// that may have reached the top of the ladder.
     pub(crate) climbed: Vec<ColumnPos>,
-    /// Columns wanted since the views were last checked against them.
     unscreened: Vec<ColumnPos>,
     views: Vec<ChunkTrackingView>,
-    /// The center of each view, where its player stands.
     players: Vec<ColumnPos>,
-    /// Columns that left every view, emitted with the next step.
     abandoned: Vec<ColumnPos>,
-    /// The one owner of every materialised value of the ladder.
     pub(crate) store: StagingStore,
     pub(crate) config: SchedulerConfig,
 }
@@ -155,8 +119,6 @@ impl mcrs_engine_link::Stage for GenerationStage {
         self.emit_generated(step);
     }
 
-    /// A dispatch pass cut short by its own limit, with room left on the pool, is work in
-    /// itself.
     fn has_work(&self) -> bool {
         let dispatchable = self.ctx.is_some()
             && CHUNK_TASK_POOL.get().is_some()
@@ -171,8 +133,6 @@ impl mcrs_engine_link::Stage for GenerationStage {
 }
 
 impl Drop for GenerationStage {
-    /// A fill on the pool stops at its next check of the token, rather than run to an end
-    /// nobody takes.
     fn drop(&mut self) {
         for stage in self.in_flight.iter() {
             stage.cancel.cancel();
@@ -204,22 +164,17 @@ impl GenerationStage {
         self.ctx.as_ref().map_or(1, FillContext::rungs)
     }
 
-    /// Check if a column has a stage on the pool.
     #[cfg(test)]
     pub(crate) fn is_in_flight(&self, col: ColumnPos) -> bool {
         self.store.stage(col).is_some_and(Stage::in_flight)
     }
 
-    /// Drops a column from the store, as an eviction under the halo would, so it climbs
-    /// the ladder again.
     #[cfg(test)]
     pub(crate) fn evict(&mut self, col: ColumnPos) {
         self.store.forget(col);
         self.forgotten.push(col);
     }
 
-    /// A column stays in the queue for the whole of its ladder, so a second ask while it
-    /// climbs gets the same generated column.
     fn want(&mut self, col: ColumnPos) {
         if self.priority_index.contains_key(&col) {
             return;
@@ -234,12 +189,6 @@ impl GenerationStage {
         self.unscreened.push(col);
     }
 
-    /// Cancels and evicts what has left every view, and reorders what is left.
-    ///
-    /// "Wanted" is widened by the halo: a column two away from one a view wants
-    /// is still an input to its run, so it is neither cancelled nor evicted. The
-    /// wanted columns change only by a request and by the views, so with the same views
-    /// only the columns wanted since the last update need a look.
     fn screen(&mut self, views: Vec<ChunkTrackingView>) {
         let views_moved = views != self.views;
         self.views = views;
@@ -287,9 +236,6 @@ impl GenerationStage {
     }
 
     fn evict_outside_halo(&mut self) {
-        // Every rung costs two rings: `Delivered(U)` needs the last rung run over
-        // the 3×3 of `U`, which needs the one below it merged over the 5×5, and so
-        // on down to the fill.
         let halo = i32::try_from(self.rungs())
             .unwrap_or(i32::MAX)
             .saturating_mul(2);
@@ -300,8 +246,6 @@ impl GenerationStage {
                 stage.cancel.cancel();
             }
         }
-        // A stage still on the pool will write its answer into the store, so its
-        // column must survive the eviction that runs beside its cancellation.
         self.store.retain(|col, stage| {
             stage.in_flight() || views.iter().any(|view| view.reaches(col, reach))
         });
@@ -328,12 +272,6 @@ impl GenerationStage {
         }
     }
 
-    /// Puts what a stage produced into the store.
-    ///
-    /// A cancelled stage leaves nothing behind: the column drops off the ladder, and
-    /// a later request refills it bit-identically, since a fill depends on nothing
-    /// but the seed and the position. A stage that panicked would panic again, so its column
-    /// waits for a new want.
     fn finish_stage(&mut self, outcome: TaskOutcome<StageResult>) {
         let Some(InFlightStage { col, cancel }) = self.in_flight.retire(outcome.id()) else {
             return;
@@ -347,10 +285,6 @@ impl GenerationStage {
             }
             return;
         };
-        // The column may have been dropped, or sent back to `Filled` by the
-        // drop of one it wrote into, while its stage was on the pool. What
-        // comes back then answers a question the store has stopped asking, and
-        // the column climbs again from where it now stands.
         let ticket = match &result {
             StageResult::Filled(..) => Stage::Filling,
             StageResult::Ran(rung, _) => Stage::Running(*rung as u8),
@@ -365,9 +299,6 @@ impl GenerationStage {
             StageResult::Filled(snapshot) => {
                 let source = snapshot.source;
                 self.store.insert_filled(*snapshot);
-                // A column the save already holds was decorated before it was
-                // written: its own ladder ends here, while its neighbours still
-                // read it rung after rung.
                 let stage = match source {
                     ColumnSource::Saved => {
                         let rungs = self.rungs();
@@ -391,10 +322,6 @@ impl GenerationStage {
         }
     }
 
-    /// `Delivered`: the only point at which a column becomes visible.
-    ///
-    /// Every unit that could write into it has run and its delta has been merged,
-    /// so nothing writes into the column after this.
     fn emit_generated(&mut self, step: &mut Step<'_, Self>) {
         let done = top_of_ladder(self.rungs());
         let mut ready: Vec<ColumnKey> = self
@@ -417,20 +344,14 @@ impl GenerationStage {
         }
     }
 
-    /// The column of `key` as the data layer keeps it, unlit, or no column when a section has
-    /// no blocks.
     fn take_generated(&mut self, key: ColumnKey) -> Option<GenerationAnswer> {
-        // A column reaches the top of its ladder only after the context arrived.
         let ctx = self.ctx.as_ref()?;
         let col = key.col;
         if self.priority_index.get(&col) != Some(&key) {
             return None;
         }
         let states = ctx.blocks.state_count();
-        // Straight from the snapshot the store keeps, without a copy of the blocks between.
         let Some(merged) = self.store.merged(col) else {
-            // The store was evicted under the request; the column keeps its place in the
-            // queue and climbs the ladder again.
             self.store.forget(col);
             self.forgotten.push(col);
             return None;
@@ -455,26 +376,36 @@ impl GenerationStage {
             .collect();
         let heightmaps = merged.maps.clone();
         let ticks = generated_ticks::column_ticks(&merged.ticks, &ctx.blocks);
+        let structures = structures_for(ctx, col);
 
         self.priority_index.remove(&col);
         self.fresh.remove(&key);
         self.store.set_stage(col, Stage::Delivered);
-        // Nothing spawns generated entities yet, so they leave the store unspawned.
         self.store.take_entities(col);
         let block_entities = self.store.take_block_entities(col);
-        let stored = match sections {
-            Some(sections) => Some(StoredColumn {
+        let stored = match sections.zip(heightmaps) {
+            Some((sections, heightmaps)) => Some(StoredColumn {
+                status: mcrs_minecraft_region_disk::stored_column::ChunkStatus::Full,
+                is_light_on: false,
+                inhabited_time: 0,
+                last_update: 0,
                 min_section_y: self.rows.start,
                 sections,
                 block_entities,
+                unknown_block_entities: Vec::new(),
                 heightmaps,
+                retrogen: None,
+                structures,
+                post_processing: Vec::new(),
+                upgrade_data: Default::default(),
+                blending_data: None,
                 ticks,
             }),
             None => {
                 warn!(
                     x = col.x,
                     z = col.z,
-                    "a generated column lacks the blocks of a section"
+                    "a generated column lacks the blocks of a section or its heightmaps"
                 );
                 None
             }
@@ -486,13 +417,58 @@ impl GenerationStage {
     }
 }
 
+fn structures_for(ctx: &FillContext, column: ColumnPos) -> ChunkStructures {
+    let Some(index) = ctx.structures.as_deref() else {
+        return ChunkStructures::default();
+    };
+    let frozen = &index.tables().frozen;
+    let mut structures = ChunkStructures::default();
+    for (start_column, start) in index.starts_reaching(column) {
+        let Some(structure) = frozen.structure(start.structure) else {
+            continue;
+        };
+        let id = structure.id.clone();
+        structures
+            .references
+            .entry(id.clone())
+            .or_default()
+            .insert(start_column);
+        if start_column != column {
+            continue;
+        }
+        let context = PieceContext {
+            frozen,
+            structure: start.structure,
+        };
+        let pieces = start
+            .pieces
+            .iter()
+            .filter_map(|piece| match context.saved::<mcrs_minecraft_nbt::Error>(piece) {
+                Ok(saved) => Some(saved),
+                Err(error) => {
+                    error!(structure = %id, %error, "a generated piece does not convert to NBT");
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        if !pieces.is_empty() {
+            structures.starts.insert(
+                id,
+                StructureStart {
+                    references: 0,
+                    pieces,
+                },
+            );
+        }
+    }
+    structures
+}
+
 struct KeyChange {
     old: ColumnKey,
     new: ColumnKey,
 }
 
-/// The stage a column stands at once it owes nothing more: the merge of the
-/// last rung, or `Filled` in a dimension that decorates nothing.
 pub(crate) fn top_of_ladder(rungs: usize) -> Stage {
     match rungs.checked_sub(1) {
         Some(last) => Stage::Merged(last as u8),

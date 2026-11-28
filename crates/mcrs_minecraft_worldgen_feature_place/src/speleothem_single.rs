@@ -9,14 +9,11 @@ use mcrs_voxel::BlockPos;
 
 use crate::speleothem::{Growth, PointedStates};
 
-/// One `speleothem` feature with every name it carries already resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledSpeleothem {
     pub base_block: VoxelId,
     pub pointed: PointedStates,
-    /// `placeBaseBlockIfPossible`, which asks for the replaceable set alone.
     pub replaceable_blocks: StateMask,
-    /// `SpeleothemUtils.isBase`: the base block or one of the replaceables.
     pub base_or_replaceable: StateMask,
     pub chance_of_taller_generation: f32,
     pub chance_of_directional_spread: f32,
@@ -24,8 +21,6 @@ pub struct CompiledSpeleothem {
     pub chance_of_spread_radius3: f32,
 }
 
-/// `SpeleothemFeature.place`: pick which way the tip points, spread a patch of
-/// base blocks behind it, then grow one or two pointed blocks.
 pub fn place_speleothem<W: WorldGenVolume>(
     config: &CompiledSpeleothem,
     volume: &mut W,
@@ -105,8 +100,6 @@ mod tests {
     const STONE: VoxelId = VoxelId(1);
     const WATER: VoxelId = VoxelId(2);
     const BASE: VoxelId = VoxelId(3);
-    /// `[up, down][tip_merge, tip, frustum, middle, base][dry, wet]`, laid out
-    /// so a written state reads back as its three indices.
     const POINTED: VoxelId = VoxelId(10);
 
     const AT: BlockPos = BlockPos::new(0, 64, 0);
@@ -124,8 +117,6 @@ mod tests {
         }
     }
 
-    /// Neither side can root the column, so the feature refuses before it draws
-    /// anything at all.
     #[test]
     fn a_speleothem_with_no_base_either_side_draws_nothing() {
         let config = config();
@@ -138,8 +129,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// Stone above and below spends the direction boolean; stone on one side
-    /// only does not, and the tip points away from the block it roots in.
     #[test]
     fn the_tip_direction_costs_a_boolean_only_when_both_sides_can_root_it() {
         let ceiling = FakeVolume::with([((AT.x, AT.y + 1, AT.z), STONE)]);
@@ -165,8 +154,6 @@ mod tests {
         }
     }
 
-    /// `createPatchOfBaseBlocks` walks the four horizontals in plane order and
-    /// spends a float per ring, plus a whole-direction draw per ring it takes.
     fn replay_patch(config: &CompiledSpeleothem, rng: &mut WorldgenRandom) {
         for _ in 0..Direction::HORIZONTAL.len() {
             if rng.next_f32() > config.chance_of_directional_spread {
@@ -183,8 +170,6 @@ mod tests {
         }
     }
 
-    /// A stalactite roots in the ceiling and writes downward: the frustum where
-    /// the object landed and the tip below it, both pointing down.
     #[test]
     fn a_taller_stalactite_writes_a_frustum_then_a_tip_pointing_down() {
         let mut config = config();
@@ -206,8 +191,6 @@ mod tests {
         );
     }
 
-    /// A stalagmite roots in the floor and writes upward; water at the cell
-    /// takes the waterlogged state of the same thickness.
     #[test]
     fn a_short_stalagmite_in_water_writes_one_waterlogged_tip_pointing_up() {
         let mut config = config();
@@ -230,8 +213,6 @@ mod tests {
         );
     }
 
-    /// The patch replaces only what is in the replaceable set, and a ring that
-    /// lands on the base block it just wrote leaves it alone.
     #[test]
     fn the_patch_only_replaces_replaceable_blocks() {
         let mut config = config();

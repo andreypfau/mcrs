@@ -6,6 +6,7 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_table::Prototype;
 
 use crate::Removed;
+use crate::slot_changed::touch;
 
 pub(crate) enum Target<T> {
     Value(T),
@@ -13,8 +14,6 @@ pub(crate) enum Target<T> {
     Prototype,
 }
 
-/// Gives the stack the effective component `target` of type `T`. It does nothing to an entity
-/// without a [`Kind`].
 pub(crate) fn store<T: ItemComponent + Component>(mut entity: EntityWorldMut, target: Target<T>) {
     let Some(&kind) = entity.get::<Kind>() else {
         return;
@@ -28,14 +27,19 @@ pub(crate) fn store<T: ItemComponent + Component>(mut entity: EntityWorldMut, ta
         Target::Removed => None,
         Target::Prototype => base.map(T::borrow_static),
     };
+    let mut changed = false;
     match value {
         Some(value) if Some(&value) != T::neutral() => {
             if entity.get::<T>() != Some(&value) {
                 entity.insert(value);
+                changed = true;
             }
         }
         Some(_) | None => {
-            entity.remove::<T>();
+            if entity.contains::<T>() {
+                entity.remove::<T>();
+                changed = true;
+            }
         }
     }
     if let Some(key) = T::builtin_key().filter(|_| T::neutral().is_some()) {
@@ -49,9 +53,14 @@ pub(crate) fn store<T: ItemComponent + Component>(mut entity: EntityWorldMut, ta
         if next.bits() == 0 {
             if removed.is_some() {
                 entity.remove::<Removed>();
+                changed = true;
             }
         } else if next != current {
             entity.insert(next);
+            changed = true;
         }
+    }
+    if changed {
+        touch(&mut entity);
     }
 }

@@ -17,10 +17,10 @@ use bevy_ecs::prelude::With;
 use bevy_ecs::query::QueryState;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
-use bevy_ecs::world::World;
+use bevy_ecs::world::{Mut, World};
 use mcrs_command::{End, Limits, Resume, SourceLists, Stage};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
-use mcrs_minecraft_engine::ability::PlayerGameMode;
+use mcrs_minecraft_engine::PlayerBody;
 use mcrs_minecraft_engine::command_handoff::CommandHandoff;
 use mcrs_minecraft_engine::coordinator::running_dimensions::RunningDimensions;
 use mcrs_minecraft_engine::dim_mail::DimMail;
@@ -31,10 +31,10 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
+use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::Id;
 
-/// The buffers of the command runs of a world, reused from one tick to the next.
 #[derive(Resource, Default)]
 pub(crate) struct PassBuffers {
     stages: Vec<Stage<Handler>>,
@@ -50,9 +50,10 @@ type PlayerRow = (
     &'static GameProfile,
     &'static Transform,
     &'static PlayerGameMode,
+    PlayerBody,
 );
 
-/// Whether this world has commands to run in this tick.
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 pub(crate) fn commands_pending(
     queue: Res<CommandQueue>,
     handoffs: Option<Res<Messages<CommandHandoff>>>,
@@ -60,64 +61,64 @@ pub(crate) fn commands_pending(
     !queue.is_empty() || handoffs.is_some_and(|handoffs| !handoffs.is_empty())
 }
 
-/// Runs the commands of this tick at the sync point, after the input of the tick reached the
-/// players: first the runs that other worlds handed over, in the order they came, then the
-/// command lines of the players of this world in the order they arrived, then the suggestion
-/// requests.
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "command handlers run as systems against the whole dimension world"
+    )
+)]
 pub(crate) fn run_commands<S: CommandSet>(world: &mut World) {
-    let Some(mut buffers) = world.remove_resource::<PassBuffers>() else {
-        return;
-    };
-    let Some(here) = world.get_resource::<DimensionLabel>().map(|label| label.0) else {
-        world.insert_resource(buffers);
-        return;
-    };
-    let limits = world
-        .get_resource::<CommandLimits>()
-        .copied()
-        .unwrap_or_default()
-        .0;
-    if let Some(mut received) = world.get_resource_mut::<CommandQueue>() {
-        std::mem::swap(&mut *received, &mut buffers.queue);
-    }
-    let handoffs: Vec<CommandHandoff> = world
-        .get_resource_mut::<Messages<CommandHandoff>>()
-        .map(|mut handoffs| handoffs.drain().collect())
-        .unwrap_or_default();
-    collect_targets(world, &mut buffers, here);
-    let mut run = Run {
-        world,
-        here,
-        limits,
-        stages: &mut buffers.stages,
-        lists: &mut buffers.lists,
-        deferred: &mut buffers.deferred,
-    };
-    for handoff in handoffs {
-        run.handoff::<S>(handoff);
-    }
-    for queued in buffers.queue.lines.drain(..) {
-        let line = run.line::<S>(queued);
-        if line.capacity() > 0 {
-            buffers.queue.spare.push(line);
+    world.try_resource_scope(|world, mut buffers: Mut<PassBuffers>| {
+        let Some(here) = world.get_resource::<DimensionLabel>().map(|label| label.0) else {
+            return;
+        };
+        let buffers = &mut *buffers;
+        let limits = world
+            .get_resource::<CommandLimits>()
+            .copied()
+            .unwrap_or_default()
+            .0;
+        if let Some(mut received) = world.get_resource_mut::<CommandQueue>() {
+            std::mem::swap(&mut *received, &mut buffers.queue);
         }
-    }
-    for queued in buffers.queue.suggestions.drain(..) {
-        let answered = run
-            .world
-            .run_system_cached_with(answer_suggestion::<S>, &queued);
-        if let Err(error) = answered {
-            tracing::error!("a suggestion request was not answered: {error}");
+        let handoffs: Vec<CommandHandoff> = world
+            .get_resource_mut::<Messages<CommandHandoff>>()
+            .map(|mut handoffs| handoffs.drain().collect())
+            .unwrap_or_default();
+        collect_targets(world, buffers, here);
+        let mut run = Run {
+            world,
+            here,
+            limits,
+            stages: &mut buffers.stages,
+            lists: &mut buffers.lists,
+            deferred: &mut buffers.deferred,
+        };
+        for handoff in handoffs {
+            run.handoff::<S>(handoff);
         }
-        settle(run.world);
-    }
-    if let Some(mut received) = world.get_resource_mut::<CommandQueue>() {
-        received.spare.append(&mut buffers.queue.spare);
-    }
-    world.insert_resource(buffers);
+        for queued in buffers.queue.lines.drain(..) {
+            let line = run.line::<S>(queued);
+            if line.capacity() > 0 {
+                buffers.queue.spare.push(line);
+            }
+        }
+        for queued in buffers.queue.suggestions.drain(..) {
+            let answered = run
+                .world
+                .run_system_cached_with(answer_suggestion::<S>, &queued);
+            if let Err(error) = answered {
+                tracing::error!("a suggestion request was not answered: {error}");
+            }
+            settle(run.world);
+        }
+        if let Some(mut received) = world.get_resource_mut::<CommandQueue>() {
+            received.spare.append(&mut buffers.queue.spare);
+        }
+    });
 }
 
-/// The world and the buffers of the runs of one tick.
 struct Run<'a> {
     world: &'a mut World,
     here: Entity,
@@ -128,8 +129,6 @@ struct Run<'a> {
 }
 
 impl Run<'_> {
-    /// Parses a line for `source` into the running chain, and sends the parse errors. Gives
-    /// the line back, and the source when the line runs.
     fn parse<S: CommandSet>(
         &mut self,
         player: PlayerSession,
@@ -164,7 +163,6 @@ impl Run<'_> {
         }
     }
 
-    /// Runs a line of a player of this world. Gives the line back for its buffer.
     fn line<S: CommandSet>(&mut self, queued: QueuedLine) -> String {
         let QueuedLine { player, line } = queued;
         let entity = self
@@ -199,7 +197,6 @@ impl Run<'_> {
         self.chain(player, line, source, start)
     }
 
-    /// Runs on the part of a run that another world handed over.
     fn handoff<S: CommandSet>(&mut self, handoff: CommandHandoff) {
         let CommandHandoff {
             output,
@@ -222,8 +219,6 @@ impl Run<'_> {
         self.chain(output, line, origin, start);
     }
 
-    /// Runs the running chain from `start`, then hands the sources that reached another world
-    /// to that world. Gives the line back.
     fn chain(
         &mut self,
         output: PlayerSession,
@@ -234,7 +229,9 @@ impl Run<'_> {
         let Some(mut running) = self.world.get_resource_mut::<RunningCommand>() else {
             return line;
         };
-        running.line = line;
+        if running.line != line {
+            running.line = line;
+        }
         self.stages.clear();
         self.stages.extend_from_slice(running.chain.stages());
         self.deferred.clear();
@@ -262,8 +259,6 @@ impl Run<'_> {
         line
     }
 
-    /// Sends each group of deferred sources to its world. A group of the run stage costs one
-    /// run for each source, which the stages here already counted against the limit.
     fn hand_off(
         &mut self,
         output: PlayerSession,
@@ -301,8 +296,6 @@ impl Run<'_> {
     }
 }
 
-/// Fills the targets of this tick: the dimensions that run, the players of this world as they
-/// are, and the players of the other worlds as those worlds reported them.
 fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
     let Some(mut targets) = world.remove_resource::<CommandTargets>() else {
         return;
@@ -314,7 +307,7 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
         .get_or_insert_with(|| world.query_filtered::<PlayerRow, With<Player>>());
     let requests = world.get_resource::<DepartureRequests>();
     targets.players.clear();
-    for (entity, &Owner(session), profile, transform, mode) in players.iter(world) {
+    for (entity, &Owner(session), profile, transform, mode, body) in players.iter(world) {
         let dimension = requests
             .and_then(|requests| requests.destination(entity))
             .and_then(|key| {
@@ -335,6 +328,7 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
             name: profile.username.clone(),
             transform: *transform,
             mode: mode.0,
+            dimensions: body.dimensions(),
         });
     }
     if let Some(foreign) = world.get_resource::<ForeignPlayers>() {
@@ -350,6 +344,7 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
                 name: row.name.clone(),
                 transform: row.transform,
                 mode: row.mode,
+                dimensions: row.dimensions,
             });
         }
     }
@@ -357,7 +352,6 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
     world.insert_resource(targets);
 }
 
-/// The running dimensions in the dimension order, with the scale of each dimension type.
 fn fill_dimensions(world: &World, targets: &mut CommandTargets) {
     targets.dimensions.clear();
     let (Some(running), Some(types)) = (

@@ -13,7 +13,6 @@ use crate::{
     NBT_LONG_ARRAY_TAG, SHORT_ID, STRING_ID, get_nbt_string,
 };
 
-/// Equality compares a float and a double by bit pattern, with each NaN equal to each NaN.
 #[derive(Clone, Debug)]
 #[repr(u8)]
 pub enum NbtTag {
@@ -97,8 +96,15 @@ impl Hash for NbtTag {
 }
 
 impl NbtTag {
-    /// Whether `actual` holds this tag: a compound needs its keys, and a list needs a match for
-    /// each of its elements; other tags are equal.
+    #[must_use]
+    pub fn depth(&self, budget: u32) -> u32 {
+        match self {
+            NbtTag::Compound(compound) => compound.depth(budget),
+            NbtTag::List(list) => list_depth(list, budget),
+            _ => 0,
+        }
+    }
+
     pub fn matches(&self, actual: &NbtTag) -> bool {
         match (self, actual) {
             (NbtTag::Compound(expected), NbtTag::Compound(actual)) => expected.matches(actual),
@@ -115,10 +121,8 @@ impl NbtTag {
         }
     }
 
-    /// Returns the numeric id associated with the data type.
     pub const fn get_type_id(&self) -> u8 {
-        // Safety: Since Self is repr(u8), it is guaranteed to hold the discriminant in the first byte
-        // See https://doc.rust-lang.org/reference/items/enumerations.html#pointer-casting
+        // SAFETY: `NbtTag` is `repr(u8)`, so its first byte is the discriminant.
         unsafe { *(self as *const Self as *const u8) }
     }
 
@@ -132,6 +136,18 @@ impl NbtTag {
     }
 
     pub fn serialize_data<W: Write, E: NbtEncoding>(
+        &self,
+        w: &mut WriteAdaptor<W, E>,
+    ) -> serializer::Result<()> {
+        match self {
+            NbtTag::List(list) => serialize_list(list, w),
+            NbtTag::Compound(compound) => compound.serialize_content(w),
+            _ => self.serialize_flat_data(w),
+        }
+    }
+
+    #[inline(never)]
+    fn serialize_flat_data<W: Write, E: NbtEncoding>(
         &self,
         w: &mut WriteAdaptor<W, E>,
     ) -> serializer::Result<()> {
@@ -151,31 +167,7 @@ impl NbtTag {
             NbtTag::String(string) => {
                 E::write_string(w, string)?;
             }
-            NbtTag::List(list) => {
-                let len = list.len();
-                let element_type = list_element_type(list)?;
-                w.write_u8(element_type)?;
-                E::write_collection_length(w, len)?;
-                for nbt_tag in list {
-                    match nbt_tag {
-                        NbtTag::Compound(compound)
-                            if element_type == COMPOUND_ID && !is_wrapper(compound) =>
-                        {
-                            compound.serialize_content(w)?
-                        }
-                        _ if element_type == COMPOUND_ID => {
-                            w.write_u8(nbt_tag.get_type_id())?;
-                            E::write_string(w, "")?;
-                            nbt_tag.serialize_data(w)?;
-                            w.write_u8(END_ID)?;
-                        }
-                        _ => nbt_tag.serialize_data(w)?,
-                    }
-                }
-            }
-            NbtTag::Compound(compound) => {
-                compound.serialize_content(w)?;
-            }
+            NbtTag::List(_) | NbtTag::Compound(_) => self.serialize_data(w)?,
             NbtTag::IntArray(int_array) => {
                 let len = int_array.len();
                 E::write_collection_length(w, len)?;
@@ -197,7 +189,7 @@ impl NbtTag {
     pub fn deserialize<R: Read + Seek, E: NbtEncoding>(
         reader: &mut NbtReadHelper<R, E>,
     ) -> Result<NbtTag, Error> {
-        let tag_id = reader.get_u8()?;
+        let tag_id = reader.read_root_kind()?;
         Self::deserialize_data(reader, tag_id)
     }
 
@@ -211,11 +203,11 @@ impl NbtTag {
         match tag_id {
             END_ID => Ok(()),
             BYTE_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(1)?;
                 reader.skip_bytes(len as i64)
             }
             STRING_ID => {
-                let len = E::read_string_length(&mut reader.reader)?;
+                let len = reader.read_string_length()?;
                 reader.skip_bytes(len as i64)
             }
             INT_ID => {
@@ -247,7 +239,7 @@ impl NbtTag {
                 Ok(())
             }
             INT_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(4)?;
                 if let Some(size) = E::fixed_size(INT_ID) {
                     reader.skip_bytes(len as i64 * size)
                 } else {
@@ -258,7 +250,7 @@ impl NbtTag {
                 }
             }
             LONG_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(8)?;
                 if let Some(size) = E::fixed_size(LONG_ID) {
                     reader.skip_bytes(len as i64 * size)
                 } else {
@@ -273,6 +265,18 @@ impl NbtTag {
     }
 
     pub fn deserialize_data<R: Read + Seek, E: NbtEncoding>(
+        reader: &mut NbtReadHelper<R, E>,
+        tag_id: u8,
+    ) -> Result<NbtTag, Error> {
+        match tag_id {
+            LIST_ID => deserialize_list(reader).map(NbtTag::List),
+            COMPOUND_ID => deserialize_compound(reader).map(NbtTag::Compound),
+            _ => Self::deserialize_flat_data(reader, tag_id),
+        }
+    }
+
+    #[inline(never)]
+    fn deserialize_flat_data<R: Read + Seek, E: NbtEncoding>(
         reader: &mut NbtReadHelper<R, E>,
         tag_id: u8,
     ) -> Result<NbtTag, Error> {
@@ -303,38 +307,14 @@ impl NbtTag {
                 Ok(NbtTag::Double(double))
             }
             BYTE_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(1)?;
                 let byte_array = reader.read_boxed_slice(len)?;
                 Ok(NbtTag::ByteArray(byte_array))
             }
             STRING_ID => Ok(NbtTag::String(get_nbt_string(reader)?)),
-            LIST_ID => {
-                let (tag_type_id, len) = read_list_header(reader)?;
-
-                reader.push_depth()?;
-                let mut list = Vec::with_capacity(cautious_capacity::<NbtTag>(len, READ_STEP));
-                for _ in 0..len {
-                    list.push(match NbtTag::deserialize_data(reader, tag_type_id)? {
-                        NbtTag::Compound(mut compound) if is_wrapper(&compound) => {
-                            match compound.child_tags.pop() {
-                                Some((_, tag)) => tag,
-                                None => NbtTag::Compound(compound),
-                            }
-                        }
-                        tag => tag,
-                    });
-                }
-                reader.pop_depth();
-                Ok(NbtTag::List(list))
-            }
-            COMPOUND_ID => {
-                reader.push_depth()?;
-                let compound = NbtCompound::deserialize_content(reader)?;
-                reader.pop_depth();
-                Ok(NbtTag::Compound(compound))
-            }
+            LIST_ID | COMPOUND_ID => Self::deserialize_data(reader, tag_id),
             INT_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(4)?;
                 let mut int_array = Vec::with_capacity(cautious_capacity::<i32>(len, READ_STEP));
                 for _ in 0..len {
                     let int = reader.get_i32()?;
@@ -343,7 +323,7 @@ impl NbtTag {
                 Ok(NbtTag::IntArray(int_array))
             }
             LONG_ARRAY_ID => {
-                let len = E::read_collection_length(&mut reader.reader)?;
+                let len = reader.read_array_length(8)?;
                 let mut long_array = Vec::with_capacity(cautious_capacity::<i64>(len, READ_STEP));
                 for _ in 0..len {
                     let long = reader.get_i64()?;
@@ -397,13 +377,6 @@ impl NbtTag {
         }
     }
 
-    pub fn extract_bool(&self) -> Option<bool> {
-        match self {
-            NbtTag::Byte(byte) => Some(*byte != 0),
-            _ => None,
-        }
-    }
-
     pub fn extract_string(&self) -> Option<&str> {
         match self {
             NbtTag::String(string) => Some(string),
@@ -433,41 +406,130 @@ impl NbtTag {
     }
 }
 
-/// A list's element type and count.
 pub(crate) fn read_list_header<R: Read + Seek, E: NbtEncoding>(
     reader: &mut NbtReadHelper<R, E>,
 ) -> Result<(u8, usize), Error> {
     let element_type = reader.get_u8()?;
     let len = E::read_collection_length(&mut reader.reader)?;
-    // Every other element type takes input to read or to skip, so only this
-    // one could run a list to its declared count from a header.
+    let count = len as u64;
+    let element = 4 + crate::budget::value_charge(element_type);
+    crate::budget::charge(element.saturating_mul(count).saturating_add(5), count)?;
     if element_type == END_ID && len > 0 {
         return Err(Error::SerdeError("a list cannot hold TAG_End".to_string()));
     }
     Ok((element_type, len))
 }
 
-/// A mixed list is written as compounds with every non-compound element
-/// wrapped as `{"": value}`; a compound that already looks like a wrapper is
-/// wrapped again so the reader's single unwrap gives it back unchanged.
 fn is_wrapper(compound: &NbtCompound) -> bool {
     matches!(compound.child_tags.as_slice(), [(key, _)] if key.is_empty())
 }
 
-fn list_element_type(list: &[NbtTag]) -> Result<u8, Error> {
+fn is_wrapped_list_element(element_type: u8, element: &NbtTag) -> bool {
+    element_type == COMPOUND_ID
+        && !matches!(element, NbtTag::Compound(compound) if !is_wrapper(compound))
+}
+
+fn list_element_id(list: &[NbtTag]) -> Option<u8> {
     let mut element_type = END_ID;
     for tag in list {
         let id = tag.get_type_id();
         if id == END_ID {
-            return Err(Error::SerdeError("a list cannot hold TAG_End".to_string()));
+            return None;
         }
         if element_type == END_ID {
             element_type = id;
         } else if element_type != id {
-            return Ok(COMPOUND_ID);
+            return Some(COMPOUND_ID);
         }
     }
-    Ok(element_type)
+    Some(element_type)
+}
+
+fn list_depth(list: &[NbtTag], budget: u32) -> u32 {
+    let Some(budget) = budget.checked_sub(1) else {
+        return 1;
+    };
+    let element_type = list_element_id(list).unwrap_or(END_ID);
+    deepest(list.iter().map(|element| {
+        let levels = element.depth(budget);
+        if is_wrapped_list_element(element_type, element) {
+            levels.saturating_add(1)
+        } else {
+            levels
+        }
+    }))
+}
+
+#[must_use]
+pub fn deepest(levels: impl IntoIterator<Item = u32>) -> u32 {
+    levels.into_iter().max().unwrap_or(0).saturating_add(1)
+}
+
+fn deserialize_list<R: Read + Seek, E: NbtEncoding>(
+    reader: &mut NbtReadHelper<R, E>,
+) -> Result<Vec<NbtTag>, Error> {
+    let (tag_type_id, len) = read_list_header(reader)?;
+    reader.push_depth()?;
+    let mut list = Vec::with_capacity(cautious_capacity::<NbtTag>(len, READ_STEP));
+    for _ in 0..len {
+        NbtTag::deserialize_data(reader, tag_type_id).map(|tag| list.push(unwrap_element(tag)))?;
+    }
+    reader.pop_depth();
+    Ok(list)
+}
+
+#[inline(never)]
+fn unwrap_element(tag: NbtTag) -> NbtTag {
+    match tag {
+        NbtTag::Compound(mut compound) if is_wrapper(&compound) => {
+            match compound.child_tags.pop() {
+                Some((_, tag)) => tag,
+                None => NbtTag::Compound(compound),
+            }
+        }
+        tag => tag,
+    }
+}
+
+fn deserialize_compound<R: Read + Seek, E: NbtEncoding>(
+    reader: &mut NbtReadHelper<R, E>,
+) -> Result<NbtCompound, Error> {
+    reader.push_depth()?;
+    let compound = NbtCompound::deserialize_content(reader)?;
+    reader.pop_depth();
+    Ok(compound)
+}
+
+fn list_element_type(list: &[NbtTag]) -> Result<u8, Error> {
+    list_element_id(list).ok_or_else(|| Error::SerdeError("a list cannot hold TAG_End".to_string()))
+}
+
+fn serialize_list<W: Write, E: NbtEncoding>(
+    list: &[NbtTag],
+    w: &mut WriteAdaptor<W, E>,
+) -> serializer::Result<()> {
+    let element_type = list_element_type(list)?;
+    w.write_u8(element_type)?;
+    E::write_collection_length(w, list.len())?;
+    for nbt_tag in list {
+        if is_wrapped_list_element(element_type, nbt_tag) {
+            write_wrapper_header(nbt_tag, w)?;
+            nbt_tag.serialize_data(w)?;
+            w.write_u8(END_ID)?;
+        } else {
+            nbt_tag.serialize_data(w)?;
+        }
+    }
+    Ok(())
+}
+
+#[inline(never)]
+fn write_wrapper_header<W: Write, E: NbtEncoding>(
+    nbt_tag: &NbtTag,
+    w: &mut WriteAdaptor<W, E>,
+) -> serializer::Result<()> {
+    w.write_u8(nbt_tag.get_type_id())?;
+    E::write_string(w, "")
 }
 
 impl From<&str> for NbtTag {
@@ -494,8 +556,6 @@ impl From<bool> for NbtTag {
     }
 }
 
-/// A human-readable format has no array tags: `JsonOps` writes them as plain
-/// lists of signed numbers.
 impl Serialize for NbtTag {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let plain_lists = serializer.is_human_readable();

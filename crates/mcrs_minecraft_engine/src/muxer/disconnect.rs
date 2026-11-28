@@ -28,8 +28,6 @@ pub type LeavingSessions<'w, 's> = Query<
     ),
 >;
 
-/// A player a dimension has been told to let go of and has not yet saved. A login under its id
-/// waits for it, so the new session never reads a player file the old one has still to write.
 #[derive(Component, Debug)]
 pub struct Departing {
     pub id: Uuid,
@@ -53,23 +51,17 @@ pub fn on_player_disconnect(
     };
     process_disconnect(
         host_anchor_ref.0,
-        &mut sessions,
+        sessions.reborrow(),
         &mut dim_channels,
-        &mut commands,
+        commands.reborrow(),
     );
 }
 
-/// Run a single host-anchor's cleanup: route the despawn into the dimension
-/// that holds the player and despawn the host anchor, which takes the session
-/// with it.
-///
-/// The session is unplaced before its anchor's despawn is applied, so a second
-/// cleanup of the same anchor routes nothing.
 pub fn process_disconnect(
     host_anchor: Entity,
-    sessions: &mut LeavingSessions,
+    mut sessions: LeavingSessions,
     dim_channels: &mut DimInputs,
-    commands: &mut Commands,
+    mut commands: Commands,
 ) {
     let Ok((session, mut placement, connection, profile)) = sessions.get_mut(host_anchor) else {
         return;
@@ -98,7 +90,6 @@ pub fn process_disconnect(
     }
 }
 
-/// Routes the player's despawn into its dimension. Returns the dimension when it took it.
 pub fn despawn_from_dim(
     session: PlayerSession,
     place: Place,

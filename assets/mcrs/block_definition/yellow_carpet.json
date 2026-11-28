@@ -37,6 +37,17 @@
         "seconds_to_destroy": 0.1
       },
       "minecraft:loot": "minecraft:blocks/yellow_carpet",
+      "minecraft:placement_filter": {
+        "predicate": {
+          "type": "minecraft:not",
+          "predicate": {
+            "type": "minecraft:matching_block_tag",
+            "offset": [0, -1, 0],
+            "tag": "minecraft:air"
+          }
+        },
+        "tested_directions": "all"
+      },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 1, 16] }

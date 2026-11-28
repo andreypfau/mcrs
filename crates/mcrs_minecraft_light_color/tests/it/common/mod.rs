@@ -126,8 +126,6 @@ pub fn colours() -> LightColors {
     LightColors::new(table, types)
 }
 
-/// The 3×3×3 sections around `centre`. A section outside `bounds` is always
-/// `None`; inside, `None` means not loaded.
 pub struct Neighbourhood {
     pub centre: SectionPos,
     pub bounds: LightBounds,
@@ -171,7 +169,6 @@ impl Neighbourhood {
         self.slot(pos).and_then(|i| self.sections[i].as_deref())
     }
 
-    /// Writes into a loaded section; a position in a missing section is left alone.
     pub fn set(&mut self, pos: BlockPos, id: VoxelId) {
         if let Some(i) = self.slot(SectionPos::from(pos))
             && let Some(cells) = &mut self.sections[i]
@@ -190,7 +187,6 @@ impl Neighbourhood {
     }
 }
 
-/// The sections the neighbourhood holds are readable; the rest are unloaded.
 impl Volume for Neighbourhood {
     fn bounds(&self) -> BoundingBox {
         BoundingBox::of_section(SectionPos::new(
@@ -230,7 +226,6 @@ fn neighbours(centre: SectionPos) -> impl Iterator<Item = SectionPos> {
     })
 }
 
-/// Every output position of the centre section, x fastest then z then y.
 pub fn output_positions(centre: SectionPos) -> impl Iterator<Item = BlockPos> {
     let (min, size) = section_output(centre);
     (0..size).flat_map(move |y| {
@@ -240,10 +235,6 @@ pub fn output_positions(centre: SectionPos) -> impl Iterator<Item = BlockPos> {
     })
 }
 
-/// The first cell where a brick of a section around `centre` differs from the
-/// edge costs or sources of the centre's region. Costs are compared where the
-/// cell and its six neighbours lie inside the region, sources wherever the
-/// cell does.
 pub fn brick_mismatch(
     centre: SectionPos,
     bounds: LightBounds,
@@ -379,8 +370,6 @@ fn placed_block() -> impl Strategy<Value = VoxelId> {
     prop::sample::select(pool)
 }
 
-/// Where the world's bounds cut the neighbourhood, the base fill of the centre
-/// and of each of the other 26 sections, and the blocks placed over it.
 pub type WorldParts = (u8, u8, Vec<u8>, Vec<(i32, i32, i32, VoxelId)>);
 
 pub fn world_parts() -> impl Strategy<Value = WorldParts> {
@@ -413,8 +402,6 @@ pub fn random_world(centre: SectionPos, parts: WorldParts) -> Neighbourhood {
     world
 }
 
-/// Light of type `t` on the centre section's output, from the server's relax
-/// seeded with that type's emitters only.
 pub fn oracle(neighbourhood: &Neighbourhood, t: LightType) -> Vec<u8> {
     let registry = registry();
     let colours = colours();
@@ -425,7 +412,6 @@ pub fn oracle(neighbourhood: &Neighbourhood, t: LightType) -> Vec<u8> {
         .sections()
         .map(|(_, pos)| match neighbourhood.section(pos) {
             Some(cells) => {
-                // The cells name blocks of the test table, which is narrower than u16.
                 let ids: Vec<BlockStateId> = cells
                     .iter()
                     .filter_map(|&id| BlockStateId::checked(id, 1 << 16))

@@ -1,12 +1,5 @@
 # SNBT, the text form of NBT: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-| Parser ids | `nbt_compound_tag` 21, `nbt_tag` 22, `nbt_path` 23 (`commands-packet.md`, CMDP-ARG-001) |
-
-Source of the version values: `assets/minecraft/version.json`. Source of the parser ids:
 `assets/mcrs/reports/registries.json`, registry `minecraft:command_argument_type`.
 
 This document states SNBT, the text form of NBT, as the game reads it and writes it. It states
@@ -1133,7 +1126,7 @@ trailing data".
 
 ---
 
-## 9. Open questions
+## 9. Unresolved
 
 - **A deep tag in the reference.** The reference read has no depth limit (SNBT-LIM-001). Its
   behaviour for a deep text is not known: an error, a disconnection or a crash. The vanilla
@@ -1191,16 +1184,3 @@ trailing data".
 - **Visible to the client:** yes, but only for unusual input. The client accepts `"\uD800"`.
   The server rejects it.
 - **Test:** do not compare a text that gives an unpaired surrogate.
-
----
-
-## 11. Differences of the current implementation
-
-`crates/mcrs_minecraft_snbt` differs from this document in these points:
-
-- **The text form.** It has no text form (SNBT-PRINT-004 to SNBT-PRINT-006).
-- **Suggestions.** It makes no suggestions (SNBT-SUG-001). The read keeps only the reported
-  error, not all records at the furthest position.
-- **Operation arguments.** The depth of an argument of `bool` or `uuid` is the depth of the
-  operation plus 1. An argument list that opens the level 513 fails with
-  `arguments.nbtpath.too_deep` at its `(`. SNBT-LIM-001 states only compounds and lists.

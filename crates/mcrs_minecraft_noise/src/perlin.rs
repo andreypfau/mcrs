@@ -5,13 +5,9 @@ use crate::jmath::{lerp, mul_add, mul_add64};
 use crate::sample_grid::SampleGrid;
 use mcrs_minecraft_random::Random;
 
-/// One Perlin octave in the modern value width.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PerlinNoise(GradientNoise);
 
-/// A Perlin octave whose y fraction is quantised to a multiple of
-/// `fudge_y_scale` before the gradient dot, which smears the lattice along the
-/// vertical. Only `BlendedNoise` uses it; vanilla marks it deprecated.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SmearedPerlinNoise {
     base: GradientNoise,
@@ -51,15 +47,12 @@ impl Noise for PerlinNoise {
         out[0]
     }
 
-    /// Samples one x/z column: the lattice hashes and the x/z smoothsteps are computed once,
-    /// and the eight corner gradients only when the y lattice cell changes.
     #[inline]
     fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
         debug_assert_eq!(ys.len(), out.len());
         self.0.column::<false>(x, z, ys, 0.0, out);
     }
 
-    /// Accumulates `amplitude * sample` over `volume`, Z outer / X middle / Y inner.
     fn add_to_volume(
         &self,
         out: &mut [f32],
@@ -73,11 +66,6 @@ impl Noise for PerlinNoise {
     }
 }
 
-/// Beta's `ySize == 1` branch: the y lattice index is pinned to zero, the y
-/// fraction to zero, and the y origin is not added at all. Sampling the 3D path
-/// at y = 0 would add the octave's own y origin and land in a different lattice
-/// cell, so this is a separate noise over the same lattice rather than a special
-/// case of [`PerlinNoise`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct LegacyPerlin2dNoise(GradientNoise);
 
@@ -86,9 +74,6 @@ impl LegacyPerlin2dNoise {
         Self(base)
     }
 
-    /// Coordinates stay `f64` to the floor, as they do in Beta: narrowing them
-    /// first would quantise the lattice to whole blocks a few hundred thousand
-    /// blocks out.
     #[inline]
     pub(crate) fn get_xz(&self, x: f64, z: f64) -> f32 {
         let shifted_x = wrap(x) + self.0.offset_x;
@@ -123,7 +108,6 @@ impl Noise for LegacyPerlin2dNoise {
         out.fill(self.get_xz(x, z));
     }
 
-    /// One value per column, repeated down it.
     fn add_to_volume(
         &self,
         out: &mut [f32],
@@ -178,8 +162,6 @@ impl Noise for SmearedPerlinNoise {
         out[0]
     }
 
-    /// `ys` arrive unfolded: the lattice reads them through [`wrap`], while the
-    /// smear quantises against the value before it.
     #[inline]
     fn get_column(&self, x: f64, z: f64, ys: &[f64], out: &mut [f32]) {
         debug_assert_eq!(ys.len(), out.len());
@@ -205,8 +187,6 @@ impl Noise for SmearedPerlinNoise {
     }
 }
 
-/// The y fraction after the smear. `original_y` is the coordinate before
-/// [`wrap`]; at `SMEARED == false` the whole thing folds away.
 #[inline(always)]
 fn fudged_local_y<const SMEARED: bool>(local_y: f64, original_y: f64, fudge_y_scale: f64) -> f64 {
     if !SMEARED || fudge_y_scale == 0.0 {
@@ -220,9 +200,6 @@ fn fudged_local_y<const SMEARED: bool>(local_y: f64, original_y: f64, fudge_y_sc
     local_y - ((t / fudge_y_scale + 1.0E-7f32 as f64).floor() as i32) as f64 * fudge_y_scale
 }
 
-/// One column of the lattice: what x and z alone decide, plus the y cell whose
-/// corner blend is reused until y leaves it. The shifted coordinates are the
-/// caller's to form, because the two callers form them differently.
 struct Lane {
     p0: usize,
     p1: usize,
@@ -293,9 +270,12 @@ impl Lane {
 
 impl GradientNoise {
     #[inline(always)]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the three section coordinates, the three local coordinates and the first fade of one lattice-cell sample"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one lattice-cell sample"
+        )
     )]
     pub(crate) fn sample_and_lerp(
         &self,
@@ -335,10 +315,6 @@ impl GradientNoise {
         }
     }
 
-    /// The block coordinate is multiplied by the *already combined* scale, so this
-    /// forms `block * (outer_scale * frequency)` where [`Self::column`] forms
-    /// `(block * outer_scale) * frequency`. The two differ by an f64 ulp at
-    /// non-power-of-two frequencies, and vanilla ships that difference.
     fn volume<const SMEARED: bool>(
         &self,
         out: &mut [f32],
@@ -373,16 +349,6 @@ impl GradientNoise {
 }
 
 impl GradientNoise {
-    /// Beta's bulk fill, which is **not** a function of position: the eight
-    /// corner dot products are computed once per y lattice cell and reused for
-    /// every later sample in that cell, keeping the first sample's fractional y
-    /// even as the fade advances. Sampling the same coordinates pointwise gives
-    /// different terrain, so the grid — its origin, extent and step — is part of
-    /// the definition.
-    ///
-    /// `out` is accumulated into, so the caller zeroes it. The axes are the
-    /// caller's to permute: Beta hands world Z to the y argument for the surface
-    /// noises. Iteration is x outer, z middle, y inner.
     pub fn legacy_fill(
         &self,
         out: &mut [f32],
@@ -541,10 +507,6 @@ impl CellCorners {
     }
 }
 
-/// The trilinear blend of one lattice cell restricted to a line along y, where x, z and
-/// their smoothsteps are fixed: every corner dot is affine in y, and both the x and the z
-/// lerps are affine with constant weights, so the whole cell collapses to two lines that
-/// the y smoothstep interpolates between.
 #[derive(Clone, Copy)]
 #[cfg(any(test, feature = "fast"))]
 pub(crate) struct CellLine {
@@ -675,8 +637,6 @@ mod modern {
     use crate::perlin::{PerlinNoise, SmearedPerlinNoise};
     use mcrs_minecraft_random::legacy::LegacyRandom;
 
-    /// Vanilla `GradientNoise` keeps its offsets in double regardless of the lattice
-    /// precision, so the modern sampler must hold the undegraded f64 draws.
     #[test]
     fn modern_offset_is_vanilla() {
         use mcrs_minecraft_random::Random;
@@ -702,12 +662,11 @@ mod modern {
     #[test]
     #[expect(
         clippy::excessive_nesting,
-        reason = "compares the column sampler with the per-position sampler with the plain and smeared cases inline, bit for bit"
+        reason = "plain and smeared cases inline, compared bit for bit"
     )]
     fn column_matches_per_position_bit_for_bit() {
         let lattice = GradientNoise::from_random(&mut LegacyRandom::new(845));
         let plain = PerlinNoise::from_gradient(lattice.clone());
-        // Steps far below one lattice cell, so consecutive entries reuse the hoisted corners.
         for (y_step, fudge) in [(0.03_f64, 0.0_f64), (0.03, 0.25), (0.37, 2.0), (1.5, 0.0)] {
             let smeared = SmearedPerlinNoise::from_gradient(lattice.clone(), fudge);
             for xi in 0..7 {

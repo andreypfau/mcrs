@@ -1,0 +1,9 @@
+[package]
+name = "fixture_sets"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true

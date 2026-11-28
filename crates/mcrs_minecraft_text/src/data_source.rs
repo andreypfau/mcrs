@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::discriminator::{source_block, source_entity, source_storage};
 
-/// Where an [`TextContent::Nbt`] component reads its data from.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DataSource {

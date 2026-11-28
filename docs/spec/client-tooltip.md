@@ -1,11 +1,6 @@
 # Tooltips of the client GUI: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states how the vanilla client draws a tooltip at the mouse in a screen. It also
 states what a hover event of a text style shows. The screens decide when a tooltip shows and
@@ -43,9 +38,10 @@ section "Semantics, not accidents".
 
 ### 0.3 Colours and text
 
-A colour is a 32-bit ARGB value in hexadecimal. The font, the width of a text and the wrap of a
-text component are as `client-chat.md`, section 0.3, states. To wrap a text component at a
-width means to split it into lines no wider than that width:
+A colour is a 32-bit ARGB value in hexadecimal. The font and the width of a text are as
+`client-font.md` states. The wrap of a text component has no general
+specification yet (`client-chat.md`, section 0.3); this document uses the wrap below. To wrap
+a text component at a width means to split it into lines no wider than that width:
 
 - A line break (U+000A) in the text also starts a new line. The line break is not in a line.
 - When a line ends at a space (U+0020), the space is not in a line.
@@ -74,9 +70,9 @@ In scope: the tooltip of a request with text lines, its position, size, backgrou
 draw, and the three kinds of hover event. `client-gui-sprite.md` states the scaling of the
 background sprites, for all GUI sprites.
 
-Out of scope: the lines of an item tooltip, the image of an item tooltip (for example the
-contents of a bundle), the tooltip of a widget with its delay and its positioners, and the
-narration of tooltips.
+Out of scope: the parts of an item tooltip (`client-container-screen.md`), the image of an item
+tooltip (for example the contents of a bundle), the tooltip of a widget with its delay and its
+positioners, and the narration of tooltips.
 
 ---
 
@@ -90,7 +86,8 @@ narration of tooltips.
   3. A request with no lines has no effect. A request with one empty line is not a request
      with no lines: it draws a tooltip with `w` = 0.
   4. When the screen already has a request, a new request has no effect. The first request
-     of the frame stays.
+     of the frame stays. A new request replaces the first request only when a rule states
+     it. `client-widget.md`, WID-TIP-005, states it for a focused widget.
   5. After the screen draws all its content, it makes the request of the hovered text style
      (TIP-HOVER-001). Step 4 applies to it.
   6. Then the screen draws the tooltip of the request, if there is one. The tooltip is above
@@ -98,16 +95,18 @@ narration of tooltips.
   7. At the end of the frame, the screen discards the request.
 - **Postconditions:**
   - A frame draws zero tooltips or one tooltip.
-  - A tooltip shows in the first frame in which its source asks for it. There is no delay
-    and no fade.
-  - A tooltip follows the mouse position in each frame.
+  - A tooltip shows in the frame of its request. It has no fade.
+  - A source makes its request with no delay. The tooltip of a widget is the exception: it
+    has the delay of `client-widget.md`, WID-TIP-001.
+  - A tooltip has the position of TIP-POS-001, so it follows the mouse position in each
+    frame. The tooltip of a widget has the positions of `client-widget.md`, WID-TIP-003 and
+    WID-TIP-004.
   - A hover event shows only when no other part of the screen made a request in that frame.
-- **Edge cases:** a tooltip is a function of the mouse position only. A key never makes a
-  tooltip request by itself.
+- **Edge cases:** a key never makes a tooltip request by itself. The exception is the focus
+  of a widget (`client-widget.md`, WID-TIP-001 and WID-TIP-005). Except for the tooltip of a
+  widget, a tooltip is a function of the mouse position only.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: in the open chat,
-put the mouse on a suggestion row with a tooltip, above a chat line with a `show_text` hover
-event. Only the tooltip of the suggestion shows.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -124,7 +123,7 @@ event. Only the tooltip of the suggestion shows.
   4. With the flag and `n` ≥ 2, `h` = `10·n`.
 - **Postconditions:** a tooltip with one line has `h` = 8.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see TIP-BG-001.
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 ### TIP-POS-001: Position of the content box
 
@@ -143,9 +142,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see 
 - **Edge cases:** step 2 tests `w` without the background. The background can go up to 4 GUI
   units past the right edge of the screen.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: at a GUI scale of 2,
-put the mouse at `mx` = 100, `my` = 100 on a one-line tooltip. Take a screenshot. The text starts
-at x = 112, y = 88.
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 ### TIP-BOX-002: Lines in the content box
 
@@ -163,7 +160,7 @@ at x = 112, y = 88.
 - **Postconditions:** the lines keep the styles of their text component, for example bold,
   italic and colours.
 
-Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see TIP-BG-001.
+Provenance: `source_suggested`. Kind: layout. Confidence: high.
 
 ---
 
@@ -202,9 +199,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: high. Experiment: see 
   comes from the sprite, which stretches 80 texels over the height `h + 4` (TIP-BG-002).
 
 Provenance: `source_suggested`, and `black_box_confirmed` for the texels of the vanilla sprites.
-Kind: layout. Confidence: high. Experiment: at a GUI scale of 1, show the tooltip
-`chat.tag.system_single_player` in the open chat. Take a screenshot. Compare each pixel of the
-background with the table.
+Kind: layout. Confidence: high.
 
 ### TIP-BG-002: Scaling of the background sprites
 
@@ -223,9 +218,7 @@ background with the table.
   24 × 24, so the borders are never reduced.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the `.mcmeta` values of the vanilla
-pack. Kind: layout. Confidence: high. Experiment: in a resource pack, give `tooltip/background`
-the scaling `stretch`. Show a tooltip. The full sprite stretches over the background
-rectangle, so the transparent margin and the cut corners grow with the tooltip.
+pack. Kind: layout. Confidence: high.
 
 ---
 
@@ -267,8 +260,6 @@ rectangle, so the transparent margin and the cut corners grow with the tooltip.
 "Advanced Tooltips" is the option that F3 + H changes. It is off by default.
 
 Provenance: `source_suggested`. Kind: semantic; layout for the wrap width. Confidence: medium.
-Experiment: on a GUI 427 units wide, send a `system_chat` with a `show_text` of 300 GUI units
-of text. Open the chat and put the mouse on it. The tooltip wraps at 213 GUI units.
 
 ### TIP-HOVER-002: The hovered text style
 
@@ -294,20 +285,17 @@ of text. Open the chat and put the mouse on it. The tooltip wraps at 213 GUI uni
   component. A child with no hover event of its own has the hover event of its parent.
 
 Provenance: `source_suggested`. Kind: semantic; layout for the hover area. Confidence: medium.
-Experiment: send a `system_chat` with the text `a b` and a `show_text` hover event. Open the
-chat and put the mouse on the space. The tooltip shows.
 
 ---
 
 ## 5. Intentional deviations
 
-No deviation is recorded.
+None.
 
 ---
 
 ## 6. Open points
 
-- The lines and the image of an item tooltip need a separate specification. TIP-HOVER-001 for
-  `show_item` depends on it.
+- The image of an item tooltip needs a separate specification.
 - The tooltip of a widget, for example a button, uses the same background with a delay and
-  other positions. A separate rule set can state it.
+  other positions. `client-widget.md`, section 6, states it.

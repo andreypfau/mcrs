@@ -1,4 +1,6 @@
 use crate::ColumnBiomes;
+use crate::probe_lattice::ProbeLattice;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use crate::stages::build_terrain_heightmaps;
@@ -12,9 +14,6 @@ const MIN_Y: i32 = -64;
 const HEIGHT: i32 = 384;
 const COLUMNS: [(i32, i32); 6] = [(0, 0), (15, 15), (7, 8), (3, 12), (15, 0), (0, 15)];
 
-/// The column sampled alone answers what a descent of the raw fill answers, on
-/// land, on the coast and over deep ocean, where the surface is the water and
-/// the floor lies below it. An accessor outside the noise range answers its floor.
 #[test]
 fn base_height_matches_a_descent_of_the_raw_fill() {
     let router = build_settings_router("overworld", 42);
@@ -22,14 +21,18 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
     let y_sections: Vec<i32> = (-4..20).collect();
     let mut column = ColumnBlocks::new(&y_sections);
     let mut ws = Workspace::new();
+    let mut lattice = ProbeLattice::default();
     for (chunk_x, chunk_z) in [(3, -7), (-12, 5), (0, 0), (40, 0)] {
+        let mut cells = AquiferCells::default();
         fill_column_dense_any(
             &mut column,
             chunk_x,
             chunk_z,
             &y_sections,
             &router,
+            &mut cells,
             &ColumnBiomes::None,
+            None,
             None,
             &CancellationToken::new(),
         )
@@ -40,6 +43,7 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
             let surface = base_height(
                 &router,
                 &mut ws,
+                &mut lattice,
                 &predicates,
                 HeightmapKinds::SURFACE,
                 x,
@@ -50,6 +54,7 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
             let solid = base_height(
                 &router,
                 &mut ws,
+                &mut lattice,
                 &predicates,
                 HeightmapKinds::SOLID,
                 x,
@@ -81,6 +86,7 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
     let above_the_noise = base_height(
         &router,
         &mut ws,
+        &mut lattice,
         &predicates,
         HeightmapKinds::SURFACE,
         0,

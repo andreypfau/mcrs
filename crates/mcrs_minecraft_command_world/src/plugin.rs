@@ -3,6 +3,7 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_command_engine::{AppCommandsExt, RegistrationError, system_message};
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::muxer::online_count::send_online_count;
+use mcrs_minecraft_engine::server_edit::announce_tick_state;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
@@ -10,9 +11,6 @@ use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use crate::forced_columns::ForcedColumns;
 use crate::{fill, forceload, gamerule, server_change, tick, weather};
 
-/// The commands `fill`, `forceload`, `gamerule`, `weather` and `tick` of the vanilla command
-/// set, the effect [`ServerChange`](crate::ServerChange) they write, and the report of a sprint
-/// in the server log.
 pub struct WorldCommandsPlugin;
 
 impl Plugin for WorldCommandsPlugin {
@@ -27,7 +25,13 @@ impl Plugin for WorldCommandsPlugin {
         report("weather", app.add_command(weather::build, weather::run));
         report("tick", app.add_command(tick::build, tick::run));
         app.add_dimension_plugin(ForcedColumnsPlugin);
-        app.add_systems(Update, report_sprint.after(send_online_count));
+        app.add_systems(
+            Update,
+            report_sprint
+                .run_if(sprint_reported)
+                .after(send_online_count)
+                .before(announce_tick_state),
+        );
     }
 }
 
@@ -37,7 +41,6 @@ fn report<T>(name: &str, result: Result<T, RegistrationError>) {
     }
 }
 
-/// The forced columns of a dimension world.
 #[derive(Clone)]
 struct ForcedColumnsPlugin;
 
@@ -47,11 +50,12 @@ impl Plugin for ForcedColumnsPlugin {
     }
 }
 
-/// Writes the report of a sprint that ended to the server log, as the server source does.
-fn report_sprint(pace: Option<ResMut<TickPace>>, mut packets: MessageWriter<OutboundPlayerPacket>) {
-    let Some(mut pace) = pace else {
-        return;
-    };
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+fn sprint_reported(pace: Option<Res<TickPace>>) -> bool {
+    pace.is_some_and(|pace| pace.has_report())
+}
+
+fn report_sprint(mut pace: ResMut<TickPace>, mut packets: MessageWriter<OutboundPlayerPacket>) {
     let Some(report) = pace.take_report() else {
         return;
     };

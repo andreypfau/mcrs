@@ -1,6 +1,3 @@
-//! Static block entities: blocks whose shape comes from an entity geometry, baked into the
-//! faces of the block as described by the data files under `mcrs/block_entity_model/`.
-
 use std::collections::HashMap;
 
 use bevy::math::{Affine3A, Mat3, Mat4, Vec2, Vec3, Vec4};
@@ -19,16 +16,13 @@ use mcrs_minecraft_entity_model::{
 use crate::bake_error::BakeError;
 use crate::block_entity_error::{BlockEntityError, BlockEntityErrorKind, LayerError};
 
-/// The pack directory of the data files, one file `<namespace>/<path>.json` per block.
 pub const DATA_DIRECTORY: &str = "mcrs/block_entity_model";
-/// The pack directory of the geometry files of the entity pack.
 pub const GEOMETRY_DIRECTORY: &str = "mcrs/entity/geometry";
 
 const DYE_COUNT: u8 = 16;
 const MODEL_UNITS_PER_BLOCK: f32 = 16.0;
 const SHAPE_ORIGIN_HEIGHT: f32 = 24.0;
 
-/// The layers of each static block entity of a pack, with the geometries they draw.
 #[derive(Debug, Default)]
 pub struct BlockEntityModels {
     blocks: HashMap<String, StaticBlockEntity>,
@@ -36,7 +30,6 @@ pub struct BlockEntityModels {
     errors: Vec<BlockEntityError>,
 }
 
-/// A baked geometry with the model transform of each bone in the rest pose.
 #[derive(Debug)]
 struct RestGeometry {
     baked: BakedGeometry,
@@ -79,22 +72,15 @@ struct LayerRecord {
     placement: [[f32; 4]; 3],
 }
 
-/// How the texels of a layer combine with what is behind them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Surface {
-    /// The alpha of the texture is ignored.
     Opaque,
-    /// A texel with an alpha below 0.1 is not drawn; the other texels are opaque.
     Cutout,
-    /// A texel blends by its alpha; a texel with an alpha below 0.1 is not drawn.
     Blend,
 }
 
 impl BlockEntityModels {
-    /// Reads the data files, the geometry files and the block definitions they need from
-    /// `files`, keyed by their path in the pack. A defect in a file is a content error: the
-    /// file is skipped and `errors` names it.
     pub fn from_files(files: &HashMap<String, Vec<u8>>) -> Self {
         let mut models = Self::default();
         let mut paths: HashMap<String, &str> = HashMap::new();
@@ -173,14 +159,10 @@ impl BlockEntityModels {
         models
     }
 
-    /// The content errors found while reading the files.
     pub fn errors(&self) -> &[BlockEntityError] {
         &self.errors
     }
 
-    /// The faces of the drawn layers of the state of `block` with the property values
-    /// `state`, in block space, in the order of the layers. The list is empty when no layer is
-    /// drawn. A state that names no value of a property of the block is an error.
     pub fn bake(
         &self,
         block: &str,
@@ -218,27 +200,17 @@ impl BlockEntityModels {
     }
 }
 
-/// One face of a static block entity shape in block space.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShapeQuad<'a> {
-    /// The corners, counter-clockwise when seen from the side that shows.
     pub positions: [Vec3; 4],
-    /// The texture coordinates of the corners in the sprite of `texture`. An entity texture
-    /// that is not square fills the top-left part of a square sprite.
     pub uvs: [[f32; 2]; 4],
-    /// The texture id, `namespace:path`.
     pub texture: &'a str,
-    /// The direction closest to the side of the face that shows.
     pub facing: Direction,
-    /// The shade factor of the side that shows.
     pub shade: f32,
-    /// A dye id whose colour multiplies the texture.
     pub dye: Option<u8>,
     pub surface: Surface,
 }
 
-/// The geometries of the geometry files in path order. `paths` takes the path of each
-/// identifier in lower case.
 fn read_geometries<'a>(
     files: &'a HashMap<String, Vec<u8>>,
     paths: &mut HashMap<String, &'a str>,
@@ -296,7 +268,6 @@ fn read_geometries<'a>(
     geometries
 }
 
-/// A diagnostic that drops a geometry or a parent link; the other diagnostics are warnings.
 fn is_content_error(diagnostic: &Diagnostic) -> bool {
     matches!(
         diagnostic,
@@ -320,7 +291,6 @@ fn sorted_under<'a>(
     found
 }
 
-/// The block id of a data file path, `<DATA_DIRECTORY>/<namespace>/<path>.json`.
 fn block_of(path: &str) -> Option<(&str, &str)> {
     path.strip_prefix(DATA_DIRECTORY)?
         .strip_prefix('/')?
@@ -415,8 +385,6 @@ fn read_layer(
     })
 }
 
-/// The map from internal space to shape space in blocks: internal space mirrors the shape on
-/// X, and shape space has +Y down from a height of 24 model units.
 fn shape_from_internal() -> Mat4 {
     Mat4::from_cols(
         Vec4::new(-1.0, 0.0, 0.0, 0.0),
@@ -491,8 +459,6 @@ fn nearest(normal: Vec3) -> Direction {
     best
 }
 
-/// The shade factor of an entity face with this normal, under the light directions of the
-/// overworld.
 fn entity_shade(normal: Vec3) -> f32 {
     let first = Vec3::new(0.2, 1.0, -0.7).normalize();
     let second = Vec3::new(-0.2, 1.0, 0.7).normalize();

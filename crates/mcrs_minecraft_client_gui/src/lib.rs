@@ -1,15 +1,37 @@
-//! The GUI of a Minecraft client: the hotbar, the inventory and chat screens, the game mode
-//! switcher, the item models drawn in slots, and the F3 debug screen with its overlays.
-// std: bevy
-// wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames, and
-// `#[derive(Resource)]` walks all of it.
 #![recursion_limit = "256"]
 
+mod accessibility_settings_screen;
+mod atlas_quad;
 pub mod chat;
 pub mod chat_input;
 pub mod chat_suggestions;
 pub mod chunk_map;
+mod close_menu_screen;
+mod controls_screen;
+mod create_world_screen;
+mod creative_clicks;
+mod creative_grid;
+mod creative_item_tooltip;
+#[cfg(test)]
+mod creative_item_tooltip_tests;
+mod creative_screen_draw;
+mod creative_screen_edit;
+mod creative_screen_input;
+mod creative_screen_open;
+pub mod creative_screen_plugin;
+mod creative_screen_shown;
+pub mod creative_screen_state;
+#[cfg(test)]
+mod creative_screen_tests;
+#[cfg(test)]
+mod creative_screen_view_tests;
+mod creative_search_edit;
+pub mod creative_search_index;
+pub mod creative_tab_content;
+pub mod creative_tab_view;
 pub mod cursor_grab;
+mod death_screen;
+pub mod death_screen_plugin;
 pub mod debug_displayer;
 pub mod debug_entry_fps;
 pub mod debug_entry_network;
@@ -17,16 +39,88 @@ pub mod debug_entry_position;
 pub mod debug_entry_system_specs;
 pub mod debug_screen;
 pub mod debug_screen_overlay;
+mod delete_world_screen;
+mod disconnected_screen;
+pub mod drag_preview;
+mod edit_box_draw;
+mod follow_create_world;
+mod follow_list_answer;
+mod follow_menu_events;
+mod follow_open_menu;
 pub mod font;
+pub mod font_bitmap;
+pub mod font_definition;
+#[cfg(test)]
+mod font_dump_tests;
+pub mod font_glyph;
+mod font_unihex;
 pub mod game_mode_switcher;
+mod gesture_frame;
+pub mod glyph_cache;
 pub mod gui_items;
+pub mod gui_sprite_id;
+pub mod gui_texture_id;
+pub mod health_hud;
 pub mod hotbar;
-pub mod inventory_screen;
+mod hover;
+pub mod hud_systems;
+pub mod inventory_clicks;
+pub mod inventory_figure;
 pub mod item_decorations;
-pub mod item_resolve;
+pub mod item_icons;
+pub mod item_key_codes;
 pub mod language;
+mod last_press;
+mod level_loading_screen;
 pub mod light_levels;
+pub mod loaded_creative_report;
+mod mark_creative_screen;
+pub mod menu;
+mod menu_cursor;
+pub mod menu_draw;
+pub mod menu_event;
+mod menu_gesture;
+mod menu_input;
+pub mod menu_input_systems;
+mod menu_item_tooltip;
+pub mod menu_label_text;
+pub mod menu_options_systems;
+pub mod menu_plugin;
+pub mod menu_screen;
+pub mod menu_screens_plugin;
+pub mod menu_stacks;
+#[cfg(test)]
+mod menu_test_app;
+mod message_screen;
+mod modifiers;
+mod mouse_settings_screen;
+mod open_drag;
+mod option_caption;
+mod option_sub_screen;
+mod options_screen;
+mod panorama_view;
+mod pause_screen;
+mod press_kind;
+mod project_menu;
+mod release_rule;
 pub mod scene;
+mod scroll_area_draw;
+mod search_input;
+mod select_world_screen;
+mod session_screens;
+pub mod sign_text;
+pub mod slot_icon;
+pub mod span_events;
 pub mod sprite;
+mod tab_bar_draw;
 pub mod text;
+mod texture_tile;
+mod title_draw;
+mod title_screen;
 pub mod tooltip;
+mod video_settings_screen;
+mod viewer;
+pub mod wheel_notches;
+mod world_entry;
+mod world_list_error_screen;
+mod world_rows;

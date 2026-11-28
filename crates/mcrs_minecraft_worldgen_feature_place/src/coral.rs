@@ -9,16 +9,11 @@ use mcrs_voxel::BlockPos;
 use crate::tree::trunk::random_horizontal;
 use mcrs_minecraft_random::shuffle;
 
-/// `CoralTreeFeature.place`: a trunk of one to three blocks, then two to four
-/// branches that step outward as they climb.
-///
-/// `place_block` runs the nested placed feature — its own modifier chain over
-/// the same random source — and a refusal ends whatever run it is in.
 pub fn place_coral_tree<W>(
     volume: &mut W,
     rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_block: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    mut place_block: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -55,13 +50,11 @@ where
     true
 }
 
-/// `CoralClawFeature.place`: two or three branches out of the origin, each
-/// running sideways before it curls back in along the claw's own direction.
 pub fn place_coral_claw<W>(
     volume: &mut W,
     rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_block: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    mut place_block: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -122,23 +115,16 @@ mod tests {
 
     const AT: BlockPos = BlockPos::new(0, 60, 0);
 
-    /// The trunk height comes first, and the trunk is offered to the nested
-    /// feature one cell at a time going up.
     #[test]
     fn a_coral_tree_offers_its_trunk_upward_from_the_origin() {
         let mut seen: Vec<BlockPos> = Vec::new();
         let mut volume = FakeVolume::default();
         let mut rng = WorldgenRandom::new(3);
 
-        assert!(place_coral_tree(
-            &mut volume,
-            &mut rng,
-            AT,
-            &mut |_, _, pos| {
-                seen.push(pos);
-                true
-            }
-        ));
+        assert!(place_coral_tree(&mut volume, &mut rng, AT, |_, _, pos| {
+            seen.push(pos);
+            true
+        }));
 
         let trunk = WorldgenRandom::new(3).next_i32_bound(3) + 1;
         assert_eq!(
@@ -147,23 +133,16 @@ mod tests {
         );
     }
 
-    /// A nested feature that refuses the first trunk block ends the run: the
-    /// branch count, the shuffle and every branch draw never happen.
     #[test]
     fn a_refused_trunk_stops_the_tree_after_one_placement() {
         let mut seen: Vec<BlockPos> = Vec::new();
         let mut volume = FakeVolume::default();
         let mut rng = WorldgenRandom::new(3);
 
-        assert!(place_coral_tree(
-            &mut volume,
-            &mut rng,
-            AT,
-            &mut |_, _, pos| {
-                seen.push(pos);
-                false
-            }
-        ));
+        assert!(place_coral_tree(&mut volume, &mut rng, AT, |_, _, pos| {
+            seen.push(pos);
+            false
+        }));
 
         let mut replay = WorldgenRandom::new(3);
         replay.next_i32_bound(3);
@@ -171,8 +150,6 @@ mod tests {
         assert_eq!(seen, vec![AT]);
     }
 
-    /// A claw whose first placement is refused places nothing else and spends
-    /// no draw of its own.
     #[test]
     fn a_refused_origin_stops_the_claw_before_it_draws() {
         let mut seen: Vec<BlockPos> = Vec::new();
@@ -180,38 +157,25 @@ mod tests {
         let mut rng = WorldgenRandom::new(5);
         let before = rng.clone();
 
-        assert!(!place_coral_claw(
-            &mut volume,
-            &mut rng,
-            AT,
-            &mut |_, _, pos| {
-                seen.push(pos);
-                false
-            }
-        ));
+        assert!(!place_coral_claw(&mut volume, &mut rng, AT, |_, _, pos| {
+            seen.push(pos);
+            false
+        }));
 
         assert_eq!(rng, before);
         assert_eq!(seen, vec![AT]);
     }
 
-    /// The claw draws its direction, its branch count and the three-way shuffle
-    /// before it walks any branch, and each branch then spends its sideways
-    /// length, its segment direction where it has a choice, and its reach.
     #[test]
     fn a_coral_claw_walks_every_branch_in_shuffled_order() {
         let mut seen: Vec<BlockPos> = Vec::new();
         let mut volume = FakeVolume::default();
         let mut rng = WorldgenRandom::new(5);
 
-        assert!(place_coral_claw(
-            &mut volume,
-            &mut rng,
-            AT,
-            &mut |_, _, pos| {
-                seen.push(pos);
-                pos == AT
-            }
-        ));
+        assert!(place_coral_claw(&mut volume, &mut rng, AT, |_, _, pos| {
+            seen.push(pos);
+            pos == AT
+        }));
 
         let mut replay = WorldgenRandom::new(5);
         let claw = Direction::HORIZONTAL[replay.next_i32_bound(4) as usize];
@@ -223,8 +187,6 @@ mod tests {
         ];
         shuffle(&mut directions, &mut replay);
 
-        // Every branch is refused at its first sideways cell and again at its
-        // first inward cell, so each offers exactly two positions.
         let mut expected = vec![AT];
         for direction in &directions[..branches as usize] {
             replay.next_i32_bound(2);

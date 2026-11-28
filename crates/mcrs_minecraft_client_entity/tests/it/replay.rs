@@ -1,10 +1,3 @@
-//! Replays the entity packets that the vanilla client applied in a capture scene, and compares
-//! the state of each entity after each tick with the rows that the vanilla client logged.
-//!
-//! A packet applies before the first row whose update is larger than the updates before the
-//! packet: only packets that arrive while no entity ticks can shift between two runs, and those
-//! packets cannot change a row.
-
 use glam::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
@@ -41,7 +34,6 @@ struct PacketRecord {
     packet: RecordedPacket,
 }
 
-/// A packet that is not in this list fails the parse of the record.
 #[derive(Deserialize)]
 #[serde(tag = "packet")]
 enum RecordedPacket {
@@ -67,7 +59,6 @@ enum RecordedPacket {
     DamageEvent(EntityOnly),
     #[serde(rename = "minecraft:entity_event")]
     EntityEvent(EntityEvent),
-    /// The client does not move an entity of the server with its velocity.
     #[serde(rename = "minecraft:set_entity_motion")]
     SetEntityMotion {},
 }
@@ -133,7 +124,6 @@ struct SetEntityData {
     values: Vec<DataValue>,
 }
 
-/// An entry without `value` is one that the capture does not decode.
 #[derive(Deserialize)]
 struct DataValue {
     index: u8,

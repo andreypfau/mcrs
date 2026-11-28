@@ -11,19 +11,16 @@ doctest = false
 workspace = true
 
 [dependencies]
-mcrs_minecraft_engine_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_biome.workspace = true
-mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_block_entity.workspace = true
-mcrs_minecraft_heightmap.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true
-mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_region_disk.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
@@ -31,21 +28,18 @@ mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_anvil.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_worldgen_carver = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_density = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_feature.workspace = true
-mcrs_minecraft_worldgen_feature_place.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_structure.workspace = true
-mcrs_minecraft_worldgen_surface = { workspace = true, features = ["bevy"] }
 bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_ecs.workspace = true
 bevy_reflect.workspace = true
 bevy_state.workspace = true
 bevy_tasks.workspace = true
-fixedbitset.workspace = true
 mcrs_engine_cell.workspace = true
 mcrs_engine_link.workspace = true
 rustc-hash.workspace = true

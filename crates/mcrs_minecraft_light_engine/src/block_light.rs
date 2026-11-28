@@ -13,9 +13,6 @@ use crate::level::LightLevel;
 #[derive(bevy_ecs::resource::Resource, Clone)]
 pub struct BlockLightRegistry(pub Arc<LightRegistry>);
 
-/// Interning a shape leaks it, so the table is built once and every app in the
-/// process shares it. There is one asset corpus per process, so a second app
-/// would derive the same rows anyway.
 pub fn block_light_registry(blocks: &BlockDefinitions) -> Arc<LightRegistry> {
     static REGISTRY: OnceLock<Arc<LightRegistry>> = OnceLock::new();
     REGISTRY.get_or_init(|| Arc::new(build(blocks))).clone()
@@ -49,8 +46,6 @@ fn build(blocks: &BlockDefinitions) -> LightRegistry {
         });
     }
 
-    // The two filler ids sit past the last corpus state, so no palette lookup
-    // and no protocol id can ever name them.
     properties.push(LightProperties::SOLID);
     properties.push(LightProperties::AIR);
 

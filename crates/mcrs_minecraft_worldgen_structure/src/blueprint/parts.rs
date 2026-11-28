@@ -1,6 +1,3 @@
-//! The parts village buildings share: doors, beds, windows, roofs, fences,
-//! ground drawn from rows of text, and the jigsaws that join pieces.
-
 use std::collections::BTreeSet;
 use std::ops::RangeInclusive;
 
@@ -15,8 +12,6 @@ pub enum Hinge {
     Right,
 }
 
-/// How the two slopes of a gable are built: at which ends of the ridge
-/// upside-down stairs hang under them, and the level each slope starts from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Slopes {
     pub boards: [bool; 2],
@@ -45,8 +40,6 @@ impl Slopes {
     }
 }
 
-/// A set of `[x, z]` cells of one layer: a geometric shape, widened and
-/// narrowed by the cells that deviate from it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Patch {
     cells: BTreeSet<[i32; 2]>,
@@ -65,15 +58,12 @@ impl Patch {
         Self::of(min, max, |_, _| true)
     }
 
-    /// A rectangle without the cells nearer than `cut` to a corner, counted
-    /// in steps along the sides.
     pub fn clipped_rectangle(min: [i32; 2], max: [i32; 2], cut: i32) -> Self {
         Self::of(min, max, |x, z| {
             (x - min[0]).min(max[0] - x) + (z - min[1]).min(max[1] - z) >= cut
         })
     }
 
-    /// The cells within `radius` steps of `centre`, diagonals counting two.
     pub fn diamond(centre: [i32; 2], radius: i32) -> Self {
         let [x, z] = centre;
         Self::of(
@@ -83,13 +73,11 @@ impl Patch {
         )
     }
 
-    /// The cells outside the shape that belong to the patch all the same.
     pub fn added(mut self, cells: &[[i32; 2]]) -> Self {
         self.cells.extend(cells);
         self
     }
 
-    /// The cells inside the shape that do not belong to the patch.
     pub fn removed(mut self, cells: &[[i32; 2]]) -> Self {
         for cell in cells {
             self.cells.remove(cell);
@@ -102,8 +90,6 @@ impl Patch {
     }
 }
 
-/// The values one coordinate takes: a single one, a range, or each of a list
-/// of either.
 pub trait Coords {
     fn values(&self) -> Vec<i32>;
 }
@@ -126,7 +112,6 @@ impl<T: Coords, const N: usize> Coords for [T; N] {
     }
 }
 
-/// Upside-down stairs facing `facing`, their shape left to the neighbours.
 pub fn top_stairs(stairs_block: &str, facing: Direction) -> Cell {
     match super::rules::stairs(stairs_block, facing) {
         Ok(state) => Cell::Settled(super::rules::with(&state, "half", "top")),
@@ -134,8 +119,6 @@ pub fn top_stairs(stairs_block: &str, facing: Direction) -> Cell {
     }
 }
 
-/// Bottom stairs whose corner is spelled out, where the neighbours that
-/// would turn it are not part of the template.
 pub fn corner_stairs(stairs_block: &str, facing: Direction, shape: &str) -> Cell {
     block(&format!(
         "{stairs_block}[facing={},half=bottom,shape={shape},waterlogged=false]",
@@ -143,7 +126,6 @@ pub fn corner_stairs(stairs_block: &str, facing: Direction, shape: &str) -> Cell
     ))
 }
 
-/// A fence joined to exactly `sides`, whatever stands next to it.
 pub fn fence_joined(fence: &str, sides: &[Direction]) -> Cell {
     use Direction::{East, North, South, West};
     let [east, north, south, west] = [East, North, South, West].map(|side| sides.contains(&side));
@@ -152,8 +134,6 @@ pub fn fence_joined(fence: &str, sides: &[Direction]) -> Cell {
     ))
 }
 
-/// A wall post joined low to the sides in `low` and tall to those in `tall`,
-/// whatever stands next to it.
 pub fn wall_joined(wall: &str, low: &[Direction], tall: &[Direction]) -> Cell {
     use Direction::{East, North, South, West};
     let [east, north, south, west] = [East, North, South, West].map(|side| {
@@ -183,17 +163,14 @@ impl Canvas {
         self.place(&lower, at[0], at[1], at[2]);
     }
 
-    /// The lower half; the rule layer adds the upper one.
     pub fn door(&mut self, door: &str, at: [i32; 3], facing: Direction, hinge: Hinge) {
         self.door_half(door, at, facing, hinge, false);
     }
 
-    /// A door left standing open.
     pub fn open_door(&mut self, door: &str, at: [i32; 3], facing: Direction, hinge: Hinge) {
         self.door_half(door, at, facing, hinge, true);
     }
 
-    /// The foot; the head lies one block further along `facing`.
     pub fn bed(&mut self, bed: &str, foot: [i32; 3], facing: Direction) {
         let foot_part = block(&format!(
             "{bed}[facing={},occupied=false,part=foot]",
@@ -202,7 +179,6 @@ impl Canvas {
         self.place(&foot_part, foot[0], foot[1], foot[2]);
     }
 
-    /// A pane with `flank` on both sides along the wall.
     pub fn window(&mut self, pane: &Cell, flank: Option<&Cell>, at: [i32; 3], along: Axis) {
         let [x, y, z] = at;
         self.place(pane, x, y, z);
@@ -213,7 +189,6 @@ impl Canvas {
         }
     }
 
-    /// `block` at every pairing of the values the three coordinates take.
     pub fn fill(&mut self, block: &Cell, xs: impl Coords, ys: impl Coords, zs: impl Coords) {
         let (ys, zs) = (ys.values(), zs.values());
         for x in xs.values() {
@@ -225,21 +200,18 @@ impl Canvas {
         }
     }
 
-    /// `block` at each of `cells`.
     pub fn each(&mut self, block: &Cell, cells: &[[i32; 3]]) {
         for [x, y, z] in cells {
             self.place(block, *x, *y, *z);
         }
     }
 
-    /// A box of `block` between each pair of corners.
     pub fn boxes(&mut self, block: &Cell, boxes: &[([i32; 3], [i32; 3])]) {
         for (min, max) in boxes {
             self.solid(block, *min, *max);
         }
     }
 
-    /// A column of `post` from `y[0]` to `y[1]` at every pairing of `xs` and `zs`.
     pub fn posts(&mut self, post: &Cell, xs: &[i32], zs: &[i32], y: [i32; 2]) {
         for &x in xs {
             for &z in zs {
@@ -248,14 +220,12 @@ impl Canvas {
         }
     }
 
-    /// A column of `post` with a torch standing on it.
     pub fn torch_post(&mut self, post: &Cell, at: [i32; 3], height: i32) {
         let [x, y, z] = at;
         self.solid(post, [x, y, z], [x, y + height - 1, z]);
         self.place(&block(Block::Torch.as_static_str()), x, y + height, z);
     }
 
-    /// A fence round a rectangle, with a gate in place of the fence at each of `gates`.
     pub fn fence_ring(
         &mut self,
         fence: &Cell,
@@ -270,7 +240,6 @@ impl Canvas {
         }
     }
 
-    /// `block` on every cell of `patch` that lies inside the box.
     pub fn patch(&mut self, block: &Cell, y: i32, patch: &Patch) {
         let [width, _, depth] = self.size();
         for [x, z] in patch.cells() {
@@ -280,8 +249,6 @@ impl Canvas {
         }
     }
 
-    /// A run of `block` on each successive row south of `z`, between the two
-    /// x extents given for that row.
     pub fn rows(&mut self, block: &Cell, y: i32, z: i32, extents: &[[i32; 2]]) {
         for (row, [from, to]) in extents.iter().enumerate() {
             let z = z + row as i32;
@@ -289,22 +256,18 @@ impl Canvas {
         }
     }
 
-    /// A run of `block` for each `[from, to, z]`: the x extent and its row.
     pub fn runs(&mut self, block: &Cell, y: i32, runs: &[[i32; 3]]) {
         for [from, to, z] in runs {
             self.solid(block, [*from, y, *z], [*to, y, *z]);
         }
     }
 
-    /// `block` at each `[x, z]` of one layer.
     pub fn scatter(&mut self, block: &Cell, y: i32, cells: &[[i32; 2]]) {
         for [x, z] in cells {
             self.place(block, *x, y, *z);
         }
     }
 
-    /// Rows of stairs climbing from both eaves, `ridge` between the top pair
-    /// of an odd span, and the boards under them.
     pub fn roof(&mut self, gable: Gable, stairs_block: &str, ridge: Option<&Cell>, slopes: Slopes) {
         let (low, high) = if gable.ridge == Axis::Z {
             (Direction::East, Direction::West)
@@ -357,13 +320,11 @@ impl Canvas {
         }
     }
 
-    /// A jigsaw whose orientation follows from the face it stands on.
     pub fn socket(&mut self, at: [i32; 3], name: &str, pool: &str, final_state: &str) {
         self.place(&settled(Block::Jigsaw.as_static_str()), at[0], at[1], at[2]);
         self.jigsaw(at, name, pool, final_state);
     }
 
-    /// A jigsaw with its orientation stated.
     pub fn socket_facing(
         &mut self,
         at: [i32; 3],
@@ -377,17 +338,14 @@ impl Canvas {
         self.jigsaw(at, name, pool, final_state);
     }
 
-    /// Where a street meets the building, turning into `step` once joined.
     pub fn entrance(&mut self, at: [i32; 3], pool: &str, step: &str) {
         self.socket(at, "minecraft:building_entrance", pool, step);
     }
 
-    /// Where a piece of `pool` stands, on a block that turns into `floor`.
     pub fn spot(&mut self, at: [i32; 3], pool: &str, floor: &str) {
         self.socket_facing(at, "up_north", "minecraft:bottom", pool, floor);
     }
 
-    /// The end of a street that nothing joins.
     pub fn dead_end(&mut self, at: [i32; 3]) {
         self.socket_facing(
             at,
@@ -398,7 +356,6 @@ impl Canvas {
         );
     }
 
-    /// A layer that holds jigsaws and is otherwise no part of the template.
     pub fn jigsaw_layer(&mut self, y: i32) {
         let [width, _, depth] = self.size();
         self.void([0, y, 0], [width - 1, y, depth - 1]);

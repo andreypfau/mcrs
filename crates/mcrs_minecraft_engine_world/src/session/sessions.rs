@@ -5,21 +5,13 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::world::{DeferredWorld, FromWorld, World};
 use rustc_hash::FxHashMap;
 
-/// The name of one connection of a player, in every world and on both sides of the
-/// host↔dimension channels. The host never hands out a value twice, so a packet for a session
-/// that has ended reaches no later connection of the same profile. A change of dimension keeps
-/// it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerSession(pub u64);
 
 impl PlayerSession {
-    /// The session that names the server console as the receiver of command output. No player
-    /// has it, so a packet for it reaches no connection.
     pub const SERVER: PlayerSession = PlayerSession(u64::MAX);
 }
 
-/// Marks a DimWorld player entity as owned by a session, and enters it in the
-/// [`DimPlayerIndex`] of its world.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[component(on_insert = Owner::index, on_discard = Owner::unindex)]
 pub struct Owner(pub PlayerSession);
@@ -44,8 +36,6 @@ impl Owner {
     }
 }
 
-/// A logged-in player on the host, carried by its host anchor entity for as long as the
-/// player is connected, and entered in the host's [`SessionAnchors`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 #[require(SessionPlacement)]
 #[component(on_insert = Session::index, on_discard = Session::unindex)]
@@ -71,8 +61,6 @@ impl Session {
     }
 }
 
-/// Enters the entity of `ctx` under the session of its `C` in the map of `R`. Without `R`, a
-/// command makes it first.
 fn index_session<C: Component, R: Resource<Mutability = Mutable> + FromWorld>(
     mut world: DeferredWorld,
     ctx: HookContext,
@@ -93,8 +81,6 @@ fn index_session<C: Component, R: Resource<Mutability = Mutable> + FromWorld>(
     }
 }
 
-/// Removes the entry of the entity of `ctx` from the map of `R`, unless a later entity of the
-/// same session replaced it.
 fn unindex_session<C: Component, R: Resource<Mutability = Mutable>>(
     mut world: DeferredWorld,
     ctx: HookContext,
@@ -112,8 +98,6 @@ fn unindex_session<C: Component, R: Resource<Mutability = Mutable>>(
     }
 }
 
-/// Host-world index: session → the host anchor that carries its [`Session`]. The host resolves
-/// every session that a dimension names through it; it never crosses a boundary.
 #[derive(Resource, Default, Debug)]
 pub struct SessionAnchors(FxHashMap<PlayerSession, Entity>);
 
@@ -123,18 +107,15 @@ impl SessionAnchors {
     }
 }
 
-/// Where the host routes a session's packets.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Place {
     #[default]
     Unplaced,
-    /// Spawned into a dimension that has not yet attached the player.
     Joining(Entity),
     InDim(Entity),
 }
 
 impl Place {
-    /// The dimension the session's clientbound packets belong to.
     pub fn dim(self) -> Option<Entity> {
         match self {
             Place::Unplaced => None,
@@ -142,7 +123,6 @@ impl Place {
         }
     }
 
-    /// The dimension that accepts the session's serverbound packets.
     pub fn attached(self) -> Option<Entity> {
         match self {
             Place::InDim(dim) => Some(dim),
@@ -151,8 +131,6 @@ impl Place {
     }
 }
 
-/// `epoch` counts the dimensions a session has left, so a packet stamped in one it has
-/// since left is dropped at the bridge.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SessionPlacement {
     place: Place,
@@ -182,15 +160,13 @@ impl SessionPlacement {
     }
 }
 
-/// Counter that never emits PlayerSession(0), so an unstamped packet carrying the default
-/// PlayerSession(0) never matches a live session.
 #[derive(Resource, Default)]
 pub struct PlayerSessionCounter(u64);
 
 impl PlayerSessionCounter {
     #[expect(
         clippy::should_implement_trait,
-        reason = "the counter is a resource that hands out sessions, not an iterator, and the server calls this public method by name"
+        reason = "the counter is a resource and the server calls this by name"
     )]
     pub fn next(&mut self) -> PlayerSession {
         self.0 = self.0.checked_add(1).unwrap_or(1);
@@ -198,8 +174,6 @@ impl PlayerSessionCounter {
     }
 }
 
-/// Per-dim O(1) reverse map: session → dim-local entity, kept by the hooks of [`Owner`].
-/// Inserted fresh when a DimSubApp is created; never crosses a boundary.
 #[derive(Resource, Default)]
 pub struct DimPlayerIndex(pub FxHashMap<PlayerSession, Entity>);
 

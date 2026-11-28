@@ -1,9 +1,9 @@
 # The llama: server behaviour, goals, caravans and spit
 
+Version: see `assets/minecraft/version.json`.
+
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Entity types | `minecraft:llama`; `minecraft:llama_spit` (the projectile) |
 | Data | the data pack of the server jar; `crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_types.json` |
 
@@ -13,11 +13,9 @@ This document states the server behaviour of the llama. It covers these subjects
 - the changes to age, love and breed against the farm animals of `mob-animals.md`;
 - the work of each tick that comes from the horse family;
 - the goal list and the target list, the caravan, the spit and the defence against wolves;
-- the drops, the save, and the cost of each world query for a parallel tick.
+- the drops, the save, and the world queries.
 
-The rules state results, not algorithms. Each rule has a fidelity class (section 0.3). Section 14
-states the world queries of the reference, their cadence, and the shortcuts that keep the result.
-The aim is a parallel tick of 50,000 mobs with a small cost for each mob.
+The rules state results, not algorithms. Each rule has a fidelity class (section 0.3).
 
 `mob-animals.md` (ANIM) states the farm animals. `mob-goals.md` (GOAL) states the goal framework and
 the goals of passive animals. `mob-combat-goals.md` (CGOAL) states the target goals and the attack
@@ -77,8 +75,7 @@ goals. This document cites those rules, and states only the changes for the llam
 
 The labels of `mob-goals.md`, section 0.2, apply: `source_suggested`, `black_box_confirmed`,
 `source_suggested_black_box_confirmed`, `documentation`, `experiment`, `design` and `unresolved`. A
-`black_box_confirmed` label of this document refers to the type artefact. No experiment of section
-16 ran. Thus the confidence of a `source_suggested` rule is at most medium, except for constants of
+`black_box_confirmed` label of this document refers to the type artefact. Thus the confidence of a `source_suggested` rule is at most medium, except for constants of
 the data pack and of the type. Each rule states its kind as `docs/spec/README.md` defines the kinds.
 
 ### 0.3 Fidelity
@@ -126,7 +123,7 @@ spit. The table gives the subjects that other documents own.
 | The spawn bundle, the tracker, the entity data codec | `entity-tracking.md` |
 | The client model and textures of a llama | a later client specification |
 | The chest, the inventory, the decor carpet, a rider, the taming, the trader llama | hooks only (section 13) |
-| The leash, the leash holder, the home of a leash | the leash specification (planned); `mob-goals.md`, section 6.7 |
+| The leash, the leash holder, the home of a leash | the leash specification (planned) |
 | The wolf, and its avoidance of llamas | the wolf specification (planned); CGOAL-AVOID |
 
 ## 1. Type data
@@ -390,10 +387,10 @@ must be in the box of the llama grown by 16, at a feet distance of at most 16. T
 check the line of sight. When the squared feet distance to that entity is more than 4, the llama
 runs a path search to it with the reach range 0.
 
-The search does not change the path of the llama. When it gives a path, the navigation stores its
-target and its reach range (PATH-REQ-001, step 4). A later recompute (PATH-RCP-002) then goes to
-that target. No vanilla rule sets the bred flag except the save key `Bred`. Thus the check acts only
-for a baby of `summon` or of a load with `Bred:1b`.
+The search does not change the navigation of the llama (PATH-REQ-001, step 4). In the reference,
+the search stores its target, and a later recompute goes to that target; `pathfinding.md`,
+PATH-DEV-006, records it. No vanilla rule sets the bred flag except the save key `Bred`. Thus the
+check acts only for a baby of `summon` or of a load with `Bred:1b`.
 
 **LLAMA-TICK-004** (`source_suggested`, semantic, fidelity: exact, confidence: medium). The fall
 damage of a llama follows DMG-FALL-002 with the attributes of LLAMA-TYPE-002. A llama takes the
@@ -784,7 +781,7 @@ the sound variant of the farm animals do not apply.
 The save does not keep the links of a caravan, the caravan speed, the far counter, the spit flag and
 the counters of LLAMA-TICK-002.
 
-## 13. Hooks: subjects out of scope
+## 13. Subjects out of scope
 
 **LLAMA-HOOK-001** (`source_suggested`, semantic, fidelity: exact, confidence: low). Chest. A player
 uses `chest` on a tamed adult with no chest. The llama takes the chest, plays the chest sound and
@@ -814,11 +811,7 @@ panic goal, two target goals, a despawn timer and the defence of its trader. Its
 type. Its specification is out of scope. This document states only where a query of a llama accepts
 it: `Q-CARAVAN`, `Q-PARTNER`, `Q-ADULT` and the "can mate" test.
 
-## 14. Cost and parallelism
-
-This section states the world queries of each part of the llama in the reference, and their cadence.
-It then states a shortcut that keeps the result, with its fidelity class. "Own" means the row and
-the goal state of the llama itself.
+## 14. Queries of the llama
 
 ### 14.1 The queries of the reference
 
@@ -835,7 +828,7 @@ queries of a llama in the reference:
 | revenge start | none: the attacker record is own | each full evaluation in which the goal is examined | the attacker: alive, spectator, invulnerable, team, the difficulty for a player |
 | ranged attack | one line of sight ray and one path request to an entity | each tick while the goal runs | position of the target; blocks |
 | spit | the hit test of LLAMA-SPIT-005 | each tick of each spit | boxes of the entities near the spit; blocks |
-| panic, breed, tempt, follow an adult, stroll, look goals | as `mob-goals.md`, section 7 | as `mob-goals.md` | as `mob-goals.md` |
+| panic, breed, tempt, follow an adult, stroll, look goals | as `mob-goals.md` | as `mob-goals.md` | as `mob-goals.md` |
 | follow-mother | an entity box query of the box grown by 16, and a path search | each tick of a baby with the bred flag | horse-family entities: bred flag, position |
 | heal, tail | none | each tick | none |
 
@@ -927,8 +920,8 @@ and it is not in `panic_causes`. Thus no revenge and no panic starts.
 
 ### 14.4 The parallel tick of a caravan
 
-**LLAMA-COST-007** (`design`, semantic, fidelity: envelope, confidence: medium). A caravan is a
-dependency between entities. These rules make the result independent of the thread count:
+**LLAMA-COST-007** A caravan is a dependency between entities. These rules make the result
+independent of the thread count:
 
 1. A join is a pair action (AIT-CPL-001). The proposer is the follower. The proposal names the
    anchor `c` of LLAMA-CAR-003.
@@ -940,10 +933,10 @@ dependency between entities. These rules make the result independent of the thre
    not start, and the follower tries again in its next full evaluation.
 4. A grant writes both links in one step. A new follower is an anchor A for the snapshots of the
    next ticks, not for the proposals of the same merge point.
-5. A stop is a write of the follower to its own head link, and a clear of the tail link of its
-   former head. The tail link of the head names the follower (LLAMA-CAR-001), so only one stop can
-   clear it. The clear applies at the merge point as an unconditional write: clear the tail link
-   when it names this follower.
+5. A stop is also a pair action. Its proposal names the follower and its former head. The grant
+   clears the head link of the follower. In the same step, it clears the tail link of the former
+   head when that link names this follower. No condition makes the proposal stale. The grant
+   applies at the merge point, as the grant of a join does. It is not a write of PHY-CMP-015.
 6. The chain walks of LLAMA-CAR-003 and LLAMA-CAR-005 read the snapshot. They read at most 9 rows
    each.
 
@@ -952,7 +945,10 @@ when two llamas select one anchor in one tick. The reference then gives the anch
 ticks first; that order is not a rule. A break of a caravan travels down the chain one link in each
 full evaluation, with the extra delay of the snapshot. These invariants stay true. Each llama has at
 most one head link and one tail link. When the tail link of `b` names `a`, the head link of `a`
-names `b`. Only the stale links of LLAMA-CAR-008 break this rule.
+names `b`. Only the stale links of LLAMA-CAR-008 break this rule. The reference also changes both
+links of a stop in one step, so a grant keeps this invariant at each point of the tick.
+
+Provenance: `design`. Kind: semantic. Fidelity: envelope. Confidence: medium.
 
 ## 15. Intentional deviations and known vanilla quirks
 
@@ -965,7 +961,6 @@ names `b`. Only the stale links of LLAMA-CAR-008 break this rule.
 - **This server:** each value is a keyed random value (AIT-LAG-008). The part names the rule, for
   example "llama strength" or "spit direction".
 - **Visible to the client:** no, as a distribution.
-- **Test:** a differential test compares distributions over many runs.
 
 ### LLAMA-DEV-002: Ties in `Q-CARAVAN` by the order key
 
@@ -974,7 +969,6 @@ names `b`. Only the stale links of LLAMA-CAR-008 break this rule.
   order of the entity storage wins.
 - **This server:** the anchor with the smaller order key wins (GOAL-QRY-004).
 - **Visible to the client:** rarely. Only two anchors at the same distance give a difference.
-- **Test:** a differential test accepts each anchor at the smallest distance.
 
 ### LLAMA-DEV-003: The join of one anchor in one tick
 
@@ -986,8 +980,6 @@ names `b`. Only the stale links of LLAMA-CAR-008 break this rule.
   only for the snapshots of later ticks.
 - **Visible to the client:** yes, rarely. A caravan of many llamas that form at one time can take a
   few more ticks to form, and its order can differ.
-- **Test:** a test checks the invariants of LLAMA-COST-007, the chain limit and the join distance.
-  It does not compare the order.
 
 ### LLAMA-DEV-004: The wolf gate after the presence test
 
@@ -995,8 +987,6 @@ names `b`. Only the stale links of LLAMA-CAR-008 break this rule.
 - **Reference:** the gate draws in each examined full evaluation, before the query.
 - **This server:** the gate draws only when an untamed wolf is in reach.
 - **Visible to the client:** no, as a distribution.
-- **Test:** a differential test compares the distribution of the time from the arrival of a wolf to
-  the start of the target.
 
 ### LLAMA-DEV-005: Known vanilla quirks
 
@@ -1015,25 +1005,9 @@ These quirks are vanilla behaviour. This server keeps them.
 | LLAMA-TICK-003 | The follow-mother search does not move the baby. It only changes the stored target of the navigation. |
 | LLAMA-FEED-001 | `wheat` feeds a llama but does not tempt it. |
 
-## 16. Experiments
+## 16. Unresolved
 
-None of these experiments ran. Use the settings of `mob-goals.md`, section 10.1.
-
-| Experiment | Steps | Expected result | Rules |
-|------------|-------|-----------------|-------|
-| LLAMA-E1 | Summon 400 llamas without `nbt` in `savanna_plateau`. Read `Strength`, `Variant` and the base of `max_health`. | Strength 1 to 3 at about 0.328 each, 4 and 5 at about 0.008. Health 15 to 30. Variants uniform. | LLAMA-SPAWN-001, LLAMA-SPAWN-002 |
-| LLAMA-E2 | Summon a llama with `{}`. Read the save. | `Strength` 1, `Variant` 0, maximal health 53. | LLAMA-VAR-002, LLAMA-SPAWN-001 |
-| LLAMA-E3 | Leash one llama to a fence. Summon 12 llamas in a line 3 blocks apart, within 9 blocks of each other. Record the head of each llama with a scripted client or a debug command. | A chain of 9 followers. The other llamas do not join. | LLAMA-CAR-003, LLAMA-CAR-004 |
-| LLAMA-E4 | Lead a caravan with a leash. Remove the leash. Record the tick of the stop of each follower. | Each follower stops one full evaluation after the one ahead, or in the same tick. | LLAMA-CAR-005, LLAMA-CAR-007 |
-| LLAMA-E5 | Hit a llama as a survival player at 8 blocks. Record the spit, its tick, and the attack target. Hit it again after its spit. | One spit 41 ticks after the start. The revenge ends after the spit. The second hit gives a second spit. | LLAMA-TGT-001, LLAMA-SPIT-001, LLAMA-SPIT-007 |
-| LLAMA-E6 | Summon a llama and a wolf with `NoAI:1b` 3 blocks apart. Record the spits. Repeat at 5 blocks. | Spits every 40 ticks at 3 blocks; no target at 5 blocks. | LLAMA-TGT-003, LLAMA-TGT-004 |
-| LLAMA-E7 | Spit at a target behind two pigs in a line. | The spit can damage both pigs. | LLAMA-SPIT-005 |
-| LLAMA-E8 | Feed `wheat` and `hay_block` to a baby with the age −24000 and to an untamed adult. Read `Age`, `Temper` and `InLove`. | Age −23800 and −22000; temper 3 and 6; no love for the untamed adult. | LLAMA-FEED-001 |
-
-## 17. Unresolved
-
-- **U1**: no experiment of section 16 ran. The caravan, the spit and the strength rest on the
-  source.
+- **U1**: the caravan, the spit and the strength rest on the source.
 - **U2**: `entity-tracking.md`, TRK-TYPE-002, TRK-TYPE-004 and TRK-DATA-006, have no row for the
   llama and the spit. LLAMA-TYPE-001, LLAMA-TYPE-002, LLAMA-DATA-001 and LLAMA-SPIT-003 give the
   values. That document must add them.
@@ -1047,5 +1021,3 @@ None of these experiments ran. Use the settings of `mob-goals.md`, section 10.1.
   specification that does not exist yet. The margin of the hit test is unspecified here.
 - **U6**: the leash specification does not exist. LLAMA-HOOK-004 and the state "leashed" of the
   caravan depend on it. The home of a leash also limits the revenge target (CGOAL-HURT).
-- **U7**: the effect of the stored target of LLAMA-TICK-003 on a recompute rests on PATH-RCP-002. No
-  experiment shows it.

@@ -1,39 +1,20 @@
-use mcrs_minecraft_lang::{Piece, fill_pattern, primitive_text};
-use mcrs_minecraft_text::{Text, TextContent, TextTypes, TranslateArg};
+use mcrs_minecraft_lang::{FormatError, Piece, primitive_text, template_pieces};
+use mcrs_minecraft_text::{ResolvedStyle, Text, TextContent, TextTypes, TranslateArg};
 
 use crate::drops::BedrockDrops;
 use crate::formatting::{BedrockStyle, rewrite_literal_text, write_bedrock_change};
 use crate::rawtext::{BedrockRawtext, BedrockRawtextComponent, BedrockRawtextWith};
 use crate::resolver::BedrockServerResolver;
 
-/// One unit for each component visited and one for each byte emitted. A pattern can name one
-/// argument many times, so nested translations grow without this bound.
 const MAX_BUDGET: usize = 262_144;
 
-/// Result of converting canonical text to Bedrock representation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BedrockText {
-    /// Formatted string, used when no part needs localization on the client.
     String(String),
-    /// Rawtext, used when a translation must stay localized on the client.
     Rawtext(BedrockRawtext),
 }
 
-impl BedrockText {
-    /// Serializes to a Bedrock `rawtext` JSON string.
-    pub fn to_json_string(&self) -> Result<String, serde_json::Error> {
-        match self {
-            Self::String(s) => serde_json::to_string(&BedrockRawtext {
-                rawtext: vec![BedrockRawtextComponent::Text { text: s.clone() }],
-            }),
-            Self::Rawtext(r) => serde_json::to_string(r),
-        }
-    }
-}
-
-/// Checks if a text component or any of its children contains a translation that must stay
-/// localized.
 #[must_use]
 pub fn has_translate<I: TextTypes>(text: &Text<I>) -> bool {
     match &text.content {
@@ -47,8 +28,6 @@ pub fn has_translate<I: TextTypes>(text: &Text<I>) -> bool {
     text.extra.iter().any(has_translate)
 }
 
-/// Converts a canonical text component into either a Bedrock formatted string or rawtext,
-/// resolving server-side dynamic parts and dropping unsupported styling features.
 pub fn to_bedrock<I: TextTypes, R: BedrockServerResolver>(
     text: &Text<I>,
     resolver: &R,
@@ -62,8 +41,6 @@ pub fn to_bedrock<I: TextTypes, R: BedrockServerResolver>(
     }
 }
 
-/// Converts a canonical text component into a Bedrock formatted string. A translation shows
-/// its fallback with the arguments filled in, or else its key followed by the arguments.
 pub fn to_bedrock_string<I: TextTypes, R: BedrockServerResolver>(
     text: &Text<I>,
     resolver: &R,
@@ -76,12 +53,11 @@ pub fn to_bedrock_string<I: TextTypes, R: BedrockServerResolver>(
         current_style: BedrockStyle::default(),
         budget: MAX_BUDGET,
     };
-    walk.walk_text(text, BedrockStyle::default());
+    walk.walk_text(text, ResolvedStyle::default());
     write_bedrock_change(&mut walk.out, walk.current_style, BedrockStyle::default());
     (walk.out, drops)
 }
 
-/// Converts a canonical text component into a Bedrock rawtext structure.
 pub fn to_bedrock_rawtext<I: TextTypes, R: BedrockServerResolver>(
     text: &Text<I>,
     resolver: &R,
@@ -94,7 +70,7 @@ pub fn to_bedrock_rawtext<I: TextTypes, R: BedrockServerResolver>(
         current_style: BedrockStyle::default(),
         budget: MAX_BUDGET,
     };
-    walk.walk_text(text, BedrockStyle::default());
+    walk.walk_text(text, ResolvedStyle::default());
     walk.restore(BedrockStyle::default());
     let rawtext = walk.components;
     (BedrockRawtext { rawtext }, drops)
@@ -135,8 +111,6 @@ fn dynamic_text<I: TextTypes, R: BedrockServerResolver>(
     }
 }
 
-/// Takes the part of `s` that fits the budget, with the codes that mean other things on
-/// Bedrock removed.
 fn take_run(s: &str, budget: &mut usize, drops: &mut BedrockDrops) -> Option<String> {
     let run = rewrite_literal_text(s, drops);
     let end = run.floor_char_boundary(*budget);
@@ -170,11 +144,39 @@ struct StringWalk<'a, R> {
 }
 
 impl<R: BedrockServerResolver> StringWalk<'_, R> {
-    fn walk_text<I: TextTypes>(&mut self, text: &Text<I>, inherited: BedrockStyle) {
+    fn translated<'a, I: TextTypes>(
+        &mut self,
+        template: &str,
+        with: &'a [TranslateArg<I>],
+        view: ResolvedStyle<'a, I>,
+        style: BedrockStyle,
+    ) {
+        let pieces = match template_pieces(template, with.len()) {
+            Ok(pieces) => pieces,
+            Err(FormatError) => {
+                self.emit_str(template, style);
+                return;
+            }
+        };
+        for piece in pieces {
+            match piece {
+                Piece::Literal(literal) => self.emit_str(literal, style),
+                Piece::Argument(index) => {
+                    if let Some(arg) = with.get(index) {
+                        self.arg(arg, view);
+                    }
+                }
+            }
+        }
+    }
+
+    fn walk_text<'a, I: TextTypes>(&mut self, text: &'a Text<I>, inherited: ResolvedStyle<'a, I>) {
         if !spend_node(&mut self.budget, self.drops) {
             return;
         }
-        let style = inherited.update_with(&text.style, self.drops);
+        self.drops.count(text.style.declared());
+        let view = text.style.resolve(inherited);
+        let style = BedrockStyle::from(view);
 
         match &text.content {
             TextContent::Text { text } => self.emit_str(text, style),
@@ -183,14 +185,8 @@ impl<R: BedrockServerResolver> StringWalk<'_, R> {
                 with,
                 ..
             } => {
-                fill_pattern(fallback.as_ref(), |piece| match piece {
-                    Piece::Literal(literal) => self.emit_str(literal, style),
-                    Piece::Argument(index) => {
-                        if let Some(arg) = with.get(index) {
-                            self.arg(arg, style);
-                        }
-                    }
-                });
+                let template: &str = fallback.as_ref();
+                self.translated(template, with, view, style);
             }
             TextContent::Translate {
                 translate, with, ..
@@ -199,12 +195,12 @@ impl<R: BedrockServerResolver> StringWalk<'_, R> {
                 self.emit_str(resolver.translation_key(translate), style);
                 for arg in with {
                     self.out.push(' ');
-                    self.arg(arg, style);
+                    self.arg(arg, view);
                 }
             }
             TextContent::Object { fallback, .. } => {
                 if let Some(fallback) = fallback {
-                    self.walk_text(fallback, style);
+                    self.walk_text(fallback, view);
                 }
             }
             content => {
@@ -215,16 +211,16 @@ impl<R: BedrockServerResolver> StringWalk<'_, R> {
         }
 
         for child in &text.extra {
-            self.walk_text(child, style);
+            self.walk_text(child, view);
         }
     }
 
-    fn arg<I: TextTypes>(&mut self, arg: &TranslateArg<I>, style: BedrockStyle) {
+    fn arg<'a, I: TextTypes>(&mut self, arg: &'a TranslateArg<I>, view: ResolvedStyle<'a, I>) {
         match arg {
-            TranslateArg::Text(text) => self.walk_text(text, style),
+            TranslateArg::Text(text) => self.walk_text(text, view),
             primitive => {
                 if let Some(s) = primitive_arg(primitive) {
-                    self.emit_str(&s, style);
+                    self.emit_str(&s, BedrockStyle::from(view));
                 }
             }
         }
@@ -249,11 +245,13 @@ struct RawtextWalk<'a, R> {
 }
 
 impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
-    fn walk_text<I: TextTypes>(&mut self, text: &Text<I>, inherited: BedrockStyle) {
+    fn walk_text<'a, I: TextTypes>(&mut self, text: &'a Text<I>, inherited: ResolvedStyle<'a, I>) {
         if !spend_node(&mut self.budget, self.drops) {
             return;
         }
-        let style = inherited.update_with(&text.style, self.drops);
+        self.drops.count(text.style.declared());
+        let view = text.style.resolve(inherited);
+        let style = BedrockStyle::from(view);
 
         match &text.content {
             TextContent::Text { text } => self.emit_text(text, style),
@@ -262,13 +260,13 @@ impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
             } => {
                 let translate = self.resolver.translation_key(translate).to_owned();
                 self.restore(style);
-                let with = self.translate_args(with, style);
+                let with = self.translate_args(with, view);
                 self.components
                     .push(BedrockRawtextComponent::Translate { translate, with });
             }
             TextContent::Object { fallback, .. } => {
                 if let Some(fallback) = fallback {
-                    self.walk_text(fallback, style);
+                    self.walk_text(fallback, view);
                 }
             }
             content => {
@@ -279,7 +277,7 @@ impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
         }
 
         for child in &text.extra {
-            self.walk_text(child, style);
+            self.walk_text(child, view);
         }
     }
 
@@ -304,10 +302,10 @@ impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
         self.components.push(BedrockRawtextComponent::Text { text });
     }
 
-    fn translate_args<I: TextTypes>(
+    fn translate_args<'a, I: TextTypes>(
         &mut self,
-        with: &[TranslateArg<I>],
-        style: BedrockStyle,
+        with: &'a [TranslateArg<I>],
+        view: ResolvedStyle<'a, I>,
     ) -> Option<BedrockRawtextWith> {
         if with.is_empty() {
             return None;
@@ -319,11 +317,9 @@ impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
             let rawtext = with
                 .iter()
                 .map(|arg| match arg {
-                    TranslateArg::Text(text) if has_translate(text) => {
-                        self.rawtext_arg(text, style)
-                    }
+                    TranslateArg::Text(text) if has_translate(text) => self.rawtext_arg(text, view),
                     TranslateArg::Text(text) => BedrockRawtextComponent::Text {
-                        text: self.string_arg(text, style),
+                        text: self.string_arg(text, view),
                     },
                     primitive => BedrockRawtextComponent::Text {
                         text: primitive_arg(primitive).unwrap_or_default(),
@@ -335,7 +331,7 @@ impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
             let strings = with
                 .iter()
                 .map(|arg| match arg {
-                    TranslateArg::Text(text) => self.string_arg(text, style),
+                    TranslateArg::Text(text) => self.string_arg(text, view),
                     primitive => primitive_arg(primitive).unwrap_or_default(),
                 })
                 .collect();
@@ -343,9 +339,12 @@ impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
         }
     }
 
-    // A substituted argument shares the formatting state of the surrounding
-    // translation, so it starts in the parent style and returns to it.
-    fn string_arg<I: TextTypes>(&mut self, arg: &Text<I>, style: BedrockStyle) -> String {
+    fn string_arg<'a, I: TextTypes>(
+        &mut self,
+        arg: &'a Text<I>,
+        view: ResolvedStyle<'a, I>,
+    ) -> String {
+        let style = BedrockStyle::from(view);
         let mut walk = StringWalk {
             resolver: self.resolver,
             drops: self.drops,
@@ -353,19 +352,18 @@ impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
             current_style: style,
             budget: self.budget,
         };
-        walk.walk_text(arg, style);
+        walk.walk_text(arg, view);
         write_bedrock_change(&mut walk.out, walk.current_style, style);
         self.budget = walk.budget;
         walk.out
     }
 
-    // Each element of `with.rawtext` is one positional argument, so an argument
-    // of several components is grouped into one nested `rawtext`.
-    fn rawtext_arg<I: TextTypes>(
+    fn rawtext_arg<'a, I: TextTypes>(
         &mut self,
-        arg: &Text<I>,
-        style: BedrockStyle,
+        arg: &'a Text<I>,
+        view: ResolvedStyle<'a, I>,
     ) -> BedrockRawtextComponent {
+        let style = BedrockStyle::from(view);
         let mut walk = RawtextWalk {
             resolver: self.resolver,
             drops: self.drops,
@@ -373,7 +371,7 @@ impl<R: BedrockServerResolver> RawtextWalk<'_, R> {
             current_style: style,
             budget: self.budget,
         };
-        walk.walk_text(arg, style);
+        walk.walk_text(arg, view);
         walk.restore(style);
         self.budget = walk.budget;
         let mut components = walk.components;

@@ -19,7 +19,6 @@ use mcrs_minecraft_command_engine::{
 };
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_core::heightmap::HeightmapName;
-use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
 use mcrs_minecraft_text::Text;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -30,7 +29,6 @@ pub(crate) enum Test {
     Entity,
 }
 
-/// Whether a condition passes when its test holds (`if`) or when it fails (`unless`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Polarity {
     If,
@@ -112,7 +110,6 @@ impl ExecuteCommand {
     }
 }
 
-/// The condition subtree of `if` or `unless`, with the branches of the core set.
 fn conditions(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     parent: NodeId,
@@ -156,7 +153,6 @@ fn conditions(
     })
 }
 
-/// The `positioned` subtree: a position, `as` an entity, or `over` a heightmap.
 fn positioned(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     execute: NodeId,
@@ -185,7 +181,6 @@ fn positioned(
     })
 }
 
-/// The `rotated` subtree: a rotation, or `as` an entity.
 fn rotated(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     execute: NodeId,
@@ -208,7 +203,6 @@ fn rotated(
     })
 }
 
-/// The `facing` subtree: an `entity` and its anchor, or a position.
 fn facing(
     registrar: &mut CommandRegistrar<'_, VanillaCommands, Branch>,
     execute: NodeId,
@@ -297,10 +291,6 @@ pub(crate) fn build(
     })
 }
 
-fn anchor_point(anchor: LookAnchor, position: DVec3) -> DVec3 {
-    mcrs_minecraft_command::anchored(anchor, position, PLAYER_EYE_HEIGHT)
-}
-
 fn as_target(state: &SourceState, target: EntityView<'_>) -> SourceState {
     target.run_as(state)
 }
@@ -325,12 +315,17 @@ fn rotated_as_target(state: &SourceState, target: EntityView<'_>) -> SourceState
     state.with_look(target.look())
 }
 
-fn facing_target(anchor: LookAnchor, state: &SourceState, target: EntityView<'_>) -> SourceState {
-    facing_at(state, anchor_point(anchor, target.position()))
+fn facing_target(
+    anchor: LookAnchor,
+    state: &SourceState,
+    from: DVec3,
+    target: EntityView<'_>,
+) -> SourceState {
+    let to = mcrs_minecraft_command::anchored(anchor, target.position(), target.eye_height());
+    facing_at(state, from, to)
 }
 
-fn facing_at(state: &SourceState, to: DVec3) -> SourceState {
-    let from = anchor_point(state.anchor, state.position);
+fn facing_at(state: &SourceState, from: DVec3, to: DVec3) -> SourceState {
     state.with_look(mcrs_minecraft_command_argument::rotation_toward(from, to))
 }
 
@@ -400,7 +395,7 @@ pub(crate) fn modify(
                 command.facing.targets,
                 &mut found,
                 &mut output,
-                |state, target| facing_target(anchor, state, target),
+                |state, target| facing_target(anchor, state, source.anchor_position(), target),
             )
         }
         Branch::Positioned => one(SourceState {
@@ -424,7 +419,11 @@ pub(crate) fn modify(
             let to = context
                 .arg(&call.invocation, command.facing.position)?
                 .position(&source);
-            one(facing_at(&call.invocation.source, to))
+            one(facing_at(
+                &call.invocation.source,
+                source.anchor_position(),
+                to,
+            ))
         }
         Branch::Align => {
             let state = state();
@@ -454,7 +453,6 @@ pub(crate) fn modify(
     }
 }
 
-/// A condition as the run stage.
 pub(crate) fn run(
     In(call): In<Call<Branch, ExecuteCommand>>,
     view: ExecuteView,

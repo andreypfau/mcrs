@@ -1,65 +1,45 @@
 use mcrs_minecraft_client_ticks::Attribute;
-use mcrs_minecraft_client_ticks::Event;
-use mcrs_minecraft_client_ticks::Recording;
+use mcrs_minecraft_entity_attribute::AttributeModifier;
+use mcrs_minecraft_entity_attribute::Modifier;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_entity_attribute::ValueRange;
+use mcrs_minecraft_entity_attribute::fold;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_voxel::BlockStateId;
 
 use crate::MotionAttributes;
 use crate::MotionEffects;
+use crate::SprintSpeed;
 use crate::TestBlocks;
+use crate::movement_speeds::movement_speeds;
 
-/// The ids of the `movement_speed` modifiers that follow the sprint state of the client: each
-/// update while the client sprints has them, and no update while it does not.
-pub fn sprint_modifiers(recording: &Recording) -> Vec<String> {
-    let mut sprinting = false;
-    let mut while_sprinting: Option<Vec<String>> = None;
-    let mut otherwise = Vec::new();
-    for event in &recording.events {
-        match event {
-            Event::Sprinting(on) => sprinting = *on,
-            Event::Attribute(attribute) if attribute.name == "minecraft:movement_speed" => {
-                let ids: Vec<String> = attribute
-                    .modifiers
-                    .iter()
-                    .map(|modifier| modifier.id.clone())
-                    .collect();
-                match &mut while_sprinting {
-                    _ if !sprinting => otherwise.extend(ids),
-                    Some(kept) => kept.retain(|id| ids.contains(id)),
-                    None => while_sprinting = Some(ids),
-                }
-            }
-            _ => {}
-        }
+const MOVEMENT_SPEED_RANGE: ValueRange = ValueRange {
+    min: 0.0,
+    max: 1024.0,
+};
+
+pub fn set_attribute(
+    attributes: &mut MotionAttributes,
+    sprint_speed: &mut SprintSpeed,
+    attribute: &Attribute,
+) {
+    let modifiers = attribute.modifiers.iter().filter_map(|modifier| {
+        Some(AttributeModifier {
+            id: ResourceLocation::read(&modifier.id).ok()?,
+            amount: modifier.amount,
+            operation: ModifierOperation::try_from(modifier.operation).ok()?,
+        })
+    });
+    if attribute.name == "minecraft:movement_speed" {
+        let speeds = movement_speeds(attribute.base, modifiers, MOVEMENT_SPEED_RANGE);
+        attributes.movement_speed = speeds.walking;
+        *sprint_speed = SprintSpeed(speeds.sprinting);
+        return;
     }
-    let mut ids = while_sprinting.unwrap_or_default();
-    ids.retain(|id| !otherwise.contains(id));
-    ids
-}
-
-/// The value of an attribute without the sprint modifiers, which the kernel applies itself from
-/// the sprint state: the base plus the additions, times the base multipliers, times each total
-/// multiplier.
-pub fn set_attribute(attributes: &mut MotionAttributes, attribute: &Attribute, sprint: &[String]) {
-    let modifiers = || {
-        attribute
-            .modifiers
-            .iter()
-            .filter(|modifier| !sprint.contains(&modifier.id))
-    };
-    let sum = |operation| -> f64 {
-        modifiers()
-            .filter(|modifier| modifier.operation == operation)
-            .map(|modifier| modifier.amount)
-            .sum()
-    };
-    let total = modifiers()
-        .filter(|modifier| modifier.operation == 2)
-        .fold(1.0, |product, modifier| product * (1.0 + modifier.amount));
-    let value = (attribute.base + sum(0)) * (1.0 + sum(1)) * total;
+    let value = fold(attribute.base, modifiers.map(Modifier::from));
     let field = match attribute.name.as_str() {
         "minecraft:gravity" => &mut attributes.gravity,
         "minecraft:step_height" => &mut attributes.step_height,
-        "minecraft:movement_speed" => &mut attributes.movement_speed,
         "minecraft:jump_strength" => &mut attributes.jump_strength,
         "minecraft:scale" => &mut attributes.scale,
         "minecraft:sneaking_speed" => &mut attributes.sneaking_speed,
@@ -72,7 +52,6 @@ pub fn set_attribute(attributes: &mut MotionAttributes, attribute: &Attribute, s
     *field = value;
 }
 
-/// Sets the effect that a recorded event names: `level` is `None` when the effect ends.
 pub fn set_effect(effects: &mut MotionEffects, name: &str, level: Option<u8>) {
     match name {
         "minecraft:slow_falling" => effects.slow_falling = level.is_some(),
@@ -84,7 +63,6 @@ pub fn set_effect(effects: &mut MotionEffects, name: &str, level: Option<u8>) {
     }
 }
 
-/// The state of the small test table that stands for a recorded block state.
 pub fn test_state(blocks: &TestBlocks, state: &str) -> Result<BlockStateId, String> {
     let (block, properties) = state.split_once('[').unwrap_or((state, ""));
     let has = |property: &str| properties.contains(property);

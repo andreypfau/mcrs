@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Reads JSON lines {expr, variables, queries} on stdin and writes one JSON line
-// {value, variables} or {error} on stdout for each input line, in input order.
 import { createInterface } from 'node:readline';
 import Molang from 'molangjs/src/molang.js';
 
@@ -8,7 +6,6 @@ class RandomDraw extends Error {}
 
 const RANDOM_CALL = /\bmath\.(random|random_integer|die_roll|die_roll_integer)\s*\(/i;
 
-// A random draw makes a result that no other implementation can reproduce.
 Math.random = () => {
   throw new RandomDraw('random');
 };
@@ -23,7 +20,6 @@ function longName(name) {
   return (PREFIXES[head] ?? head) + lower.slice(dot);
 }
 
-// molangjs keeps a string value with its quotes, as the parser keeps a string literal.
 function encodeInput(value) {
   return typeof value === 'string' ? `'${value}'` : value;
 }
@@ -67,7 +63,6 @@ function evaluate(line) {
     queries[key] = spec;
     if (spec !== null && typeof spec !== 'object') {
       context[key] = encodeInput(spec);
-      // molangjs reads `q.name()` as a variable with the name `query.name()`.
       context[`${key}()`] = encodeInput(spec);
     }
   }

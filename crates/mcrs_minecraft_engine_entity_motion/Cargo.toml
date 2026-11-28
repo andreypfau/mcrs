@@ -1,0 +1,29 @@
+[package]
+name = "mcrs_minecraft_engine_entity_motion"
+description = "The motion of the moving entities that are not living, such as items and falling blocks, as Bevy components: one parallel pass with the physics kernel"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_tasks.workspace = true
+bevy_utils.workspace = true
+glam = { workspace = true, features = ["std"] }
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_physics = { workspace = true, features = ["bevy"] }
+mcrs_voxel.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_engine_damage.workspace = true
+bevy_ecs = { workspace = true, features = ["multi_threaded"] }
+bevy_tasks = { workspace = true, features = ["multi_threaded"] }
+mcrs_minecraft_physics = { workspace = true, features = ["bevy", "testing"] }

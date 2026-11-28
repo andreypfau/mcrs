@@ -9,7 +9,6 @@ use mcrs_minecraft_command::{
 use mcrs_minecraft_entity::{entity_type_keys::EntityType, registry_keys::ENTITY_TYPE};
 use mcrs_minecraft_game_mode::GameMode;
 
-/// `minecraft:entity`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EntityArgument {
     pub single: bool,
@@ -51,8 +50,6 @@ impl EntityArgument {
         Ok(())
     }
 
-    /// Suggests what can follow the read, for the server: player names, kinds,
-    /// option keys and the values of `sort`, `gamemode` and `type`.
     pub fn suggest<'t, L: Lookup>(
         &self,
         source: &'t Source<'_, L>,

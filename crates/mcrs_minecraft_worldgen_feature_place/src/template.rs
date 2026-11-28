@@ -83,8 +83,6 @@ fn value_of<'a>(layout: &'a BlockLayout, state: VoxelId, name: &str) -> Option<&
         .map(|value| &**value)
 }
 
-/// `BlockState.rotate` for a rotation about Y, over the property names the
-/// block overrides act on.
 pub fn rotate_state(world: &WorldStates, state: VoxelId, rotation: Rotation) -> VoxelId {
     if rotation == Rotation::None || world.unrotated.contains(state.0 as usize) {
         return state;
@@ -141,8 +139,6 @@ pub fn rotate_state(world: &WorldStates, state: VoxelId, rotation: Rotation) -> 
     remap_sides(layout, state, out, |d| rotation.rotate(d))
 }
 
-// The reference keeps the inner shapes of a front-back mirrored stair as they
-// are, so a mirrored inner corner is not the corner a player would build.
 fn stair_mirror(shape: &str, mirror: Mirror) -> Option<&'static str> {
     Some(match (mirror, shape) {
         (Mirror::LeftRight, "inner_left") => "inner_right",
@@ -153,8 +149,6 @@ fn stair_mirror(shape: &str, mirror: Mirror) -> Option<&'static str> {
     })
 }
 
-/// `BlockState.mirror`, over the property names the block overrides act on:
-/// a facing on the mirrored axis is a half turn, and the rest reflect.
 pub fn mirror_state(world: &WorldStates, state: VoxelId, mirror: Mirror) -> VoxelId {
     if mirror == Mirror::None || world.unmirrored.contains(state.0 as usize) {
         return state;
@@ -281,7 +275,6 @@ pub enum CompiledProcessor {
     },
 }
 
-/// `BlockAgeProcessor`'s tables: what it ages and what it ages into.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockAgeTables {
     pub mossiness: f32,
@@ -429,7 +422,7 @@ pub enum ChainKind {
 }
 
 pub fn block_mask(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     list: &[Block],
 ) -> Result<StateMask, FeatureCompileError> {
     let names: Vec<ResourceLocationBuf> =
@@ -438,7 +431,7 @@ pub fn block_mask(
 }
 
 pub fn state(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     block: Block,
     properties: &[(&str, &str)],
 ) -> Result<VoxelId, FeatureCompileError> {
@@ -459,7 +452,7 @@ pub fn state(
 pub fn compile_chain(
     list: &[StructureProcessor],
     kind: ChainKind,
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     world_seed: i64,
 ) -> Result<CompiledChain, FeatureCompileError> {
     let mut processors = Vec::with_capacity(list.len() + 3);
@@ -500,7 +493,7 @@ pub fn compile_chain(
 
 fn compile_processor(
     processor: &StructureProcessor,
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     world_seed: i64,
 ) -> Result<Option<CompiledProcessor>, FeatureCompileError> {
     use StructureProcessor::*;
@@ -588,7 +581,7 @@ fn compile_processor(
 
 fn compile_processor_rule(
     rule: &ProcessorRule,
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<CompiledRule, FeatureCompileError> {
     let position = match &rule.position_predicate {
         None | Some(PosRuleTest::AlwaysTrue) => None,
@@ -605,10 +598,6 @@ fn compile_processor_rule(
     let modifier = match &rule.block_entity_modifier {
         None | Some(RuleBlockEntityModifier::Passthrough) => None,
         Some(RuleBlockEntityModifier::AppendLoot { loot_table }) => {
-            // The entity id comes from the output block's name, which
-            // holds for brushable blocks and the modelled kinds that share a
-            // name with their entity; a container output under another name
-            // needs a name-to-kind arm.
             let entity_id = match output_name.as_str() {
                 name if name == Block::SuspiciousSand.as_static_str()
                     || name == Block::SuspiciousGravel.as_static_str() =>
@@ -639,8 +628,6 @@ fn compile_processor_rule(
     })
 }
 
-/// `StructurePlaceSettings.getRandom`: a fresh `LegacyRandom` seeded by the
-/// block position, or the placement stream when the settings carry one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsRandom {
     Positional,
@@ -660,8 +647,6 @@ pub struct Placement<'a> {
     pub clip: Option<BoundingBox>,
     pub chain: &'a CompiledChain,
     pub waterlog: bool,
-    /// The inverse of `ignoreEntities`: whether the template's entities are
-    /// placed at all.
     pub place_entities: bool,
 }
 
@@ -696,7 +681,7 @@ impl CompiledProcessor {
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "applies the property-copying processor inside its arm of the processor match, so each kind reads against the reference"
+        reason = "applies the property-copying processor inside its arm of the processor match"
     )]
     fn process<W: WorldGenVolume, R: Random>(
         &self,
@@ -858,9 +843,6 @@ fn has_waterlogged(world: &WorldStates, state: VoxelId) -> bool {
         .is_some_and(|layout| layout.property("waterlogged").is_some())
 }
 
-/// `LiquidBlockContainer.placeLiquid` for source water: the block takes the
-/// water unless it already holds some or is a double slab; a lit candle or
-/// campfire goes out.
 fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId, fluid: VoxelId) {
     let world = volume.world();
     let Some(layout) = world.layout_of(state) else {
@@ -877,12 +859,9 @@ fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId
     volume.set(pos, wet);
 }
 
-/// `StructureTemplate.placeInWorld` for one palette the caller has already
-/// drawn. The template's entities land in `spawns`, clipped by their block
-/// position and never finalized.
 #[expect(
     clippy::too_many_lines,
-    reason = "runs the processor chain over every block of the palette and then writes the blocks and their block entities, in the reference's order"
+    reason = "processor chain then writes, in the reference's order"
 )]
 pub fn place_template<W: WorldGenVolume>(
     p: &Placement<'_>,
@@ -897,8 +876,6 @@ pub fn place_template<W: WorldGenVolume>(
         return false;
     }
     let inside = |pos: IVec3| p.clip.is_none_or(|clip| clip.is_inside(pos.into()));
-    // `evaluatesEntirePieceState`: a capped processor must see every block
-    // of the piece, so the clip waits until the write.
     let whole_piece = p
         .chain
         .iter()
@@ -1019,8 +996,6 @@ mod tests {
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, PropertyLayout, mask_of};
     use mcrs_minecraft_worldgen_feature::template::FrozenBlock;
 
-    // Thirty-two ids per block from each layout's base: the plain blocks at 0,
-    // then a fence, a candle and a slab.
     const AIR: VoxelId = VoxelId(0);
     const STRUCTURE_BLOCK: VoxelId = VoxelId(1);
     const JIGSAW: VoxelId = VoxelId(2);
@@ -1134,8 +1109,6 @@ mod tests {
         }
     }
 
-    /// Three wide, two tall, three deep: dirt floor, a stone pillar at the
-    /// centre, a chest on top of it.
     fn template() -> FrozenTemplate {
         let mut blocks = Vec::new();
         for z in 0..3 {

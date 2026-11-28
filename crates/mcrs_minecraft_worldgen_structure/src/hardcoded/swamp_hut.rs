@@ -5,17 +5,16 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use super::on_top_of_chunk_centre;
 use crate::orient::{Orientation, orient_box};
 use crate::piece::{Piece, SwampHutPiece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
-pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    _rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     on_top_of_chunk_centre(ctx, HeightmapName::WorldSurfaceWg)
 }
 
-/// The reference raises the piece at placement to the mean
-/// `MOTION_BLOCKING_NO_LEAVES` height under its box, read from the live world
-/// of the one chunk the box lies in; the same cells answer from the density
-/// columns instead.
-pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, mut site: Site) -> Vec<Piece> {
     let orientation = Orientation::random(&mut site.rng);
     let origin = IVec3::new(
         ctx.chunk.min_block_x(),

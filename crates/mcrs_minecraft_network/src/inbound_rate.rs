@@ -6,13 +6,16 @@ use mcrs_minecraft_text::Text;
 
 use crate::Instant;
 
-/// The `rate-limit` property: the largest average of packets per second of one connection. 0
-/// turns the limit off, which is the default, so that no burst of a client ends its connection.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct InboundRateLimit(pub u32);
 
+impl Default for InboundRateLimit {
+    fn default() -> Self {
+        Self(500)
+    }
+}
+
 impl InboundRateLimit {
-    /// The reason of the disconnect.
     #[must_use]
     pub fn reason() -> Text {
         Text::translate("disconnect.exceeded_packet_rate", [])
@@ -20,13 +23,8 @@ impl InboundRateLimit {
 }
 
 const SECOND: Duration = Duration::from_secs(1);
-/// Each second keeps this share of the average and takes the rest from its own count.
 const KEEP: f32 = 0.75;
 
-/// The packets of a connection in each second, and their running average.
-///
-/// The seconds follow the arrival times of the packets, not the server ticks: a server that
-/// stalls reads a backlog in one go, and that burst is the server's, not the client's.
 #[derive(Component, Clone, Debug, Default)]
 pub struct InboundPacketRate {
     second_start: Option<Instant>,
@@ -35,8 +33,6 @@ pub struct InboundPacketRate {
 }
 
 impl InboundPacketRate {
-    /// Counts a packet that arrived at `arrival`. Answers `false` when the average of a finished
-    /// second is more than `limit`.
     pub fn count(&mut self, arrival: Instant, limit: InboundRateLimit) -> bool {
         if limit.0 == 0 {
             return true;
@@ -62,19 +58,16 @@ impl InboundPacketRate {
 mod tests {
     use super::*;
 
-    /// Counts `per_second` packets in each of `seconds` seconds from `start`, and answers the
-    /// second in which the rate first ends the connection.
-    fn first_refused(
-        rate: &mut InboundPacketRate,
-        start: Instant,
-        seconds: u32,
-        per_second: u32,
-        limit: u32,
-    ) -> Option<u32> {
-        for second in 0..seconds {
-            for packet in 0..per_second {
-                let arrival = start + SECOND * second + SECOND * packet / per_second;
-                if !rate.count(arrival, InboundRateLimit(limit)) {
+    fn first_refused(per_second: &[u32], limit: u32) -> Option<usize> {
+        let mut rate = InboundPacketRate::default();
+        let start = Instant::now();
+        for (second, &count) in per_second.iter().enumerate() {
+            let second_start = start + SECOND * u32::try_from(second).unwrap();
+            for packet in 0..count {
+                if !rate.count(
+                    second_start + SECOND * packet / count,
+                    InboundRateLimit(limit),
+                ) {
                     return Some(second);
                 }
             }
@@ -83,12 +76,16 @@ mod tests {
     }
 
     #[test]
-    fn a_steady_rate_above_the_limit_ends_the_connection_in_the_fourth_second() {
-        let mut rate = InboundPacketRate::default();
-        assert_eq!(
-            first_refused(&mut rate, Instant::now(), 10, 100, 50),
-            Some(3),
-            "MVC-VAN-019: the averages are 25, 43.75 and 57.8 after the first three seconds"
-        );
+    fn lim_pkt_001_the_average_of_a_finished_second_ends_the_connection_past_the_limit() {
+        let cases: [(&str, Vec<u32>, u32, Option<usize>); 5] = [
+            ("P-1", vec![100; 10], 50, Some(3)),
+            ("P-2", vec![50; 20], 50, None),
+            ("P-3", vec![200, 1], 50, None),
+            ("P-4", vec![201, 1], 50, Some(1)),
+            ("P-5", vec![10_000, 1], 0, None),
+        ];
+        for (row, per_second, limit, refused) in cases {
+            assert_eq!(first_refused(&per_second, limit), refused, "{row}");
+        }
     }
 }

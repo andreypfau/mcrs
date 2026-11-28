@@ -116,13 +116,11 @@ fn requirements_hide_nodes_from_the_parse() {
         Err(SyntaxError::library(LibraryError::UnknownCommand, 0))
     );
     assert_eq!(reported(&graph, "gamemode", 2), Ok(vec![gamemode]));
-    // A literal the source cannot use does not keep its argument siblings out.
     assert_eq!(
         reported(&graph, "say secret", 0),
         Ok(vec![say, word.node()])
     );
     assert_eq!(reported(&graph, "say secret", 2), Ok(vec![say, secret]));
-    // A redirect to a node the source cannot use is not followed.
     assert_eq!(
         reported(&graph, "s x", 0),
         Err(SyntaxError::library(LibraryError::UnknownArgument, 2))

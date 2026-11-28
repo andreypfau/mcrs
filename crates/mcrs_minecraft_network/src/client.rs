@@ -3,16 +3,21 @@ use crate::join::{Configuration, Join, Joined};
 use crate::metrics::{PacketDispatcher, PlayTable};
 use crate::packet_io::PacketIo;
 use crate::{ConnectionState, RawConnection};
-use bevy_app::{App, AppExit, Plugin, Update};
+use bevy_app::{App, Plugin, Update};
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
-use bevy_ecs::prelude::{Commands, On, Query, Res};
+use bevy_ecs::message::{Message, MessageReader};
+use bevy_ecs::prelude::{Commands, On, Query, Res, With};
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy_ecs::system::Populated;
 use bevy_ecs::world::World;
 use bytes::Bytes;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
@@ -24,16 +29,18 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::packets::table::Row;
 use mcrs_minecraft_protocol::{Encode, Packet, WritePacket, uuid::Uuid};
+use mcrs_minecraft_text::Text;
 use md5::{Digest, Md5};
+use std::fmt;
+use std::future::{Future, poll_fn};
 use std::net::SocketAddr;
+use std::pin::pin;
+use std::task::Poll;
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc::{Receiver, channel};
-use tracing::{error, warn};
+use tokio::sync::oneshot;
+use tracing::{error, info, warn};
 
-/// The browser has no TCP and the native client has no WebTransport, so what
-/// "the server" is differs by target; everything downstream of the byte stream
-/// does not.
 #[cfg(not(target_family = "wasm"))]
 pub type ServerAddress = SocketAddr;
 #[cfg(target_family = "wasm")]
@@ -42,32 +49,20 @@ pub type ServerAddress = crate::browser::WebTransportTarget;
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ClientNetworkSystems {
     Receive,
+    Deliver,
     Flush,
 }
 
 pub struct ClientNetworkPlugin {
-    pub server: ServerAddress,
-    pub username: String,
-    pub profile_id: Option<Uuid>,
-    pub view_distance: u8,
-    /// Inserts [`HoldsVanillaPack`]. Set it only when the registry loader can fill the entries
-    /// a server leaves out.
     pub holds_vanilla_pack: bool,
-    /// The play rows a crate with game data types. Without it the connection types only the
-    /// play packets of the protocol crate, and raises no event for the others.
     pub play: Option<PlayTable>,
 }
 
-/// The socket, its reader and writer tasks, and the outbound encoder.
 #[derive(Component)]
 pub struct ClientConnection {
     raw: Box<RawConnection>,
     dispatcher: PacketDispatcher,
-    /// The frames of the bundle that the server opened and has not closed yet. A frame of a row
-    /// without a structure counts towards the limit and raises nothing.
     bundle: Option<Vec<(Option<Trigger>, Bytes)>>,
-    /// The state of the last frame that ended one. A frame behind it is read only once the
-    /// state changes, because an observer can answer the end later than the same frame.
     ended: Option<ConnectionState>,
 }
 
@@ -86,13 +81,15 @@ impl ClientConnection {
     }
 }
 
-fn client_dispatcher(world: &World) -> PacketDispatcher {
+fn client_dispatcher(
+    play: Option<&ClientPlayTable>,
+    deferred: Option<&DeferredRows>,
+) -> PacketDispatcher {
     let mut dispatcher = PacketDispatcher::clientbound();
-    if let Some(play) = world.get_resource::<ClientPlayTable>() {
+    if let Some(play) = play {
         dispatcher.set_play(play.0);
     }
-    world
-        .get_resource::<DeferredRows>()
+    deferred
         .into_iter()
         .flat_map(|deferred| &deferred.0)
         .fold(dispatcher, |dispatcher, defer| defer(dispatcher))
@@ -101,8 +98,6 @@ fn client_dispatcher(world: &World) -> PacketDispatcher {
 #[derive(Resource)]
 struct ClientPlayTable(PlayTable);
 
-/// The rows whose observers check their own frames, off the main thread, instead of the
-/// dispatcher. A connection reads the set when it opens.
 #[derive(Resource, Default)]
 pub struct DeferredRows(Vec<fn(PacketDispatcher) -> PacketDispatcher>);
 
@@ -114,20 +109,19 @@ impl DeferredRows {
 
 pub use crate::join::ServerProfile;
 
-/// Present when the client holds the vanilla pack of its own version, so it may let a server
-/// leave that pack's entries out.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SentViewDistance(pub u8);
+
 #[derive(Resource)]
 pub struct HoldsVanillaPack;
 
-/// A server ended its configuration. The connection stays in configuration until an observer
-/// answers with [`finish_configuration`] or drops it with [`close_connection_later`].
 #[derive(EntityEvent, Debug)]
 pub struct RegistriesReceived {
     pub entity: Entity,
     pub configuration: Configuration,
 }
 
-pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
+pub fn finish_configuration(mut commands: Commands, connection: Entity) {
     commands.queue(move |world: &mut World| {
         let Ok(mut entity) = world.get_entity_mut(connection) else {
             return;
@@ -136,7 +130,7 @@ pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
             client.write_packet(&ServerboundFinishConfiguration);
         }
         if let Some(mut state) = entity.get_mut::<ConnectionState>() {
-            *state = ConnectionState::Game;
+            state.set_if_neq(ConnectionState::Game);
         }
     });
 }
@@ -145,31 +139,78 @@ pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
 #[derive(Resource)]
 struct ClientRuntime(Runtime);
 
-/// Without it a lost connection only logs: a test harness or a browser tab
-/// outlives its connection, a windowed client has nothing left to show.
-#[derive(Resource)]
-pub struct ExitOnDisconnect;
+#[derive(Message, Clone, Debug)]
+pub struct JoinRequest {
+    pub server: ServerAddress,
+    pub username: String,
+    pub profile_id: Option<Uuid>,
+    pub view_distance: u8,
+}
 
-fn end_session(world: &mut World, reason: String) {
-    error!("{reason}");
-    if world.contains_resource::<ExitOnDisconnect>() {
-        world.write_message(AppExit::Success);
+#[derive(Message, Clone, Copy, Debug, Default)]
+pub struct LeaveRequest;
+
+#[derive(Message, Clone, Copy, Debug, Default)]
+pub struct CancelJoin;
+
+#[derive(Message, Clone, Debug)]
+pub struct ConnectionEnded {
+    pub reason: ConnectionEnd,
+}
+
+#[non_exhaustive]
+#[derive(Clone, Debug)]
+pub enum ConnectionEnd {
+    Left,
+    Kicked(Text),
+    JoinFailed(String),
+    Lost(String),
+}
+
+impl fmt::Display for ConnectionEnd {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConnectionEnd::Left => f.write_str("the client left the server"),
+            ConnectionEnd::Kicked(reason) => write!(
+                f,
+                "the server disconnected you: {}",
+                mcrs_minecraft_text_flatten::plain_text(&Language::default(), reason)
+            ),
+            ConnectionEnd::JoinFailed(cause) => write!(f, "the connection failed: {cause}"),
+            ConnectionEnd::Lost(cause) => f.write_str(cause),
+        }
     }
 }
 
-/// Closes the connection and ends the session, unless an earlier close in the
-/// same frame already did: a disconnect packet is followed by the socket
-/// closing, and only the first of the two is the reason.
-pub fn close_connection_later(commands: &mut Commands, connection: Entity, reason: String) {
+#[derive(Component, Debug)]
+pub struct ClientSession;
+
+type JoinOutcome = Result<Joined, String>;
+
+#[derive(Component)]
+struct PendingJoin {
+    joined: oneshot::Receiver<JoinOutcome>,
+    view_distance: u8,
+}
+
+pub fn close_connection_later(mut commands: Commands, connection: Entity, reason: ConnectionEnd) {
     commands.queue(move |world: &mut World| {
         if world.despawn(connection) {
-            end_session(world, reason);
+            match reason {
+                ConnectionEnd::Left => info!("{reason}"),
+                _ => error!("{reason}"),
+            }
+            world.write_message(ConnectionEnded { reason });
         }
     });
 }
 
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
+        app.add_message::<JoinRequest>()
+            .add_message::<LeaveRequest>()
+            .add_message::<CancelJoin>()
+            .add_message::<ConnectionEnded>();
         #[cfg(not(target_family = "wasm"))]
         match Runtime::new() {
             Ok(runtime) => {
@@ -177,7 +218,7 @@ impl Plugin for ClientNetworkPlugin {
             }
             Err(error) => {
                 tracing::error!("the client network runtime did not start: {error}");
-                app.world_mut().write_message(AppExit::error());
+                app.world_mut().write_message(bevy_app::AppExit::error());
                 return;
             }
         }
@@ -194,7 +235,45 @@ impl Plugin for ClientNetworkPlugin {
             app.insert_resource(ClientPlayTable(play));
         }
 
-        let (send, recv) = channel(1);
+        app.add_systems(
+            Update,
+            (
+                leave_sessions.run_if(on_message::<LeaveRequest>),
+                cancel_joins.run_if(on_message::<CancelJoin>),
+                start_joins.run_if(on_message::<JoinRequest>),
+                (collect_joins, receive_packets)
+                    .chain()
+                    .in_set(ClientNetworkSystems::Deliver),
+            )
+                .chain()
+                .in_set(ClientNetworkSystems::Receive),
+        );
+    }
+}
+
+fn leave_sessions(sessions: Query<Entity, With<ClientSession>>, mut commands: Commands) {
+    for session in &sessions {
+        close_connection_later(commands.reborrow(), session, ConnectionEnd::Left);
+    }
+}
+
+fn cancel_joins(pending: Query<Entity, With<PendingJoin>>, mut commands: Commands) {
+    for join in &pending {
+        commands.entity(join).despawn();
+    }
+}
+
+fn start_joins(
+    mut requests: MessageReader<JoinRequest>,
+    holds_vanilla: Option<Res<HoldsVanillaPack>>,
+    #[cfg(not(target_family = "wasm"))] runtime: Res<ClientRuntime>,
+    pending: Query<Entity, With<PendingJoin>>,
+    mut commands: Commands,
+) {
+    if let Some(request) = requests.read().last() {
+        for earlier in &pending {
+            commands.entity(earlier).despawn();
+        }
         #[cfg_attr(
             not(target_family = "wasm"),
             expect(
@@ -202,12 +281,10 @@ impl Plugin for ClientNetworkPlugin {
                 reason = "ServerAddress is Copy only on native; the browser's WebTransportTarget is not"
             )
         )]
-        let server = self.server.clone();
+        let server = request.server.clone();
         #[cfg(not(target_family = "wasm"))]
         let (server_address, server_port, remote_addr) =
             (server.ip().to_string(), server.port(), server);
-        // A browser never learns the peer address; the connection carries one
-        // only so a server-side log line has something to print.
         #[cfg(target_family = "wasm")]
         let ((server_address, server_port), remote_addr) =
             (server.host_and_port(), SocketAddr::from(([0, 0, 0, 0], 0)));
@@ -215,31 +292,91 @@ impl Plugin for ClientNetworkPlugin {
             server_address,
             server_port,
             remote_addr,
-            username: self.username.clone(),
-            profile_id: self
+            username: request.username.clone(),
+            profile_id: request
                 .profile_id
-                .unwrap_or_else(|| offline_player_uuid(&self.username)),
+                .unwrap_or_else(|| offline_player_uuid(&request.username)),
             protocol_version: VERSION.protocol_version,
-            view_distance: self.view_distance,
-            holds_vanilla_pack: self.holds_vanilla_pack,
+            view_distance: request.view_distance,
+            holds_vanilla_pack: holds_vanilla.is_some(),
         };
+        let (send, joined) = oneshot::channel();
         let joining = async move {
-            let outcome = connect_and_join(server, join)
-                .await
-                .map_err(|e| format!("{e:#}"));
-            let _ = send.send(outcome).await;
+            let mut send = send;
+            let mut joining = pin!(connect_and_join(server, join));
+            let outcome = poll_fn(|cx| {
+                if send.poll_closed(cx).is_ready() {
+                    return Poll::Ready(None);
+                }
+                joining.as_mut().poll(cx).map(Some)
+            })
+            .await;
+            if let Some(outcome) = outcome {
+                let _ = send.send(outcome.map_err(|e| format!("{e:#}")));
+            }
         };
         #[cfg(not(target_family = "wasm"))]
-        app.world().resource::<ClientRuntime>().0.spawn(joining);
+        runtime.0.spawn(joining);
         #[cfg(target_family = "wasm")]
         wasm_bindgen_futures::spawn_local(joining);
+        commands.spawn((
+            ClientSession,
+            PendingJoin {
+                joined,
+                view_distance: request.view_distance,
+            },
+        ));
+    }
+}
 
-        app.add_systems(
-            Update,
-            (spawn_joined_connection(recv), receive_packets)
-                .chain()
-                .in_set(ClientNetworkSystems::Receive),
-        );
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the allocations happen only when a join completes or fails"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(5))]
+fn collect_joins(
+    mut pending: Populated<(Entity, &mut PendingJoin)>,
+    play: Option<Res<ClientPlayTable>>,
+    deferred: Option<Res<DeferredRows>>,
+    mut commands: Commands,
+) {
+    for (session, mut join) in &mut pending {
+        let outcome = match join.joined.try_recv() {
+            Ok(outcome) => outcome,
+            Err(oneshot::error::TryRecvError::Empty) => continue,
+            Err(oneshot::error::TryRecvError::Closed) => {
+                Err("the join stopped without an outcome".to_owned())
+            }
+        };
+        let Joined {
+            connection,
+            profile,
+            configuration,
+        } = match outcome {
+            Ok(joined) => joined,
+            Err(e) => {
+                close_connection_later(commands.reborrow(), session, ConnectionEnd::JoinFailed(e));
+                continue;
+            }
+        };
+        commands.entity(session).remove::<PendingJoin>().insert((
+            ClientConnection::new(
+                connection,
+                Some(ConnectionState::Configuration),
+                client_dispatcher(play.as_deref(), deferred.as_deref()),
+            ),
+            ConnectionState::Configuration,
+            profile,
+            Configuration::default(),
+            SentViewDistance(join.view_distance),
+        ));
+        commands.trigger(RegistriesReceived {
+            entity: session,
+            configuration,
+        });
     }
 }
 
@@ -258,8 +395,6 @@ impl Drop for ClientConnection {
     }
 }
 
-/// Vanilla's offline profile id: an MD5 name-based UUID over
-/// `OfflinePlayer:<name>`, with no namespace prefix.
 pub fn offline_player_uuid(username: &str) -> Uuid {
     mcrs_minecraft_protocol::uuid::Builder::from_md5_bytes(
         Md5::digest(format!("OfflinePlayer:{username}").as_bytes()).into(),
@@ -275,60 +410,29 @@ async fn connect_and_join(server: ServerAddress, join: Join) -> anyhow::Result<J
     crate::join::configure(io, join).await
 }
 
-type JoinOutcome = Result<Joined, String>;
-
-fn spawn_joined_connection(mut joined: Receiver<JoinOutcome>) -> impl FnMut(&mut World) {
-    move |world: &mut World| {
-        while let Ok(outcome) = joined.try_recv() {
-            let Joined {
-                connection,
-                profile,
-                configuration,
-            } = match outcome {
-                Ok(joined) => joined,
-                Err(e) => {
-                    end_session(world, format!("the connection failed: {e}"));
-                    continue;
-                }
-            };
-            let entity = world
-                .spawn((
-                    // The server ended the configuration while the client joined.
-                    ClientConnection::new(
-                        connection,
-                        Some(ConnectionState::Configuration),
-                        client_dispatcher(world),
-                    ),
-                    ConnectionState::Configuration,
-                    profile,
-                    Configuration::default(),
-                ))
-                .id();
-            world.trigger(RegistriesReceived {
-                entity,
-                configuration,
-            });
-        }
-    }
-}
-
-/// The vanilla client refuses a bundle longer than this.
 const MAX_BUNDLE_PACKETS: usize = 4096;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the allocations happen only on a bundle start, on a malformed packet or when the connection ends"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(19))]
 fn receive_packets(
-    mut connections: Query<(Entity, &mut ClientConnection, &ConnectionState)>,
+    mut connections: Populated<(Entity, &mut ClientConnection, &ConnectionState)>,
     mut commands: Commands,
 ) {
     for (entity, mut connection, &state) in connections.iter_mut() {
         let connection = &mut *connection;
         match connection.ended {
-            // The held frames stay unread, but a closed socket still ends the session.
             Some(ended) if ended == state => {
                 if connection.raw.reader_closed() {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
-                        "the server closed the connection".into(),
+                        ConnectionEnd::Lost("the server closed the connection".into()),
                     );
                 }
                 continue;
@@ -342,9 +446,9 @@ fn receive_packets(
                 Ok(None) => break,
                 Err(_) => {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
-                        "the server closed the connection".into(),
+                        ConnectionEnd::Lost("the server closed the connection".into()),
                     );
                     break;
                 }
@@ -359,9 +463,9 @@ fn receive_packets(
                         warn!("{line}");
                     }
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
-                        format!("Internal Exception: {}", malformed.cause),
+                        ConnectionEnd::Lost(format!("Internal Exception: {}", malformed.cause)),
                     );
                     break;
                 }
@@ -369,7 +473,7 @@ fn receive_packets(
             if state == ConnectionState::Game && packet.id == ClientboundBundleDelimiter::ID {
                 match connection.bundle.take() {
                     None => connection.bundle = Some(Vec::new()),
-                    Some(bundle) => raise_bundle(&mut commands, entity, bundle),
+                    Some(bundle) => raise_bundle(commands.reborrow(), entity, bundle),
                 }
                 continue;
             }
@@ -377,24 +481,24 @@ fn receive_packets(
             match &mut connection.bundle {
                 Some(_) if ends_state => {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
-                        "Terminal message received in bundle".into(),
+                        ConnectionEnd::Lost("Terminal message received in bundle".into()),
                     );
                     break;
                 }
                 Some(bundle) if bundle.len() >= MAX_BUNDLE_PACKETS => {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
-                        "Too many packets in a bundle".into(),
+                        ConnectionEnd::Lost("Too many packets in a bundle".into()),
                     );
                     break;
                 }
                 Some(bundle) => bundle.push((trigger, packet.payload)),
                 None => {
                     if let Some(trigger) = trigger {
-                        trigger.raise(&mut commands, entity, packet.payload);
+                        trigger.raise(commands.reborrow(), entity, packet.payload);
                     }
                 }
             }
@@ -406,26 +510,43 @@ fn receive_packets(
     }
 }
 
-fn raise_bundle(commands: &mut Commands, entity: Entity, bundle: Vec<(Option<Trigger>, Bytes)>) {
+fn raise_bundle(
+    mut commands: Commands<'_, '_>,
+    entity: Entity,
+    bundle: Vec<(Option<Trigger>, Bytes)>,
+) {
     for (trigger, data) in bundle {
         if let Some(trigger) = trigger {
-            trigger.raise(commands, entity, data);
+            trigger.raise(commands.reborrow(), entity, data);
         }
     }
 }
 
-fn flush(mut connections: Query<(Entity, &mut ClientConnection)>, mut commands: Commands) {
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the reason string exists only when the connection to the server fails"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the hand-off stamp measures wall-clock time for the stalled-writer check, which must not depend on the game clock"
+    )
+)]
+fn flush(mut connections: Populated<(Entity, &mut ClientConnection)>, mut commands: Commands) {
     for (entity, mut connection) in connections.iter_mut() {
         if let Err(e) = connection.raw.flush() {
             warn!("failed to send to the server: {e}");
         }
-        // The flush error above is also raised by a writer that is merely
-        // behind, so the dead writer is what the disconnect is read from.
         if connection.raw.disconnected() {
             close_connection_later(
-                &mut commands,
+                commands.reborrow(),
                 entity,
-                "the connection to the server failed".into(),
+                ConnectionEnd::Lost("the connection to the server failed".into()),
             );
         }
     }
@@ -446,7 +567,6 @@ pub(crate) fn add_packet_observers(app: &mut App) {
     app.add_observer(on_keep_alive);
 }
 
-/// The asynchronous join reads the same rows by id, so the rows go to its reader.
 fn on_configuration_packet<R: Row>(
     event: On<Received<R>>,
     mut connections: Query<(&mut ClientConnection, &mut Configuration)>,
@@ -467,7 +587,11 @@ fn on_configuration_packet<R: Row>(
             entity: event.entity,
             configuration,
         }),
-        Err(error) => close_connection_later(&mut commands, event.entity, format!("{error:#}")),
+        Err(error) => close_connection_later(
+            commands.reborrow(),
+            event.entity,
+            ConnectionEnd::Lost(format!("{error:#}")),
+        ),
     }
 }
 
@@ -476,12 +600,9 @@ fn on_disconnect(event: On<Received<ClientboundDisconnect>>, mut commands: Comma
         return;
     };
     close_connection_later(
-        &mut commands,
+        commands.reborrow(),
         event.entity,
-        format!(
-            "the server disconnected you: {}",
-            crate::disconnect_reason::disconnect_reason(&disconnect.reason)
-        ),
+        ConnectionEnd::Kicked(disconnect.reason),
     );
 }
 
@@ -497,8 +618,8 @@ fn on_start_configuration(
         return;
     };
     connection.write_packet(&ServerboundConfigurationAcknowledged);
-    *state = ConnectionState::Configuration;
-    *collected = Configuration::default();
+    state.set_if_neq(ConnectionState::Configuration);
+    collected.set_if_neq(Configuration::default());
 }
 
 fn on_keep_alive(
@@ -549,7 +670,7 @@ mod tests {
         let _guard = runtime.enter();
         let (raw, _outgoing, inbound) = RawConnection::new_for_test_full(8);
         let mut app = App::new();
-        app.insert_resource(ExitOnDisconnect);
+        app.add_message::<ConnectionEnded>();
         app.add_systems(Update, (receive_packets, flush).chain());
         add_packet_observers(&mut app);
         let entity = app
@@ -563,15 +684,49 @@ mod tests {
         (app, inbound, entity)
     }
 
+    fn ended(app: &mut App) -> Vec<ConnectionEnd> {
+        app.world_mut()
+            .resource_mut::<bevy_ecs::message::Messages<ConnectionEnded>>()
+            .drain()
+            .map(|ended| ended.reason)
+            .collect()
+    }
+
+    #[test]
+    fn a_cancelled_join_ends_no_session() {
+        let mut app = App::new();
+        app.add_plugins(ClientNetworkPlugin {
+            holds_vanilla_pack: false,
+            play: None,
+        });
+        let (failed, joined) = oneshot::channel();
+        let join = app
+            .world_mut()
+            .spawn((
+                ClientSession,
+                PendingJoin {
+                    joined,
+                    view_distance: 2,
+                },
+            ))
+            .id();
+        drop(failed);
+        app.world_mut().write_message(CancelJoin);
+        app.update();
+        app.update();
+        assert!(app.world().get_entity(join).is_err());
+        assert!(ended(&mut app).is_empty());
+    }
+
     #[test]
     fn a_closed_connection_ends_the_session() {
         let runtime = runtime();
         let (mut app, inbound, _) = client_app(&runtime);
         app.update();
-        assert!(app.should_exit().is_none());
+        assert!(ended(&mut app).is_empty());
         drop(inbound);
         app.update();
-        assert_eq!(app.should_exit(), Some(AppExit::Success));
+        assert!(matches!(ended(&mut app)[..], [ConnectionEnd::Lost(_)]));
     }
 
     #[test]
@@ -586,7 +741,7 @@ mod tests {
             },
         );
         app.update();
-        assert_eq!(app.should_exit(), Some(AppExit::Success));
+        assert!(matches!(ended(&mut app)[..], [ConnectionEnd::Kicked(_)]));
         assert!(app.world().get_entity(entity).is_err());
     }
 
@@ -653,14 +808,13 @@ mod tests {
         keep_alive_read_in: Vec<ConnectionState>,
     }
 
-    /// Stands in for the client crate: takes what the server sent and finishes.
     fn accept_registries(
         event: On<RegistriesReceived>,
         mut handed: ResMut<Handed>,
         mut commands: Commands,
     ) {
         handed.configurations.push(event.configuration.clone());
-        finish_configuration(&mut commands, event.entity);
+        finish_configuration(commands.reborrow(), event.entity);
     }
 
     fn record_keep_alive(
@@ -685,7 +839,7 @@ mod tests {
             let _guard = runtime.enter();
             let (raw, outgoing, inbound) = RawConnection::new_for_test_full(8);
             let mut app = App::new();
-            app.insert_resource(ExitOnDisconnect);
+            app.add_message::<ConnectionEnded>();
             app.init_resource::<Handed>();
             app.add_systems(Update, (receive_packets, flush).chain());
             add_packet_observers(&mut app);
@@ -887,16 +1041,6 @@ mod tests {
             [body(&again)]
         );
         assert_eq!(client.state(), ConnectionState::Game);
-    }
-
-    #[test]
-    fn without_the_resource_a_closed_connection_only_logs() {
-        let runtime = runtime();
-        let (mut app, inbound, _) = client_app(&runtime);
-        app.world_mut().remove_resource::<ExitOnDisconnect>();
-        drop(inbound);
-        app.update();
-        assert!(app.should_exit().is_none());
     }
 }
 

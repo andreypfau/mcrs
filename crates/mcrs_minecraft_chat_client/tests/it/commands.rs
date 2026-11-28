@@ -241,7 +241,7 @@ fn tab_inserts_each_entry_in_turn_and_shows_its_rest_as_ghost_text() {
     let cx = context(&tree, &source);
     let mut history = History::default();
     let mut screen = ChatScreen::default();
-    screen.open("/", InputStyle::Plain, &cx);
+    screen.open("/", InputStyle::Plain, 0, &cx);
     assert!(
         screen.commands.list().is_none(),
         "no list until the player types"
@@ -291,7 +291,7 @@ fn chat_text_suggests_player_names_only_after_tab() {
     let cx = context(&tree, &source);
     let mut history = History::default();
     let mut screen = ChatScreen::default();
-    screen.open("", InputStyle::Plain, &cx);
+    screen.open("", InputStyle::Plain, 0, &cx);
     screen.type_text("hi al", &cx);
     assert!(screen.commands.list().is_none());
     screen.key(

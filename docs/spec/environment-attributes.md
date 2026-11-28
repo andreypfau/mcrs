@@ -1,18 +1,13 @@
 # Environment attributes, timelines and clocks: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of the game values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 An environment attribute is a value of a dimension that data packs control, for example the
 colour of the sky or the chance that a turtle egg hatches. This document states the value
 types of the attributes, the arithmetic of each modifier, the order in which the sources of a
 value apply, the sampling of a timeline, and the clocks that timelines read. The JSON shapes
 are in `registry-fields.md`, REG-FLD-128, REG-FLD-129 and REG-FLD-251 to REG-FLD-255. This
-document does not restate them. It does not prescribe an architecture.
+document does not restate them.
 
 ## 0. Conventions
 
@@ -54,9 +49,7 @@ document does not restate them. It does not prescribe an architecture.
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
-section "Semantics, not accidents". Each rule has a Milestone line. `1` means the first release
-of these rules, which replaces the present code. `later` means a rule that a later release
-implements. A rule that cites the environment artefact as evidence has the label
+section "Semantics, not accidents". A rule that cites the environment artefact as evidence has the label
 `source_suggested_black_box_confirmed`.
 
 ### 0.3 ID prefixes
@@ -79,7 +72,8 @@ the clock of the client. The server clock and the commands that change a clock a
 `command-time.md`, CMD-TIME-005 to CMD-TIME-019. This document cites them.
 
 Out of scope: what each consumer does with a value, for example how the sky renderer uses
-`visual/sky_color`. The consumer specification owns that.
+`visual/sky_color`. The consumer specification owns that. `client-fog.md` states the consumers
+of the fog, sky and cloud attributes when the camera is in air.
 
 ---
 
@@ -105,7 +99,7 @@ Out of scope: what each consumer does with a value, for example how the sky rend
   a modifier states a clamp. A channel outside `[0, 1]` stays as it is until the consumer uses
   it.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### ENVA-TYPE-002: Colour on read
 
@@ -124,7 +118,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** `"#78a7ff"` reads as `(120/255, 167/255, 1)`. `[1.5, -0.5, 0.5]` reads as
   `(1.5, −0.5, 0.5)`.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### ENVA-TYPE-003: Colour on write
 
@@ -135,7 +129,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
 
 Provenance: `design`. The reference takes the byte as `floor(c · 255)` modulo 256, with no
 clamp, so a channel above 1 wraps to a dark value. The vanilla client accepts each byte, so the
-choice is free (ENVA-DEV-001). Kind: semantic. Confidence: high. Milestone: 1.
+choice is free (ENVA-DEV-001). Kind: semantic. Confidence: high.
 
 ### ENVA-TYPE-004: Range and sanitize
 
@@ -154,7 +148,7 @@ choice is free (ENVA-DEV-001). Kind: semantic. Confidence: high. Milestone: 1.
   `visual/fog_end_distance` gives 0.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact, `range_clamp`). Kind:
-semantic. Confidence: high. Milestone: 1. Experiment: ENVA-TEST-001.
+semantic. Confidence: high. Experiment: ENVA-TEST-001.
 
 ### ENVA-TYPE-005: Interpolation functions
 
@@ -188,7 +182,7 @@ semantic. Confidence: high. Milestone: 1. Experiment: ENVA-TEST-001.
   gives 360. From 0 to 90 it gives 90 for each `t`.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact, `type_lerps`). Kind:
-semantic. Confidence: high. Milestone: 1. Experiment: ENVA-TEST-001.
+semantic. Confidence: high. Experiment: ENVA-TEST-001.
 
 ### ENVA-TYPE-006: The attribute table
 
@@ -254,7 +248,7 @@ semantic. Confidence: high. Milestone: 1. Experiment: ENVA-TEST-001.
 - **Notes:** the defaults of `background_music` and `ambient_sounds` have no fields. A float
   default is the binary32 value nearest to the decimal of the table.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1. Experiment: in
+Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: in
 a dimension type with `"attributes": {}`, query each syncable attribute on the client. The
 client shows the default of this table.
 
@@ -285,13 +279,13 @@ client shows the default of this table.
   `alpha`, a `brightness` or a `factor` outside `[0, 1]` fails the load. The JSON forms are in
   REG-FLD-255.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### ENVA-MOD-002: `override`
 
 - **Behavior:** the result is the argument.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### ENVA-MOD-003: Float modifiers
 
@@ -303,7 +297,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
   - `alpha_blend`: `lerp(alpha, s, value)`.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact, `modifiers.float`).
-Kind: semantic. Confidence: high. Milestone: 1. Experiment: ENVA-TEST-001.
+Kind: semantic. Confidence: high. Experiment: ENVA-TEST-001.
 
 ### ENVA-MOD-004: Integer modifiers
 
@@ -311,7 +305,7 @@ Kind: semantic. Confidence: high. Milestone: 1. Experiment: ENVA-TEST-001.
   `minimum` and `maximum` give the smaller and the larger input.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact,
-`modifiers.integer`). Kind: semantic. Confidence: high. Milestone: 1. No attribute of the game
+`modifiers.integer`). Kind: semantic. Confidence: high. No attribute of the game
 has the type `integer`.
 
 ### ENVA-MOD-005: Boolean modifiers
@@ -328,7 +322,7 @@ has the type `integer`.
 | `xnor` | `s = a` |
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact,
-`modifiers.boolean`). Kind: semantic. Confidence: high. Milestone: 1.
+`modifiers.boolean`). Kind: semantic. Confidence: high.
 
 ### ENVA-MOD-006: Colour modifiers
 
@@ -352,7 +346,7 @@ Provenance: `source_suggested_black_box_confirmed` (environment artefact,
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact,
 `modifiers.rgb_color` and `modifiers.argb_color`). Kind: semantic. Confidence: high.
-Milestone: 1. Experiment: ENVA-TEST-001.
+Experiment: ENVA-TEST-001.
 
 ### ENVA-MOD-007: `blend_to_gray`
 
@@ -365,7 +359,7 @@ Milestone: 1. Experiment: ENVA-TEST-001.
   4. The alpha of an `argb_color` subject does not change.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact,
-`modifiers.*.blend_to_gray`). Kind: semantic. Confidence: high. Milestone: 1.
+`modifiers.*.blend_to_gray`). Kind: semantic. Confidence: high.
 
 ### ENVA-MOD-008: `append` and `overlay`
 
@@ -379,7 +373,7 @@ Provenance: `source_suggested_black_box_confirmed` (environment artefact,
     4. `spawn_costs` of the result has each entry of `S` and each entry of `A`. For an entity
        type in both, the entry of `A` is used.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### ENVA-MOD-009: Interpolation of an argument
 
@@ -397,7 +391,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
 | `blend_to_gray` | linear on `brightness`, and linear on `factor` |
 | `overlay` | step 1 |
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -422,7 +416,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
   field of that value is optional. `{"argument": {}, "modifier": "override"}` for that
   attribute is a value with no fields.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment:
 add a data pack whose dimension type has
 `"minecraft:audio/background_music": {"argument": {}, "modifier": "override"}`. The pack loads.
 
@@ -445,8 +439,7 @@ add a data pack whose dimension type has
 - **A layer with no entry:** a layer that has no entry for the attribute does not change the
   value.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1 for items 1, 3
-and 6; later for items 2, 4 and 5.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### ENVA-LAYER-002: Dimension value and position value
 
@@ -457,7 +450,7 @@ and 6; later for items 2, 4 and 5.
   - A biome file cannot contain a non-positional attribute (REG-FLD-253). Thus a
     non-positional attribute has the same value at each position.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: later.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### ENVA-LAYER-003: Biome layer
 
@@ -469,7 +462,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: l
      block `(floor(p_x), floor(p_y), floor(p_z))`. Apply the entry of that biome for the
      attribute.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: later.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### ENVA-LAYER-004: Spatial interpolation of biomes
 
@@ -495,12 +488,12 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: l
   the group weights.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact, `spatial` and
-`gaussian`). Kind: semantic. Confidence: medium. Milestone: later.
+`gaussian`). Kind: semantic. Confidence: medium.
 
 ### ENVA-LAYER-005: Weather layer
 
-- **Inputs:** an attribute, the rain level `R` and the thunder level `T` of the dimension, at
-  the time of the read. `T` here is the thunder level multiplied by the rain level.
+- **Inputs:** an attribute, the rain strength `R` and the thunder strength `T` of the dimension, at
+  the time of the read. `T` here is the thunder strength multiplied by the rain strength.
 - **Behavior:**
   1. The layer exists only when the dimension type has sky light, has no ceiling, and the
      dimension is not `minecraft:the_end`.
@@ -527,7 +520,7 @@ Provenance: `source_suggested_black_box_confirmed` (environment artefact, `spati
   entry at each level above 0.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact, `weather`). Kind:
-semantic. Confidence: high. Milestone: later.
+semantic. Confidence: high.
 
 ### ENVA-LAYER-006: Flash layer of the client
 
@@ -536,7 +529,7 @@ semantic. Confidence: high. Milestone: later.
   - `visual/sky_light_factor` becomes 1.
 - **Notes:** the specification of lightning owns the duration of a flash.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: later.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### ENVA-LAYER-007: The value in a frame of the client
 
@@ -552,7 +545,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: l
 - **Postconditions:** a float attribute moves smoothly between ticks. A step type changes at the
   start of the tick.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ### ENVA-LAYER-008: Change of a clock
 
@@ -560,7 +553,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1
   a change of a clock, the next read uses the new state (CMD-TIME-005). Two reads in one tick
   with no change between them give the same value.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -583,7 +576,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** the ticks `[0, 50, 50, 50]` are valid. The ticks `[50, 50, 50]` are not
   valid. The ticks `[0, 50, 50, 50, 50]` are not valid.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment:
 add a data pack with a timeline track whose ticks are `[0, 50, 50, 50]`. The pack loads. Change
 the ticks to `[50, 50, 50]`. The load fails.
 
@@ -597,7 +590,7 @@ the ticks to `[50, 50, 50]`. The load fails.
 - **Postconditions:** the timeline of the client has only tracks of syncable attributes.
 
 Provenance: `design`. The server of REG-FLD-129 never sends such a track, so the rule changes
-nothing for a correct server. Kind: semantic. Confidence: high. Milestone: 1.
+nothing for a correct server. Kind: semantic. Confidence: high.
 
 ### ENVA-TL-002: Segments of a track
 
@@ -615,7 +608,7 @@ nothing for a correct server. Kind: semantic. Confidence: high. Milestone: 1.
   4. Each segment, except the one of item 1, uses the easing of the track.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact, `timelines`). Kind:
-semantic. Confidence: high. Milestone: 1.
+semantic. Confidence: high.
 
 ### ENVA-TL-003: Sample of a track
 
@@ -640,7 +633,7 @@ semantic. Confidence: high. Milestone: 1.
     arguments.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact, `timelines`). Kind:
-semantic. Confidence: high. Milestone: 1. Experiment: ENVA-TEST-001.
+semantic. Confidence: high. Experiment: ENVA-TEST-001.
 
 ### ENVA-TL-004: Easings
 
@@ -691,7 +684,7 @@ semantic. Confidence: high. Milestone: 1. Experiment: ENVA-TEST-001.
 
 Provenance: `documentation` (the formulas of the named easings are the public set that
 easings.net shows) and `source_suggested_black_box_confirmed` (environment artefact, `easings`)
-for the names, the constants and the curve. Kind: semantic. Confidence: high. Milestone: 1.
+for the names, the constants and the curve. Kind: semantic. Confidence: high.
 
 ### ENVA-TL-005: A track as a layer
 
@@ -704,7 +697,7 @@ for the names, the constants and the curve. Kind: semantic. Confidence: high. Mi
 - **Postconditions:** on the client, the movement between two ticks comes from
   ENVA-LAYER-007, not from the clock.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -719,7 +712,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
   - The server keeps its clocks as CMD-TIME-005 and CMD-TIME-006 state. The packet `set_time`
     is CMD-TIME-009.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### ENVA-CLK-002: Advance of the clocks of the client
 
@@ -733,7 +726,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** `d` can be 0 or negative. A negative `d` moves the clocks back.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact, `client_clock`).
-Kind: semantic. Confidence: high. Milestone: 1.
+Kind: semantic. Confidence: high.
 
 ### ENVA-CLK-003: `set_time` on the client
 
@@ -747,7 +740,7 @@ Kind: semantic. Confidence: high. Milestone: 1.
   clocks.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact, `client_clock`).
-Kind: semantic. Confidence: high. Milestone: 1.
+Kind: semantic. Confidence: high.
 
 ### ENVA-CLK-004: Server clock arithmetic
 
@@ -756,7 +749,7 @@ Kind: semantic. Confidence: high. Milestone: 1.
   ticks from 100 with partial tick 0.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact, `server_clock`).
-Kind: semantic. Confidence: high. Milestone: 1.
+Kind: semantic. Confidence: high.
 
 ---
 
@@ -785,7 +778,7 @@ Kind: semantic. Confidence: high. Milestone: 1.
     `{"value", "alpha"}`. A `blend_to_gray` argument is `{"brightness", "factor"}`.
   - In `timelines`, each track has `modifier` and `samples`. A sample is `[tick, argument]`.
     The argument is the sample of ENVA-TL-003, before the modifier applies.
-  - In `weather`, the thunder level is the level that ENVA-LAYER-005 calls `T`. The last
+  - In `weather`, the thunder strength is the value that ENVA-LAYER-005 calls `T`. The last
     element has the base values.
   - In `spatial`, the source `c` is an attribute map with no entries.
   - In `client_clock`, the update is a `set_time` at game time 0. Each step is
@@ -795,8 +788,7 @@ Kind: semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** the test fails when one value does not agree.
 
 Provenance: `source_suggested_black_box_confirmed` (environment artefact). Kind: semantic.
-Confidence: high. Milestone: 1 for the sections of milestone-1 rules; later for `spatial`,
-`gaussian` and `weather`.
+Confidence: high.
 
 ### ENVA-TEST-002: Sky over one day
 
@@ -808,7 +800,7 @@ Confidence: high. Milestone: 1 for the sections of milestone-1 rules; later for 
 - **Postconditions:** the position of the sun and the moon agrees within 1°. The sky colour
   agrees within 3 of 255 in each channel.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -821,7 +813,6 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1
   1.5 becomes the byte 126.
 - **Visible to the client:** only for a data pack that gives a colour in the list form with a
   channel outside `[0, 1]`. The client then shows the clamped colour.
-- **Test:** a differential test does not compare such a colour.
 
 ### ENVA-DEV-002: The sign of a zero from a file
 
@@ -830,16 +821,13 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1
 - **mcrs:** the client can read `-0.0` in a file of a data pack as `+0`.
 - **Visible to the client:** no. Only the modifiers `minimum` and `maximum` compare zeros
   (ENVA-MOD-003), and a vanilla file has no `-0.0`.
-- **Test:** a differential test does not use `-0.0` in a file.
 
 ---
 
-## 9. Open questions
+## 9. Unresolved
 
 1. ENVA-LAYER-001: the order of the timelines comes from the order of the tag `timelines` of
    the dimension type. `registry.md` does not yet state the order of the entries of a tag that
    includes another tag.
 2. ENVA-LAYER-007: the client reads the camera position for the value of a frame. The camera
    specification owns that position.
-3. ENVA-LAYER-005: the rain level and the thunder level, and how they change, belong to a
-   weather specification that does not exist yet.

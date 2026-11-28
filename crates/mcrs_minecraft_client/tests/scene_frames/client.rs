@@ -4,21 +4,16 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
-use mcrs_minecraft_client::options::ClientOptions;
+use mcrs_minecraft_client_options::ClientOptions;
 
 const FRAME_TIMEOUT: Duration = Duration::from_secs(180);
 
-/// The mcrs client, drawing off screen into frames that the harness requests by name.
 pub struct McrsClient {
     process: Child,
     dir: PathBuf,
 }
 
 impl McrsClient {
-    /// Joins the server on `port` as the player `Capture`, and writes frames of `size` pixels
-    /// into `dir`.
-    /// With `record`, the client places the entities of each frame from that record of the
-    /// vanilla client.
     pub fn start(
         port: u16,
         dir: &Path,
@@ -58,7 +53,6 @@ impl McrsClient {
         }
     }
 
-    /// Asks for the frame `name` and waits until the client has written it.
     pub fn capture(&mut self, name: &str) -> PathBuf {
         let frame = self.dir.join(format!("{name}.png"));
         let request = self.dir.join("request");
@@ -68,7 +62,7 @@ impl McrsClient {
         while !frame.exists() {
             assert!(
                 !unsettled.exists(),
-                "the frame {name} did not settle in 60 s (CFC-RUN-004)"
+                "the frame {name} did not settle in 60 s"
             );
             self.assert_running(&format!("write {name}"));
             assert!(
@@ -94,8 +88,6 @@ impl Drop for McrsClient {
     }
 }
 
-/// `MCRS_SCENE_CLIENT` names another client binary, for example a release build; the default is
-/// the binary that cargo built with this test.
 fn client_binary() -> OsString {
     std::env::var_os("MCRS_SCENE_CLIENT")
         .unwrap_or_else(|| env!("CARGO_BIN_EXE_mcrs_minecraft_client").into())

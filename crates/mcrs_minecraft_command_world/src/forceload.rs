@@ -13,7 +13,6 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::forced_columns::ForcedColumns;
 
-/// The most columns that one `add` or `remove` changes.
 const MAX_COLUMNS: i32 = 256;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -80,7 +79,6 @@ pub(crate) fn build(
     })
 }
 
-/// The columns of the block range between two corners, both included.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ColumnRange {
     min: ColumnPos,
@@ -88,8 +86,6 @@ pub(crate) struct ColumnRange {
 }
 
 impl ColumnRange {
-    /// The range of the block corners `from` and `to`, or `argument.pos.outofworld` when a corner
-    /// is past the world border.
     pub(crate) fn new(from: [i32; 2], to: [i32; 2]) -> Result<Self, CommandFailure> {
         let [x1, z1] = from;
         let [x2, z2] = to;
@@ -113,7 +109,6 @@ impl ColumnRange {
             * (i64::from(self.max.z) - i64::from(self.min.z) + 1)
     }
 
-    /// Fails with `commands.forceload.toobig` when the range holds more than 256 columns.
     pub(crate) fn check(self) -> Result<(), CommandFailure> {
         let count = self.count();
         if count > i64::from(MAX_COLUMNS) {
@@ -126,7 +121,6 @@ impl ColumnRange {
         Ok(())
     }
 
-    /// The columns in order of x, then z.
     fn columns(self) -> impl Iterator<Item = ColumnPos> {
         (self.min.x..=self.max.x)
             .flat_map(move |x| (self.min.z..=self.max.z).map(move |z| ColumnPos::new(x, z)))
@@ -215,7 +209,6 @@ pub(crate) fn run(
     Ok(changed)
 }
 
-/// The list of the forced columns, and their number.
 fn list_message(forced: &ForcedColumns, dimension: TranslateArg<ItemHover>) -> (Text, i32) {
     let count = i32::try_from(forced.len()).unwrap_or(i32::MAX);
     let list = forced
@@ -237,8 +230,6 @@ fn list_message(forced: &ForcedColumns, dimension: TranslateArg<ItemHover>) -> (
     (message, count)
 }
 
-/// Sets or clears the mark of each column of `range`, with its loading ticket. Gives the number
-/// of columns that changed and the last of them.
 fn change_range(
     forced: &mut ForcedColumns,
     loading: &mut ColumnLoading,

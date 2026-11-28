@@ -1,25 +1,24 @@
 use crate::Category;
-use crate::Dimensions;
 use crate::InsideEffect;
 use crate::StuckIgnore;
+use mcrs_minecraft_pose::Dimensions;
 
-/// The motion data of one entity type.
+const LIFETIME: u32 = 6000;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MotionRow {
     pub category: Category,
     pub dimensions: Dimensions,
-    /// The gravity of a category that is not living; a living entity reads its attribute.
     pub gravity: f64,
     pub stuck_ignore: StuckIgnore,
     pub powder_snow_needs_inside: bool,
     pub powder_snow_solid: bool,
     pub block_bounce_factor: f32,
-    /// The default of the `step_height` attribute of a living type.
     pub step_height: f64,
+    pub lifetime: Option<u32>,
 }
 
 impl MotionRow {
-    /// A living type with the defaults of its category.
     #[must_use]
     pub fn living(category: Category, dimensions: Dimensions) -> Self {
         Self {
@@ -31,10 +30,10 @@ impl MotionRow {
             powder_snow_solid: false,
             block_bounce_factor: 1.0,
             step_height: 0.6,
+            lifetime: None,
         }
     }
 
-    /// A type that is not living, with the defaults of the other categories.
     #[must_use]
     pub fn other(category: Category, dimensions: Dimensions, gravity: f64) -> Self {
         Self {
@@ -46,6 +45,7 @@ impl MotionRow {
             powder_snow_solid: false,
             block_bounce_factor: 0.8,
             step_height: 0.0,
+            lifetime: None,
         }
     }
 
@@ -59,7 +59,6 @@ impl MotionRow {
 
     #[must_use]
     pub fn armor_stand() -> Self {
-        // The base value of `step_height` is type data; the armor stand has 0, not the default 0.6.
         Self {
             step_height: 0.0,
             ..Self::living(
@@ -71,11 +70,14 @@ impl MotionRow {
 
     #[must_use]
     pub fn item() -> Self {
-        Self::other(
-            Category::Item,
-            Dimensions::scalable(0.25, 0.25).with_eye_height(0.2125),
-            0.04,
-        )
+        Self {
+            lifetime: Some(LIFETIME),
+            ..Self::other(
+                Category::Item,
+                Dimensions::scalable(0.25, 0.25).with_eye_height(0.2125),
+                0.04,
+            )
+        }
     }
 
     #[must_use]
@@ -101,10 +103,13 @@ impl MotionRow {
 
     #[must_use]
     pub fn experience_orb() -> Self {
-        Self::other(
-            Category::ExperienceOrb,
-            Dimensions::scalable(0.5, 0.5),
-            0.03,
-        )
+        Self {
+            lifetime: Some(LIFETIME),
+            ..Self::other(
+                Category::ExperienceOrb,
+                Dimensions::scalable(0.5, 0.5),
+                0.03,
+            )
+        }
     }
 }

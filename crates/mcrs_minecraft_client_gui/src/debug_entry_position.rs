@@ -10,6 +10,14 @@ use mcrs_minecraft_client_world::player::Player;
 
 pub const GROUP: ResourceLocation<'static> = rl!("minecraft:position");
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on a debug screen refresh, at most ten times a second while the F3 overlay shows or when the stats log is due, and the displayer takes owned lines"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(10))]
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     camera: Single<&PhysicsTransform, With<Player>>,
@@ -50,7 +58,6 @@ pub fn display(
                 camera.rotation.yaw(),
                 camera.rotation.pitch(),
             ),
-            // Only a server force-loads chunks, and this client has none.
             format!(
                 "{} FC: 0",
                 current.map_or_else(|| "-".to_owned(), |current| current.key.to_string())

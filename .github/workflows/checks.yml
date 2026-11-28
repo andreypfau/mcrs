@@ -18,12 +18,9 @@ env:
   CHECKS_BASE_REF: origin/${{ github.base_ref || 'main' }}
   CARGO_INCREMENTAL: 0
   CARGO_PROFILE_DEV_DEBUG: 0
+  GENERATION_CRATES: '^mcrs_minecraft_((vanilla_)?worldgen[a-z_]*|noise|biome|block_entity_oracle)$'
 
-# A pull request from this repository runs on the self-hosted runner, whose build directory is
-# always warm. A pull request from a fork never runs there: it runs on hosted runners from the
-# build caches that each push to main saves. A push to main runs both.
 jobs:
-  # The same rule as the change scope of xtask: docs/, root Markdown and licences build nothing.
   changes:
     runs-on: ubuntu-24.04
     permissions:
@@ -31,6 +28,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       code: ${{ steps.files.outputs.code }}
+      worldgen: ${{ steps.files.outputs.worldgen }}
     steps:
       - name: decide whether the change touches anything but documentation
         id: files
@@ -39,14 +37,43 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           code=true
+          worldgen=
           if [ -n "${PR}" ]; then
             gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" \
               --jq '.[] | .filename, (.previous_filename // empty)' > "${RUNNER_TEMP}/files"
-            if [ -s "${RUNNER_TEMP}/files" ] && ! grep -qvE '^docs/|^[^/]+\.md$|^LICENSE-[^/]*$' "${RUNNER_TEMP}/files"; then
+            inert='^docs/|^docs-site/|^\.agents/|^\.claude/|^\.github/ISSUE_TEMPLATE/|^\.github/pull_request_template\.md$|^\.github/CODEOWNERS$|^\.coderabbit\.yaml$|^[^/]+\.md$|^LICENSE-[^/]*$'
+            if [ -s "${RUNNER_TEMP}/files" ] && ! grep -qvE "${inert}" "${RUNNER_TEMP}/files"; then
               code=false
             fi
+            worldgen=$(sed -nE 's#^(crates|tools)/([^/]+)/.*#\2#p' "${RUNNER_TEMP}/files" | grep -xE "${GENERATION_CRATES}" | sort -u | tr '\n' ' ')
           fi
           echo "code=${code}" >> "${GITHUB_OUTPUT}"
+          echo "worldgen=${worldgen}" >> "${GITHUB_OUTPUT}"
+
+  issue-link:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
+    timeout-minutes: 5
+    steps:
+      - name: require a line that names the issue, or the label no-issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}" > "${RUNNER_TEMP}/pr.json"
+          if jq -e '.labels | any(.name == "no-issue")' "${RUNNER_TEMP}/pr.json" > /dev/null; then
+            echo "the label no-issue is set"
+            exit 0
+          fi
+          # GitHub closes nothing from a line inside an HTML comment.
+          if jq -r '.body // ""' "${RUNNER_TEMP}/pr.json" | perl -0pe 's/<!--.*?-->//gs' \
+            | grep -iE '^[[:space:]]*(close[sd]?|fix(e[sd])?|resolve[sd]?|refs)[[:space:]]+([^[:space:]]+/[^[:space:]]+)?#[0-9]+'; then
+            exit 0
+          fi
+          echo "::error::the body has no line 'Closes #N', 'Fixes #N', 'Resolves #N' or 'Refs #N', and the label no-issue is not set. Add one, then rerun the failed jobs."
+          exit 1
 
   lint:
     needs: changes
@@ -55,7 +82,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: check out the commit under test with its history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -73,7 +100,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: check out the commit under test with its history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -83,7 +110,6 @@ jobs:
         with:
           test-tools: true
 
-      # The three triggers only read the worktree, and one build directory serves them all.
       - name: run clippy, the tests and the portability builds at once
         run: |
           cargo build --locked --quiet -p xtask --target-dir "${CARGO_TARGET_DIR:-target}/xtask"
@@ -112,7 +138,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: check out the commit under test
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           filter: blob:none
@@ -129,7 +155,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: check out the commit under test with its history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -139,8 +165,6 @@ jobs:
         with:
           test-tools: true
 
-      # A runner that runs out of memory is shut down with no message of its own: add swap, and
-      # log memory each minute.
       - name: add swap
         run: |
           sudo fallocate -l 16G /swapfile-ci
@@ -154,10 +178,9 @@ jobs:
           (while sleep 60; do free -m | awk 'NR > 1'; done) &
           scripts/hooks/run-checks test
 
-      # Tests download the jar when the restore misses; a save of a key that exists is a no-op.
       - name: save the client jar
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.minecraft/versions
           key: client-jars-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}
@@ -169,7 +192,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: check out the commit under test
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           filter: blob:none
@@ -179,9 +202,45 @@ jobs:
       - name: build without Bevy, for wasm32 and without std
         run: scripts/hooks/run-checks portability
 
+  worldgen-full:
+    needs: changes
+    if: needs.changes.outputs.worldgen != '' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, mcrs]
+    timeout-minutes: 60
+    steps:
+      - name: check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          filter: blob:none
+
+      - uses: ./.github/actions/rust
+        with:
+          test-tools: true
+
+      - name: run the full test tier for the changed generation crates and their dependents
+        env:
+          CHANGED: ${{ needs.changes.outputs.worldgen }}
+        run: |
+          set --
+          filter=
+          for manifest in crates/*/Cargo.toml tools/*/Cargo.toml; do
+            package=$(basename "$(dirname "${manifest}")")
+            if ! echo "${package}" | grep -qxE "${GENERATION_CRATES}"; then continue; fi
+            set -- "$@" -p "${package}"
+            for changed in ${CHANGED}; do
+              if [ "${changed}" = "${package}" ]; then filter="${filter:+${filter} | }rdeps(${package})"; fi
+            done
+          done
+          if [ -z "${filter}" ]; then
+            echo "no changed generation crate is left in the tree"
+            exit 0
+          fi
+          cargo nextest run --profile full --locked --no-tests=pass "$@" -E "${filter}"
+
   checks:
     name: checks
-    needs: [changes, lint, self-hosted, clippy, test, portability]
+    needs: [changes, issue-link, lint, self-hosted, clippy, test, portability, worldgen-full]
     if: always()
     runs-on: ubuntu-24.04
     steps:
@@ -193,10 +252,20 @@ jobs:
           LINT: ${{ needs.lint.result }}
           SELF_HOSTED: ${{ needs.self-hosted.result }}
           HOSTED: ${{ needs.clippy.result }} ${{ needs.test.result }} ${{ needs.portability.result }}
+          PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+          ISSUE_LINK: ${{ needs.issue-link.result }}
+          WORLDGEN: ${{ needs.changes.outputs.worldgen }}
+          WORLDGEN_FULL: ${{ needs.worldgen-full.result }}
         run: |
+          echo "issue link ${ISSUE_LINK}"
+          if [ "${PULL_REQUEST}" = true ]; then test "${ISSUE_LINK}" = success; fi
           if [ "${CODE}" = false ]; then exit 0; fi
           echo "lint ${LINT}; self-hosted ${SELF_HOSTED}; clippy, test, portability ${HOSTED}"
           test "${CODE}" = true
           test "${LINT}" = success
           if [ "${OWN}" = true ]; then test "${SELF_HOSTED}" = success; fi
           if [ "${FORK}" = true ]; then test "${HOSTED}" = "success success success"; fi
+          if [ "${PULL_REQUEST}" = true ] && [ "${OWN}" = true ] && [ -n "${WORLDGEN}" ]; then
+            echo "full test tier of ${WORLDGEN}: ${WORLDGEN_FULL}"
+            test "${WORLDGEN_FULL}" = success
+          fi

@@ -1,0 +1,299 @@
+{
+  "target": {
+    "operators": [
+      "inve11probeplyr"
+    ]
+  },
+  "observe": {
+    "inventory": true
+  },
+  "steps": [
+    {
+      "id": "join",
+      "join": "inve11probeplyr"
+    },
+    {
+      "id": "peaceful",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "difficulty peaceful"
+      }
+    },
+    {
+      "id": "teleport_to_origin",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "tp @s 0.5 -60 0.5"
+      }
+    },
+    {
+      "id": "survival",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "gamemode survival"
+      }
+    },
+    {
+      "id": "dirt_in_each_main_slot",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "give @s dirt 2304"
+      }
+    },
+    {
+      "id": "helmet_cursor_case_cursor_helmet",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "item replace entity @s player.cursor with iron_helmet"
+      }
+    },
+    {
+      "id": "helmet_cursor_case_close",
+      "close": {
+        "client": "inve11probeplyr"
+      }
+    },
+    {
+      "id": "helmet_cursor_case_read_equipment",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data get entity @s equipment"
+      }
+    },
+    {
+      "id": "helmet_cursor_case_before_pickup_delay_reset_item_list",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data remove storage mcrs:probe items"
+      }
+    },
+    {
+      "id": "helmet_cursor_case_before_pickup_delay_list_item_entities",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "execute as @e[type=minecraft:item] run data modify storage mcrs:probe items append from entity @s Item"
+      }
+    },
+    {
+      "id": "helmet_cursor_case_before_pickup_delay_read_item_list",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data get storage mcrs:probe items"
+      }
+    },
+    {
+      "id": "helmet_cursor_case_feedback_off",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "gamerule minecraft:send_command_feedback false"
+      }
+    },
+    {
+      "id": "helmet_cursor_case_kill_item_entities_without_feedback",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "kill @e[type=minecraft:item]"
+      }
+    },
+    {
+      "id": "helmet_cursor_case_feedback_on",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "gamerule minecraft:send_command_feedback true"
+      }
+    },
+    {
+      "id": "helmet_grid_case_helmet_in_grid_0",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "item replace entity @s player.crafting.0 with iron_helmet"
+      }
+    },
+    {
+      "id": "helmet_grid_case_close",
+      "close": {
+        "client": "inve11probeplyr"
+      }
+    },
+    {
+      "id": "helmet_grid_case_read_equipment",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data get entity @s equipment"
+      }
+    },
+    {
+      "id": "helmet_grid_case_before_pickup_delay_reset_item_list",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data remove storage mcrs:probe items"
+      }
+    },
+    {
+      "id": "helmet_grid_case_before_pickup_delay_list_item_entities",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "execute as @e[type=minecraft:item] run data modify storage mcrs:probe items append from entity @s Item"
+      }
+    },
+    {
+      "id": "helmet_grid_case_before_pickup_delay_read_item_list",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data get storage mcrs:probe items"
+      }
+    },
+    {
+      "id": "helmet_grid_case_feedback_off",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "gamerule minecraft:send_command_feedback false"
+      }
+    },
+    {
+      "id": "helmet_grid_case_kill_item_entities_without_feedback",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "kill @e[type=minecraft:item]"
+      }
+    },
+    {
+      "id": "helmet_grid_case_feedback_on",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "gamerule minecraft:send_command_feedback true"
+      }
+    },
+    {
+      "id": "off_hand_case_stone_10_in_p40",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "item replace entity @s weapon.offhand with stone 10"
+      }
+    },
+    {
+      "id": "off_hand_case_cursor_stone_60",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "item replace entity @s player.cursor with stone 60"
+      }
+    },
+    {
+      "id": "off_hand_case_close",
+      "close": {
+        "client": "inve11probeplyr"
+      }
+    },
+    {
+      "id": "off_hand_case_read_equipment",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data get entity @s equipment"
+      }
+    },
+    {
+      "id": "off_hand_case_before_pickup_delay_reset_item_list",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data remove storage mcrs:probe items"
+      }
+    },
+    {
+      "id": "off_hand_case_before_pickup_delay_list_item_entities",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "execute as @e[type=minecraft:item] run data modify storage mcrs:probe items append from entity @s Item"
+      }
+    },
+    {
+      "id": "off_hand_case_before_pickup_delay_read_item_list",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data get storage mcrs:probe items"
+      }
+    },
+    {
+      "id": "off_hand_case_feedback_off",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "gamerule minecraft:send_command_feedback false"
+      }
+    },
+    {
+      "id": "off_hand_case_kill_item_entities_without_feedback",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "kill @e[type=minecraft:item]"
+      }
+    },
+    {
+      "id": "off_hand_case_feedback_on",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "gamerule minecraft:send_command_feedback true"
+      }
+    },
+    {
+      "id": "selected_case_stone_10_in_p0",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "item replace entity @s hotbar.0 with stone 10"
+      }
+    },
+    {
+      "id": "selected_case_stone_10_in_p5",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "item replace entity @s hotbar.5 with stone 10"
+      }
+    },
+    {
+      "id": "selected_case_stone_10_in_p40",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "item replace entity @s weapon.offhand with stone 10"
+      }
+    },
+    {
+      "id": "selected_case_select_p5",
+      "select_slot": {
+        "client": "inve11probeplyr",
+        "slot": 5
+      }
+    },
+    {
+      "id": "selected_case_cursor_stone_60",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "item replace entity @s player.cursor with stone 60"
+      }
+    },
+    {
+      "id": "selected_case_close",
+      "close": {
+        "client": "inve11probeplyr"
+      }
+    },
+    {
+      "id": "selected_case_read_inventory",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "selected_case_read_equipment",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "data get entity @s equipment"
+      }
+    },
+    {
+      "id": "selected_case_count_item_entities",
+      "command": {
+        "client": "inve11probeplyr",
+        "line": "execute if entity @e[type=minecraft:item]"
+      }
+    }
+  ]
+}

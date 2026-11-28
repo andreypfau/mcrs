@@ -5,7 +5,6 @@ use hashbrown::HashMap;
 
 use crate::value::{Resource, ResourceKind, ValueType};
 
-/// The elements of an `array.` of a render controller.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ResourceArray {
     Numbers(Vec<f32>),
@@ -28,8 +27,6 @@ impl ResourceArray {
     }
 }
 
-/// The resources and arrays that a render controller can name. An expression compiled with no
-/// resource set cannot name a resource.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ResourceSet {
     names: HashMap<(ResourceKind, Box<str>), u32>,
@@ -42,13 +39,11 @@ impl ResourceSet {
         Self::default()
     }
 
-    /// Gives the short name of a resource an id. Names compare without case.
     pub fn insert(&mut self, kind: ResourceKind, name: &str, id: u32) {
         self.names
             .insert((kind, name.to_ascii_lowercase().into_boxed_str()), id);
     }
 
-    /// Defines `array.<name>`. Names compare without case.
     pub fn insert_array(&mut self, name: &str, array: ResourceArray) {
         self.arrays
             .insert(name.to_ascii_lowercase().into_boxed_str(), array);

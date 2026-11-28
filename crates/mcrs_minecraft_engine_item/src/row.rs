@@ -24,10 +24,6 @@ pub(crate) enum RowKey {
     Custom(&'static str),
 }
 
-/// The operations on one component type of the stacks, by its component id.
-///
-/// Each constructor takes the column of the type for which it picks the operations, so the
-/// operations of a row read only cells of the type that the id of the row names.
 #[derive(Clone, Copy)]
 pub(crate) struct Row {
     id: ComponentId,
@@ -36,6 +32,7 @@ pub(crate) struct Row {
     equal: fn(&Row, &Cells, &Cells) -> bool,
     hash: fn(&Row, &Cells, usize, &mut FxHasher),
     diff: fn(&Row, &Cells, Option<&'static Prototype>, ItemStack) -> ItemStack,
+    gives: fn(&Row, &Cells, Option<&'static Prototype>, Option<&PatchEntry>) -> bool,
     insert_entry: fn(&mut EntityWorldMut, &PatchEntry) -> bool,
     insert_static: fn(&mut EntityWorldMut, &'static Builtin),
 }
@@ -52,6 +49,7 @@ impl Row {
             equal: equal::<T>,
             hash: hash::<T>,
             diff: diff::<T>,
+            gives: gives::<T>,
             insert_entry: insert_builtin::<T>,
             insert_static: insert_static::<T>,
         }
@@ -65,6 +63,7 @@ impl Row {
             equal: equal::<C>,
             hash: hash::<C>,
             diff: diff::<C>,
+            gives: |_, _, _, _| false,
             insert_entry: insert_custom::<C>,
             insert_static: |_, _| {},
         }
@@ -89,6 +88,7 @@ impl Row {
                     .fold(stack, |stack, entry| stack.with_entry(entry.clone())),
                 None => stack,
             },
+            gives: |_, _, _, _| false,
             insert_entry: |_, _| false,
             insert_static: |_, _| {},
         }
@@ -106,17 +106,14 @@ impl Row {
         self.neutral
     }
 
-    /// True when the two stacks have the same effective value of the type.
     pub(crate) fn equal(&self, left: &Cells, right: &Cells) -> bool {
         (self.equal)(self, left, right)
     }
 
-    /// Writes `index` and the effective value of the type, or nothing for the neutral value.
     pub(crate) fn hash(&self, cells: &Cells, index: usize, hasher: &mut FxHasher) {
         (self.hash)(self, cells, index, hasher);
     }
 
-    /// Adds the entry that the effective value of the type needs on top of `prototype`.
     pub(crate) fn diff(
         &self,
         cells: &Cells,
@@ -126,18 +123,30 @@ impl Row {
         (self.diff)(self, cells, prototype, stack)
     }
 
-    /// Inserts the component of a patch entry of the type. False when the entry does not decode.
+    pub(crate) fn gives(
+        &self,
+        cells: &Cells,
+        prototype: Option<&'static Prototype>,
+        entry: Option<&PatchEntry>,
+    ) -> bool {
+        (self.gives)(self, cells, prototype, entry)
+    }
+
     pub(crate) fn insert_entry(&self, entity: &mut EntityWorldMut, entry: &PatchEntry) -> bool {
         (self.insert_entry)(entity, entry)
     }
 
-    /// Inserts a prototype component of the type, borrowed from the leaked table.
     pub(crate) fn insert_static(&self, entity: &mut EntityWorldMut, value: &'static Builtin) {
         (self.insert_static)(entity, value);
     }
 }
 
-/// One bit for the row at `index` of a mask, or none past 128 rows.
+pub(crate) fn row_mask(rows: &[Row], has: impl Fn(ComponentId) -> bool) -> u128 {
+    (rows.iter().enumerate())
+        .filter(|(_, row)| has(row.id()))
+        .fold(0, |mask, (index, _)| mask | bit(index))
+}
+
 pub(crate) fn bit(index: usize) -> u128 {
     u32::try_from(index)
         .ok()
@@ -145,7 +154,6 @@ pub(crate) fn bit(index: usize) -> u128 {
         .unwrap_or(0)
 }
 
-/// The index of each set bit of `mask`, from the lowest.
 pub(crate) fn bits(mut mask: u128) -> impl Iterator<Item = usize> {
     core::iter::from_fn(move || {
         if mask == 0 {
@@ -185,19 +193,56 @@ fn hash<T: ItemComponent + Component>(
     }
 }
 
+enum Needed<'value, T> {
+    Nothing,
+    Value(&'value T),
+    Removal,
+}
+
+fn needed<'cells, T: ItemComponent + Component>(
+    row: &Row,
+    cells: &Cells<'cells>,
+    prototype: Option<&'static Prototype>,
+) -> Needed<'cells, T> {
+    let value = cells.effective(column::<T>(row));
+    match (value, prototype.and_then(Prototype::get::<T>)) {
+        (None, None) => Needed::Nothing,
+        (Some(value), None) if Some(value) == T::neutral() => Needed::Nothing,
+        (Some(value), Some(base)) if value == base => Needed::Nothing,
+        (Some(value), _) => Needed::Value(value),
+        (None, Some(_)) => Needed::Removal,
+    }
+}
+
 fn diff<T: ItemComponent + Component>(
     row: &Row,
     cells: &Cells,
     prototype: Option<&'static Prototype>,
     stack: ItemStack,
 ) -> ItemStack {
-    let value = cells.effective(column::<T>(row));
-    match (value, prototype.and_then(Prototype::get::<T>)) {
-        (None, None) => stack,
-        (Some(value), None) if Some(value) == T::neutral() => stack,
-        (Some(value), Some(base)) if value == base => stack,
-        (Some(value), _) => stack.set(value.clone()),
-        (None, Some(_)) => stack.unset::<T>(),
+    match needed::<T>(row, cells, prototype) {
+        Needed::Nothing => stack,
+        Needed::Value(value) => stack.set(value.clone()),
+        Needed::Removal => stack.unset::<T>(),
+    }
+}
+
+fn gives<T: ItemComponent + Component>(
+    row: &Row,
+    cells: &Cells,
+    prototype: Option<&'static Prototype>,
+    entry: Option<&PatchEntry>,
+) -> bool {
+    match needed::<T>(row, cells, prototype) {
+        Needed::Nothing => entry.is_none(),
+        Needed::Value(value) => matches!(
+            entry,
+            Some(PatchEntry::Value(builtin)) if T::from_builtin(builtin) == Some(value)
+        ),
+        Needed::Removal => matches!(
+            entry,
+            Some(PatchEntry::Removal(key)) if T::builtin_key() == Some(*key)
+        ),
     }
 }
 

@@ -8,14 +8,13 @@ use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_client_world::columns::{ColumnCachePlugin, ColumnStore, Columns};
 use mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND;
 use mcrs_minecraft_client_world::joined_game::{CurrentDimension, JoinedGame};
-use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::player_view::{
     ChunkCacheCenter, ChunkCacheRadius, PendingTeleports, PlayerViewPlugin,
 };
 use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::ClientNetworkPlugin;
+use mcrs_minecraft_network::client::{ClientNetworkPlugin, JoinRequest};
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{Id, RegistryValue};
 use std::net::SocketAddr;
@@ -26,7 +25,6 @@ use std::time::{Duration, Instant};
 
 pub const JOIN_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// Runs `server` on its own thread. The returned closure asks it to exit and waits until it has.
 pub fn start_server(mut server: App) -> impl FnOnce() {
     let stop = Arc::new(AtomicBool::new(false));
     let stop_flag = stop.clone();
@@ -50,28 +48,25 @@ pub fn start_server(mut server: App) -> impl FnOnce() {
     }
 }
 
-/// A client as `mcrs_test`, with a player and a column cache, ready to connect to `server`.
 pub fn joining_client(server: SocketAddr, view_distance: u8) -> App {
     let mut client = App::new();
     client.add_plugins(ClientNetworkPlugin {
-        server,
-        username: "mcrs_test".to_owned(),
-        profile_id: None,
-        view_distance,
         holds_vanilla_pack: true,
         play: Some(GAME_CLIENTBOUND),
     });
     client.add_plugins((ColumnCachePlugin::default(), PlayerViewPlugin));
     add_client_registries(&mut client);
-    client.world_mut().spawn(Player);
     client.finish();
     client.cleanup();
+    client.world_mut().write_message(JoinRequest {
+        server,
+        username: "mcrs_test".to_owned(),
+        profile_id: None,
+        view_distance,
+    });
     client
 }
 
-/// The client's registry plugin over the repository's assets. It loads the block states a column
-/// is decoded with, reads the server's registries at the end of configuration and holds the
-/// vanilla pack to fill the entries the server leaves out.
 fn add_client_registries(client: &mut App) {
     let assets = concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_owned();
     client
@@ -92,12 +87,10 @@ fn add_client_registries(client: &mut App) {
         })
         .add_plugins(ClientRegistriesPlugin {
             local_corpus: Some(mcrs_minecraft_game_registries::registry_load::test_packs()),
+            defer_definitions: false,
         });
 }
 
-/// Returns the connection entity once every play-state packet the flow promises
-/// has arrived, or `None` if the deadline passes first. A server that generates no
-/// terrain sends no column, so `awaits_columns` is clear for it.
 pub fn drive_client_until_joined(
     client: &mut App,
     awaits_columns: bool,

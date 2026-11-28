@@ -17,7 +17,6 @@ impl Invertible {
         }
     }
 
-    /// The forms a value can take now: plain and negated, only negated, or none.
     pub(crate) fn prefixes(self) -> &'static [&'static str] {
         match self {
             Invertible::None => &["", "!"],

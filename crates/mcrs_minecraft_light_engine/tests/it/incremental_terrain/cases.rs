@@ -11,8 +11,6 @@ fn bounds() -> LightBounds {
     LightBounds::new(0, SECTIONS_Y - 1)
 }
 
-/// Terraced ground: each section column sits on its own plateau, so the world
-/// is open everywhere and every surface block is a sky source.
 fn surface_height(x: i32, z: i32) -> i32 {
     let step = (x.div_euclid(16) * 3 + z.div_euclid(16) * 5) % 4;
     20 + step * 13 + (x.rem_euclid(16) / 8) + (z.rem_euclid(16) / 8)
@@ -68,9 +66,6 @@ fn column_edits(column: ColumnPos) -> Vec<Edit> {
     edits
 }
 
-/// Runs the engine the way the plugin does: intake feeds the queue, the queue
-/// hands out batches under a budget, and a batch finishes a tick or more after
-/// it was dispatched.
 struct Pump {
     world: LightWorld,
     queue: LightQueue,
@@ -91,7 +86,6 @@ impl Pump {
     }
 
     fn tick(&mut self, edits: Vec<Edit>) {
-        // Publish first, exactly like the light stage retires an epoch before it dispatches more.
         for (_, update) in std::mem::take(&mut self.in_flight) {
             self.world.apply(update);
         }
@@ -125,10 +119,6 @@ fn check(pump: &Pump) {
     }
 }
 
-/// Every block above the terrain is open to the sky, so the engine owes it
-/// fifteen. Checked separately from the reference because it is the property a
-/// player actually sees, and it names the position rather than the first
-/// disagreement.
 fn check_open_sky_is_full(pump: &Pump) {
     for z in 0..COLUMNS * 16 {
         for x in 0..COLUMNS * 16 {
@@ -148,7 +138,6 @@ fn check_open_sky_is_full(pump: &Pump) {
 }
 
 fn columns_in_load_order() -> Vec<ColumnPos> {
-    // Distance to the origin, the order the server's priority actually produces.
     let mut columns: Vec<ColumnPos> = (0..COLUMNS)
         .flat_map(|z| (0..COLUMNS).map(move |x| ColumnPos::new(x, z)))
         .collect();
@@ -156,8 +145,6 @@ fn columns_in_load_order() -> Vec<ColumnPos> {
     columns
 }
 
-/// A section arriving after its column was already lit, which is how the light
-/// world sees a column whose sections land across ticks.
 #[test]
 fn sections_of_a_column_arriving_across_ticks_are_lit_like_one_pass() {
     let mut pump = Pump::new(8 << 20, 2);
@@ -180,9 +167,6 @@ fn sections_of_a_column_arriving_across_ticks_are_lit_like_one_pass() {
     check(&pump);
 }
 
-/// A ticket expiring and coming back, which at a large render distance happens
-/// constantly. An unloaded section is opaque, so the seam has to be torn down
-/// and rebuilt twice.
 #[test]
 fn columns_unloaded_and_revived_are_lit_like_one_pass() {
     let mut pump = Pump::new(8 << 20, 2);
@@ -213,9 +197,6 @@ fn columns_unloaded_and_revived_are_lit_like_one_pass() {
     check(&pump);
 }
 
-/// A roof over part of the world, so the cells under it are reached only by sky
-/// light travelling sideways — the case a per-column sky floor cannot answer on
-/// its own.
 #[test]
 fn a_roof_lit_across_column_seams_matches_one_pass() {
     let roofed = |x: i32, z: i32| (24..56).contains(&x) && (24..56).contains(&z);
@@ -259,10 +240,6 @@ fn a_roof_lit_across_column_seams_matches_one_pass() {
     check(&pump);
 }
 
-/// Sky light entering a shaft and spreading sideways along a tunnel, which is
-/// the one shape where a section column's sky floor swings from the world floor
-/// to the surface inside a single column and the answer at depth is carried
-/// horizontally across chunk seams.
 #[test]
 fn a_shaft_lights_a_tunnel_across_chunk_seams() {
     const GROUND: i32 = SECTIONS_Y * 16 - 17;
@@ -323,8 +300,6 @@ fn a_shaft_lights_a_tunnel_across_chunk_seams() {
         }
         pump.settle();
 
-        // Named separately from the reference diff so a failure says which cell
-        // of the tunnel went dark rather than the first disagreement anywhere.
         let mut profile = Vec::new();
         for x in SHAFT_X.start..COLUMNS * 16 - 8 {
             profile.push(

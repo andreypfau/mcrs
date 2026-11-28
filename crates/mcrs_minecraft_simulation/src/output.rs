@@ -34,13 +34,10 @@ pub struct StepReport {
     pub foreign_reads: u32,
     pub first_chain_overflow: Option<BlockPos>,
     pub chain_overflows: u32,
-    /// Random picks whose footprint left the region of their block tile, undone and run again
-    /// in the serial step.
     pub random_reruns: u32,
 }
 
 impl StepReport {
-    /// Adds the counts of `other`, a later part of the same step.
     pub(crate) fn absorb(&mut self, other: Self) {
         let Self {
             unaccepted_ticks,
@@ -66,7 +63,6 @@ impl StepReport {
     }
 }
 
-/// The lengths of a [`StepOutput`] at one point, to drop what came after it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct OutputMark {
     pub(crate) writes: usize,
@@ -101,7 +97,6 @@ impl<K: Kinds> Default for StepOutput<K> {
 }
 
 impl<K: Kinds> StepOutput<K> {
-    /// Empties the output and keeps the capacity of its lists.
     pub fn clear(&mut self) {
         self.writes.clear();
         self.outbound.clear();
@@ -122,7 +117,6 @@ impl<K: Kinds> StepOutput<K> {
         }
     }
 
-    /// Drops what came after `mark`, the writes included: the caller undoes them in the volume.
     pub(crate) fn truncate(&mut self, mark: OutputMark) {
         self.writes.truncate(mark.writes);
         self.outbound.truncate(mark.outbound);

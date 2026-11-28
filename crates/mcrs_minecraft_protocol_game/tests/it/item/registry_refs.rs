@@ -68,8 +68,6 @@ fn parse_fixture() -> Vec<Golden> {
     samples
 }
 
-/// Vanilla's record codecs read only the keys they know, so the `extra` field
-/// in that sample is accepted there; here a malformed datapack fails at load.
 #[test]
 fn every_golden_sample_matches_vanilla() {
     let samples = parse_fixture();
@@ -189,8 +187,9 @@ fn unknown_fields_are_rejected_at_load() {
 
 #[test]
 fn out_of_range_wire_ids_read_as_the_first_entry() {
+    use mcrs_minecraft_entity_attribute::ModifierOperation;
     use mcrs_minecraft_protocol_game::entity::EquipmentSlot;
-    use mcrs_minecraft_protocol_game::item::{AttributeDisplay, AttributeOperation, Equippable};
+    use mcrs_minecraft_protocol_game::item::{AttributeDisplay, Equippable};
 
     let lookup = lookup();
     let head = try_from_json(DataComponentType::Equippable, r#"{"slot":"head"}"#).unwrap();
@@ -227,7 +226,7 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
     };
     assert_eq!(
         modifiers.0[0].modifier.operation,
-        AttributeOperation::AddValue
+        ModifierOperation::AddValue
     );
     assert_eq!(
         modifiers.0[0].slot,
@@ -308,7 +307,7 @@ fn wire_enchantment_levels_follow_the_constructor_not_the_codec() {
 #[test]
 #[expect(
     clippy::too_many_lines,
-    reason = "builds one tag per float-bearing component through a shared helper, so every number rule is checked against the game in one place"
+    reason = "builds one tag per float-bearing component through a shared helper"
 )]
 fn nbt_floats_keep_vanillas_number_semantics() {
     use mcrs_minecraft_nbt::tag::NbtTag;

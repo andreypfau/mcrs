@@ -1,8 +1,9 @@
-import package::shaders::include::fields::{BIOME_TINTS, FIXED_TINTS};
-import package::shaders::include::frame::camera;
-import package::shaders::include::terrain_bindings::{
-    STILL, animations, atlas0, atlas1, atlas2, atlas3, atlas_sampler, sprites, tint_sampler,
-    tints,
+import mcrs_minecraft_render::shaders::include::fields::{BIOME_TINTS, FIXED_TINTS};
+import mcrs_minecraft_render::shaders::include::frame::camera;
+import mcrs_minecraft_render::shaders::include::sprites_layout::STILL;
+import mcrs_minecraft_render::shaders::include::terrain_bindings::{animation_frame, sprite_entry};
+import mcrs_minecraft_render::shaders::include::terrain_layout::{
+    atlas0, atlas1, atlas2, atlas3, atlas_sampler, tint_sampler, tints,
 };
 
 struct Surface {
@@ -15,8 +16,6 @@ struct Surface {
     ddy: vec2<f32>,
 };
 
-/// Sprites live in one of a few atlases, chosen by resolution, and WGSL has no array of
-/// textures to index, so the choice is a branch.
 fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
     switch array {
         case 1u: { return textureSampleGrad(atlas1, atlas_sampler, uv, layer, ddx, ddy); }
@@ -27,12 +26,12 @@ fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
 }
 
 fn sprite_color(sprite: u32, uv: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
-    let entry = sprites[sprite];
+    let entry = sprite_entry(sprite);
     let array = entry.array_layer >> 16u;
     if (entry.animation == STILL) {
         return sample_atlas(array, uv, entry.array_layer & 0xFFFFu, ddx, ddy);
     }
-    let frame = animations[entry.animation];
+    let frame = animation_frame(entry.animation);
     let color = sample_atlas(array, uv, frame.layer, ddx, ddy);
     if (frame.blend == 0.0) {
         return color;
@@ -40,8 +39,6 @@ fn sprite_color(sprite: u32, uv: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> v
     return mix(color, sample_atlas(array, uv, frame.next, ddx, ddy), frame.blend);
 }
 
-/// 0 is untinted, the next few sample a biome colour map where the face stands, and the rest are
-/// colours the block state fixes.
 fn tint(index: u32, world_xz: vec2<f32>) -> vec3<f32> {
     if (index == 0u) {
         return vec3<f32>(1.0);

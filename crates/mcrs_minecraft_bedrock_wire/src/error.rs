@@ -1,31 +1,16 @@
 use core::fmt;
 
-/// A failure to encode or decode a Bedrock wire value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Error {
-    /// Unexpected end of input while decoding.
     UnexpectedEof,
-    /// A varint has more bytes or bits than its integer holds.
     VarIntOverflow,
-    /// String bytes are not valid UTF-8.
     InvalidUtf8,
-    /// Trailing unread bytes remain in the slice.
     TrailingBytes,
-    /// A length does not fit its length prefix or the address space.
     LengthOverflow,
-    /// A packet header carries another packet id than the one decoded.
-    UnexpectedPacketId {
-        /// The id of the packet the caller decodes.
-        expected: u16,
-        /// The id in the header.
-        actual: u16,
-    },
-    /// A packet header field does not fit its bits.
+    UnexpectedPacketId { expected: u16, actual: u16 },
     PacketHeaderOverflow,
-    /// An enum field holds a value outside its known set.
     UnknownEnumValue(i64),
-    /// A network NBT value is not valid.
     Nbt,
 }
 

@@ -67,7 +67,12 @@
         "components": {
           "minecraft:collision_box": [
             { "origin": [-8, 0, -2], "size": [16, 24, 4] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-8, 5, -2], "size": [16, 19, 4] }
+            ]
+          }
         }
       },
       {
@@ -81,7 +86,12 @@
         "components": {
           "minecraft:collision_box": [
             { "origin": [-8, 0, -2], "size": [16, 24, 4] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-8, 5, -2], "size": [16, 19, 4] }
+            ]
+          }
         }
       },
       {
@@ -95,7 +105,12 @@
         "components": {
           "minecraft:collision_box": [
             { "origin": [-2, 0, -8], "size": [4, 24, 16] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-2, 5, -8], "size": [4, 19, 16] }
+            ]
+          }
         }
       },
       {
@@ -109,7 +124,12 @@
         "components": {
           "minecraft:collision_box": [
             { "origin": [-2, 0, -8], "size": [4, 24, 16] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-2, 5, -8], "size": [4, 19, 16] }
+            ]
+          }
         }
       },
       {
@@ -206,6 +226,12 @@
             { "origin": [-1, 5, -8], "size": [2, 11, 2] },
             { "origin": [-1, 5, 6], "size": [2, 11, 2] }
           ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027open\u0027) \u003d\u003d true",
+        "components": {
+          "mcrs:solid": true
         }
       }
     ]

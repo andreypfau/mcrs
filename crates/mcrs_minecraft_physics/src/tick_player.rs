@@ -1,12 +1,12 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_numeric as numeric;
+use mcrs_minecraft_pose::Dimensions;
+use mcrs_minecraft_pose::Pose;
 
-use crate::Aabb;
 use crate::BlockAction;
 use crate::BodyView;
 use crate::CollisionWorld;
-use crate::Dimensions;
 use crate::Keys;
 use crate::MotionAttributes;
 use crate::MoveInput;
@@ -16,7 +16,7 @@ use crate::Orientation;
 use crate::Physics;
 use crate::PlayerFacts;
 use crate::PlayerState;
-use crate::Pose;
+use crate::PoseInputs;
 use crate::Scratch;
 use crate::Side;
 use crate::StuckIgnore;
@@ -24,35 +24,28 @@ use crate::View;
 use crate::block_effects;
 use crate::block_effects::EffectContext;
 use crate::push_out;
-use crate::query;
+use crate::select_pose;
+use crate::select_pose::pose_box_collides;
 use crate::tick_entity::applied_dy;
 use crate::tick_entity::jump;
 use crate::tolerance::CLIP;
-use crate::tolerance::COLLISION;
 use crate::travel;
 use crate::travel::TravelInput;
 
 const DRAG: f32 = 0.98;
 const JUMP_DELAY: u8 = 10;
-/// The ticks after a press of the jump key in which a second press toggles the flight state.
 const FLIGHT_WINDOW: u8 = 7;
 const WORLD_EDGE: f64 = 2.999_999_9e7;
-/// The modifier of the sprint state on `movement_speed`, with the operation "multiply total".
-const SPRINT_BOOST: f32 = 0.3;
 const FLIGHT_IMPULSE: f32 = 3.0;
 
-/// What one tick of a player reads besides its state and the world.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PlayerInput {
     pub keys: Keys,
-    /// The rotation of this tick; it applies before the tick.
     pub rotation: Orientation,
     pub facts: PlayerFacts,
-    /// The push of other entities since the last tick; it adds to the velocity before the tick.
     pub push: DVec3,
 }
 
-/// One tick of a player on the side that simulates it, from `start` into `out`.
 pub fn tick_player<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     side: Side,
@@ -100,7 +93,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         attributes: &attributes,
         effects: &out.effects,
         input: move_input,
-        speed: movement_speed(&attributes, sprint),
+        speed: movement_speed(out, sprint),
         air_speed,
         yaw,
         jump: keys.jump,
@@ -132,7 +125,20 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     body.position.x = body.position.x.clamp(-WORLD_EDGE, WORLD_EDGE);
     body.position.z = body.position.z.clamp(-WORLD_EDGE, WORLD_EDGE);
     out.body = body;
-    out.pose = select_pose(view, out, &keys, &facts, flight_end, scratch);
+    let pose_inputs = PoseInputs {
+        current: out.pose,
+        entity: out.query_entity(),
+        scale: out.attributes.scale as f32,
+        sleeping: facts.sleeping,
+        swimming: out.swimming,
+        fall_flying: facts.fall_flying,
+        spin_attack: facts.spin_attack,
+        shift: keys.shift,
+        flight: flight_end,
+        spectator: facts.spectator,
+        passenger: facts.passenger,
+    };
+    out.pose = select_pose(view, &pose_inputs, scratch);
     out.shift0 = keys.shift;
     out.jump0 = keys.jump;
     out.forward0 = move_input.forward;
@@ -140,8 +146,6 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
     out.flight0 = flight_end;
 }
 
-/// Steps 6 to 8 of the tick for the flight state: the toggle, the jump when the flight starts on
-/// the ground, the vertical impulse and the reset of the fall distance. Returns the flight state.
 fn flight_steps<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     side: Side,
@@ -174,8 +178,7 @@ fn flight_steps<W: CollisionWorld, B: BodyView>(
     flight
 }
 
-/// The mover of a player in its pose and with its attributes.
-pub(crate) fn player_mover(key: EntityKey, side: Side, state: &PlayerState) -> Mover {
+pub(crate) fn player_mover(key: EntityUuid, side: Side, state: &PlayerState) -> Mover {
     let attributes = &state.attributes;
     Mover {
         step_height: attributes.step_height as f32,
@@ -187,7 +190,6 @@ pub(crate) fn player_mover(key: EntityKey, side: Side, state: &PlayerState) -> M
     }
 }
 
-/// A spectator has no physics.
 fn physics_of(facts: &PlayerFacts) -> Physics {
     if facts.spectator {
         Physics::Pass
@@ -196,13 +198,11 @@ fn physics_of(facts: &PlayerFacts) -> Physics {
     }
 }
 
-/// The vertical impulse of a flying player from the jump and shift keys.
 fn flight_impulse(keys: &Keys, flight_speed: f32) -> f64 {
     let direction = f64::from(i8::from(keys.jump) - i8::from(keys.shift));
     direction * f64::from(flight_speed * FLIGHT_IMPULSE)
 }
 
-/// Sets a horizontal speed below `0.003` and a small vertical speed to zero.
 pub(crate) fn zero_small_speeds(velocity: &mut DVec3) {
     if velocity.x * velocity.x + velocity.z * velocity.z < 9.0e-6 {
         velocity.x = 0.0;
@@ -213,7 +213,6 @@ pub(crate) fn zero_small_speeds(velocity: &mut DVec3) {
     }
 }
 
-/// The jump of PHY-INP-004 and PHY-INP-005: the jump delay gates the jump from the ground.
 fn player_jump<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     out: &mut PlayerState,
@@ -241,7 +240,6 @@ fn player_jump<W: CollisionWorld, B: BodyView>(
     out.jump_delay = JUMP_DELAY;
 }
 
-/// The speed of the input acceleration off the ground.
 fn air_speed(flight: bool, sprint: bool, flight_speed: f32) -> f32 {
     if flight {
         if sprint {
@@ -256,22 +254,20 @@ fn air_speed(flight: bool, sprint: bool, flight_speed: f32) -> f32 {
     }
 }
 
-/// The dimensions of a player in a pose, scaled by the `scale` attribute.
 #[must_use]
 pub fn dimensions_of(pose: Pose, attributes: &MotionAttributes) -> Dimensions {
     pose.player_dimensions().scaled(attributes.scale as f32)
 }
 
-/// `f32(movement_speed)`, with the sprint modifier when the sprint state is on.
-fn movement_speed(attributes: &MotionAttributes, sprint: bool) -> f32 {
-    let mut value = attributes.movement_speed;
-    if sprint {
-        value *= 1.0 + f64::from(SPRINT_BOOST);
-    }
-    value.clamp(0.0, 1024.0) as f32
+fn movement_speed(state: &PlayerState, sprint: bool) -> f32 {
+    let value = if sprint {
+        state.sprint_speed.0
+    } else {
+        state.attributes.movement_speed
+    };
+    value as f32
 }
 
-/// The input vector from the keys, all in f32.
 fn input_vector(keys: &Keys, state: &PlayerState, facts: &PlayerFacts) -> MoveInput {
     let axis = |positive: bool, negative: bool| f32::from(i8::from(positive) - i8::from(negative));
     let mut left = axis(keys.left, keys.right);
@@ -317,8 +313,6 @@ fn input_vector(keys: &Keys, state: &PlayerState, facts: &PlayerFacts) -> MoveIn
     }
 }
 
-/// The intended horizontal direction for the minor collision flag: the input rotated by the yaw,
-/// with the table values widened before the products.
 fn intent(input: MoveInput, yaw: f32) -> DVec3 {
     let angle = numeric::radians_from_degrees(yaw);
     let sin = f64::from(numeric::sin_nearest(angle));
@@ -328,7 +322,6 @@ fn intent(input: MoveInput, yaw: f32) -> DVec3 {
     DVec3::new(x * cos - z * sin, 0.0, z * cos + x * sin)
 }
 
-/// The crouch state of this tick, from the shift key and the flight state of the previous tick.
 fn crouch_state<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     start: &PlayerState,
@@ -344,7 +337,6 @@ fn crouch_state<W: CollisionWorld, B: BodyView>(
     start.shift0 || (!facts.sleeping && collides_in(view, start, Pose::Standing, scratch))
 }
 
-/// The sprint state after step 6 of the tick.
 fn sprint_state(
     start: &PlayerState,
     out: &mut PlayerState,
@@ -383,7 +375,6 @@ fn sprint_state(
     sprint
 }
 
-/// The flight state after step 6 of the tick.
 fn flight_state(
     start: &PlayerState,
     out: &mut PlayerState,
@@ -407,37 +398,6 @@ fn flight_state(
     flight
 }
 
-/// The pose at the end of the tick.
-fn select_pose<W: CollisionWorld, B: BodyView>(
-    view: View<'_, W, B>,
-    state: &PlayerState,
-    keys: &Keys,
-    facts: &PlayerFacts,
-    flight: bool,
-    scratch: &mut Scratch,
-) -> Pose {
-    let desired = if facts.sleeping {
-        Pose::Sleeping
-    } else if state.swimming {
-        Pose::Swimming
-    } else if keys.shift && !flight {
-        Pose::Crouching
-    } else {
-        Pose::Standing
-    };
-    if collides_in(view, state, Pose::Swimming, scratch) {
-        return state.pose;
-    }
-    if facts.spectator || facts.passenger || !collides_in(view, state, desired, scratch) {
-        return desired;
-    }
-    if !collides_in(view, state, Pose::Crouching, scratch) {
-        return Pose::Crouching;
-    }
-    Pose::Swimming
-}
-
-/// True when the box of the pose, shrunk by `1.0E-7`, meets a collider.
 fn collides_in<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     state: &PlayerState,
@@ -445,7 +405,5 @@ fn collides_in<W: CollisionWorld, B: BodyView>(
     scratch: &mut Scratch,
 ) -> bool {
     let dimensions = dimensions_of(pose, &state.attributes);
-    let bounds =
-        Aabb::of_body(state.body.position, dimensions.width, dimensions.height).deflate(COLLISION);
-    query::intersects(view, &state.query_entity(), bounds, &mut scratch.entities)
+    pose_box_collides(view, &state.query_entity(), dimensions, scratch)
 }

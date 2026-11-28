@@ -9,8 +9,6 @@ pub struct PackVersion {
     pub data_minor: u32,
 }
 
-/// The game's `version.json`. The embedded one is [`VERSION`]; another is read
-/// with owned strings.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Version<S = &'static str> {

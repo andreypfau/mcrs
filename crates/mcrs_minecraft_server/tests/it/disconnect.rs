@@ -28,7 +28,6 @@ fn build_app(dim: Entity) -> App {
     app
 }
 
-/// Spawns a player at `place` and its connection; returns the connection.
 fn connect(app: &mut App, place: Place) -> Entity {
     let session = app
         .world_mut()
@@ -89,7 +88,7 @@ fn every_disconnect_of_a_mass_disconnect_is_cleaned_up_at_once() {
 }
 
 #[test]
-fn a_joining_player_that_disconnects_sends_its_dimension_a_despawn_and_loses_its_session() {
+fn disconnect_while_joining_despawns_in_dimension_and_loses_session() {
     let dim = Entity::from_raw_u32(402).unwrap();
     let mut app = build_app(dim);
     let connection = connect(&mut app, Place::Joining(dim));

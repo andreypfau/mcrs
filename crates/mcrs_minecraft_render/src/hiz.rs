@@ -1,16 +1,13 @@
 use bevy::prelude::*;
-use bevy::render::render_resource::binding_types::{
-    texture_2d, texture_depth_2d, texture_storage_2d,
-};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ViewDepthStencilTexture;
 use wgpu::ComputePassTimestampWrites;
 
+use crate::shared_bindings::hiz;
+
 const THREADS: u32 = 8;
 
-/// The last frame's depth as a pyramid, each level the farthest depth of the level below, so
-/// the cull can ask whether a box is behind everything drawn over its footprint.
 pub(super) struct Hiz {
     texture: Texture,
     pub view: TextureView,
@@ -29,36 +26,9 @@ impl Hiz {
         asset_server: &AssetServer,
         pipeline_cache: &PipelineCache,
     ) -> Self {
-        let from_depth_layout = BindGroupLayoutDescriptor::new(
-            "hiz from depth",
-            &BindGroupLayoutEntries::sequential(
-                ShaderStages::COMPUTE,
-                (
-                    texture_depth_2d(),
-                    texture_storage_2d(TextureFormat::R32Float, StorageTextureAccess::WriteOnly),
-                ),
-            ),
-        );
-        let down_layout = BindGroupLayoutDescriptor::new(
-            "hiz down",
-            &BindGroupLayoutEntries::with_indices(
-                ShaderStages::COMPUTE,
-                (
-                    (
-                        1,
-                        texture_storage_2d(
-                            TextureFormat::R32Float,
-                            StorageTextureAccess::WriteOnly,
-                        ),
-                    ),
-                    (
-                        2,
-                        texture_2d(TextureSampleType::Float { filterable: false }),
-                    ),
-                ),
-            ),
-        );
-        let shader = asset_server.load("embedded://mcrs_minecraft_render/shaders/core/hiz.wgsl");
+        let from_depth_layout = hiz::from_depth_layout();
+        let down_layout = hiz::down_layout();
+        let shader = asset_server.load("embedded://mcrs_minecraft_render/shaders/core/hiz.wesl");
         let pipeline = |label: &str, layout: &BindGroupLayoutDescriptor, entry: &str| {
             pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
                 label: Some(label.to_owned().into()),
@@ -88,8 +58,6 @@ impl Hiz {
         self.levels.len() as u32
     }
 
-    /// Fits the pyramid to the depth texture, answering whether the pyramid was rebuilt and so
-    /// has to be bound again.
     pub fn fit(
         &mut self,
         depth: &ViewDepthStencilTexture,
@@ -118,14 +86,20 @@ impl Hiz {
                 self.binds.push(device.create_bind_group(
                     "hiz from depth",
                     &pipeline_cache.get_bind_group_layout(&self.from_depth_layout),
-                    &BindGroupEntries::sequential((&depth_view, finest)),
+                    &hiz::from_depth_entries(hiz::FromDepthEntries {
+                        depth: &depth_view,
+                        level_out: finest,
+                    }),
                 ));
             }
             for (finer, level) in self.levels.iter().zip(self.levels.iter().skip(1)) {
                 self.binds.push(device.create_bind_group(
                     "hiz down",
                     &pipeline_cache.get_bind_group_layout(&self.down_layout),
-                    &BindGroupEntries::with_indices(((1, level), (2, finer))),
+                    &hiz::down_entries(hiz::DownEntries {
+                        level_out: level,
+                        level_in: finer,
+                    }),
                 ));
             }
         }

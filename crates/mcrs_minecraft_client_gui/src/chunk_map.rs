@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use bevy::ecs::system::SystemParam;
+use bevy::input::common_conditions::input_just_pressed;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::text::{FontSize, LineBreak};
@@ -14,17 +15,11 @@ use mcrs_voxel::{BlockPos, ColumnPos};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 
-/// Columns across the map. A player's view distance is 12 columns plus a
-/// border, so this leaves room for the ring that is still catching up behind
-/// the one being drawn.
 const SPAN: i32 = 33;
 const CELL: f32 = 8.0;
 const GAP: f32 = 1.0;
 const FONT_SIZE: f32 = 13.0;
 
-/// The header's width changes with every count it prints, and the panel is
-/// pinned to the right edge, so a width that follows the text drags the grid
-/// sideways from frame to frame. Fixed here, wrapped in the header.
 const PANEL_WIDTH: f32 = 600.0;
 
 const BACKGROUND: Color = Color::srgba(0.06, 0.06, 0.08, 0.82);
@@ -72,7 +67,6 @@ pub struct ChunkMapPlugin {
     pub visible: bool,
 }
 
-/// The traced columns of the dimension this client joined.
 #[derive(SystemParam)]
 pub struct JoinedTraces<'w, 's> {
     traces: Res<'w, ColumnTraceSink>,
@@ -95,7 +89,16 @@ impl Plugin for ChunkMapPlugin {
                 visible: self.visible,
             })
             .add_systems(Startup, spawn)
-            .add_systems(Update, (toggle, render).chain());
+            .add_systems(
+                Update,
+                (
+                    toggle.run_if(input_just_pressed(KeyCode::F6)),
+                    render.run_if(
+                        resource_changed::<ChunkMap>.or_else(|map: Res<ChunkMap>| map.visible),
+                    ),
+                )
+                    .chain(),
+            );
     }
 }
 
@@ -190,10 +193,14 @@ fn spawn(mut commands: Commands) {
         });
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "formats the header text only while the F6 chunk map debug view is visible"
+    )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(12))]
 fn render(
     map: Res<ChunkMap>,
     mut root: Query<&mut Visibility, With<ChunkMapRoot>>,
@@ -241,8 +248,6 @@ fn render(
             off_map += 1;
             continue;
         }
-        // A column the player flew past keeps its last stage until something forgets it, and
-        // it is always the oldest. Only a column still on the map is a hole worth naming.
         if sample.stage < ColumnStage::Meshed
             && slowest.is_none_or(|(_, _, worst)| sample.in_stage > worst)
         {

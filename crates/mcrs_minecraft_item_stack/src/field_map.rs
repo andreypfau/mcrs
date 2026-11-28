@@ -1,10 +1,8 @@
 use crate::node_hash::MapEntry;
 use crate::node_hash::NodeHash;
 
-// Six is the number of fields of an attribute modifier, the largest map of fixed shape here.
-const CAPACITY: usize = 6;
+const CAPACITY: usize = 11;
 
-/// A map node of fixed shape, with its entries on the stack.
 pub(crate) struct FieldMap {
     entries: [MapEntry; CAPACITY],
     len: usize,

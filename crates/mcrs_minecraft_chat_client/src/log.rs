@@ -4,7 +4,6 @@ const MAX_MESSAGES: usize = 100;
 const MAX_LINES: usize = 100;
 const LIFETIME: f64 = 200.0;
 
-/// A mark on a message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tag {
     SystemSinglePlayer,
@@ -15,7 +14,6 @@ pub enum Tag {
 }
 
 impl Tag {
-    /// The RGB colour of the bar left of the line.
     pub fn indicator(self) -> u32 {
         match self {
             Tag::SystemSinglePlayer | Tag::System | Tag::NotSecure => 0xD0_D0D0,
@@ -24,7 +22,6 @@ impl Tag {
         }
     }
 
-    /// The translation key of the tooltip of the indicator.
     pub fn tooltip_key(self) -> &'static str {
         match self {
             Tag::SystemSinglePlayer => "chat.tag.system_single_player",
@@ -35,13 +32,11 @@ impl Tag {
         }
     }
 
-    /// A tag with an icon makes the wrap width 15 GUI units smaller.
     pub fn has_icon(self) -> bool {
         self == Tag::Modified
     }
 }
 
-/// A message of the log, with the GUI tick when it arrived.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Logged<M> {
     pub message: M,
@@ -49,24 +44,19 @@ pub(crate) struct Logged<M> {
     pub tag: Option<Tag>,
 }
 
-/// One row of a wrapped message.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Line<L> {
     pub content: L,
     pub tick: u64,
     pub tag: Option<Tag>,
-    /// Whether this row is the bottom row of its message.
     pub last: bool,
 }
 
-/// The kept messages, newest first.
 #[derive(Clone, Debug)]
 pub struct ChatLog<M> {
     messages: VecDeque<Logged<M>>,
-    /// The count of messages ever pushed, so a projection finds the ones it has not seen.
     pushed: u64,
-    /// Counts the clears, so a projection drops its lines with the messages.
     cleared: u64,
 }
 
@@ -81,7 +71,6 @@ impl<M> Default for ChatLog<M> {
 }
 
 impl<M> ChatLog<M> {
-    /// Adds a message that passed the visibility filter.
     pub fn push(&mut self, message: M, tick: u64, tag: Option<Tag>) {
         self.messages.push_front(Logged { message, tick, tag });
         self.messages.truncate(MAX_MESSAGES);
@@ -94,9 +83,6 @@ impl<M> ChatLog<M> {
     }
 }
 
-/// The lines of the kept messages, newest first, and the scroll of the open chat
-///: the projection of a [`ChatLog`] for one wrap. `wrap` writes
-/// the rows of one message with its tag, top row first.
 #[derive(Clone, Debug)]
 pub struct ChatLines<L> {
     lines: VecDeque<Line<L>>,
@@ -120,14 +106,12 @@ impl<L> Default for ChatLines<L> {
     }
 }
 
-/// The alpha of a line of the closed chat `age` ticks after its message arrived.
 #[must_use]
 pub fn fade(age: u64) -> f32 {
     let t = (10.0 * (1.0 - age as f64 / LIFETIME)).clamp(0.0, 1.0);
     (t * t) as f32
 }
 
-/// Whether the chat is open while a line is added, so that a scrolled view holds its place.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum View {
     Open,
@@ -135,7 +119,6 @@ enum View {
 }
 
 impl<L> ChatLines<L> {
-    /// The lines, newest first.
     pub fn lines(&self) -> impl ExactSizeIterator<Item = &Line<L>> {
         self.lines.iter()
     }
@@ -172,9 +155,6 @@ impl<L> ChatLines<L> {
         self.lines.truncate(MAX_LINES);
     }
 
-    /// Adds the lines of the messages pushed since the last sync, and drops every line when the
-    /// log was cleared. `open` is the `perPage` of the open chat, `None` when the chat is
-    /// closed.
     pub fn sync<M>(
         &mut self,
         log: &ChatLog<M>,
@@ -201,7 +181,6 @@ impl<L> ChatLines<L> {
         }
     }
 
-    /// Wraps every kept message again, after a change of the width, the scale or the spacing.
     pub fn rebuild<M>(
         &mut self,
         log: &ChatLog<M>,
@@ -216,7 +195,6 @@ impl<L> ChatLines<L> {
         }
     }
 
-    /// Scrolls the open chat by `lines`, upwards positive.
     pub fn scroll_by(&mut self, lines: isize, per_page: usize) {
         let max = self.lines.len().saturating_sub(per_page);
         let scroll = self.scroll.saturating_add_signed(lines).min(max);
@@ -231,7 +209,6 @@ impl<L> ChatLines<L> {
         self.new_since_scroll = false;
     }
 
-    /// The lines in the slots of the view, slot 0 at the bottom.
     pub fn visible(&self, per_page: usize) -> impl Iterator<Item = (usize, &Line<L>)> {
         self.lines
             .iter()

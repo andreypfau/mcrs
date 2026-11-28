@@ -31,8 +31,6 @@ fn main() {
         return;
     }
 
-    // The browser has no asset folder, so what the client reads from one travels inside the
-    // binary. The game's data pack is not among it: a server sends the registries.
     let assets = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .ancestors()
         .nth(2)
@@ -70,7 +68,12 @@ fn pack(assets: &Path, path: &Path, blob: &mut Vec<u8>, files: &mut usize) {
         }
         return;
     }
-    let name = path.strip_prefix(assets).unwrap().to_str().unwrap();
+    let name = path
+        .strip_prefix(assets)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .replace('\\', "/");
     let bytes = std::fs::read(path).unwrap();
     blob.extend_from_slice(&(name.len() as u32).to_le_bytes());
     blob.extend_from_slice(name.as_bytes());

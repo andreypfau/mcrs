@@ -12,21 +12,25 @@ use bevy_math::DVec3;
 use bevy_platform::cell::SyncCell;
 use bevy_tasks::block_on;
 use mcrs_engine_cell::{BoxPartition, CellId, CellIndex, Cells, Placement, Tick};
+use mcrs_engine_store::{DiskStore, MemoryDisk, VersionedChunk};
 use mcrs_engine_store::{SharedStore, StoreInput};
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_engine_world::owned_columns::{HALO, column_key};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_environment::WorldClocks;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::{RegionDisk, RegionDiskError};
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 
 use crate::banlist::BanList;
 use crate::cell_mail::CellMail;
 use crate::channel_types::ToDim;
+use crate::cold_columns::SaveRequest;
 use crate::column_generation::{GenerationAnswer, GenerationAsk};
 use crate::column_request::ColumnRequest;
-use crate::column_store::{ColumnDisk, ColumnStoreOutput};
+use crate::column_store::ColumnStoreOutput;
 use crate::command_handoff::CommandHandoff;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
@@ -36,6 +40,7 @@ use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::PlayerTransfer;
 use crate::dim_tick;
 use crate::dim_tick::{DimInput, DimOutput, DimWorld, TickDimensions, TickDimensionsSet};
+use crate::persistence::AutosaveCadence;
 use crate::player_roster::RosterRow;
 use crate::player_view::PlayerView;
 use crate::to_coordinator::RoutedInput;
@@ -46,7 +51,6 @@ use mcrs_minecraft_engine_world::entity_ids::EntityIdRange;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
 
-/// Ticks the dimension worlds once in every host update, in lockstep.
 pub struct DimCellsPlugin;
 
 impl Plugin for DimCellsPlugin {
@@ -73,38 +77,72 @@ impl Plugin for DimCellsPlugin {
     }
 }
 
-/// The dimension worlds of the host, by the label entity of their dimension. A dimension is one
-/// cell, or several cells that each own the columns of a static box of its regions.
 #[derive(Resource)]
 pub struct DimCells {
-    // A world holds a `SubApp`, which is `Send` but not `Sync`. Only `&mut` reaches it.
     worlds: SyncCell<Worlds>,
     dims: BTreeMap<Entity, Dim>,
     cells: BTreeMap<CellId, Cell>,
-    /// The cell that holds the player of each session, in a dimension of several cells.
     sessions: FxHashMap<PlayerSession, CellId>,
     tick: Tick,
     outputs: Vec<DimTicked>,
+    save: SavePhase,
+    save_failed: bool,
 }
 
-/// A view of a player that a cell of the world of `label` reported.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SavePhase {
+    Idle,
+    Requested,
+    Complete,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReportedView {
     pub label: Entity,
     pub view: PlayerView,
 }
 
-/// One dimension: its cells and the data layer that they share.
 struct Dim {
-    /// The cells, in the order of their index.
     cells: Vec<CellId>,
-    /// The division of the columns over the cells, for a dimension of more than one cell.
     partition: Option<BoxPartition>,
     store: SharedStore<ColumnDisk, CellId>,
 }
 
-/// The place of a cell in its dimension, and what the other cells, the data layer and the
-/// generation of its world sent it for its next tick.
+pub(crate) enum ColumnDisk {
+    Memory(MemoryDisk<ColumnPos, StoredColumn, RegionDiskError>),
+    Region(Box<RegionDisk>),
+}
+
+impl DiskStore for ColumnDisk {
+    type Key = ColumnPos;
+    type Chunk = StoredColumn;
+    type Error = RegionDiskError;
+
+    fn read(
+        &mut self,
+        key: ColumnPos,
+    ) -> Result<Option<VersionedChunk<StoredColumn>>, RegionDiskError> {
+        match self {
+            Self::Memory(disk) => disk.read(key),
+            Self::Region(disk) => disk.read(key),
+        }
+    }
+
+    fn write(&mut self, key: ColumnPos, chunk: VersionedChunk<StoredColumn>) {
+        match self {
+            Self::Memory(disk) => disk.write(key, chunk),
+            Self::Region(disk) => disk.write(key, chunk),
+        }
+    }
+
+    fn flush(&mut self) -> Result<(), RegionDiskError> {
+        match self {
+            Self::Memory(disk) => disk.flush(),
+            Self::Region(disk) => disk.flush(),
+        }
+    }
+}
+
 struct Cell {
     label: Entity,
     index: CellIndex,
@@ -122,6 +160,8 @@ impl Default for DimCells {
             sessions: FxHashMap::default(),
             tick: Tick::default(),
             outputs: Vec::new(),
+            save: SavePhase::Idle,
+            save_failed: false,
         }
     }
 }
@@ -131,7 +171,7 @@ impl Dim {
         Self {
             cells: Vec::new(),
             partition: None,
-            store: SharedStore::new(ColumnDisk::new(), Placement::Thread),
+            store: SharedStore::new(ColumnDisk::Memory(MemoryDisk::new()), Placement::Thread),
         }
     }
 
@@ -140,7 +180,6 @@ impl Dim {
         self.cells.get(position).copied()
     }
 
-    /// The cell that owns `column`.
     fn owner(&self, column: ColumnPos) -> Option<CellId> {
         match self.partition {
             Some(partition) => self.cell_at(partition.owner(column_key(column))),
@@ -148,7 +187,6 @@ impl Dim {
         }
     }
 
-    /// Whether the cell `index` reads `column`.
     fn reads(&self, index: CellIndex, column: ColumnPos) -> bool {
         self.partition
             .is_some_and(|partition| partition.reaches(index, column_key(column), HALO))
@@ -162,14 +200,12 @@ struct Worlds {
     lent: BTreeMap<CellId, mcrs_engine_cell::Lent<DimWorld>>,
 }
 
-/// The output of the cell `cell` of the dimension of `label` for one tick.
 pub(crate) struct DimTicked {
     pub(crate) label: Entity,
     pub(crate) cell: CellId,
     pub(crate) output: DimOutput,
 }
 
-/// A player that went from the cell `from` to the cell `to` of one dimension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct CellMove {
     pub(crate) session: PlayerSession,
@@ -178,8 +214,6 @@ pub(crate) struct CellMove {
 }
 
 impl DimCells {
-    /// Places the world of the cell `index` of the dimension of `label`. The cells of a
-    /// dimension come in the order of their index.
     pub(crate) fn add(
         &mut self,
         label: Entity,
@@ -210,12 +244,16 @@ impl DimCells {
         cell
     }
 
-    /// Divides the dimension of `label` over its cells by `partition`.
     pub(crate) fn divide(&mut self, label: Entity, partition: BoxPartition) {
         self.dims.entry(label).or_insert_with(Dim::new).partition = Some(partition);
     }
 
-    /// Stops every world of `label`. Returns `false` when no world has that label.
+    pub(crate) fn set_disk(&mut self, label: Entity, disk: ColumnDisk) {
+        if let Some(dim) = self.dims.get_mut(&label) {
+            dim.store = SharedStore::new(disk, Placement::Thread);
+        }
+    }
+
     pub(crate) fn remove(&mut self, label: Entity) -> bool {
         let Some(dim) = self.dims.remove(&label) else {
             return false;
@@ -232,7 +270,6 @@ impl DimCells {
         true
     }
 
-    /// The number of dimensions.
     #[cfg(feature = "world-access")]
     #[must_use]
     pub fn len(&self) -> usize {
@@ -250,24 +287,17 @@ impl DimCells {
         self.dims.contains_key(&label)
     }
 
-    /// The labels of the dimensions.
     #[cfg(feature = "world-access")]
     pub fn labels(&self) -> impl Iterator<Item = Entity> + '_ {
         self.dims.keys().copied()
     }
 
-    /// The number of cells of the dimension of `label`.
     #[cfg(feature = "world-access")]
     #[must_use]
     pub fn cell_count(&self, label: Entity) -> usize {
         self.dims.get(&label).map_or(0, |dim| dim.cells.len())
     }
 
-    /// The world of each cell of `label`, lent out of its cell until the next tick gives it
-    /// back, in the order of the cells.
-    ///
-    /// For tests and tools only: the parts of the server send a dimension world messages and
-    /// never read or write it between ticks.
     #[cfg(feature = "world-access")]
     pub fn cell_sub_apps_mut(&mut self, label: Entity) -> impl Iterator<Item = &mut SubApp> {
         let cells: Vec<CellId> = self.cells_of(label).collect();
@@ -282,7 +312,6 @@ impl DimCells {
             .map(|(_, lent)| lent.world_mut().sub_app_mut())
     }
 
-    /// Every world, lent out as [`Self::cell_sub_apps_mut`] lends one, in the order they tick.
     #[cfg(feature = "world-access")]
     pub fn sub_apps_mut(&mut self) -> impl Iterator<Item = &mut SubApp> {
         let worlds = self.worlds.get();
@@ -295,9 +324,6 @@ impl DimCells {
             .map(|lent| lent.world_mut().sub_app_mut())
     }
 
-    /// Waits until the data layer of every dimension has answered every request sent so far.
-    ///
-    /// For tests and tools only, to make the answers land at the same tick in every run.
     #[cfg(feature = "world-access")]
     pub async fn stores_answered(&mut self) {
         for dim in self.dims.values_mut() {
@@ -305,8 +331,21 @@ impl DimCells {
         }
     }
 
-    /// The columns that each cell asked the generation of its world for in the last tick, in
-    /// the order of the cells.
+    pub fn request_save_all(&mut self) {
+        self.save = SavePhase::Requested;
+        self.save_failed = false;
+    }
+
+    #[must_use]
+    pub fn save_complete(&self) -> bool {
+        matches!(self.save, SavePhase::Idle | SavePhase::Complete)
+    }
+
+    #[must_use]
+    pub fn save_failed(&self) -> bool {
+        self.save_failed
+    }
+
     pub fn take_generation_asks(&mut self) -> Vec<GenerationAsk> {
         let mut asks = Vec::new();
         for ticked in &mut self.outputs {
@@ -325,8 +364,6 @@ impl DimCells {
         asks
     }
 
-    /// The views of the players that each cell reported in the last tick, with the label of the
-    /// world of the cell.
     pub fn reported_views(&self) -> impl Iterator<Item = ReportedView> + '_ {
         self.outputs.iter().flat_map(|ticked| {
             ticked
@@ -341,7 +378,6 @@ impl DimCells {
         })
     }
 
-    /// Hands `answer` of the generation of its world to `cell`, in the input of its next tick.
     pub fn deliver_generated(&mut self, cell: CellId, answer: GenerationAnswer) {
         if let Some(cell) = self.cells.get_mut(&cell) {
             cell.generated.push(answer.into());
@@ -352,7 +388,6 @@ impl DimCells {
         mem::take(&mut self.outputs)
     }
 
-    /// The cells of the dimension of `label`, in the order of their index.
     pub(crate) fn cells_of(&self, label: Entity) -> impl Iterator<Item = CellId> + '_ {
         self.dims
             .get(&label)
@@ -360,12 +395,10 @@ impl DimCells {
             .flat_map(|dim| dim.cells.iter().copied())
     }
 
-    /// The cell of `label` that owns `column`.
     fn owner(&self, label: Entity, column: ColumnPos) -> Option<CellId> {
         self.dims.get(&label)?.owner(column)
     }
 
-    /// The cell of `label` that holds the player of `session`, or the first cell.
     fn holder(&self, label: Entity, session: PlayerSession) -> Option<CellId> {
         self.sessions
             .get(&session)
@@ -378,8 +411,6 @@ impl DimCells {
             .or_else(|| self.cells_of(label).next())
     }
 
-    /// Splits `handoff` by the owner of the column of each source, whose blocks the stage
-    /// reads. A handoff with no source goes to the cell that holds the player who sent the line.
     fn split_handoff(
         &self,
         split: &mut BTreeMap<CellId, RoutedInput>,
@@ -410,9 +441,6 @@ impl DimCells {
         }
     }
 
-    /// Splits what the muxer routed to the dimension of `routed.dim` by the cell that owns
-    /// each part: a player goes to the cell that owns the column it arrives in, its packets to
-    /// the cell that holds it, a column request to the owner of the column.
     fn split(&mut self, routed: RoutedInput) -> BTreeMap<CellId, RoutedInput> {
         let label = routed.dim;
         let mut split: BTreeMap<CellId, RoutedInput> = BTreeMap::new();
@@ -431,7 +459,10 @@ impl DimCells {
                         dim,
                         &mut self.sessions,
                         spawn.session,
-                        spawn.snapshot.position,
+                        spawn
+                            .snapshot
+                            .transform()
+                            .map_or(bevy_math::DVec3::ZERO, |transform| transform.translation),
                     )
                 }),
                 ToDim::Transfer(transfer) => {
@@ -440,7 +471,7 @@ impl DimCells {
                             (departure.session, departure.arrival.transform.translation)
                         }
                         PlayerTransfer::Return(departure) => {
-                            (departure.session, departure.carried.transform.translation)
+                            (departure.session, departure.carried.transform().translation)
                         }
                     };
                     dim.and_then(|dim| place(dim, &mut self.sessions, session, position))
@@ -469,9 +500,6 @@ impl DimCells {
         split
     }
 
-    /// Hands what the cell `from` sent the other cells of its dimension to them, for their next
-    /// tick, and returns the players that went to another cell. A change of a block goes only to
-    /// the cells that read its column.
     pub(crate) fn post(&mut self, from: CellId, mail: CellMail) -> Vec<CellMove> {
         let Self {
             dims,
@@ -539,7 +567,7 @@ impl DimCells {
                 dim,
                 sessions,
                 session,
-                crossing.carried.transform.translation,
+                crossing.carried.transform().translation,
             ) else {
                 continue;
             };
@@ -551,12 +579,21 @@ impl DimCells {
         moves
     }
 
-    /// Forgets the cell of a player that left its dimension.
     pub(crate) fn forget_session(&mut self, session: PlayerSession) {
         self.sessions.remove(&session);
     }
 
-    fn tick(&mut self, mut input: impl FnMut(CellId) -> DimInput) {
+    fn tick(
+        &mut self,
+        autosave: bool,
+        mut input: impl FnMut(CellId, Option<SaveRequest>) -> DimInput,
+    ) {
+        let save_all = self.save == SavePhase::Requested;
+        let request = if save_all {
+            Some(SaveRequest::All)
+        } else {
+            autosave.then_some(SaveRequest::Dirty)
+        };
         for dim in self.dims.values_mut() {
             for answer in dim.store.answers() {
                 if let Some(cell) = self.cells.get_mut(&answer.to) {
@@ -571,7 +608,7 @@ impl DimCells {
         }
         let cells = &mut self.cells;
         let ticked = block_on(worlds.cells.tick(self.tick, |cell| {
-            let mut input = input(cell);
+            let mut input = input(cell, request);
             if let Some(cell) = cells.get_mut(&cell) {
                 input.cell_mail = mem::take(&mut cell.inbox);
                 input.store_answers = mem::take(&mut cell.store_answers);
@@ -597,12 +634,32 @@ impl DimCells {
                 output: ticked.output,
             });
         }
+        self.save_failed |= self
+            .outputs
+            .iter()
+            .any(|ticked| ticked.output.player_save_failed);
         self.send_to_stores();
+        if save_all {
+            self.flush_stores_and_wait();
+        } else if autosave {
+            for dim in self.dims.values_mut() {
+                dim.store.request_flush();
+            }
+        }
     }
 
-    /// Sends the requests of the cells of this tick to the data layer of their dimension: the
-    /// writes of all cells first, so a cell that reads a column in the tick in which its owner
-    /// wrote it sees the write, then the other requests, each cell in its order.
+    fn flush_stores_and_wait(&mut self) {
+        for dim in self.dims.values_mut() {
+            dim.store.request_flush();
+        }
+        let mut ok = true;
+        for dim in self.dims.values_mut() {
+            ok &= block_on(dim.store.flushed());
+        }
+        self.save = SavePhase::Complete;
+        self.save_failed |= !ok;
+    }
+
     fn send_to_stores(&mut self) {
         for ticked in &mut self.outputs {
             let Some(dim) = self.dims.get_mut(&ticked.label) else {
@@ -627,8 +684,6 @@ impl DimCells {
     }
 }
 
-/// The cell of `dim` that a player of `session` arriving at `position` goes to. In a divided
-/// dimension, it holds the player from now on.
 fn place(
     dim: &Dim,
     sessions: &mut FxHashMap<PlayerSession, CellId>,
@@ -642,12 +697,10 @@ fn place(
     Some(cell)
 }
 
-/// What the other cells sent `cell` for its next tick.
 fn inbox(cells: &mut BTreeMap<CellId, Cell>, cell: Option<CellId>) -> Option<&mut CellMail> {
     cells.get_mut(&cell?).map(|cell| &mut cell.inbox)
 }
 
-/// The input of `cell` in `split`, empty until a part goes to it.
 fn part(
     split: &mut BTreeMap<CellId, RoutedInput>,
     label: Entity,
@@ -666,7 +719,6 @@ fn lend(worlds: &mut Worlds, cell: CellId) {
     }
 }
 
-/// The copies of the host resources that every dimension gets in the input of this tick.
 struct Globals {
     game_time: GameTime,
     birth_clock: BirthClock,
@@ -704,6 +756,7 @@ impl Globals {
         routed: Option<RoutedInput>,
         players: Option<Vec<RosterRow>>,
         entity_id_grant: Option<EntityIdRange>,
+        save: Option<SaveRequest>,
     ) -> DimInput {
         let (control, serverbound, column_requests) = match routed {
             Some(RoutedInput {
@@ -715,6 +768,7 @@ impl Globals {
             None => Default::default(),
         };
         DimInput {
+            save,
             game_time: self.game_time,
             birth_clock: self.birth_clock,
             clocks: self.clocks.clone(),
@@ -742,11 +796,35 @@ fn changed<R: Resource + Clone>(host: &World) -> Option<R> {
         .map(|resource| R::clone(&*resource))
 }
 
-/// Ticks every dimension world once with the copies of the host resources and the input that
-/// the muxer routed during the update, split by the cell that owns each part, with the entity id
-/// ranges granted after the last tick, the messages between the cells of a dimension and, for a
-/// cell that runs commands, the players of the other cells. It keeps the outputs for the host
-/// to take between ticks.
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "drives the dimension sub-apps, which need the whole host world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "ticks every dimension cell once per host tick"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the cells tick in parallel on the task pool, and the host tick ends only after every cell has ticked"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the routed input of the tick is split per cell and moves into the input of each cell"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(13))]
 pub fn tick_dimensions(world: &mut World) {
     let globals = Globals::read(world);
     let routed: Vec<RoutedInput> = world
@@ -774,12 +852,16 @@ pub fn tick_dimensions(world: &mut World) {
                 .collect()
         })
         .unwrap_or_default();
+    let autosave = world
+        .get_resource::<AutosaveCadence>()
+        .is_some_and(AutosaveCadence::is_due);
     if let Some(mut cells) = world.get_resource_mut::<DimCells>() {
-        cells.tick(|cell| {
+        cells.tick(autosave, |cell, save| {
             globals.input(
                 split.remove(&cell),
                 players.remove(&cell),
                 granted.remove(&cell),
+                save,
             )
         });
     }

@@ -14,29 +14,24 @@ use crate::server_change::ServerChange;
 
 const RULES: usize = GameRule::ALL.len();
 
-/// What a branch of `gamerule` does to its rule.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Branch {
     Query(GameRule),
     Set(GameRule),
 }
 
-/// The value node of one rule under one of its two names.
 #[derive(Clone, Copy, Debug)]
 enum ValueNode {
     Bool(ArgumentHandle<BoolArgument>),
     Int(ArgumentHandle<IntegerArgument>),
-    /// The rule needs a feature that the server does not enable, so it has no node.
     Absent,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct GameRuleCommand {
-    /// The value nodes of each rule, by its id: under the short name, then under the identifier.
     values: [[ValueNode; 2]; RULES],
 }
 
-/// The name of a rule without its namespace.
 fn short_name(rule: GameRule) -> &'static str {
     let name = rule.as_static_str();
     name.split_once(':').map_or(name, |(_, path)| path)
@@ -85,7 +80,6 @@ pub(crate) fn build(
     Ok(GameRuleCommand { values })
 }
 
-/// The text of a rule value and the result of a command that reads it.
 fn value_text(rule: GameRule, value: i32) -> String {
     match rule.definition().value {
         GameRuleValueType::Bool { .. } => (value != 0).to_string(),
@@ -100,7 +94,6 @@ fn result_of(rule: GameRule, value: i32) -> i32 {
     }
 }
 
-/// The value that the line gives the rule, under whichever of its two names it holds.
 fn given_value(
     context: &VanillaContext,
     call: &Call<Branch, GameRuleCommand>,

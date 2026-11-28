@@ -11,9 +11,12 @@ doctest = false
 workspace = true
 
 [dependencies]
-mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy", "serde", "wire"] }
+mcrs_minecraft_entity_key = { workspace = true, features = ["bevy"] }
 time.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_pose = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_swing = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_command.workspace = true
@@ -26,6 +29,7 @@ mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_anvil.workspace = true
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_game_registries.workspace = true
@@ -36,22 +40,25 @@ bevy_platform.workspace = true
 mcrs_engine_cell = { workspace = true, features = ["bevy"] }
 mcrs_engine_link.workspace = true
 mcrs_engine_store.workspace = true
+mcrs_minecraft_region_disk.workspace = true
 flume.workspace = true
 mcrs_engine_muxer.workspace = true
 mcrs_minecraft_replication.workspace = true
-bevy_utils.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-mcrs_minecraft_game_mode.workspace = true
-mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item_stack.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_block_break.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_move_validate.workspace = true
 mcrs_minecraft_protocol.workspace = true
@@ -67,11 +74,11 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+bevy_time.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 
 [features]
 telemetry-tracy = []
-# Lends a dimension world out of its cell between ticks, for tests and tools that read or write it.
 world-access = []

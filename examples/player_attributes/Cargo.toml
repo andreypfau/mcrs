@@ -1,0 +1,23 @@
+[package]
+name = "mcrs_minecraft_player_attributes"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "mcrs_minecraft_player_attributes"
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute = { workspace = true, features = ["serde"] }
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_save.workspace = true
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"

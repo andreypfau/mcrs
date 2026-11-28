@@ -21,17 +21,12 @@ use mcrs_minecraft_text::Text;
 use mcrs_voxel::ColumnPos;
 use std::mem;
 
-/// The sources of one stage that go on in the world of the dimension `to`.
 pub(crate) struct Deferred {
     pub(crate) to: Entity,
     pub(crate) stage: usize,
     pub(crate) sources: Vec<SourceState>,
 }
 
-/// The run of one command line in the world of the dimension `here`. Each stage call runs here,
-/// and what the call leaves in the outbox applies before the next call. A call whose handler
-/// reads the world of the source dimension does not run when this world does not own the column
-/// of the source: its source goes into `deferred`, to go on in the world that owns it.
 pub(crate) struct DimExecutor<'a> {
     pub(crate) world: &'a mut World,
     pub(crate) here: Entity,
@@ -39,7 +34,6 @@ pub(crate) struct DimExecutor<'a> {
     pub(crate) deferred: &'a mut Vec<Deferred>,
 }
 
-/// Where a stage call for a source runs.
 enum Place {
     Here,
     Elsewhere(Entity),
@@ -58,8 +52,6 @@ impl DimExecutor<'_> {
         if handler.world == HandlerWorld::Any {
             return Ok(Place::Here);
         }
-        // The halo of a cell lags its owner by a tick, so only the owner reads a column as a
-        // world of one cell does.
         let owned = self.world.get_resource::<OwnedColumns>();
         if source.dimension != self.here || !owns(owned, ColumnPos::from(source.position)) {
             return Ok(Place::Elsewhere(source.dimension));
@@ -90,8 +82,6 @@ impl DimExecutor<'_> {
         }
     }
 
-    /// Runs the system `pick` finds in this world, then settles what the run left. `None` when
-    /// the world has no such system or the system did not run.
     fn call<O: 'static>(
         &mut self,
         invocation: Invocation,
@@ -108,8 +98,6 @@ impl DimExecutor<'_> {
     }
 }
 
-/// Applies the effects that the last run left in the outbox of `world`, in the order of
-/// writing, then sends its messages.
 pub(crate) fn settle(world: &mut World) {
     let Some(mut outbox) = world.get_resource_mut::<CommandOutbox>() else {
         return;

@@ -1,8 +1,3 @@
-//! Every `Decode` implementation must consume exactly the bytes it read, so a
-//! field can be followed by another one. NBT compounds, registry holders and
-//! chat components each used to leave the reader where they found it, or to
-//! swallow the whole remaining buffer.
-
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSystemChatPacket;
 use mcrs_minecraft_protocol_game::text::{RawText, Text};

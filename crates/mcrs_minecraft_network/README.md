@@ -1,5 +1,9 @@
 # mcrs_minecraft_network
 
+## Inbound backpressure
+
+The stream reader bounds both the number of packets waiting for `RawConnection::try_recv` and the sum of their decoded payload lengths. When a bound is full, the reader waits until the application takes a packet. It keeps packet order, so a burst applies stream backpressure and loses no packet. A legal packet larger than the payload budget is admitted when no other payload bytes are queued.
+
 ## LAN announcement
 
 A server that listens beyond loopback announces itself on the local network, so a vanilla client lists it under its LAN worlds. The announcement is the game's datagram, `[MOTD]<motd>[/MOTD][AD]<port>[/AD]`, sent to the multicast group `224.0.2.60` on port `4445` every 1.5 seconds, the first one at once. The MOTD is the one the status response carries and the port is the one the server listens on. The sending socket is bound to the IPv4 address the server listens on, or to any IPv4 address when it listens on every interface. The game announces over IPv4 only and its client joins the address the datagram came from, so a server listening on one IPv6 address does not announce, and logs that once at startup.

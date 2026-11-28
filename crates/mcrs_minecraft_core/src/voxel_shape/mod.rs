@@ -7,9 +7,6 @@ use self::block::block_shape;
 use self::empty::empty_shape;
 use crate::{Axis, Direction};
 
-/// Cells per axis of a face coverage mask. Every occlusion shape in the
-/// vanilla corpus is exact at 1/32; 1/16 is not enough for wall-mounted
-/// blocks.
 pub const FACE_RESOLUTION: usize = 32;
 
 const MASK_WORDS: usize = FACE_RESOLUTION * FACE_RESOLUTION / 64;
@@ -65,9 +62,6 @@ impl VoxelShape {
         self.occludes_full_block
     }
 
-    /// Coverage of this shape on one face of the unit cube, as a
-    /// `FACE_RESOLUTION` square bitmap indexed `v * FACE_RESOLUTION + u` over
-    /// the two axes other than the face normal, in ascending axis order.
     #[inline]
     pub fn face_mask(&self, dir: Direction) -> &FaceMask {
         let [down, up, north, south, west, east] = &self.face_masks;
@@ -81,9 +75,6 @@ impl VoxelShape {
         }
     }
 
-    /// Whether the seam between this block and the neighbour on `dir` is
-    /// fully covered by the two shapes together. Both arguments are whole
-    /// block shapes; the projection onto the shared face happens here.
     pub fn face_occludes(&self, other: &VoxelShape, dir: Direction) -> bool {
         let mine = self.face_mask(dir);
         let theirs = other.face_mask(dir.opposite());
@@ -92,10 +83,6 @@ impl VoxelShape {
             .all(|(a, b)| a | b == u64::MAX)
     }
 
-    /// Builds a shape from the boxes of a block definition, in the unit-cube
-    /// convention. Boxes reaching outside the cube are clipped, matching the
-    /// union with the full block that vanilla performs before every occlusion
-    /// test.
     pub fn from_boxes(boxes: &[Aabb]) -> VoxelShape {
         let mut off_grid = false;
         let prepared: Vec<Prepared> = boxes
@@ -270,11 +257,6 @@ fn fills_unit_cube(prepared: &[Prepared]) -> bool {
     })
 }
 
-/// Pool of `&'static VoxelShape` references produced by freeze-time interning.
-/// Indices 0 and 1 are reserved for the `Empty` and `Block` singletons.
-///
-/// `intern` leaks owned shapes via `Box::leak`, paid once at freeze time; the
-/// vanilla corpus holds a few hundred distinct occlusion shapes.
 #[derive(Default)]
 pub struct ShapeRegistry {
     entries: Vec<&'static VoxelShape>,
@@ -305,8 +287,6 @@ impl ShapeRegistry {
         self.entries.len()
     }
 
-    /// True when no user-interned shapes have been added. The two reserved
-    /// entries `Empty` and `Block` preloaded by `new` do not count.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.entries.len() <= 2

@@ -1,4 +1,5 @@
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::input::common_conditions::input_just_released;
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::{ExtractSchedule, RenderApp};
@@ -9,10 +10,6 @@ use crate::chunk_map::ChunkMap;
 use crate::debug_screen_overlay;
 use crate::light_levels::LightLevels;
 
-/// Whether any panel is up this frame and whether one was last frame. Bevy's UI systems run
-/// every frame whatever is on screen; with nothing shown they are a fixed cost of the frame,
-/// so they run only while this says so, and one frame longer so a hidden panel gets extracted
-/// as hidden.
 #[derive(Resource, Clone, Copy, Default, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct UiNeeded {
@@ -30,15 +27,33 @@ fn ui_needed(needed: Option<Res<UiNeeded>>) -> bool {
     needed.is_some_and(|needed| needed.wanted())
 }
 
+fn debug_view_shown(
+    overlay: &DebugOverlay,
+    map: Option<&ChunkMap>,
+    levels: Option<&LightLevels>,
+) -> bool {
+    **overlay
+        || map.is_some_and(|map| map.visible())
+        || levels.is_some_and(|levels| levels.visible())
+}
+
+fn ui_needed_stale(
+    overlay: Res<DebugOverlay>,
+    map: Option<Res<ChunkMap>>,
+    levels: Option<Res<LightLevels>>,
+    needed: Res<UiNeeded>,
+) -> bool {
+    let now = debug_view_shown(&overlay, map.as_deref(), levels.as_deref());
+    now != needed.now || needed.before != needed.now
+}
+
 fn update_ui_needed(
     overlay: Res<DebugOverlay>,
     map: Option<Res<ChunkMap>>,
     levels: Option<Res<LightLevels>>,
     mut needed: ResMut<UiNeeded>,
 ) {
-    let now = **overlay
-        || map.is_some_and(|map| map.visible())
-        || levels.is_some_and(|levels| levels.visible());
+    let now = debug_view_shown(&overlay, map.as_deref(), levels.as_deref());
     let next = UiNeeded {
         now,
         before: needed.now,
@@ -50,9 +65,6 @@ fn update_ui_needed(
 
 use crate::debug_displayer::DebugScreenDisplayer;
 
-/// Frames the entries actually run on: a shown overlay refreshes on a timer rather than every
-/// frame, and a stats log collects on its own timer with the overlay staying hidden, so the
-/// headline numbers never include the overlay's own cost.
 #[derive(Resource)]
 pub struct Refresh {
     active: bool,
@@ -78,7 +90,6 @@ impl Refresh {
     }
 }
 
-/// Whether the F3 overlay is up.
 #[derive(Resource, Default, Deref, DerefMut)]
 pub struct DebugOverlay(bool);
 
@@ -90,8 +101,6 @@ pub enum DebugScreenSet {
 }
 
 pub struct DebugScreenPlugin {
-    /// Seconds between debug-screen lines written to the log, for a run whose window cannot be
-    /// read.
     pub stats_interval: Option<f32>,
     pub always_time_passes: bool,
 }
@@ -109,7 +118,7 @@ impl Plugin for DebugScreenPlugin {
             .init_resource::<DebugScreenDisplayer>()
             .init_resource::<UiNeeded>()
             .add_plugins(ExtractResourcePlugin::<UiNeeded>::default())
-            .add_systems(Last, update_ui_needed)
+            .add_systems(Last, update_ui_needed.run_if(ui_needed_stale))
             .configure_sets(PreUpdate, UiSystems::Focus.run_if(ui_needed))
             .configure_sets(
                 PostUpdate,
@@ -139,7 +148,11 @@ impl Plugin for DebugScreenPlugin {
             .add_systems(
                 Update,
                 (
-                    (debug_screen_overlay::toggle_overlay, schedule_refresh)
+                    (
+                        debug_screen_overlay::toggle_overlay
+                            .run_if(input_just_released(KeyCode::F3)),
+                        schedule_refresh.run_if(refresh_scheduled),
+                    )
                         .chain()
                         .before(DebugScreenSet::Clear),
                     clear_displayer.in_set(DebugScreenSet::Clear),
@@ -150,8 +163,6 @@ impl Plugin for DebugScreenPlugin {
                         .in_set(DebugScreenSet::Render),
                 ),
             );
-        // Vanilla runs its entries in identifier order, so the columns keep the same layout
-        // frame to frame.
         app.add_systems(
             Update,
             (
@@ -190,10 +201,16 @@ impl Plugin for DebugScreenPlugin {
     }
 }
 
-/// Whether debug entries run this frame. False without [`DebugScreenPlugin`], so systems gated on
-/// it can be added by apps that render without the debug screen.
 pub fn collecting(overlay: Option<Res<DebugOverlay>>, refresh: Option<Res<Refresh>>) -> bool {
     overlay.is_some_and(|overlay| **overlay) || refresh.is_some_and(|refresh| refresh.logging)
+}
+
+fn refresh_scheduled(refresh: Res<Refresh>, overlay: Res<DebugOverlay>) -> bool {
+    **overlay
+        || overlay.is_changed()
+        || refresh.active
+        || refresh.log_every.is_some()
+        || refresh.always_timed
 }
 
 fn schedule_refresh(
@@ -219,6 +236,14 @@ fn schedule_refresh(
     refresh.active = shown || refresh.logging || overlay.is_changed();
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only when the stats log interval is due"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 fn log_debug_screen(displayer: Res<DebugScreenDisplayer>) {
     let (left, right) = displayer.columns();
     let line = left

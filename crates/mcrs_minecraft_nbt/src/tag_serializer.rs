@@ -83,7 +83,6 @@ impl serde::ser::Serializer for TagSerializer {
         Ok(NbtTag::Long(v as i64))
     }
 
-    // -0.0 becomes +0.0: the reference's float tags fold the sign away.
     fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error> {
         Ok(NbtTag::Float(v + 0.0))
     }
@@ -268,7 +267,6 @@ impl serde::ser::SerializeSeq for ListSerializer {
         value: &T,
     ) -> Result<(), Self::Error> {
         let tag = value.serialize(TagSerializer)?;
-        // можно добавить проверку типа для однородности списка, если нужно
         self.elements.push(tag);
         Ok(())
     }

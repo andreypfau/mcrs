@@ -1,12 +1,3 @@
-//! The `minecraft:overworld` multi-noise preset.
-//!
-//! `worldgen/multi_noise_biome_source_parameter_list/overworld.json` names this
-//! preset rather than carrying it, so the table has to be built here. It is
-//! data, and the reference is the authority on it: the spans, the slice
-//! boundaries and the biome grids below are transcribed from
-//! `OverworldBiomeBuilder`, and the order entries are emitted in is part of the
-//! data because ties in the climate search go to the earlier entry.
-
 use std::sync::LazyLock;
 
 use mcrs_minecraft_resource::{ResourceKey, ResourceLocation};
@@ -141,8 +132,6 @@ const OCEANS: [[BiomeKey; 5]; 2] = [
     [FROZEN_OCEAN, COLD_OCEAN, OCEAN, LUKEWARM_OCEAN, WARM_OCEAN],
 ];
 
-/// One temperature band `t` crossed with one humidity band `h`, with the grid
-/// entries at that pair.
 #[derive(Clone, Copy)]
 struct Cell {
     t: usize,
@@ -156,7 +145,6 @@ struct Cell {
     shattered: Option<BiomeKey>,
 }
 
-/// Every cell, temperature outermost, which is the order the reference emits.
 fn cells(temperatures: [Parameter; 5], humidities: [Parameter; 5]) -> impl Iterator<Item = Cell> {
     let rows = MIDDLE_BIOMES
         .into_iter()
@@ -260,11 +248,12 @@ impl Builder {
         }
     }
 
-    /// A surface biome is entered twice, once for each end of the depth range,
-    /// so the search reaches it whether the column is at the surface or below.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the five climate parameters, the offset and the biome of one preset entry, which the reference passes as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "each call is one row of the biome table: five climate ranges, the offset and the biome, written inline at the call"
+        )
     )]
     fn surface(
         &mut self,
@@ -290,9 +279,12 @@ impl Builder {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the five climate parameters, the offset and the biome of one preset entry, which the reference passes as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "each call is one row of the biome table: five climate ranges, the offset and the biome, written inline at the call"
+        )
     )]
     fn underground(
         &mut self,
@@ -316,9 +308,12 @@ impl Builder {
         );
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the five climate parameters, the offset and the biome of one preset entry, which the reference passes as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "each call is one row of the biome table: five climate ranges, the offset and the biome, written inline at the call"
+        )
     )]
     fn bottom(
         &mut self,
@@ -342,9 +337,12 @@ impl Builder {
         );
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the six climate parameters, the offset and the biome that are the fields of one parameter point"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the six climate parameters, the offset and the biome that are the fields of one parameter point"
+        )
     )]
     fn emit(
         &mut self,
@@ -511,7 +509,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists the peak-band biome entries in the reference's order, so the table reads against the reference's own"
+        reason = "lists the peak-band biome entries in the reference's order"
     )]
     fn add_peaks(&mut self, weirdness: Parameter) {
         for c in cells(self.temperatures, self.humidities) {
@@ -628,7 +626,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists the high-slice biome entries in the reference's order, so the table reads against the reference's own"
+        reason = "lists the high-slice biome entries in the reference's order"
     )]
     fn add_high_slice(&mut self, weirdness: Parameter) {
         for c in cells(self.temperatures, self.humidities) {
@@ -756,7 +754,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists the mid-slice biome entries in the reference's order, so the table reads against the reference's own"
+        reason = "lists the mid-slice biome entries in the reference's order"
     )]
     fn add_mid_slice(&mut self, weirdness: Parameter) {
         let full = self.full_range;
@@ -921,7 +919,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists the low-slice biome entries in the reference's order, so the table reads against the reference's own"
+        reason = "lists the low-slice biome entries in the reference's order"
     )]
     fn add_low_slice(&mut self, weirdness: Parameter) {
         let full = self.full_range;
@@ -1055,7 +1053,7 @@ impl Builder {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lists the valley biome entries in the reference's order, so the table reads against the reference's own"
+        reason = "lists the valley biome entries in the reference's order"
     )]
     fn add_valleys(&mut self, weirdness: Parameter) {
         let full = self.full_range;
@@ -1231,7 +1229,6 @@ impl Builder {
     }
 }
 
-/// The overworld climate table, in the order the reference emits it.
 pub fn overworld_parameter_list() -> &'static ParameterList<ResourceLocation<'static>> {
     static LIST: LazyLock<ParameterList<ResourceLocation<'static>>> = LazyLock::new(|| {
         let mut builder = Builder::new();
@@ -1243,7 +1240,6 @@ pub fn overworld_parameter_list() -> &'static ParameterList<ResourceLocation<'st
     &LIST
 }
 
-/// The `minecraft:nether` preset, which is small enough to be a literal.
 pub fn nether_parameter_list() -> &'static ParameterList<ResourceLocation<'static>> {
     static LIST: LazyLock<ParameterList<ResourceLocation<'static>>> = LazyLock::new(|| {
         let point = Parameter::point(0.0);
@@ -1298,11 +1294,6 @@ mod tests {
     use crate::climate::TargetPoint;
     use std::collections::BTreeSet;
 
-    /// An independent check on the whole transcription: a biome carries the
-    /// overworld carver set exactly when the overworld climate table can
-    /// produce it. The two sets are written down in different places — one in
-    /// the shipped biome JSON, one in this table — so agreeing is evidence
-    /// neither is wrong.
     #[test]
     fn the_table_names_exactly_the_biomes_with_overworld_carvers() {
         let with_overworld_carvers: BTreeSet<String> = mcrs_minecraft_worldgen_testing::registry::<
@@ -1321,9 +1312,6 @@ mod tests {
         .collect();
 
         let table = overworld_parameter_list();
-        // Every climate cell of every slice, twice for the depth ends: 22
-        // off-coast, 1100 peak, 2600 high, 1432 + 1332 mid, 1032 low, 72
-        // valley and the 5 underground entries.
         assert_eq!(table.len(), 7595);
         let named: BTreeSet<String> = table
             .values()
@@ -1334,57 +1322,68 @@ mod tests {
         assert_eq!(named, with_overworld_carvers);
     }
 
+    struct Landing {
+        climate: TargetPoint,
+        biome: BiomeKey,
+    }
+
     #[test]
     fn the_climate_search_lands_on_the_expected_biomes() {
         let table = overworld_parameter_list();
-        let at = |temperature, humidity, continentalness, erosion, depth, weirdness| {
-            *table
-                .find_value(TargetPoint::new(
-                    temperature,
-                    humidity,
-                    continentalness,
-                    erosion,
-                    depth,
-                    weirdness,
-                ))
-                .unwrap()
-        };
-        assert_eq!(
-            at(-0.8, 0.0, -1.1, 0.0, 0.0, 0.0),
-            crate::biome_keys::MUSHROOM_FIELDS.location()
-        );
-        assert_eq!(
-            at(-0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
-            crate::biome_keys::DEEP_FROZEN_OCEAN.location()
-        );
-        assert_eq!(
-            at(0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
-            crate::biome_keys::WARM_OCEAN.location()
-        );
-        assert_eq!(
-            at(-0.8, 0.0, -0.3, 0.0, 0.0, 0.0),
-            crate::biome_keys::FROZEN_OCEAN.location()
-        );
-        assert_eq!(
-            at(0.0, 0.0, 0.0, -0.9, 1.1, 0.0),
-            crate::biome_keys::DEEP_DARK.location()
-        );
-        assert_eq!(
-            at(0.0, 0.8, 0.0, 0.0, 0.5, 0.0),
-            crate::biome_keys::LUSH_CAVES.location()
-        );
-        assert_eq!(
-            at(0.0, 0.0, 0.9, 0.0, 0.5, 0.0),
-            crate::biome_keys::DRIPSTONE_CAVES.location()
-        );
-        assert_eq!(
-            at(0.8, 0.0, 0.5, 0.3, 0.0, -0.5),
-            crate::biome_keys::DESERT.location()
-        );
-        assert_eq!(
-            at(-0.9, 0.0, -0.5, 0.0, 0.5, 0.8),
-            crate::biome_keys::ICE_CAVES.location()
-        );
+        let landings = [
+            Landing {
+                climate: TargetPoint::new(-0.8, 0.0, -1.1, 0.0, 0.0, 0.0),
+                biome: crate::biome_keys::MUSHROOM_FIELDS,
+            },
+            Landing {
+                climate: TargetPoint::new(-0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
+                biome: crate::biome_keys::DEEP_FROZEN_OCEAN,
+            },
+            Landing {
+                climate: TargetPoint::new(0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
+                biome: crate::biome_keys::WARM_OCEAN,
+            },
+            Landing {
+                climate: TargetPoint::new(-0.8, 0.0, -0.3, 0.0, 0.0, 0.0),
+                biome: crate::biome_keys::FROZEN_OCEAN,
+            },
+            Landing {
+                climate: TargetPoint::new(0.0, 0.0, 0.0, -0.9, 1.1, 0.0),
+                biome: crate::biome_keys::DEEP_DARK,
+            },
+            Landing {
+                climate: TargetPoint::new(0.0, 0.8, 0.0, 0.0, 0.5, 0.0),
+                biome: crate::biome_keys::LUSH_CAVES,
+            },
+            Landing {
+                climate: TargetPoint::new(0.0, 0.0, 0.9, 0.0, 0.5, 0.0),
+                biome: crate::biome_keys::DRIPSTONE_CAVES,
+            },
+            Landing {
+                climate: TargetPoint::new(0.8, 0.0, 0.5, 0.3, 0.0, -0.5),
+                biome: crate::biome_keys::DESERT,
+            },
+            Landing {
+                climate: TargetPoint::new(-0.9, 0.0, -0.5, 0.0, 0.5, 0.8),
+                biome: crate::biome_keys::ICE_CAVES,
+            },
+            Landing {
+                climate: TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, -0.2),
+                biome: crate::biome_keys::SNOWY_PLAINS,
+            },
+            Landing {
+                climate: TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, 0.2),
+                biome: crate::biome_keys::ICE_SPIKES,
+            },
+        ];
+        for landing in landings {
+            let expected = landing.biome.location();
+            assert_eq!(
+                table.find_value(landing.climate),
+                Some(&expected),
+                "the climate that should land on {expected}"
+            );
+        }
     }
 
     #[test]
@@ -1404,19 +1403,5 @@ mod tests {
         assert_eq!(at(0.4, 0.0), crate::biome_keys::CRIMSON_FOREST.location());
         assert_eq!(at(0.0, 0.5), crate::biome_keys::WARPED_FOREST.location());
         assert_eq!(at(-0.5, 0.0), crate::biome_keys::BASALT_DELTAS.location());
-    }
-
-    /// Weirdness picks between a slice's plain biome and its variant, so the
-    /// same climate on either side of zero must be able to differ.
-    #[test]
-    fn weirdness_selects_the_variant_grid() {
-        let table = overworld_parameter_list();
-        let at = |weirdness| {
-            *table
-                .find_value(TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, weirdness))
-                .unwrap()
-        };
-        assert_eq!(at(-0.2), crate::biome_keys::SNOWY_PLAINS.location());
-        assert_eq!(at(0.2), crate::biome_keys::ICE_SPIKES.location());
     }
 }

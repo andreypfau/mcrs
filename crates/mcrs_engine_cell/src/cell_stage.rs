@@ -19,8 +19,6 @@ pub(crate) enum Reply<W: CellWorld> {
     Stopped(W),
 }
 
-/// The far end of the link to one world. The world moves out on a lend and back on a return,
-/// so a lend works the same on every placement.
 pub(crate) struct CellStage<W: CellWorld> {
     world: Option<W>,
     commands: VecDeque<Command<W>>,

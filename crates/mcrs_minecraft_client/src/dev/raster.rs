@@ -48,8 +48,6 @@ impl Plugin for RasterPlugin {
     }
 }
 
-/// The image's scale factor keeps its logical size equal to the window's, so projecting through
-/// the world camera still lands in window coordinates.
 fn fit_world_target(
     raster: Res<Raster>,
     window: Single<&Window, With<PrimaryWindow>>,
@@ -98,10 +96,6 @@ fn fit_world_target(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 fn present_world(
     view: ViewQuery<(&ViewTarget, &ExtractedView)>,
     worlds: Query<&ExtractedCamera, With<Camera3d>>,

@@ -13,20 +13,9 @@ use crate::world_placement::WorldPlacement;
 
 pub struct VoxelServerPlugin {
     pub tick_rate: NonZeroU32,
-    /// Whether this app may size the task pools. They are process-global and
-    /// `get_or_init`, so an app embedded beside another one must take the
-    /// defaults rather than shrink pools the host is already using.
     pub owns_task_pools: bool,
-    /// Absolute path to the asset corpus. `None` leaves bevy to resolve
-    /// `assets` against `BEVY_ASSET_ROOT` or the executable directory, which a
-    /// server embedded in another process cannot rely on.
     pub asset_path: Option<String>,
-    /// Where the dimension worlds tick, as [`WorldPlacement`] says. Under
-    /// [`Placement::Inline`] an app that does not own the task pools still runs `par_iter` on the
-    /// host's compute pool.
     pub worlds: Placement,
-    /// The thread count of the compute pool, for an app that owns the task pools. `None` keeps
-    /// one thread under [`Placement::Inline`] and one thread for each logical core otherwise.
     pub compute_threads: Option<NonZeroUsize>,
 }
 
@@ -37,8 +26,6 @@ impl Plugin for VoxelServerPlugin {
             _ if !self.owns_task_pools => None,
             (Some(threads), _) => Some(threads.get()),
             (None, Placement::Inline) => Some(1),
-            // The Bevy default keeps a quarter of the cores each for the I/O and the async
-            // pools, which a server tick leaves idle; the tick runs on the compute pool.
             (None, _) => std::thread::available_parallelism()
                 .ok()
                 .map(NonZeroUsize::get),
@@ -65,12 +52,7 @@ impl Plugin for VoxelServerPlugin {
         }
         app.insert_resource(Time::<Fixed>::from_hz(self.tick_rate.get() as f64));
         app.insert_resource(TickPace::new(self.tick_rate.get()));
-        // One host update is one tick: the host's fixed schedules run exactly once in it, as
-        // the dimensions' do, however late the update starts. Wall-clock time decides only
-        // when a tick starts, never what it does.
         app.insert_resource(TimeUpdateStrategy::FixedTimesteps(1));
-        // Dropping a notify fsevents watcher joins its CFRunLoop thread and
-        // can block forever. The server has no hot-reload consumer.
         let mut assets = AssetPlugin {
             watch_for_changes_override: Some(false),
             ..AssetPlugin::default()
@@ -81,7 +63,6 @@ impl Plugin for VoxelServerPlugin {
         app.add_plugins(assets);
     }
 
-    // After every plugin's `finish`, which may still add a schedule.
     fn cleanup(&self, app: &mut App) {
         if app.world().get_resource::<WorldPlacement>() == Some(&WorldPlacement(Placement::Inline))
         {
@@ -90,13 +71,8 @@ impl Plugin for VoxelServerPlugin {
     }
 }
 
-/// The longest backlog of ticks that the loop runs back to back to catch up.
 const MAX_BACKLOG: Duration = Duration::from_secs(2);
 
-/// When the next tick starts. The ticks keep a fixed schedule, one `tick` after another from the
-/// first, so a late wake or a long tick does not shift the ticks after it: a late tick is followed
-/// at once by the next. A backlog longer than [`MAX_BACKLOG`] is dropped, and the schedule starts
-/// again from `now`. A tick of a sprint, `at_once`, starts the schedule again from `now` too.
 fn next_deadline(previous: Instant, tick: Duration, at_once: bool, now: Instant) -> Instant {
     if at_once {
         return now;
@@ -114,7 +90,6 @@ fn next_deadline(previous: Instant, tick: Duration, at_once: bool, now: Instant)
     next
 }
 
-/// Gives every schedule of `world` a single-threaded executor.
 pub fn run_schedules_on_one_thread(world: &mut World) {
     let Some(mut schedules) = world.get_resource_mut::<Schedules>() else {
         return;
@@ -124,12 +99,10 @@ pub fn run_schedules_on_one_thread(world: &mut World) {
     }
 }
 
-/// `App` is `!Send` only because it owns a boxed runner closure. Handing a
-/// whole, unaliased `App` to one other thread is sound. The wrapper must be
-/// moved by method call, not field access, or disjoint closure capture takes
-/// the `App` itself and the `Send` bound fails again.
 struct SendableApp(App);
 
+// SAFETY: `App` is `!Send` only because of its boxed runner closure. `spawn_server_thread`
+// replaces the runner with one that captures nothing before it wraps the `App`.
 unsafe impl Send for SendableApp {}
 
 impl SendableApp {
@@ -142,17 +115,14 @@ pub fn spawn_server_thread(
     app: App,
     run: impl FnOnce(App) + Send + 'static,
 ) -> std::io::Result<std::thread::JoinHandle<()>> {
+    let mut app = app;
+    app.set_runner(|_| AppExit::Success);
     let app = SendableApp(app);
     std::thread::Builder::new()
         .name("voxel-server".to_string())
         .spawn(move || run(app.into_inner()))
 }
 
-/// Ticks the app at `tick_rate`. `between_ticks` runs once after every tick. `until` then has
-/// the time up to the next tick, given as its deadline, to pass on what the tick wrote for the
-/// clients. It must not change what a tick reads, and it returns at the deadline: the loop
-/// starts the next tick as soon as it returns. A plugin that asks the app to exit
-/// while it finishes stops the loop before the first tick.
 pub fn run_server_loop(
     mut app: App,
     tick_rate: NonZeroU32,
@@ -179,11 +149,16 @@ pub fn run_server_loop(
             return exit;
         }
         let nanos = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
-        let at_once = app
-            .world_mut()
-            .get_resource_mut::<TickPace>()
-            .is_some_and(|mut pace| pace.end_tick(nanos));
-        next = next_deadline(next, tick, at_once, Instant::now());
+        let (at_once, target) =
+            app.world_mut()
+                .get_resource_mut::<TickPace>()
+                .map_or((false, tick), |mut pace| {
+                    (
+                        pace.end_tick(nanos),
+                        Duration::from_nanos(pace.target_nanos()),
+                    )
+                });
+        next = next_deadline(next, target, at_once, Instant::now());
         until(&mut app, next);
     }
 }

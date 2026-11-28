@@ -1,12 +1,12 @@
-pub mod attribute;
-mod base_attributes;
+mod attribute_base_table;
+mod client_motion;
 pub mod damage_type;
 mod entity_type_data;
 mod life;
 mod mob_data;
+mod precise_sync;
+mod sprint_modifier;
 mod variant_indices;
-#[rustfmt::skip]
-pub mod attribute_keys;
 #[rustfmt::skip]
 pub mod cat_sound_variant_keys;
 #[rustfmt::skip]
@@ -59,15 +59,13 @@ pub mod variant;
 pub mod villager;
 mod wire;
 
-pub use attribute::AttributeDefinition;
-pub use base_attributes::BaseAttributes;
+pub use attribute_base_table::attribute_bases;
+pub use client_motion::ClientMotion;
 pub use entity_type_data::EntityTypeData;
 pub use life::Life;
 pub use mob_data::MobData;
+pub use precise_sync::PreciseSync;
+pub use sprint_modifier::SPRINT_MODIFIER;
 pub use variant_indices::VariantIndices;
-
-pub const PLAYER_WIDTH: f64 = 0.6;
-pub const PLAYER_HEIGHT: f64 = 1.8;
-pub const PLAYER_EYE_HEIGHT: f64 = 1.62;
 
 mcrs_minecraft_registries::resolve_as_is!(crate::damage_type::DamageType);

@@ -1,27 +1,25 @@
+use crate::aquifer_cells::AquiferCells;
 use crate::program::{Program, Workspace};
 use crate::router::NoiseRouter;
+use crate::surface_levels::SurfaceLevels;
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_numeric::floor_div;
 use mcrs_minecraft_numeric::remap;
 use mcrs_minecraft_numeric::remap_clamped;
-use mcrs_minecraft_random::{Random, RandomSource};
+use mcrs_minecraft_random::RandomSource;
 
-/// `DimensionType.WAY_BELOW_MIN_Y`: the level of a dry cell. Still a number,
-/// and it enters the pressure formula as one.
 pub const WAY_BELOW_MIN_Y: i32 = -2032 << 4;
 
 const AIR: VoxelId = VoxelId(0);
 
-const X_SPACING_SHIFT: i32 = 4;
-const Y_SPACING: i32 = 12;
+pub(crate) const X_SPACING_SHIFT: i32 = 4;
+pub(crate) const Y_SPACING: i32 = 12;
 const SAMPLE_OFFSET_X: i32 = -5;
 const SAMPLE_OFFSET_Y: i32 = 1;
 const SAMPLE_OFFSET_Z: i32 = -5;
 
-/// In this order: which offset returns first decides between two statuses
-/// wherever their levels differ.
 const SURFACE_SAMPLING_OFFSETS_IN_CHUNKS: [[i32; 2]; 13] = [
     [0, 0],
     [-2, -1],
@@ -51,15 +49,11 @@ impl FluidStatus {
     }
 }
 
-/// The rule of a dimension without an aquifer field, and what the field falls
-/// back to: the dimension's fluid up to its sea level over a lava floor.
 #[derive(Clone, Copy, Debug)]
 pub struct GlobalFluid {
     pub sea: FluidStatus,
     pub lava: FluidStatus,
-    /// Below this the lava status answers.
     pub floor: i32,
-    /// Below this the rule places lava outright, whatever the field says.
     pub lava_below: i32,
 }
 
@@ -90,9 +84,6 @@ impl GlobalFluid {
     }
 }
 
-/// The `aquifers` block of a `noise_settings`, compiled: root indices into the
-/// dimension's program, the positional stream the centres are jittered from,
-/// and the shell margins the barrier's declared interval allows.
 pub struct AquiferConfig {
     pub barrier: usize,
     pub floodedness: usize,
@@ -106,10 +97,6 @@ pub struct AquiferConfig {
 }
 
 impl AquiferConfig {
-    /// The pressure reads the barrier noise only while its gradient is within
-    /// `±2`; past that the gradient alone is negative. Inside, the noise cannot
-    /// outweigh a gradient at or below `-N`. Both caps and both slopes come
-    /// straight from the pressure formula.
     pub fn margins(barrier_max: f32) -> (i32, i32) {
         let n = f64::from(barrier_max);
         let above = (2.5 * n - 0.5).ceil().clamp(0.0, 5.0);
@@ -118,17 +105,12 @@ impl AquiferConfig {
     }
 }
 
-/// What the field says about one block whose density is not positive. `None`
-/// is solid: the barrier pushed the density over zero.
 pub type Substance = Option<VoxelId>;
 
-/// The twelve statuses every block of one lattice cell selects from, reduced
-/// to what settles a run of blocks without the search.
 #[derive(Clone, Copy, Debug)]
 pub struct Window {
     pub lmax: i32,
     pub lmin: i32,
-    /// The one fluid every status holds, when none is dry.
     pub one_type: Option<VoxelId>,
 }
 
@@ -149,8 +131,6 @@ impl Window {
         }
     }
 
-    /// Lemma U: one status over the whole volume. A volume of nothing but dry
-    /// cells is left to Lemma A, which answers air for every `y` a world holds.
     fn uniform(self) -> Option<FluidStatus> {
         let fluid = self.one_type?;
         (self.lmin == self.lmax).then_some(FluidStatus {
@@ -164,10 +144,8 @@ fn agree<T: PartialEq>(left: Option<T>, right: Option<T>) -> Option<T> {
     if left == right { left } else { None }
 }
 
-/// The fluid level field over one lattice region, as dense tables owned by the
-/// task that generates it. Everything here is a pure function of the seed, so
-/// the region may be any size and two regions agree wherever they overlap.
 pub struct FluidField<'a> {
+    router: &'a NoiseRouter,
     program: &'a Program,
     config: Option<&'a AquiferConfig>,
     global: GlobalFluid,
@@ -176,18 +154,23 @@ pub struct FluidField<'a> {
     ws: Workspace,
     min_grid: IVec3,
     grid_size: IVec3,
-    centres: Box<[IVec3]>,
-    status: Box<[Option<FluidStatus>]>,
-    surface: Box<[i32]>,
+    cells: &'a mut AquiferCells,
+    surface: Box<[Option<i32>]>,
     surface_min_quart: (i32, i32),
     surface_quarts_x: i32,
     volumes: Box<[Option<Window>]>,
 }
 
 impl<'a> FluidField<'a> {
-    /// The field over every block in `[min, max]`, both inclusive.
-    pub fn new(router: &'a NoiseRouter, min: IVec3, max: IVec3) -> Self {
+    pub fn new(
+        router: &'a NoiseRouter,
+        levels: &mut SurfaceLevels,
+        cells: &'a mut AquiferCells,
+        min: IVec3,
+        max: IVec3,
+    ) -> Self {
         let mut field = Self {
+            router,
             program: &router.program,
             config: router.aquifer.as_ref(),
             global: router.global_fluid,
@@ -196,41 +179,23 @@ impl<'a> FluidField<'a> {
             ws: Workspace::new(),
             min_grid: IVec3::ZERO,
             grid_size: IVec3::ZERO,
-            centres: Box::new([]),
-            status: Box::new([]),
+            cells,
             surface: Box::new([]),
             surface_min_quart: (0, 0),
             surface_quarts_x: 0,
             volumes: Box::new([]),
         };
-        let Some(config) = router.aquifer.as_ref() else {
+        if router.aquifer.is_none() {
             return field;
-        };
+        }
 
-        let min_grid = Self::anchor(min.x, min.y, min.z) - IVec3::Y;
-        let max_grid = Self::anchor(max.x, max.y, max.z) + IVec3::ONE;
+        let min_grid = anchor(min.x, min.y, min.z) - IVec3::Y;
+        let max_grid = anchor(max.x, max.y, max.z) + IVec3::ONE;
         let grid_size = max_grid - min_grid + IVec3::ONE;
         field.min_grid = min_grid;
         field.grid_size = grid_size;
 
-        let mut centres = Vec::with_capacity((grid_size.x * grid_size.y * grid_size.z) as usize);
-        for gy in min_grid.y..=max_grid.y {
-            for gz in min_grid.z..=max_grid.z {
-                for gx in min_grid.x..=max_grid.x {
-                    let mut random = config.random.clone().fork_at(IVec3::new(gx, gy, gz));
-                    let jx = random.next_i32_bound(10);
-                    let jy = random.next_i32_bound(9);
-                    let jz = random.next_i32_bound(10);
-                    centres.push(IVec3::new(
-                        (gx << X_SPACING_SHIFT) + jx,
-                        gy * Y_SPACING + jy,
-                        (gz << X_SPACING_SHIFT) + jz,
-                    ));
-                }
-            }
-        }
-        field.status = vec![None; centres.len()].into_boxed_slice();
-        field.centres = centres.into_boxed_slice();
+        field.cells.cover(router, min, max);
 
         let quart_min = (
             ((min_grid.x << X_SPACING_SHIFT) - 48) >> 2,
@@ -245,19 +210,14 @@ impl<'a> FluidField<'a> {
             1,
             quart_max.1 - quart_min.1 + 1,
         );
-        let volume = SampleGrid::new(
-            quarts,
-            IVec3::new(quart_min.0 << 2, 0, quart_min.1 << 2),
-            IVec3::new(4, 1, 4),
-        );
-        let mut sampled = vec![0.0f32; volume.len()];
-        field
-            .program
-            .fill(&mut field.ws, &volume, config.surface_level, &mut sampled);
-        field.surface = sampled
-            .iter()
-            .map(|&v| f64::from(v).floor() as i32)
-            .collect();
+        levels.retarget(router);
+        let mut surface = Vec::with_capacity((quarts.x * quarts.z) as usize);
+        for quart_z in quart_min.1..=quart_max.1 {
+            for quart_x in quart_min.0..=quart_max.0 {
+                surface.push(levels.get(quart_x, quart_z));
+            }
+        }
+        field.surface = surface.into_boxed_slice();
         field.surface_min_quart = quart_min;
         field.surface_quarts_x = quarts.x;
 
@@ -266,22 +226,49 @@ impl<'a> FluidField<'a> {
         field
     }
 
-    #[inline]
-    fn cell_index(&self, grid: IVec3) -> usize {
-        flat(grid - self.min_grid, self.grid_size)
+    pub fn keep_surface_levels(&self, levels: &mut SurfaceLevels) {
+        if !levels.serves(self.router) {
+            return;
+        }
+        let (min_x, min_z) = self.surface_min_quart;
+        let rows = self.surface.chunks(self.surface_quarts_x.max(1) as usize);
+        for (row, quart_z) in rows.zip(min_z..) {
+            for (known, quart_x) in row.iter().zip(min_x..) {
+                if let Some(level) = known {
+                    levels.put(quart_x, quart_z, *level);
+                }
+            }
+        }
     }
 
     #[inline]
-    fn surface_level(&self, x: i32, z: i32) -> i32 {
+    fn cell_index(&self, grid: IVec3) -> usize {
+        self.cells.index(grid)
+    }
+
+    fn surface_level(&mut self, x: i32, z: i32) -> i32 {
+        let (quart_x, quart_z) = (x >> 2, z >> 2);
         let (qx, qz) = (
-            (x >> 2) - self.surface_min_quart.0,
-            (z >> 2) - self.surface_min_quart.1,
+            quart_x - self.surface_min_quart.0,
+            quart_z - self.surface_min_quart.1,
         );
         debug_assert!(qx >= 0 && qx < self.surface_quarts_x && qz >= 0);
-        self.surface
-            .get((qz * self.surface_quarts_x + qx) as usize)
-            .copied()
-            .unwrap_or_default()
+        let index = (qz * self.surface_quarts_x + qx) as usize;
+        let (Some(config), Some(&known)) = (self.config, self.surface.get(index)) else {
+            return 0;
+        };
+        if let Some(level) = known {
+            return level;
+        }
+        let sampled = self.sample(
+            config.surface_level,
+            IVec3::new(quart_x << 2, 0, quart_z << 2),
+        );
+        let level = f64::from(sampled).floor() as i32;
+        if let Some(slot) = self.surface.get_mut(index) {
+            *slot = Some(level);
+        }
+        level
     }
 
     #[inline]
@@ -298,14 +285,12 @@ impl<'a> FluidField<'a> {
     }
 
     fn status(&mut self, index: usize) -> FluidStatus {
-        if let Some(&Some(status)) = self.status.get(index) {
+        if let Some(status) = self.cells.status(index) {
             return status;
         }
-        let centre = self.centres.get(index).copied().unwrap_or_default();
+        let centre = self.cells.centre(index).unwrap_or_default();
         let status = self.compute_status(centre);
-        if let Some(slot) = self.status.get_mut(index) {
-            *slot = Some(status);
-        }
+        self.cells.put(index, status);
         status
     }
 
@@ -407,17 +392,15 @@ impl<'a> FluidField<'a> {
         }
     }
 
-    /// The three nearest centres in the reference's order: a later candidate at
-    /// the same distance displaces an earlier one.
     fn select(&self, x: i32, y: i32, z: i32) -> ([i32; 3], [usize; 3]) {
-        let anchor = Self::anchor(x, y, z);
+        let anchor = anchor(x, y, z);
         let mut distance = [i32::MAX; 3];
         let mut index = [0usize; 3];
         for dx in 0..=1 {
             for dy in -1..=1 {
                 for dz in 0..=1 {
                     let cell = self.cell_index(anchor + IVec3::new(dx, dy, dz));
-                    let Some(&centre) = self.centres.get(cell) else {
+                    let Some(centre) = self.cells.centre(cell) else {
                         continue;
                     };
                     let d = centre - IVec3::new(x, y, z);
@@ -438,18 +421,13 @@ impl<'a> FluidField<'a> {
         (distance, index)
     }
 
-    /// The reference's decision tree, block by block. The oracle for every
-    /// shortcut in this module, and the search the shell runs.
-    ///
-    /// `barrier` is read at most once, and only where the pressure gradient
-    /// leaves the sign to the noise.
     pub fn substance(
         &mut self,
         x: i32,
         y: i32,
         z: i32,
         density: f64,
-        barrier: &mut dyn FnMut(i32, i32, i32) -> f64,
+        barrier: &mut impl FnMut(i32, i32, i32) -> f64,
     ) -> Substance {
         if density > 0.0 {
             return None;
@@ -500,9 +478,12 @@ impl<'a> FluidField<'a> {
         Some(fluid_state)
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the position, the lazily sampled noise, the two fluid statuses and the barrier sampler of one pressure computation, in the order the reference takes them"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one pressure computation"
+        )
     )]
     fn pressure(
         &self,
@@ -512,7 +493,7 @@ impl<'a> FluidField<'a> {
         noise: &mut Option<f64>,
         a: FluidStatus,
         b: FluidStatus,
-        barrier: &mut dyn FnMut(i32, i32, i32) -> f64,
+        barrier: &mut impl FnMut(i32, i32, i32) -> f64,
     ) -> f64 {
         let (type_a, type_b) = (a.at(y), b.at(y));
         if (type_a == self.lava && type_b == self.water)
@@ -541,7 +522,6 @@ impl<'a> FluidField<'a> {
         2.0 * (noise_value + gradient)
     }
 
-    /// The volume of the cell `p` anchors to, for any `p` with that anchor.
     pub fn volume(&mut self, anchor: IVec3) -> Window {
         if self.config.is_none() {
             return Window::of(self.global.sea);
@@ -572,24 +552,13 @@ impl<'a> FluidField<'a> {
         volume
     }
 
-    #[inline]
-    fn anchor(x: i32, y: i32, z: i32) -> IVec3 {
-        IVec3::new(
-            (x + SAMPLE_OFFSET_X) >> X_SPACING_SHIFT,
-            floor_div(y + SAMPLE_OFFSET_Y, Y_SPACING),
-            (z + SAMPLE_OFFSET_Z) >> X_SPACING_SHIFT,
-        )
-    }
-
-    /// [`Self::substance`] for a block with non-positive density, answered by
-    /// its cell's volume where a lemma applies and by the search otherwise.
     pub fn substance_settled(
         &mut self,
         x: i32,
         y: i32,
         z: i32,
         density: f64,
-        barrier: &mut dyn FnMut(i32, i32, i32) -> f64,
+        barrier: &mut impl FnMut(i32, i32, i32) -> f64,
     ) -> Substance {
         debug_assert!(density <= 0.0);
         let at = IVec3::new(x, y, z);
@@ -604,13 +573,6 @@ impl<'a> FluidField<'a> {
         Some((config.margin_above, config.margin_below))
     }
 
-    /// One status answering every block of `[min, max]`, both inclusive, for a
-    /// box whose density is non-positive throughout. `None` where the box needs
-    /// the per-block search.
-    ///
-    /// The status holds outside the box no more than the lemma that produced it
-    /// does: a dry box answers with the level at its own floor and a drowned one
-    /// with the level just past its own ceiling.
     pub fn settle(&mut self, min: IVec3, max: IVec3) -> Option<FluidStatus> {
         if max.y < self.global.lava_below {
             return Some(FluidStatus {
@@ -621,8 +583,8 @@ impl<'a> FluidField<'a> {
         if min.y < self.global.lava_below {
             return None;
         }
-        let lo = Self::anchor(min.x, min.y, min.z);
-        let hi = Self::anchor(max.x, max.y, max.z);
+        let lo = anchor(min.x, min.y, min.z);
+        let hi = anchor(max.x, max.y, max.z);
         let mut fold: Option<Window> = None;
         for gx in lo.x..=hi.x {
             for gy in lo.y..=hi.y {
@@ -655,8 +617,6 @@ impl<'a> FluidField<'a> {
     }
 }
 
-/// The barrier noise one point at a time, for a caller that reads it in
-/// scattered places rather than over a box.
 pub fn point_barrier<'a>(
     router: &'a NoiseRouter,
     ws: &'a mut Workspace,
@@ -676,7 +636,16 @@ pub fn point_barrier<'a>(
 }
 
 #[inline]
-fn flat(at: IVec3, size: IVec3) -> usize {
+pub(crate) fn anchor(x: i32, y: i32, z: i32) -> IVec3 {
+    IVec3::new(
+        (x + SAMPLE_OFFSET_X) >> X_SPACING_SHIFT,
+        floor_div(y + SAMPLE_OFFSET_Y, Y_SPACING),
+        (z + SAMPLE_OFFSET_Z) >> X_SPACING_SHIFT,
+    )
+}
+
+#[inline]
+pub(crate) fn flat(at: IVec3, size: IVec3) -> usize {
     debug_assert!(
         at.cmpge(IVec3::ZERO).all() && at.cmplt(size).all(),
         "{at} lies outside the lattice region {size}"

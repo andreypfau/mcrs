@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{ResourceKey, rl};
 
 pub const ARROW: ResourceKey<'static, crate::damage_type::DamageType> =

@@ -4,6 +4,7 @@ use crate::{RawConnection, SwitchMode};
 use anyhow::bail;
 use bytes::Bytes;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::Brand;
 use mcrs_minecraft_protocol::packets::common::serverbound::{
@@ -34,19 +35,13 @@ use tracing::info;
 
 #[derive(Clone, Debug)]
 pub struct Join {
-    /// The host and port the handshake names, which a proxy can route by.
     pub server_address: String,
     pub server_port: u16,
-    /// The peer of the stream, which the returned connection carries for log lines.
     pub remote_addr: SocketAddr,
     pub username: String,
     pub profile_id: Uuid,
-    /// Sets only when the login switches compression on: the configuration that follows reads
-    /// the packet ids and the vanilla pack version of this client's own version.
     pub protocol_version: i32,
     pub view_distance: u8,
-    /// The client holds the vanilla pack of its own version, so it lets the server leave that
-    /// pack's entries out.
     pub holds_vanilla_pack: bool,
 }
 
@@ -57,20 +52,12 @@ pub struct ServerProfile {
     pub username: String,
 }
 
-/// A connection whose first configuration the server ended: answered by [`join`], so in the game
-/// state, and unanswered by [`configure`]. The packets the server sent after the end of the
-/// configuration are buffered in it.
 pub struct Joined {
     pub connection: RawConnection,
     pub profile: ServerProfile,
     pub configuration: Configuration,
 }
 
-/// Runs the handshake, the login and the first configuration in offline mode, and answers the
-/// end of the configuration, so the connection is in the game state.
-///
-/// Must run inside a Tokio runtime on native targets, because the connection spawns its reader
-/// and writer tasks there.
 pub async fn join<S: ByteStream>(io: PacketIo<S>, join: Join) -> anyhow::Result<Joined> {
     let mut joined = configure(io, join).await?;
     joined
@@ -80,8 +67,6 @@ pub async fn join<S: ByteStream>(io: PacketIo<S>, join: Join) -> anyhow::Result<
     Ok(joined)
 }
 
-/// As [`join`], but leaves the end of the configuration unanswered, so a caller can check the
-/// registries first and refuse them while the connection is still in configuration.
 pub async fn configure<S: ByteStream>(mut io: PacketIo<S>, join: Join) -> anyhow::Result<Joined> {
     let (profile, switch_mode) = log_in(&mut io, &join).await?;
     write_first_configuration_packets(&mut io, join.view_distance);
@@ -130,7 +115,6 @@ async fn log_in<S: ByteStream>(
     })
     .await?;
 
-    // A server that never announced a threshold still can ask for compression.
     let mut stored_threshold = CompressionThreshold(0);
     let (profile, options) = loop {
         let (id, body) = io.recv_frame().await?;
@@ -191,7 +175,14 @@ pub(crate) fn write_first_configuration_packets(out: &mut impl WritePacket, view
             PropertyMap(vec![(identity::COMMIT_PROPERTY, identity::COMMIT_HASH)]),
         )],
     ))));
-    out.write_packet(&ServerboundClientInformation(ClientInformation {
+    out.write_packet(&ServerboundClientInformation(client_information(
+        view_distance,
+    )));
+}
+
+#[must_use]
+pub fn client_information(view_distance: u8) -> ClientInformation<'static> {
+    ClientInformation {
         locale: "en_us",
         view_distance,
         chat_mode: ChatMode::Enabled,
@@ -201,23 +192,18 @@ pub(crate) fn write_first_configuration_packets(out: &mut impl WritePacket, view
         enable_text_filtering: false,
         allow_server_listings: true,
         particle_status: ParticleStatus::All,
-    }));
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Configuration {
-    /// The bodies of the registry data packets in the order sent.
     pub registry_data: Vec<Bytes>,
-    /// The bodies of the tag packets in the order sent.
     pub tags: Vec<Bytes>,
-    /// The client accepted the vanilla pack, so the server may leave its entries' data out.
     pub vanilla_known: bool,
 }
 
 impl Configuration {
-    /// Reads one configuration packet and writes its answer to `out`. Returns the whole
-    /// configuration when the server ends it, and skips a packet it does not know.
     pub fn read(
         &mut self,
         id: i32,
@@ -252,7 +238,7 @@ impl Configuration {
             let disconnect = decode_body::<ClientboundDisconnect>(body)?;
             bail!(
                 "the server disconnected you: {}",
-                crate::disconnect_reason::disconnect_reason(&disconnect.reason)
+                mcrs_minecraft_text_flatten::plain_text(&Language::default(), &disconnect.reason)
             );
         } else if id == ClientboundFinishConfiguration::ID {
             decode_body::<ClientboundFinishConfiguration>(body)?;

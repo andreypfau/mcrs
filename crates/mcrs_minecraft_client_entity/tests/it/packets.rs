@@ -10,6 +10,12 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlags};
 
+use bevy_ecs::message::Messages;
+use mcrs_minecraft_client_entity::{EntityDamaged, NetworkEntities};
+use mcrs_minecraft_client_world::joined_game::JoinedGame;
+use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_entity_visual::{ClientEntity, ServerTicking};
+
 use crate::{Client, add_entity};
 
 const PIG: i32 = 5;
@@ -72,6 +78,21 @@ fn a_far_position_sync_snaps_and_a_remove_despawns() {
     });
     client.app.world_mut().flush();
     assert_eq!(client.entity(PIG), None);
+}
+
+#[test]
+fn the_end_of_a_session_leaves_no_entity_and_the_normal_tick_rate() {
+    let mut client = pig_at(0.0);
+    client.receive(ClientboundTickingState {
+        tick_rate: 40.0,
+        frozen: true,
+    });
+    client.end_session();
+    let world = client.app.world_mut();
+    let left = world.query::<&ClientEntity>().iter(world).count();
+    assert_eq!(left, 0);
+    assert!(world.resource::<NetworkEntities>().is_empty());
+    assert_eq!(client.ticking(), ServerTicking::default());
 }
 
 #[test]
@@ -153,6 +174,37 @@ fn a_hurt_and_a_death_drive_the_timers_and_the_walk() {
     assert!(!frame.alive);
     assert_eq!(frame.death_ticks, 2.5);
     assert_eq!(frame.walk.speed, 0.0);
+}
+
+#[test]
+fn a_damage_event_with_the_own_id_damages_the_local_player() {
+    const OWN_PLAYER: i32 = 7;
+    let mut client = Client::new();
+    let player = client.app.world_mut().spawn(Player).id();
+    client.join(JoinedGame {
+        player_id: OWN_PLAYER,
+        dimensions: Vec::new(),
+    });
+    client.receive(ClientboundDamageEvent {
+        entity_id: VarInt(OWN_PLAYER),
+        damage_type: VarInt(0),
+        cause_entity_id: VarInt(0),
+        direct_entity_id: VarInt(0),
+        source_position: None,
+    });
+    let damaged: Vec<EntityDamaged> = client
+        .app
+        .world_mut()
+        .resource_mut::<Messages<EntityDamaged>>()
+        .drain()
+        .collect();
+    assert_eq!(
+        damaged
+            .iter()
+            .map(|damaged| damaged.entity)
+            .collect::<Vec<_>>(),
+        vec![player]
+    );
 }
 
 #[test]

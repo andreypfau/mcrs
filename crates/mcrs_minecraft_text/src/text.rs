@@ -12,36 +12,6 @@ use crate::{
     TextSerde, TextTypes, TranslateArg,
 };
 
-/// Represents formatted text in Minecraft's JSON text format.
-///
-/// Text is used in various places such as chat, window titles,
-/// disconnect messages, written books, signs, and more.
-///
-/// For more information, see the relevant [Minecraft Wiki article].
-///
-/// [Minecraft Wiki article]: https://minecraft.fandom.com/wiki/Raw_JSON_text_format
-///
-/// # Examples
-///
-/// With [`IntoText`] in scope, you can write the following:
-/// ```
-/// use mcrs_minecraft_text::{Color, IntoText, Text};
-///
-/// let txt: Text = "The text is ".into_text()
-///     + "Red".color(Color::RED)
-///     + ", "
-///     + "Green".color(Color::GREEN)
-///     + ", and also "
-///     + "Blue".color(Color::BLUE)
-///     + "! And maybe even "
-///     + "Italic".italic()
-///     + ".";
-///
-/// assert_eq!(
-///     txt.to_string(),
-///     r#"{"text":"The text is ","extra":[{"text":"Red","color":"red"},", ",{"text":"Green","color":"green"},", and also ",{"text":"Blue","color":"blue"},"! And maybe even ",{"text":"Italic","italic":true},"."]}"#
-/// );
-/// ```
 #[derive(Clone, PartialEq)]
 pub struct Text<I: TextTypes = ItemHover>(Box<TextInner<I>>);
 
@@ -51,7 +21,6 @@ impl<I: TextTypes> Default for Text<I> {
     }
 }
 
-/// A plain literal with no style and no siblings is written as a bare string.
 impl<I: TextSerde> Serialize for Text<I> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self.0.collapse_to_string() {
@@ -66,7 +35,6 @@ impl<I: TextSerde> Serialize for Text<I> {
     reason = "Text::text is the plain-text constructor; callers write it by that name"
 )]
 impl<I: TextTypes> Text<I> {
-    /// Constructs a new plain text object.
     pub fn text(plain: impl Into<Cow<'static, str>>) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::Text { text: plain.into() },
@@ -74,14 +42,11 @@ impl<I: TextTypes> Text<I> {
         }))
     }
 
-    /// Create translated text based on the given translation key, with extra
-    /// text components to be inserted into the slots of the translation text.
     pub fn translate(key: impl Into<Cow<'static, str>>, with: impl Into<Vec<Text<I>>>) -> Self {
         let with: Vec<_> = with.into().into_iter().map(TranslateArg::Text).collect();
         Self::translate_args(key, with)
     }
 
-    /// Translated text whose arguments may be primitives as well as components.
     pub fn translate_args(
         key: impl Into<Cow<'static, str>>,
         with: impl Into<Vec<TranslateArg<I>>>,
@@ -96,7 +61,6 @@ impl<I: TextTypes> Text<I> {
         }))
     }
 
-    /// Create a score from the scoreboard.
     pub fn score(
         name: impl Into<Cow<'static, str>>,
         objective: impl Into<Cow<'static, str>>,
@@ -112,8 +76,6 @@ impl<I: TextTypes> Text<I> {
         }))
     }
 
-    /// Creates a text component for selecting entity names with an optional
-    /// custom separator.
     pub fn selector(selector: impl Into<Cow<'static, str>>, separator: Option<Text<I>>) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::EntityNames {
@@ -124,10 +86,6 @@ impl<I: TextTypes> Text<I> {
         }))
     }
 
-    /// Creates a text component for a keybind. The keybind should be a valid
-    /// [`keybind identifier`].
-    ///
-    /// [`keybind identifier`]: https://minecraft.fandom.com/wiki/Controls#Configurable_controls
     pub fn keybind(keybind: impl Into<Cow<'static, str>>) -> Self {
         Self(Box::new(TextInner {
             content: TextContent::Keybind {
@@ -137,7 +95,6 @@ impl<I: TextTypes> Text<I> {
         }))
     }
 
-    /// Creates a text component showing NBT read from `source`.
     pub fn nbt(
         source: DataSource,
         nbt: impl Into<Cow<'static, str>>,

@@ -1,8 +1,3 @@
-//! One batch of edits, turned into new light, split so the expensive part can
-//! leave the tick loop: [`LightWorld::prepare_batch`] runs on the caller's
-//! thread, [`LightJob::run`] is pure computation holding no borrows, and
-//! [`LightWorld::apply`] publishes the result.
-
 use rayon::prelude::*;
 
 use std::sync::Arc;
@@ -21,9 +16,6 @@ use mcrs_minecraft_chunk::LightStorage;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_voxel::LocalPos;
 
-/// New light for one section, per layer. A layer the epoch recomputed to the
-/// light it already had is `None`: the world keeps the buffer it holds, and
-/// nothing downstream is woken for an answer that did not move.
 #[derive(Clone, Debug)]
 pub struct SectionLight {
     pub pos: SectionPos,
@@ -31,7 +23,6 @@ pub struct SectionLight {
     pub sky_light: Option<LightStorage>,
 }
 
-/// A section whose light moved, and the entity that owns it.
 #[derive(Clone, Debug)]
 pub struct PublishedLight {
     pub entity: u64,
@@ -39,7 +30,6 @@ pub struct PublishedLight {
     pub sky_light: Option<LightStorage>,
 }
 
-/// The finished result of an epoch, ready to be published.
 #[derive(Clone, Debug)]
 pub struct LightUpdate {
     pub sections: Vec<SectionLight>,
@@ -53,25 +43,11 @@ pub struct EpochStats {
     pub area_cells: usize,
 }
 
-/// Below this many cells the per-section passes run on one thread: a small
-/// field costs less to walk than a thread pool costs to start.
 const PARALLEL_SECTION_LIMIT: usize = 1 << 18;
 
-/// Which sky-source cells of a section column can still raise a neighbour.
-///
-/// A source cell sits at `LightLevel::MAX`, and so does every source cell
-/// around it, so relaxing one against another can never raise anything: the
-/// only source cells worth seeding are those touching a cell that is not a
-/// source. Above the terrain that is a thin skin instead of the whole shaft,
-/// which is most of the field.
 struct SkyFrontier {
     floor: [i32; SectionPos::AREA],
-    /// The highest floor among a column's four horizontal neighbours. A source
-    /// cell below it faces a non-source and has to be seeded.
     neighbour_top: [i32; SectionPos::AREA],
-    /// The lowest section base from which a whole section is sky source with no
-    /// cell of it on the frontier. Above the terrain that is most of a field, and
-    /// there the layer is a constant with nothing to decide cell by cell.
     clear_above: i32,
 }
 
@@ -103,8 +79,6 @@ impl SkyFrontier {
                     && (0..SectionPos::SIZE as i32).contains(&nz);
                 let across = match (inside, side) {
                     (true, _) => Some(floors),
-                    // Off the layout, or a column the world holds no sky scan
-                    // for: assume the worst and let every source cell seed.
                     (false, None) => None,
                     (false, Some(side)) => Some(*side),
                 };
@@ -142,51 +116,32 @@ impl SkyFrontier {
         else {
             return true;
         };
-        // Below the floor it is not a source at all: its value came from
-        // propagation, and relaxation still has to start from it.
         y <= floor || y < neighbour_top
     }
 }
 
-/// A prepared, self-contained unit of work. Holds no borrows on the world, so
-/// it can be sent to a worker thread and outlive further edits to the world.
 pub struct LightJob {
     registry: Arc<LightRegistry>,
     layout: FieldLayout,
     blocks: BlockSnapshot,
-    /// Published light for each section of the working area, cloned rather than
-    /// expanded: building the field is the expensive part and belongs on the
-    /// worker, not on the thread that asked for the work.
     published: Vec<Option<(LightStorage, LightStorage)>>,
     erase_plan: ErasePlan,
-    /// Nothing in the field emits and nothing in it was published with block
-    /// light, so that layer is zero everywhere and stays so: no seed can appear
-    /// and nothing outside the field can reach in. Every pass that would walk it
-    /// is skipped, and its own field is allocated zeroed and never touched.
     dark: bool,
-    /// One entry per section column of the layout, shared with the world rather
-    /// than copied: the scan that produced them is the world's own.
     sky_floors: Vec<Option<Arc<SkyFloor>>>,
 }
 
 impl LightJob {
-    /// The sections this job will publish. Two jobs whose areas are disjoint
-    /// neither read nor write a cell the other changes.
     pub fn area(&self) -> BoundingBox {
         self.layout.block_bounds()
     }
 
-    /// Everything is erased before anything is filled. Relaxation tolerates any
-    /// interleaving because it only ever raises values, but erasing lowers
-    /// them, and an erase racing a fill would silently drop light that nothing
-    /// will resend.
     #[expect(
         clippy::too_many_lines,
-        reason = "runs the stages of one epoch in order under one span each, because erasing must finish before anything is filled"
+        reason = "erasing must finish before anything is filled"
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "seeds the block emission of each erased cell inside the stage that erases it, because erasing must finish before anything is filled"
+        reason = "erasing must finish before anything is filled"
     )]
     pub fn run(self) -> LightUpdate {
         let LightJob {
@@ -213,12 +168,6 @@ impl LightJob {
         drop(fill);
         let seed = tracing::info_span!("light_seed").entered();
 
-        // The frontier is a property of the section column, not of the section:
-        // it reads the column's sky floors and its four neighbours' and nothing
-        // else. A field is a couple of dozen sections tall, so building it per
-        // section built the same answer that many times over. Built here it is
-        // still one independent piece of work per column, because a serial
-        // prologue costs an epoch more than the repetition it saves.
         let sky_frontiers: Vec<Option<SkyFrontier>> = (0..layout.column_count())
             .into_par_iter()
             .map(|column_index| {
@@ -235,16 +184,10 @@ impl LightJob {
             })
             .collect();
 
-        // One independent piece of work per section, which is what makes this
-        // parallel: sections share no cells, and the field takes writes through
-        // a shared reference. Below the threshold the thread pool costs more
-        // than the walk it would split.
         let seed_section = |section_index: usize| {
             let mut block_seeds = Vec::new();
             let mut sky_seeds = Vec::new();
 
-            // Unloaded space is neither lit nor a source; giving it light
-            // would let that light escape into the loaded world next to it.
             if !blocks.section_holds_light(section_index) {
                 return (block_seeds, sky_seeds);
             }
@@ -259,9 +202,6 @@ impl LightJob {
             let sky_frontier = sky_frontiers.get(column_index).and_then(Option::as_ref);
             let erase = erase_plan.meets(BoundingBox::of_section(section_pos));
 
-            // Clear of the terrain with no block layer to compute: every cell is
-            // a sky source and none of them can raise a neighbour, so the section
-            // is a constant and the walk below has nothing to find in it.
             if dark
                 && erase == SectionErase::All
                 && sky_frontier
@@ -273,8 +213,6 @@ impl LightJob {
                 return (block_seeds, sky_seeds);
             }
 
-            // Every cell of a uniform section emits the same light, and most
-            // sections of a loading world are uniform air.
             let uniform_emission = source.uniform_block().map(|block| registry.emission(block));
 
             let capacity = match erase {
@@ -313,9 +251,6 @@ impl LightJob {
                         sky_seeds.push(index);
                     }
                 } else {
-                    // Untouched cells are already at their final value and
-                    // act as the fixed boundary that holds the calculation
-                    // in place.
                     if !dark && block_field.get(index).is_some_and(|level| !level.is_zero()) {
                         block_seeds.push(index);
                     }
@@ -347,7 +282,6 @@ impl LightJob {
         drop(seed);
         let relax_span = tracing::info_span!("light_relax").entered();
 
-        // The two layers share nothing but the blocks, so they run side by side.
         let (block_rounds, sky_rounds) = rayon::join(
             || relax(&block_field, &blocks, &registry, block_seeds),
             || relax(&sky_field, &blocks, &registry, sky_seeds),
@@ -356,25 +290,17 @@ impl LightJob {
         drop(relax_span);
         let _read_back = tracing::info_span!("light_read_back").entered();
 
-        // Independent per section like the seeding pass: 4096 loads each, and a
-        // repack only where the answer moved.
         let read_back = |(section_index, was): (usize, Option<(LightStorage, LightStorage)>)| {
             if !blocks.section_loaded(section_index) {
                 return None;
             }
             let (was_block, was_sky) = was.unzip();
             let block_light = if dark {
-                // Zero is what the layer already holds wherever it was published,
-                // so only a section still owed its first answer takes one.
                 was_block.is_none().then_some(LightStorage::Empty)
             } else {
                 block_field.section_light_if_changed(section_index, was_block.as_ref())
             };
             let sky_light = sky_field.section_light_if_changed(section_index, was_sky.as_ref());
-            // Most of a field is the halo an epoch drags along to get its own
-            // columns right, and a halo section comes back with the light it went
-            // in with. Handing that answer on again would have the world store it,
-            // every section entity compare it, and the wire consider resending it.
             if block_light.is_none() && sky_light.is_none() {
                 return None;
             }
@@ -410,22 +336,11 @@ impl LightJob {
 }
 
 impl LightWorld {
-    /// Applies edits to the world and returns the lighting work they create.
-    ///
-    /// The block changes take effect here and now; only the *lighting* is
-    /// deferrable. Queueing the change itself would mean an edit held back by a
-    /// batch limit had not happened yet.
-    ///
-    /// Not free: an edit that moves the sky boundary rescans its column, and
-    /// loading a section rescans all 256 of them.
     pub fn apply_edits(
         &mut self,
         edits: impl IntoIterator<Item = Edit>,
     ) -> Vec<(ColumnPos, Influence)> {
         let mut work = Vec::new();
-        // Loading a stack of sections would otherwise rescan the same 256
-        // columns once per section; deduplicating is worth an order of
-        // magnitude on a bulk load.
         let mut columns_to_rescan: FxHashSet<ColumnPos> = FxHashSet::default();
 
         for edit in edits {
@@ -469,7 +384,6 @@ impl LightWorld {
         work
     }
 
-    /// Builds one unit of work from influences already applied to the world.
     pub fn prepare_batch(
         &mut self,
         influences: impl IntoIterator<Item = Influence>,
@@ -480,8 +394,6 @@ impl LightWorld {
         }
 
         let influenced = regions.bounds()?;
-        // One cell of margin so the calculation is surrounded by values it is
-        // not allowed to change.
         let area = influenced
             .inflated(1)
             .clamp_y(self.bounds().min_light_y(), self.bounds().max_light_y());
@@ -494,8 +406,6 @@ impl LightWorld {
         );
         let mut published: Vec<Option<(LightStorage, LightStorage)>> =
             Vec::with_capacity(layout.section_count());
-        // An absent section is never seeded, so it cannot be the source this asks
-        // about; open space can be, if the block standing for it emits.
         let mut dark = self
             .registry()
             .emission(self.registry().outside())
@@ -511,8 +421,6 @@ impl LightWorld {
                             .then(|| (section.block_light.clone(), section.sky_light.clone())),
                     );
                 }
-                // Absent sections start dark whatever a reader would be told
-                // about them; what differs is whether they pass light.
                 None => published.push(None),
             }
         }
@@ -535,10 +443,6 @@ impl LightWorld {
         })
     }
 
-    /// Publishes a finished result. Sections unloaded in the meantime are dropped.
-    ///
-    /// Hands back the entity with the light rather than the position, so the
-    /// caller that has to reach the entity does not look the section up again.
     pub fn apply(&mut self, update: LightUpdate) -> Vec<PublishedLight> {
         let mut published = Vec::with_capacity(update.sections.len());
         for section_light in update.sections {
@@ -561,7 +465,6 @@ impl LightWorld {
         published
     }
 
-    /// Applies edits, lights them and publishes the result on this thread.
     pub fn update_now(&mut self, edits: impl IntoIterator<Item = Edit>) -> EpochStats {
         let work = self.apply_edits(edits);
         let Some(job) = self.prepare_batch(work.into_iter().map(|(_, influence)| influence)) else {
@@ -582,14 +485,8 @@ impl LightWorld {
         }
         Arc::make_mut(&mut section.blocks).set(LocalPos::from(pos), block);
         section.emits |= !registry.emission(block.into()).is_zero();
-        // Past the early return above, so a write the scan cannot tell apart
-        // from what it replaced keeps the bound: equal light properties give
-        // equal seams, whatever the surface now says about that block.
         self.forget_column_surface(ColumnPos::from(pos));
 
-        // The affected core is the edited cell together with the run of column
-        // whose sky source flag changed. Both share a horizontal position, so
-        // the two collapse into one vertical box.
         let column = BlockColumn { x: pos.x, z: pos.z };
         let (old_floor, new_floor) = self.rescan_sky_floor(column);
 

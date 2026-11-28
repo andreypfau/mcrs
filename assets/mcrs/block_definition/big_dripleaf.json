@@ -72,7 +72,8 @@
         "components": {
           "minecraft:collision_box": [
             { "origin": [-8, 11, -8], "size": [16, 4, 16] }
-          ]
+          ],
+          "mcrs:solid": false
         }
       },
       {
@@ -80,7 +81,8 @@
         "components": {
           "minecraft:collision_box": [
             { "origin": [-8, 11, -8], "size": [16, 4, 16] }
-          ]
+          ],
+          "mcrs:solid": false
         }
       },
       {

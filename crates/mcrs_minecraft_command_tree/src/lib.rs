@@ -1,6 +1,3 @@
-//! The nodes of the command tree that the `commands` packet carries.
-
-// std: mcrs_minecraft_wire, whose codecs write through std::io::Write.
 mod argument_parser;
 mod command_node;
 mod command_node_kind;

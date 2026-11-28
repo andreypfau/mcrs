@@ -50,8 +50,6 @@ pub enum FeatureCompileError {
     UnknownBlockSet(String),
     #[error("unknown biome: {0}")]
     UnknownBiome(String),
-    /// A shape this build has no code for yet. Unlike every other variant it is
-    /// not a data error: the feature keeps its slot and places nothing.
     #[error("unsupported: {0}")]
     Unsupported(String),
     #[error("{0}: {1}")]
@@ -72,8 +70,6 @@ impl FeatureCompileError {
     }
 }
 
-/// Both feature registries as they were loaded, shared by every dimension,
-/// with the templates and processor lists the features name.
 #[derive(Default)]
 pub struct LoadedFeatures {
     pub features: BTreeMap<ResourceLocationBuf, Feature>,
@@ -85,7 +81,6 @@ pub struct LoadedFeatures {
 }
 
 impl LoadedFeatures {
-    /// The entries of `set`, a tag expanded to the placed features it names.
     pub fn placed_set<'a>(
         &'a self,
         set: &'a PlacedFeatureSet,
@@ -102,28 +97,19 @@ impl LoadedFeatures {
     }
 }
 
-/// One vertex of the sorted order: a placed feature and, unless it was written
-/// inline, the id it was named by.
 #[derive(Debug)]
 pub struct CompiledPlacedFeature {
     pub id: Option<ResourceLocationBuf>,
     pub placed: PlacedFeature,
 }
 
-/// What a dimension's generation runs, per decoration step.
 #[derive(Debug, Clone)]
 pub struct FeatureSteps {
-    /// A feature's position in its step's list is the index of its seed.
     pub steps: Vec<Vec<Arc<CompiledPlacedFeature>>>,
-    /// `[biome][step]`, a bit per entry of `steps[step]`.
     pub per_biome: Vec<Vec<FixedBitSet>>,
-    /// Index-aligned with `steps`: the identity of each entry, shared by every
-    /// step and biome that names the same placed feature.
     pub token: Vec<Vec<usize>>,
 }
 
-/// `biomes` is the source's list in its own order, each with the steps it
-/// declares.
 pub fn build_feature_steps(
     biomes: &[&[FeatureStepList]],
     registries: &LoadedFeatures,
@@ -196,8 +182,6 @@ pub fn build_feature_steps(
     })
 }
 
-/// A placed feature's identity in the ordering, carried with the feature
-/// itself. Equality, hash and order look only at `index`.
 #[derive(Clone)]
 struct Token {
     index: usize,
@@ -230,8 +214,6 @@ impl Ord for Token {
     }
 }
 
-/// Gives every distinct placed feature one identity: registry entries by id, so
-/// two biomes naming one id share a vertex, and every inline entry its own.
 struct Interner<'a> {
     registries: &'a LoadedFeatures,
     next_index: usize,
@@ -281,28 +263,19 @@ impl<'a> Interner<'a> {
     }
 }
 
-/// A set of block states the world names, that the run resolves to numbers.
-///
-/// Everything a `BlockPredicate` or a `RuleTest` asks about a state is a pure
-/// function of the state, so each of these collapses to one mask at freeze and
-/// nothing looks a name up again while a column generates.
 pub enum StateQuery<'a> {
     Blocks(&'a KeySet<mcrs_minecraft_block::block_keys::Block>),
-    /// Blocks a datapack value lists by name rather than as a holder set.
     Names(&'a [ResourceLocationBuf]),
     Block(&'a ResourceLocationBuf),
     BlockTag(&'a ResourceLocationBuf),
     Fluids(&'a KeySet<Fluid>, &'a StatePropertiesPredicate),
     SturdyFace(Direction),
-    /// `Block.isFaceFull(state.getCollisionShape(), direction)`.
     FullCollisionFace(Direction),
     Solid,
     Replaceable,
-    /// `Block.isShapeFullBlock(state.getShape())`: the outline is the whole cube.
     FullOutline,
 }
 
-/// The block and biome registries as the feature compiler needs them.
 pub trait BlockResolver {
     fn state(&self, state: &BlockState) -> Option<VoxelId>;
 
@@ -350,7 +323,7 @@ impl std::fmt::Display for StateQuery<'_> {
 }
 
 pub fn states_of(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     query: StateQuery<'_>,
 ) -> Result<StateMask, FeatureCompileError> {
     let name = query.to_string();
@@ -360,7 +333,7 @@ pub fn states_of(
 }
 
 pub fn state_of(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     state: &BlockState,
 ) -> Result<VoxelId, FeatureCompileError> {
     blocks
@@ -370,7 +343,7 @@ pub fn state_of(
 
 pub fn compile_predicate(
     predicate: &BlockPredicate<Named>,
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<Predicate, FeatureCompileError> {
     let matching = |offset: &Offset, query| {
         Ok::<_, FeatureCompileError>(Predicate::MatchingStates {
@@ -443,7 +416,7 @@ pub fn compile_predicate(
 
 fn compile_predicates(
     predicates: &[BlockPredicate<Named>],
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<Vec<Predicate>, FeatureCompileError> {
     predicates
         .iter()
@@ -453,7 +426,7 @@ fn compile_predicates(
 
 pub fn compile_rule(
     rule: &RuleTest,
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<Rule, FeatureCompileError> {
     Ok(match rule {
         RuleTest::AlwaysTrue => Rule::AlwaysTrue,
@@ -492,7 +465,7 @@ pub fn compile_rule(
 
 fn compile_rules(
     rules: &[RuleTest],
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<Vec<Rule>, FeatureCompileError> {
     rules
         .iter()
@@ -502,7 +475,7 @@ fn compile_rules(
 
 pub fn compile_placement(
     placement: &[PlacementModifier],
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<Vec<Modifier>, FeatureCompileError> {
     placement
         .iter()
@@ -626,8 +599,6 @@ mod tests {
         );
     }
 
-    /// Resolves everything, so a corpus walk fails only where a shape has no
-    /// compiled form at all.
     struct Everything;
 
     impl BlockResolver for Everything {
@@ -654,8 +625,6 @@ mod tests {
                 .unwrap_or_else(|error| panic!("{id}: {error}"));
         }
 
-        // `cuboid`, `randomly_selected` and `random_chance` appear only in the
-        // placed features a feature inlines, never in the registry's own files.
         let features: BTreeMap<ResourceLocationBuf, Feature> =
             mcrs_minecraft_worldgen_testing::registry("feature");
         let mut inline = 0;

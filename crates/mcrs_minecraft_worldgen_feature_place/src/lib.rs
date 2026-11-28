@@ -49,7 +49,6 @@ pub fn holds(mask: &FixedBitSet, state: VoxelId) -> bool {
     mask.contains(state.0 as usize)
 }
 
-/// `Direction.getRandom`, over the declaration order `values()` hands back.
 pub fn random_direction(rng: &mut WorldgenRandom) -> Direction {
     Direction::all()
         .get(rng.next_i32_bound(6) as usize)
@@ -57,7 +56,6 @@ pub fn random_direction(rng: &mut WorldgenRandom) -> Direction {
         .unwrap_or(Direction::Down)
 }
 
-/// One bit per face, in `Direction` declaration order.
 pub fn face_bit(direction: Direction) -> u8 {
     1 << direction as u8
 }

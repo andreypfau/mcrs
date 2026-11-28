@@ -1,0 +1,82 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "minecraft:player",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/player/wide/steve",
+        "slim": "textures/entity/player/slim/alex"
+      },
+      "geometry": {
+        "default": "geometry.player",
+        "slim": "geometry.player.slim"
+      },
+      "animations": {
+        "walk": "animation.player.walk",
+        "look_at_target": "animation.player.look_at_target",
+        "sneak": "animation.player.sneak",
+        "spin_attack": "animation.player.spin_attack",
+        "spin_attack_glide": "animation.player.spin_attack_glide",
+        "sleep": "animation.player.sleep",
+        "sleep_bed_shift": "animation.player.sleep_bed_shift",
+        "glide": "animation.player.glide",
+        "swim": "animation.player.swim",
+        "swim_shift": "animation.player.swim_shift",
+        "glide_parts": "animation.player.glide_parts",
+        "swim_head": "animation.player.swim_head",
+        "swim_legs": "animation.player.swim_legs",
+        "swim_arms": "animation.player.swim_arms"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "walk": "q.is_fall_flying ? 1 / math.max(1, math.pow(q.tick_velocity_length_squared / 0.2, 3)) : 1"
+          },
+          "look_at_target",
+          {
+            "sneak": "q.pose == 'crouching'"
+          },
+          {
+            "spin_attack": "(q.is_spin_attacking && q.death_ticks <= 0) && !q.is_fall_flying"
+          },
+          {
+            "spin_attack_glide": "(q.is_spin_attacking && q.death_ticks <= 0) && q.is_fall_flying"
+          },
+          {
+            "sleep": "(q.pose == 'sleeping' && !q.is_spin_attacking && q.death_ticks <= 0)"
+          },
+          {
+            "sleep_bed_shift": "(q.pose == 'sleeping' && !q.is_spin_attacking && q.death_ticks <= 0) && q.has_bed"
+          },
+          {
+            "glide": "(!(q.is_spin_attacking && q.death_ticks <= 0) && !(q.pose == 'sleeping' && !q.is_spin_attacking && q.death_ticks <= 0)) && q.is_fall_flying"
+          },
+          {
+            "swim": "(!(q.is_spin_attacking && q.death_ticks <= 0) && !(q.pose == 'sleeping' && !q.is_spin_attacking && q.death_ticks <= 0)) && !q.is_fall_flying"
+          },
+          {
+            "swim_shift": "(!(q.is_spin_attacking && q.death_ticks <= 0) && !(q.pose == 'sleeping' && !q.is_spin_attacking && q.death_ticks <= 0)) && !q.is_fall_flying && q.pose == 'swimming' && q.swim_amount > 0"
+          },
+          {
+            "glide_parts": "q.is_fall_flying"
+          },
+          {
+            "swim_head": "q.is_fall_flying ? 0 : q.swim_amount"
+          },
+          {
+            "swim_legs": "q.swim_amount"
+          },
+          {
+            "swim_arms": "q.is_using_item ? 0 : q.swim_amount"
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.player"
+      ]
+    }
+  }
+}

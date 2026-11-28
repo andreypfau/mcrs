@@ -1,7 +1,3 @@
-//! Columns reach the server one at a time, so a column is lit while its
-//! neighbour is still absent and therefore opaque. These pin that the seam is
-//! repaired when the neighbour does arrive.
-
 use std::sync::Arc;
 
 use crate::common::{AIR, Reference, WATER, filled, registry};
@@ -16,7 +12,6 @@ fn world() -> LightWorld {
     LightWorld::new(registry(), LightBounds::new(0, SECTIONS_Y - 1))
 }
 
-/// One column of sections, `floor_y` filled with `floor` and the rest air.
 fn load_column(world: &mut LightWorld, x: i32, z: i32, floor_y: i32, floor: VoxelId) {
     let loads: Vec<Edit> = (0..SECTIONS_Y)
         .map(|y| Edit::LoadSection {
@@ -37,8 +32,6 @@ fn check(world: &LightWorld, columns_x: i32, columns_z: i32) {
     }
 }
 
-/// Water ends the sky column but still passes light, so a seam here shows up as
-/// a band of the surface being darker than the column beside it.
 fn water_columns_arriving_one_at_a_time_match_one_pass(columns: i32) {
     let mut world = world();
     for x in 0..columns {
@@ -54,10 +47,6 @@ fn two_by_two_water_columns_arriving_one_at_a_time_match_one_pass() {
     water_columns_arriving_one_at_a_time_match_one_pass(2);
 }
 
-/// `integrate_generated_columns` inserts a column's sections as their tasks
-/// finish, so a column can enter the light world in pieces. The sky floor of
-/// the whole column moves when the top arrives, and every cell below it is a
-/// source that has to be relit — not just the fifteen under the new section.
 #[test]
 fn a_column_arriving_in_pieces_bottom_up_matches_one_pass() {
     let half = SECTIONS_Y / 2;
@@ -80,9 +69,6 @@ fn a_column_arriving_in_pieces_bottom_up_matches_one_pass() {
     }
 }
 
-/// Sea level across whole chunks: water below, open air above. The surface is
-/// flat and unbroken, so every cell of it sees the same sky, and a chunk
-/// boundary is not a thing light knows about.
 fn load_ocean_column(world: &mut LightWorld, x: i32, z: i32, water_sections: i32) {
     let loads: Vec<Edit> = (0..SECTIONS_Y)
         .map(|y| Edit::LoadSection {

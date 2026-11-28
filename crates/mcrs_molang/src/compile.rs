@@ -16,17 +16,12 @@ use crate::scalar::ScalarVm;
 use crate::subject::Subject;
 use crate::value::{Milestone, Rate, Value, ValueType};
 
-/// The first `version` of a versioned value with the modern rules.
 const MODERN_MOLANG_VERSION: f64 = 7.0;
 
-/// How the compiler treats one expression.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CompileOptions<'a> {
     pub milestone: Milestone,
-    /// Runs the passes that keep every result bit. With `false`, the program is the direct
-    /// lowering, the reference for the passes.
     pub optimize: bool,
-    /// The resources and arrays of the render controller; `None` outside a render controller.
     pub resources: Option<&'a ResourceSet>,
 }
 
@@ -40,24 +35,19 @@ impl Default for CompileOptions<'_> {
     }
 }
 
-/// A Molang field as JSON gives it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Source<'a> {
     Number(f64),
     Bool(bool),
     Text(&'a str),
-    /// The entries of a script array, joined with no text between them.
     ScriptArray(&'a [&'a str]),
-    /// An object with the member `expression`; `version` is `None` when it is absent.
     Versioned {
         expression: &'a Source<'a>,
         version: Option<f64>,
     },
-    /// A JSON value of a type that a Molang field does not take.
     Other,
 }
 
-/// A compiled expression. Most expressions of a pack are constants, which cost no run.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
     Constant(Value),
@@ -65,7 +55,6 @@ pub enum Expression {
 }
 
 impl Expression {
-    /// Runs the expression for one subject.
     pub fn evaluate(&self, vm: &mut ScalarVm, subject: &mut Subject<'_>) -> Value {
         match self {
             Self::Constant(value) => *value,
@@ -98,15 +87,12 @@ impl Expression {
     }
 }
 
-/// The result of a compile with no load error.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Compiled {
     pub expression: Expression,
     pub warnings: Vec<Warning>,
 }
 
-/// Compiles one Molang field. The variables that the expression names get slots in `layout`,
-/// and the host resolves its queries.
 pub fn compile<H: QueryHost>(
     source: &Source<'_>,
     layout: &mut VariableLayout,
@@ -155,7 +141,6 @@ pub fn compile<H: QueryHost>(
     Ok(compiled)
 }
 
-/// Compiles the text of one expression.
 pub fn compile_text<H: QueryHost>(
     text: &str,
     layout: &mut VariableLayout,
@@ -189,7 +174,6 @@ fn type_error(message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::new(ErrorKind::Type, Span::default(), message)]
 }
 
-/// The value of a body that only returns a constant.
 fn constant_result(function: &Function) -> Option<Value> {
     let (last, rest) = function.body.insts.split_last()?;
     let all_constants = rest

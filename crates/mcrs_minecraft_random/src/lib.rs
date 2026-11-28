@@ -32,12 +32,6 @@ pub trait Random: Rng + Clone {
         self.next_u64() as i64
     }
 
-    /// Java-accurate `nextLong()`: sign-extends both 32-bit halves before combining.
-    ///
-    /// Java's `java.util.Random.nextLong` computes `((long)(int)upper << 32) + (long)(int)lower`,
-    /// so when the lower half has its high bit set the result is less than the unsigned
-    /// interpretation. The default delegates to `next_i64()` (correct for Xoroshiro);
-    /// LegacyRandom overrides with the sign-extended form.
     fn next_java_long(&mut self) -> i64 {
         self.next_i64()
     }
@@ -46,8 +40,6 @@ pub trait Random: Rng + Clone {
 
     fn next_f64(&mut self) -> f64;
 
-    /// The reference banks the second normal of each polar pair, so a source
-    /// carries that state and a wrapper forwards to the source it wraps.
     fn next_gaussian(&mut self) -> f64;
 
     fn fork(&mut self) -> Self;
@@ -59,9 +51,6 @@ pub trait Random: Rng + Clone {
     fn fork_hash(&mut self, seed: impl AsRef<[u8]>) -> Self;
 }
 
-/// The second normal of the last polar pair, kept for the next call the way
-/// `java.util.Random.nextGaussian` keeps it. Raw bits, so the derived `Eq` of
-/// the source that holds it stays derived.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct GaussianBank(Option<u64>);
 
@@ -88,8 +77,6 @@ where
     T: Into<IVec3>,
 {
     let pos = pos.into();
-    // The asymmetry is the data: Java's `x * 3129871` is an int multiply that wraps at 32
-    // bits, while `z * 116129781L` is a long multiply that does not.
     let mut l = (pos.x.wrapping_mul(3129871) as i64)
         ^ (pos.z as i64).wrapping_mul(116129781)
         ^ (pos.y as i64);
@@ -100,8 +87,6 @@ where
     (l >> 16) as u64
 }
 
-/// `Util.shuffle`: a descending Fisher-Yates that spends `n - 1` draws, a slot
-/// swapped with itself as readily as with any other.
 pub fn shuffle<T, R: Random>(items: &mut [T], rng: &mut R) {
     for size in (2..=items.len()).rev() {
         let swap_to = rng.next_i32_bound(size as i32) as usize;
@@ -109,7 +94,6 @@ pub fn shuffle<T, R: Random>(items: &mut [T], rng: &mut R) {
     }
 }
 
-/// A shuffled copy of `items`, with the draw order of [`shuffle`].
 pub fn shuffled<T: Clone, R: Random>(items: &[T], rng: &mut R) -> Vec<T> {
     let mut copy = items.to_vec();
     shuffle(&mut copy, rng);

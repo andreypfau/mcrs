@@ -5,11 +5,6 @@ use glam::DVec3;
 
 use mcrs_minecraft_protocol::{Decode, Encode, Result, VarInt};
 
-/// A vector quantized into three 15-bit components sharing one integer scale.
-///
-/// Components larger in magnitude than [`LpVec3::ABS_MAX_VALUE`] are clamped,
-/// NaN becomes zero, and a vector whose largest component is below
-/// [`LpVec3::ABS_MIN_VALUE`] encodes as a single zero byte.
 #[derive(Copy, Clone, PartialEq, Default, Debug, From, Into)]
 pub struct LpVec3(pub DVec3);
 

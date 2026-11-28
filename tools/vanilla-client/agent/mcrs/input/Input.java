@@ -12,15 +12,13 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.Hud;
+import net.minecraft.client.gui.screens.InBedChatScreen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.inventory.ContainerInput;
 import org.lwjgl.sdl.SDLVideo;
 
-/**
- * Plays the input script of one step: the held keys and the view rotation of each client tick.
- * The title {@code Go} starts the script at the tick after the {@code go} tick of the step, and the
- * title {@code Stop} ends it. Outside a script, no key is held.
- */
 public final class Input {
 
     private static final boolean MINIMIZE = Boolean.getBoolean("mcrs.minimize");
@@ -38,7 +36,6 @@ public final class Input {
     private static Object seen;
     private static boolean minimized;
     private static int tick;
-    /** Each line: the first step tick, the held keys, and an optional yaw and pitch. */
     private static List<String[]> lines = List.of();
 
     private Input() {}
@@ -60,6 +57,7 @@ public final class Input {
         }
         tick++;
         String keys = "none";
+        Set<String> pressed = Set.of();
         LocalPlayer player = client.player;
         for (String[] line : lines) {
             int at = Integer.parseInt(line[0]);
@@ -67,12 +65,17 @@ public final class Input {
                 break;
             }
             keys = line[1];
+            pressed = at == tick ? Set.of(keys.split(",")) : Set.of();
             if (at == tick && line.length == 4 && player != null) {
                 player.setYRot(Float.parseFloat(line[2]));
                 player.setXRot(Float.parseFloat(line[3]));
             }
         }
         hold(client.options, Set.of(keys.split(",")));
+        if (pressed.contains("leave_bed") && client.gui.screen() instanceof InBedChatScreen bed) {
+            bed.onClose();
+        }
+        press(client, pressed);
     }
 
     private static void start() {
@@ -87,6 +90,34 @@ public final class Input {
                 .map(line -> line.trim().split(" +")).toList();
         System.out.println("input: Go at step tick " + (tick + 1) + ", " + lines.size() + " lines: "
                 + lines.stream().map(Arrays::toString).toList());
+    }
+
+    private static void press(Minecraft client, Set<String> pressed) {
+        String[] names = {"drop", "swap_hands", "inventory"};
+        String[] mappings = {"key.drop", "key.swapOffhand", "key.inventory"};
+        for (int index = 0; index < names.length; index++) {
+            if (pressed.contains(names[index])) {
+                KeyMapping.click(KeyMapping.get(mappings[index]).getDefaultKey());
+                System.out.println("input: " + names[index] + " at step tick " + tick);
+            }
+        }
+        if (pressed.contains("close") && client.gui.screen() != null) {
+            client.gui.screen().onClose();
+        }
+        LocalPlayer player = client.player;
+        for (String key : pressed) {
+            if (!key.startsWith("click:") || player == null) {
+                continue;
+            }
+            if (!(client.gui.screen() instanceof AbstractContainerScreen<?>)) {
+                System.out.println("input: no container screen for " + key);
+                continue;
+            }
+            int slot = Integer.parseInt(key.substring("click:".length()));
+            client.gameMode.handleContainerInput(player.containerMenu.containerId, slot, 0,
+                    ContainerInput.PICKUP, player);
+            System.out.println("input: primary click on slot " + slot + " at step tick " + tick);
+        }
     }
 
     private static void hold(Options options, Set<String> keys) {

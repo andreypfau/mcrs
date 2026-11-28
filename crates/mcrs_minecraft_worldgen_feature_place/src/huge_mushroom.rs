@@ -13,15 +13,12 @@ use crate::holds;
 use crate::tables::BlockTables;
 use crate::tree::provider::StateProvider;
 
-/// Which cap the same stem-and-scan skeleton carries: a flat plate one block
-/// thick, or four layers with a rim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MushroomCap {
     Brown,
     Red,
 }
 
-/// `up`, `west`, `east`, `north`, `south` as bits 4 down to 0.
 pub fn face_index(up: bool, west: bool, east: bool, north: bool, south: bool) -> usize {
     (up as usize) << 4
         | (west as usize) << 3
@@ -30,11 +27,6 @@ pub fn face_index(up: bool, west: bool, east: bool, north: bool, south: bool) ->
         | (south as usize)
 }
 
-/// The five `HugeMushroomBlock` faces of a cap state, as the states reached by
-/// setting them, with the source's own `up` kept for the cap that never sets it.
-///
-/// A state whose block has no such faces is absent, and is written unchanged —
-/// the reference's `hasProperty` guard.
 #[derive(Clone, Debug, Default)]
 pub struct MushroomFaces {
     entries: HashMap<u16, FaceEntry>,
@@ -51,7 +43,6 @@ impl MushroomFaces {
         self.entries.insert(state.0, FaceEntry { up, by_faces });
     }
 
-    /// `up` left `None` keeps the face the state already has.
     pub fn with_faces(
         &self,
         state: VoxelId,
@@ -78,16 +69,11 @@ pub struct CompiledHugeMushroom {
     pub stem_provider: StateProvider,
     pub foliage_radius: i32,
     pub can_place_on: Predicate,
-    /// `minecraft:leaves`, which the free-space scan tolerates but the writer
-    /// does not.
     pub leaves: StateMask,
     pub replaceable_by_mushrooms: StateMask,
     pub tables: Arc<BlockTables>,
 }
 
-/// Both huge mushrooms: two height draws, a free-space scan that draws nothing,
-/// then the cap and the stem, each spending whatever its state provider spends
-/// per block it considers.
 pub fn place_huge_mushroom<W: WorldGenVolume>(
     cfg: &CompiledHugeMushroom,
     volume: &mut W,
@@ -254,8 +240,6 @@ mod tests {
     const STEM: VoxelId = VoxelId(300);
     const ORIGIN: BlockPos = BlockPos::new(8, 70, 8);
 
-    /// The cap's 32 face states sit at `CAP + 1 ..= CAP + 32`, so a test reads
-    /// the faces a placer asked for straight off the written id.
     fn faces() -> MushroomFaces {
         let mut table = MushroomFaces::default();
         let mut by_faces = [VoxelId(0); 32];
@@ -304,9 +288,6 @@ mod tests {
         height
     }
 
-    /// Two draws for the height and nothing else, because a
-    /// `simple` provider draws nothing: the cap is a plate at the top of
-    /// the stem with its corners missing.
     #[test]
     fn a_brown_cap_is_a_cornerless_plate_over_its_stem() {
         let cfg = config(MushroomCap::Brown, 3);
@@ -336,8 +317,6 @@ mod tests {
         );
     }
 
-    /// The red cap is four layers: three rims below the top and a full plate at
-    /// it, one narrower than the rims.
     #[test]
     fn a_red_cap_is_three_rims_under_a_plate() {
         let cfg = config(MushroomCap::Red, 2);
@@ -362,8 +341,6 @@ mod tests {
         assert_eq!(plate, 9, "a three-wide plate at the top");
     }
 
-    /// The height is drawn before anything is read, so a refused position costs
-    /// the same two draws as a placed one.
     #[test]
     fn a_refused_position_still_spends_the_height_draws() {
         let cfg = config(MushroomCap::Red, 2);
@@ -381,7 +358,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// A block inside the cap's own scan radius refuses the whole mushroom.
     #[test]
     fn an_obstructed_crown_refuses() {
         let cfg = config(MushroomCap::Red, 2);

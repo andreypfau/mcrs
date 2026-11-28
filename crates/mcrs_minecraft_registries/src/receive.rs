@@ -10,24 +10,18 @@ use crate::diagnostics::{Diagnostic, Diagnostics};
 use crate::load::{Filled, stages};
 use crate::registries::{Kind, Registries};
 
-/// Each registry's tags as sent: the tag names with the numbers of their members.
 pub type ReceivedTags = Vec<(ResourceLocationBuf, Vec<(ResourceLocationBuf, Vec<i32>)>)>;
 
-/// What a server sent of its registries during one configuration.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Received {
-    /// Each registry's entries in the order sent, a registry sent in several packets already
-    /// joined. An entry's data is absent where the server left it to a pack the client knows.
     pub registries: Vec<(
         ResourceLocationBuf,
         Vec<(ResourceLocationBuf, Option<NbtTag>)>,
     )>,
-    /// The tags of each registry, as numbers of the entries the registry holds.
     pub tags: ReceivedTags,
 }
 
 impl Received {
-    /// Replaces the tags of each registry `update` names.
     pub fn replace_tags(&mut self, update: ReceivedTags) {
         for (registry, tags) in update {
             match self.tags.iter_mut().find(|(held, _)| *held == registry) {
@@ -39,13 +33,6 @@ impl Received {
 }
 
 impl Registries {
-    /// Builds the registries a client holds from what a server sent. A synced registry holds the
-    /// entries sent, numbered in their order. An entry sent without data is decoded in the network
-    /// form from the file `known` reads at the path of the entry's file in the packs the server
-    /// negotiated. A registry read by its names alone holds the names sent. Every tag comes from
-    /// the received tags, and every other data registry is empty. Declaration validators do not
-    /// run: they check what a data pack load needs, such as the features a biome places, which a
-    /// server never sends.
     pub fn receive(
         declarations: Vec<Declaration>,
         received: &Received,
@@ -108,7 +95,6 @@ impl Registries {
     }
 }
 
-/// Members numbered outside the registry are dropped, as the game drops them.
 fn received_tags(
     registry: &ResourceLocationBuf,
     received: &[(ResourceLocationBuf, Vec<(ResourceLocationBuf, Vec<i32>)>)],

@@ -1,15 +1,3 @@
-//! GPU throughput of lowered channels in a pose-shaped kernel: one lane per mob reads its tick
-//! records (current and previous), its state record and its input record
-//! (`docs/entity-render.md`, section 4), evaluates one channel and writes one `f32`.
-//!
-//! The timing follows `docs/entity-render-budget.md`, section 4.14 and appendix A: timestamps at
-//! the bounds of a compute pass, a warm-up that keeps the clock up, a calibration that makes one
-//! submission about 25 ms long, and the median and minimum over 9 submissions. On Metal the
-//! timestamps of a compute pass bracket its work; the wall time per repetition is printed next
-//! to them as a check.
-//!
-//! `cargo bench -p mcrs_molang_wgsl --bench gpu`
-
 #![expect(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -18,7 +6,7 @@
     reason = "a measurement program has no caller to return an error to"
 )]
 
-#[path = "../tests/gpu/mod.rs"]
+#[path = "../tests/it/device/mod.rs"]
 mod gpu;
 
 use std::fmt::Write as _;
@@ -42,11 +30,9 @@ use gpu::Gpu;
 const RUNS: usize = 9;
 const WORKGROUP: u32 = 128;
 
-/// The leg swing of `docs/spec/molang-queries.md`, MOLQ-WALK-001, postcondition 2.
 const WALK: &str =
     "math.cos(q.modified_distance_moved * 38.1704) * 80.2141 * q.modified_move_speed";
 
-/// A synthetic channel of about 30 syntax nodes over the clock, the walk, the head and a flag.
 const THIRTY_NODES: &str = "math.sin(q.anim_time * 120 + v.phase) \
     * math.lerp(8, 20, math.clamp(q.modified_move_speed, 0, 1)) \
     + math.cos(q.life_time * 45) * 4 \
@@ -54,7 +40,6 @@ const THIRTY_NODES: &str = "math.sin(q.anim_time * 120 + v.phase) \
     + math.min_angle(q.body_y_rotation - q.head_y_rotation) * 0.25 \
     + math.clamp(q.head_x_rotation, -30, 30) * 0.5";
 
-/// Each query of the benchmark, and the WGSL expression of the kernel that gives its value.
 const QUERIES: [(&str, Rate, &str); 8] = [
     (
         "modified_distance_moved",
@@ -126,7 +111,6 @@ fn channel(text: &str) -> Channel {
     Channel { program, arguments }
 }
 
-/// A pose-shaped kernel. `body` computes `value` from the decoded records.
 fn kernel(library: &str, function: &str, body: &str) -> String {
     format!(
         "{library}
@@ -166,7 +150,6 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {{
     )
 }
 
-/// The library with the fast-math barriers removed, to show what the bit-exact twin costs.
 fn fast_library() -> String {
     mcrs_molang_wgsl::LIBRARY
         .replace(
@@ -248,8 +231,6 @@ impl Bench {
         bench
     }
 
-    /// The governor lowers the clock for a pass with idle gaps around it, so arithmetic runs
-    /// ahead of each timed submission.
     fn heat(&self) {
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
         {
@@ -284,7 +265,6 @@ impl Bench {
         }
     }
 
-    /// GPU time and wall time of one submission with `reps` dispatches, in milliseconds.
     fn submit(
         &self,
         pipeline: &ComputePipeline,
@@ -327,7 +307,6 @@ impl Bench {
         (gpu, wall)
     }
 
-    /// The median and minimum GPU time and the median wall time of one dispatch, in ms.
     fn time(&self, pipeline: &ComputePipeline, group: &BindGroup, workgroups: u32) -> [f64; 3] {
         let once = self.submit(pipeline, group, workgroups, 1).0;
         let reps = ((25.0 / once.max(1e-3)).ceil() as u32).clamp(1, 4000);
@@ -345,8 +324,6 @@ impl Bench {
     }
 }
 
-/// A pipeline with the bindings of [`kernel`] fixed, so that a kernel that reads only some
-/// records keeps the same bind group.
 fn pose_pipeline(gpu: &Gpu, source: &str) -> ComputePipeline {
     let entry = |binding: u32, ty: BufferBindingType| BindGroupLayoutEntry {
         binding,

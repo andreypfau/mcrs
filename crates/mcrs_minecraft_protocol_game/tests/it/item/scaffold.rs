@@ -4,11 +4,14 @@ use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_item_stack::ComponentType;
+use mcrs_minecraft_item_stack::HashedComponent;
+use mcrs_minecraft_item_stack::HashedStack;
+use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::item::{
-    ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DelimitedStack,
-    HashedPatchMap, HashedStack, ItemComponentValue, ItemStackValue, Lore, MaxStackSize,
-    ProtoStack, Template, Text, Unbreakable, hash_ops,
+    ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, ItemComponentValue,
+    ItemStackValue, Lore, MaxStackSize, ProtoStack, Template, Text, Unbreakable,
 };
 use mcrs_minecraft_registries::{FromWire, IdSet, Named, Ref, Resolved, Wire};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, rl};
@@ -162,67 +165,16 @@ fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
     assert_eq!(r, [7]);
 }
 
-fn delimited(bytes: &[u8]) -> DelimitedStack {
-    let mut r = bytes;
-    let stack = DelimitedStack::decode(&mut r).unwrap();
-    assert!(r.is_empty(), "{} trailing bytes", r.len());
-    stack
-}
-
-#[test]
-fn a_delimited_stack_skips_what_a_value_leaves_unread() {
-    let lookup = lookup();
-    let slot = ProtoStack::new(Item::Stone.id(), 1, patch());
-    let stack = DelimitedStack(slot.to_wire(&lookup).unwrap());
-    let bytes = encoded(&stack);
-    assert_eq!(delimited(&bytes), stack);
-    assert_eq!(stack.check(&lookup).unwrap(), slot);
-
-    let mut padded = vec![1, 1, 1, 0, 1, 3, 16, 0xAA, 0xBB];
-    let resolved = delimited(&padded).check(&lookup).unwrap();
-    assert_eq!(
-        resolved.components.get::<MaxStackSize>(),
-        Some(&stack_size(16))
-    );
-    padded.push(0);
-    assert!(DelimitedStack::decode(&mut &padded[..]).is_ok());
-
-    assert_eq!(
-        delimited(&[1, 0, 0, 0]).check(&lookup).unwrap(),
-        ProtoStack::EMPTY
-    );
-    assert!(
-        delimited(&[100, 1, 0, 0])
-            .check(&lookup)
-            .unwrap_err()
-            .to_string()
-            .contains("[1;99]")
-    );
-
-    let with_component = |kind: u8, value: u8| delimited(&[1, 1, 1, 0, kind, 1, value]);
-    for (kind, value, message) in [
-        (1, 0, "[1;99]: 0"),
-        (1, 100, "[1;99]: 100"),
-        (2, 0, "Value must be positive: 0"),
-    ] {
-        let error = with_component(kind, value)
-            .check(&lookup)
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains(message), "{error}");
-    }
-    assert!(with_component(2, 5).check(&lookup).is_ok());
-}
-
 #[test]
 fn a_hashed_slot_writes_the_map_then_the_set() {
     let hashed = HashedStack {
-        id: Item::Stone.id(),
+        kind: Kind(Item::Stone.id().number()),
         count: 3,
-        components: HashedPatchMap {
-            added: vec![(DataComponentType::MaxStackSize, 0x0102_0304)],
-            removed: vec![DataComponentType::Damage],
-        },
+        values: vec![HashedComponent {
+            component: ComponentType(DataComponentType::MaxStackSize as u16),
+            hash: 0x0102_0304,
+        }],
+        removals: vec![ComponentType(DataComponentType::Damage as u16)],
     };
     let mut wire = Vec::new();
     Some(hashed.clone()).encode(&mut wire).unwrap();
@@ -235,49 +187,6 @@ fn a_hashed_slot_writes_the_map_then_the_set() {
     let mut oversized = vec![1, 3, 0x81, 0x02];
     oversized.extend(std::iter::repeat_n([0, 0, 0, 0, 0], 257).flatten());
     assert!(HashedStack::decode(&mut &oversized[..]).is_err());
-}
-
-#[test]
-fn a_hashed_patch_collapses_repeated_kinds_like_a_hash_map() {
-    let wire = [2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 2, 3, 3, 3, 3];
-    assert_eq!(
-        HashedPatchMap::decode(&mut &wire[..]).unwrap(),
-        HashedPatchMap {
-            added: vec![(DataComponentType::MaxStackSize, 2)],
-            removed: vec![DataComponentType::Damage],
-        }
-    );
-}
-
-#[test]
-fn a_hashed_patch_matches_through_hash_ops() {
-    let patch = patch();
-    let names = registries();
-    let hashed = HashedPatchMap::create(&patch, names).unwrap();
-    assert_eq!(hashed.removed, vec![DataComponentType::Damage]);
-    let (kind, hash) = hashed.added[0];
-    assert_eq!(kind, DataComponentType::MaxStackSize);
-    assert_eq!(hash, hash_ops::hash(&16i32).unwrap());
-    assert!(hashed.matches(&patch, names));
-
-    let mut other = patch.clone();
-    other.set(stack_size(17));
-    assert!(!hashed.matches(&other, names));
-    other.set(stack_size(16));
-    other.remove(DataComponentType::RepairCost);
-    assert!(!hashed.matches(&other, names));
-    let mut fewer = patch.clone();
-    fewer.added.pop();
-    assert!(!hashed.matches(&fewer, names));
-
-    let mut transient = ComponentPatch::EMPTY;
-    transient.set(CreativeSlotLock);
-    assert!(HashedPatchMap::create(&transient, names).is_err());
-    assert!(!HashedPatchMap::default().matches(&transient, names));
-    assert_eq!(
-        HashedStack::create(&ProtoStack::EMPTY, &lookup()).unwrap(),
-        None
-    );
 }
 
 fn stone() -> ResourceKeyBuf<Item> {
@@ -512,7 +421,6 @@ fn an_air_stack_is_empty_whatever_its_count() {
     let mut wire = Vec::new();
     air.encode_checked(&lookup, &mut wire).unwrap();
     assert_eq!(wire, [0]);
-    assert_eq!(HashedStack::create(&air, &lookup).unwrap(), None);
     let mut r: &[u8] = &[1, 0, 0, 0];
     assert_eq!(
         ProtoStack::decode_checked(&lookup, &mut r).unwrap(),

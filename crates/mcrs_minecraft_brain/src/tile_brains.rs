@@ -4,15 +4,13 @@ use crate::Cadence;
 use crate::Decision;
 use crate::PlayerRow;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
-/// The brains of the mobs of one tile, in columns, in the order of their order keys.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TileBrains<B> {
     pub(crate) ids: Vec<EntityId>,
-    pub(crate) keys: Vec<EntityKey>,
+    pub(crate) keys: Vec<EntityUuid>,
     pub(crate) cadences: Vec<Cadence>,
-    /// The next tick at which each brain runs a full evaluation without a fact.
     pub(crate) wakes: Vec<u64>,
     pub(crate) brains: Vec<B>,
     pub(crate) near_players: Vec<PlayerRow>,
@@ -35,11 +33,10 @@ impl<B> Default for TileBrains<B> {
     }
 }
 
-/// One brain of a tile, as [`TileBrains::iter`] gives it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BrainEntry<'a, B> {
     pub mob: EntityId,
-    pub key: EntityKey,
+    pub key: EntityUuid,
     pub cadence: Cadence,
     pub wake: u64,
     pub brain: &'a B,
@@ -56,7 +53,6 @@ impl<B> TileBrains<B> {
         self.ids.is_empty()
     }
 
-    /// The count of full evaluations that the tile ran.
     #[must_use]
     pub const fn evaluations(&self) -> u64 {
         self.evaluations
@@ -81,7 +77,7 @@ impl<B> TileBrains<B> {
     pub(crate) fn insert(
         &mut self,
         mob: EntityId,
-        key: EntityKey,
+        key: EntityUuid,
         cadence: Cadence,
         wake: u64,
         brain: B,
@@ -94,7 +90,7 @@ impl<B> TileBrains<B> {
         self.brains.insert(at, brain);
     }
 
-    pub(crate) fn remove(&mut self, key: &EntityKey) -> Option<Removed<B>> {
+    pub(crate) fn remove(&mut self, key: &EntityUuid) -> Option<Removed<B>> {
         let at = self.keys.binary_search(key).ok()?;
         if at >= self.ids.len() {
             return None;
@@ -108,9 +104,7 @@ impl<B> TileBrains<B> {
         })
     }
 
-    /// Removes the brains of `keys`, which are sorted, in one pass over the columns; gives them in
-    /// key order.
-    pub(crate) fn remove_all(&mut self, keys: &[EntityKey]) -> Vec<Removed<B>> {
+    pub(crate) fn remove_all(&mut self, keys: &[EntityUuid]) -> Vec<Removed<B>> {
         let leaves: Vec<bool> = self
             .keys
             .iter()
@@ -138,8 +132,6 @@ impl<B> TileBrains<B> {
         removed
     }
 
-    /// Adds `entries`, which are sorted by key, in one merge with the columns. The keys of the
-    /// tile and of `entries` are distinct.
     pub(crate) fn insert_all(&mut self, entries: Vec<Removed<B>>) {
         if entries.is_empty() {
             return;
@@ -198,13 +190,12 @@ impl<B> TileBrains<B> {
 
 pub(crate) struct Removed<B> {
     pub(crate) mob: EntityId,
-    pub(crate) key: EntityKey,
+    pub(crate) key: EntityUuid,
     pub(crate) cadence: Cadence,
     pub(crate) wake: u64,
     pub(crate) brain: B,
 }
 
-/// Takes the values of `column` whose flag in `leaves` is set, in order; keeps the others.
 fn extract<T>(column: &mut Vec<T>, leaves: &[bool]) -> Vec<T> {
     let mut flags = leaves.iter();
     column

@@ -30,11 +30,6 @@ use self::size::{min_clipped_height, size_at_height};
 use self::survive::SurviveRule;
 use self::trunk::{TreeContext, TreeStates, Trunk};
 
-/// `LeavesBlock.getOptionalDistanceAt` and the transition that writes a new
-/// `distance` back, both as tables over state ids.
-///
-/// A block in `prevents_nearby_leaf_decay` answers 0 and is never rewritten, so
-/// its row may be the identity.
 #[derive(Clone, Debug, Default)]
 pub struct LeafDistances {
     entries: HashMap<u16, LeafEntry>,
@@ -47,7 +42,6 @@ struct LeafEntry {
 }
 
 impl LeafDistances {
-    /// `by_distance[d - 1]` is the state with `distance = d`, for `d` in 1..=7.
     pub fn insert(&mut self, state: VoxelId, distance: u8, by_distance: [VoxelId; 7]) {
         self.entries.insert(
             state.0,
@@ -74,19 +68,14 @@ impl LeafDistances {
     }
 }
 
-/// The tables every tree of a dimension shares: what the world is made of, not
-/// what one feature configures.
 #[derive(Clone, Debug)]
 pub struct TreeTables {
     pub states: TreeStates,
     pub palette: TreePalette,
     pub leaf_distance: LeafDistances,
-    /// `BlockState.canSurvive` per block of a family the shapes cover, keyed by
-    /// the block index of the state being tested.
     pub survive: HashMap<Id<Block>, SurviveRule>,
 }
 
-/// One `tree` feature with every name it carries already resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledTree {
     pub trunk_provider: StateProvider,
@@ -100,16 +89,13 @@ pub struct CompiledTree {
     pub ignore_vines: bool,
     pub tables: Arc<TreeTables>,
 }
-/// `LeavesBlock.DECAY_DISTANCE`.
 const MAX_LEAF_DISTANCE: usize = 7;
 
-/// `TreeFeature.place`: the trunk and crown, then the decorators, then the leaf
-/// relaxation over everything written.
 pub fn place_tree<W: WorldGenVolume>(
     tree: &CompiledTree,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    sink: &mut dyn TreeSink<W>,
+    sink: &mut impl TreeSink<W>,
     origin: BlockPos,
 ) -> bool {
     let mut cx = TreeContext::new(
@@ -158,7 +144,6 @@ pub fn place_tree<W: WorldGenVolume>(
     true
 }
 
-/// The roots the tree wrote, or `None` when it refused to place at all.
 fn do_place<W: WorldGenVolume>(
     tree: &CompiledTree,
     cx: &mut TreeContext<'_, W>,
@@ -201,8 +186,6 @@ fn do_place<W: WorldGenVolume>(
     Some(roots)
 }
 
-/// `TreeFeature.getMaxFreeTreeHeight`: the footprint of `minimum_size` scanned
-/// bottom up, stopping two below the first obstruction. No draws.
 fn max_free_tree_height<W: WorldGenVolume>(
     tree: &CompiledTree,
     cx: &TreeContext<'_, W>,
@@ -224,12 +207,6 @@ fn max_free_tree_height<W: WorldGenVolume>(
     max_tree_height
 }
 
-/// `TreeFeature.updateLeaves`: lower the `distance` of every leaf reachable
-/// from a log inside the tree's bounding box.
-///
-/// The reference pops from a `HashSet`, so within one distance the order is
-/// its own; this pops the most recently added, which is what makes the pass
-/// reproducible here.
 struct Marks {
     bounds: BoundingBox,
     size: [usize; 3],
@@ -360,12 +337,10 @@ mod tests {
     const LOG: VoxelId = VoxelId(2);
     const MUSHROOM: VoxelId = VoxelId(3);
 
-    /// `leaves[distance]`, the block's seven states.
     const fn leaf(distance: u8) -> VoxelId {
         VoxelId(10 + distance as u16)
     }
 
-    /// Dirt to y=63, air above, plus whatever a test overrides.
     fn flat() -> BoxRegion {
         let mut volume = BoxRegion::columns(2, -64, 319, AIR)
             .floor(63, DIRT)
@@ -437,8 +412,6 @@ mod tests {
         table
     }
 
-    /// `straight` over a `blob` of radius 3 and no crown height: one row, whose
-    /// corners the blob's skip predicate always refuses at `y == 0`.
     fn tree(min_clipped: Option<i32>, decorators: Vec<CompiledTreeDecorator>) -> CompiledTree {
         CompiledTree {
             trunk_provider: StateProvider::Simple(LOG),
@@ -513,8 +486,6 @@ mod tests {
         assert!(volume.block_entities.is_empty());
     }
 
-    /// Distance 1 over the top log, then one per step out along the row: the
-    /// leaves a tree writes carry the provider's 7 until this pass lowers them.
     #[test]
     fn the_leaf_pass_lowers_a_distance_per_step_from_the_trunk() {
         let mut volume = flat();
@@ -537,8 +508,6 @@ mod tests {
         assert_eq!(volume.get(crown + IVec3::new(2, 0, 1)), leaf(4));
     }
 
-    /// The obstruction sits three above the origin, so the free height is one,
-    /// and without a `min_clipped_height` the tree refuses to place at all.
     #[test]
     fn an_obstruction_clips_the_tree_and_a_short_clip_places_nothing() {
         let blocked = ORIGIN + IVec3::Y * 3;
@@ -602,8 +571,6 @@ mod tests {
         assert_eq!(attached, height as usize, "one per log, all of them north");
     }
 
-    /// The relaxation takes the minimum of the distance it finds and the step
-    /// it arrived at, so it lowers a 7 it walks past and leaves a 1 alone.
     #[test]
     fn the_pass_takes_the_minimum_of_what_it_finds_and_the_step() {
         for (existing, expected) in [(leaf(1), leaf(1)), (leaf(7), leaf(4))] {

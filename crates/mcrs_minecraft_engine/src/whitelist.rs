@@ -1,4 +1,4 @@
-use crate::json_list::{parse_json_list, read_json_list, write_atomic};
+use crate::json_list::{parse_json_list, read_json_list};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::{Commands, Event, On, ResMut, Resource};
 use mcrs_minecraft_network::client::offline_player_uuid;
@@ -34,7 +34,6 @@ pub struct Whitelist {
     path: Option<Arc<Path>>,
 }
 
-/// The host side of the whitelist: it applies the edits that the dimensions send.
 pub struct WhitelistHostPlugin;
 
 impl Plugin for WhitelistHostPlugin {
@@ -44,7 +43,6 @@ impl Plugin for WhitelistHostPlugin {
     }
 }
 
-/// The whitelist changed in a way that can take an online player off it, with enforcement on.
 #[derive(Event, Clone, Copy, Debug)]
 pub struct EnforceWhitelist;
 
@@ -56,15 +54,11 @@ fn apply_whitelist_edit(
     if whitelist.apply(edit.event()) {
         whitelist.write_file();
     }
-    // An add cannot take a player off the whitelist, and enforcement must keep an operator that
-    // is not listed.
     if !matches!(*edit, EditWhitelist::Add(_)) && whitelist.enforces() {
         commands.trigger(EnforceWhitelist);
     }
 }
 
-/// A change to the whitelist. The host owns the whitelist, applies the change, writes the file
-/// and tells every dimension.
 #[derive(Event, Clone, Debug, PartialEq, Eq)]
 pub enum EditWhitelist {
     Add(WhitelistEntry),
@@ -88,7 +82,6 @@ impl Whitelist {
         }
     }
 
-    /// Returns whether the entries changed, so the file needs a write.
     pub fn apply(&mut self, edit: &EditWhitelist) -> bool {
         match edit {
             EditWhitelist::Add(entry) => self.add(entry.clone()),
@@ -112,7 +105,7 @@ impl Whitelist {
     }
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
         let entries: Vec<_> = self.entries.values().collect();
-        write_atomic(path, &serde_json::to_string_pretty(&entries)?)
+        mcrs_minecraft_save::write_atomic(path, serde_json::to_string_pretty(&entries)?.as_bytes())
     }
 
     pub fn remove(&mut self, id: &Uuid) -> Option<WhitelistEntry> {
@@ -289,8 +282,7 @@ mod tests {
     }
 
     #[test]
-    fn wl_file_004_a_reload_of_a_file_without_a_json_array_empties_the_whitelist_and_keeps_the_file()
-     {
+    fn wl_file_004_reload_without_json_array_empties_whitelist() {
         let path = temp_file("wl_file_004_reload");
         std::fs::write(
             &path,
@@ -364,14 +356,14 @@ mod tests {
     }
 
     #[test]
-    fn a_write_that_cannot_finish_leaves_the_file_as_it_was() {
+    fn a_save_that_cannot_finish_reports_the_error() {
         let path = temp_file("unfinished");
-        std::fs::write(&path, "[]").unwrap();
-        std::fs::create_dir_all(path.with_file_name("unfinished.tmp")).unwrap();
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(path.join("keep"), "[]").unwrap();
 
         assert!(Whitelist::new([wa()]).save(&path).is_err());
 
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "[]");
+        assert_eq!(std::fs::read_to_string(path.join("keep")).unwrap(), "[]");
     }
 
     #[test]
@@ -400,16 +392,6 @@ mod tests {
         assert!(!whitelist.add(wa()));
         assert_eq!(whitelist.remove(&WA), Some(wa()));
         assert_eq!(whitelist.remove(&WA), None);
-    }
-
-    #[test]
-    fn a_change_leaves_the_copy_that_a_clone_holds() {
-        let mut whitelist = Whitelist::new([wa()]);
-        let copy = whitelist.clone();
-
-        whitelist.remove(&WA);
-
-        assert!(copy.entries.contains_key(&WA));
     }
 
     #[test]

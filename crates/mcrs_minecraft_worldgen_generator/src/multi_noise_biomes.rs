@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use crate::biome_window::BiomeWindow;
 use crate::ids::require_registry;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
+use mcrs_minecraft_biome::climate::{ClimateCursor, ParameterList, ParameterPoint, TargetPoint};
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::{MultiNoiseBiomeEntry, MultiNoiseBiomeSource};
 use mcrs_minecraft_biome::{
@@ -20,8 +21,6 @@ pub struct UnknownEntry {
     pub name: String,
 }
 
-/// Why a biome source has no climate table: a biome the registry does not hold,
-/// an id the palette's byte cannot store, or a source that names no biomes.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum BiomeTableError {
     #[error(transparent)]
@@ -32,7 +31,6 @@ pub enum BiomeTableError {
     NoTable(String),
 }
 
-/// The biome registry as a table builder reads it: a name in, the id out.
 pub trait BiomeNames {
     fn biome_named(&self, name: ResourceLocation<'_>) -> Result<Id<Biome>, UnknownEntry>;
 }
@@ -55,10 +53,6 @@ fn narrow_biome(id: Id<Biome>) -> Result<u8, NarrowError> {
     })
 }
 
-/// Biome ids over the column's quart cells, widened by one cell in every
-/// direction: the zoom picks between eight quart corners and reaches outside
-/// the column on all three axes, so the answer must never come from a
-/// neighbouring column's stored palette.
 pub struct BiomeGrid {
     pub volume: SampleGrid,
     pub ids: Vec<u8>,
@@ -69,23 +63,18 @@ impl BiomeGrid {
     pub fn get(&self, x: i32, y: i32, z: i32) -> u8 {
         self.ids[self.volume.index_unchecked(x, y, z)]
     }
+
+    #[must_use]
+    pub fn window(&self) -> BiomeWindow<'_> {
+        BiomeWindow::new(self.volume, self.volume, 0, 0, &self.ids)
+    }
 }
 
-/// A biome source's climate table with each entry already reduced to the id
-/// the palette stores.
-///
-/// Resolving at build time rather than per cell means a cell's lookup ends at
-/// the id itself, with no name to hash on the way — and the table is the same
-/// for every column of the dimension.
 pub struct MultiNoiseBiomeTable {
     table: ParameterList<u8>,
 }
 
 impl MultiNoiseBiomeTable {
-    /// A table is built only when every biome resolved and fits the palette's
-    /// byte: a substituted or truncated id would alias a different biome
-    /// everywhere, in the grid the surface stage folds over as much as in the
-    /// palette the client is sent.
     pub fn of_preset(
         preset: Preset,
         biomes: &impl BiomeNames,
@@ -135,11 +124,9 @@ impl MultiNoiseBiomeTable {
         self.table.find_value(target).copied()
     }
 
-    /// [`Self::biome_at`] over a run of neighbouring cells: `last` carries the
-    /// previous answer into the next search.
     #[inline]
-    pub fn biome_at_from(&self, target: TargetPoint, last: &mut Option<usize>) -> Option<u8> {
-        self.table.find_value_from(target, last).copied()
+    pub fn cursor(&self) -> ClimateCursor<'_, u8> {
+        self.table.cursor()
     }
 
     pub fn len(&self) -> usize {
@@ -151,13 +138,12 @@ impl MultiNoiseBiomeTable {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PresetBiomeTables {
     tables: Vec<Arc<MultiNoiseBiomeTable>>,
 }
 
 impl PresetBiomeTables {
-    /// `lists` holds the name and preset of each parameter list in id order.
     pub fn build<'a>(
         lists: impl IntoIterator<Item = (&'a ResourceLocationBuf, Preset)>,
         biomes: &impl BiomeNames,

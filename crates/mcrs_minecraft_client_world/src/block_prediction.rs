@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use bevy::ecs::prelude::Resource;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
-/// The block changes the client made before the server answered them, and the sequence counter
-/// of the world they were made in.
 #[derive(Resource, Default, Debug)]
 pub struct BlockPredictions {
     sequence: i32,
@@ -17,7 +15,6 @@ struct Record {
     server_state: BlockStateId,
 }
 
-/// A record that an acknowledgement settled: the state the server holds at `pos`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Settled {
     pub pos: BlockPos,
@@ -25,15 +22,11 @@ pub struct Settled {
 }
 
 impl BlockPredictions {
-    /// The sequence of a new prediction. The counter wraps after `i32::MAX`, as the game's
-    /// client does, although a server closes the connection on a negative sequence.
     pub fn next_sequence(&mut self) -> i32 {
         self.sequence = self.sequence.wrapping_add(1);
         self.sequence
     }
 
-    /// Notes that the prediction of `sequence` changed the block at `pos` away from `old`. A
-    /// position that already has a record keeps the server state of its first change.
     pub fn record(&mut self, sequence: i32, pos: BlockPos, old: BlockStateId) {
         self.records
             .entry(pos)
@@ -44,8 +37,6 @@ impl BlockPredictions {
             });
     }
 
-    /// Takes a state the server sent for `pos`. Answers the state to write into the world, or
-    /// `None` when a prediction holds the position until its acknowledgement.
     pub fn server_update(&mut self, pos: BlockPos, state: BlockStateId) -> Option<BlockStateId> {
         match self.records.get_mut(&pos) {
             Some(record) => {
@@ -56,7 +47,6 @@ impl BlockPredictions {
         }
     }
 
-    /// Removes each record with a sequence of `sequence` or less.
     pub fn acknowledge(&mut self, sequence: i32) -> impl Iterator<Item = Settled> + '_ {
         self.records
             .extract_if(move |_, record| record.sequence <= sequence)
@@ -66,7 +56,6 @@ impl BlockPredictions {
             })
     }
 
-    /// A new world starts its counter at 0 and holds no records.
     pub fn clear(&mut self) {
         self.sequence = 0;
         self.records.clear();
@@ -97,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn cbk_prd_007_a_server_state_for_a_recorded_position_waits_for_the_acknowledgement() {
+    fn cbk_prd_007_server_state_waits_for_the_acknowledgement() {
         let mut predictions = BlockPredictions::default();
         let (broken, other) = (BlockPos::new(0, 0, 0), BlockPos::new(1, 0, 0));
         predictions.record(1, broken, state(1));

@@ -16,9 +16,15 @@
     )
 )]
 
+mod c_comments;
 mod checks;
+mod comments;
+mod crate_map;
+mod example_dependencies;
 mod git;
+mod hash_comments;
 mod keys;
+mod markup_comments;
 mod metadata;
 mod parity;
 mod scope;
@@ -36,6 +42,12 @@ const DEFAULT_BASE_REF: &str = "origin/main";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args == ["strip-comments"] {
+        return strip_comments();
+    }
+    if args == ["crate-map"] {
+        return write_crate_map();
+    }
     let trigger = match trigger::from_args(&args) {
         Ok(trigger) => trigger,
         Err(problem) => {
@@ -94,6 +106,34 @@ fn main() -> ExitCode {
         ExitCode::SUCCESS
     } else {
         ExitCode::from(1)
+    }
+}
+
+fn strip_comments() -> ExitCode {
+    let stripped = checks::root_of(Path::new(".")).and_then(|root| comments::strip_tree(&root));
+    match stripped {
+        Ok(changed) => {
+            println!("removed the comments of {changed} files; run cargo fmt --all");
+            ExitCode::SUCCESS
+        }
+        Err(problem) => {
+            eprintln!("{problem}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn write_crate_map() -> ExitCode {
+    let written = checks::root_of(Path::new(".")).and_then(|root| crate_map::write(&root));
+    match written {
+        Ok(count) => {
+            println!("wrote docs/crates.md with {count} crates");
+            ExitCode::SUCCESS
+        }
+        Err(problem) => {
+            eprintln!("{problem}");
+            ExitCode::from(1)
+        }
     }
 }
 

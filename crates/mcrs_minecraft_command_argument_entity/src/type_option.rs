@@ -55,7 +55,6 @@ pub(crate) fn read_type<'a>(
     Ok(())
 }
 
-/// Whether an earlier `type` option of the same selector named this tag.
 fn type_tag_seen(
     input: &str,
     options_start: usize,

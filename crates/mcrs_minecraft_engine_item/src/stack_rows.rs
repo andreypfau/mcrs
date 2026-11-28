@@ -11,10 +11,6 @@ use crate::item_columns::ItemColumns;
 use crate::row::Row;
 use crate::row::bits;
 
-/// Compares and hashes the item components of stacks. It reads every item component type and
-/// [`Kind`], not the count.
-///
-/// A system that also writes an item component takes both through a `ParamSet`.
 #[derive(SystemParam)]
 pub struct StackRows<'w, 's> {
     columns: ItemColumns<'w, 's>,
@@ -27,8 +23,6 @@ impl<'w, 's> StackRows<'w, 's> {
         self.kinds.get(stack).ok().copied()
     }
 
-    /// True when the two stacks have the same kind and the same effective components. The count
-    /// has no part.
     #[must_use]
     pub fn mergeable(&mut self, left: Entity, right: Entity) -> bool {
         if self.kind(left).is_none() || self.kind(left) != self.kind(right) {
@@ -40,7 +34,6 @@ impl<'w, 's> StackRows<'w, 's> {
         }
     }
 
-    /// A hash of the kind and the effective components. Mergeable stacks have equal hashes.
     #[must_use]
     pub fn row_hash(&mut self, stack: Entity) -> Option<u64> {
         let kind = self.kind(stack)?;

@@ -1,48 +1,44 @@
 use std::error::Error;
 use std::fmt;
 
-/// A defect in one file of the static block entity data. The file is skipped.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockEntityError {
-    /// The pack path of the file.
     pub path: String,
     pub kind: BlockEntityErrorKind,
 }
 
-/// What is wrong with a file of the static block entity data.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BlockEntityErrorKind {
-    /// A geometry file is not UTF-8 text.
-    NotUtf8 { message: String },
-    /// A geometry file, or one geometry of it, is rejected.
+    NotUtf8 {
+        message: String,
+    },
     Geometry {
         identifier: Option<String>,
         message: String,
     },
-    /// Two geometry files define the same geometry.
-    DuplicateGeometry { identifier: String },
-    /// A data file path does not name a block as `<namespace>/<path>.json`.
+    DuplicateGeometry {
+        identifier: String,
+    },
     DataPath,
-    /// The block of a data file has no block definition.
-    NoBlockDefinition { block: String },
-    /// A data file is not JSON of the data shape.
-    Syntax { message: String },
-    /// A layer of a data file is wrong.
-    Layer { index: usize, cause: LayerError },
+    NoBlockDefinition {
+        block: String,
+    },
+    Syntax {
+        message: String,
+    },
+    Layer {
+        index: usize,
+        cause: LayerError,
+    },
 }
 
-/// What is wrong with one layer of a data file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LayerError {
-    /// The `when` condition does not compile against the properties of the block.
     Condition { source: String, message: String },
-    /// The layer names a geometry that no geometry file defines.
     NoGeometry { name: String },
-    /// The texture is not `namespace:path`.
     TextureId { texture: String },
-    /// The tint is no dye id.
     Tint { tint: Option<u8> },
 }
 

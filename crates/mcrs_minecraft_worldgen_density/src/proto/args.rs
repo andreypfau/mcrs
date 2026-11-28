@@ -48,8 +48,6 @@ fn default_multiple() -> DensityFunctionHolder {
     DensityFunctionHolder::Value(ConstantValue::from(1.0))
 }
 
-/// `optionalFieldOf` drops the field on encode when it equals the default, and
-/// the default is a `ConstantFunction(1.0f)` however the datapack spelled it.
 fn is_default_multiple(multiple: &DensityFunctionHolder) -> bool {
     multiple
         .as_constant()
@@ -125,8 +123,6 @@ impl Validate for IntervalSelectArguments {
                 self.thresholds.len()
             ));
         }
-        // `Comparators.isInOrder(thresholds, Float::compare)`, which orders -0.0
-        // below 0.0. A plain `<` on the payload would accept `[0.0, -0.0]`.
         let out_of_order = self
             .thresholds
             .iter()
@@ -168,9 +164,6 @@ pub const MAX_BLENDED_NOISE_SCALE: f64 = 1000.0;
 pub const MIN_SMEAR_SCALE_MULTIPLIER: f64 = 1.0;
 pub const MAX_SMEAR_SCALE_MULTIPLIER: f64 = 8.0;
 
-/// The only density function whose scale fields carry codec bounds. All five
-/// stay `f64`: narrowing them is exact for the four shipped instantiations and
-/// for nothing else.
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BlendedNoiseArguments {
@@ -198,8 +191,6 @@ mod tests {
         }
     }
 
-    /// `Float::compare` puts -0.0 below 0.0, so one order loads and its reverse
-    /// does not.
     #[test]
     fn interval_select_orders_the_two_zeros() {
         serde_json::from_str::<ProtoDensityFunction>(

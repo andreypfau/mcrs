@@ -12,13 +12,6 @@ use serde_json::Value;
 
 use crate::vanilla_dir;
 
-/// Reads each file of the vanilla registry directory `registry` as `T`, writes the value back and
-/// asserts that the JSON equals the file.
-///
-/// # Panics
-///
-/// Panics when the directory is missing or empty, or when a file does not read as `T` or does not
-/// write back as read.
 pub fn assert_vanilla_round_trip<T: Serialize + DeserializeOwned>(registry: &str) {
     let files: Vec<PathBuf> = fs::read_dir(vanilla_dir().join(registry))
         .unwrap_or_else(|error| panic!("{registry}: {error}"))

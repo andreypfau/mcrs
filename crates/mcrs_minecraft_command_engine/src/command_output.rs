@@ -11,18 +11,12 @@ use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_text::{Color, IntoText, Text};
 
-/// Who sees the success message of a command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Feedback {
-    /// Only the player who sent the line.
     Source,
-    /// The player who sent the line, and every other operator through an
-    /// [`OperatorBroadcast`].
     SourceAndOperators,
 }
 
-/// What a handler sends and changes. Its messages go out after its effects apply, so a player
-/// that a command moves hears of the move after the move.
 #[derive(SystemParam)]
 pub struct CommandOutput<'w> {
     outbox: ResMut<'w, CommandOutbox>,
@@ -30,17 +24,14 @@ pub struct CommandOutput<'w> {
 }
 
 impl CommandOutput<'_> {
-    /// A packet the command sends besides its messages.
     pub fn send(&mut self, packet: OutboundPlayerPacket) {
         self.outbox.packets.push(packet);
     }
 
-    /// A system message to the player of the session `player`, in any dimension.
     pub fn tell(&mut self, player: PlayerSession, message: Text) {
         self.outbox.packets.extend(system_message(player, &message));
     }
 
-    /// A success message, to the players that `feedback` names.
     pub fn success(&mut self, invocation: &Invocation, message: Text, feedback: Feedback) {
         if feedback == Feedback::Source {
             self.outbox
@@ -58,8 +49,6 @@ impl CommandOutput<'_> {
         else {
             return;
         };
-        // The server has no language table, so the log keeps the translation key and its
-        // arguments as JSON.
         tracing::info!("[{}: {message}]", source.name);
         let admin = Text::translate(
             "chat.type.admin",
@@ -73,14 +62,10 @@ impl CommandOutput<'_> {
         });
     }
 
-    /// A source a modifier gives, after the ones it gave before in this run. The modifier then
-    /// returns [`Modified::Forked`](crate::Modified::Forked).
     pub fn fork(&mut self, source: SourceState) {
         self.outbox.forked.push(source);
     }
 
-    /// An effect for the world to apply after this run, in the order of writing across all
-    /// effect types, before the messages of the run go out.
     pub fn effect<E: Send + Sync + 'static>(&mut self, queue: &mut EffectQueue<E>, effect: E) {
         queue.values.push_back(effect);
         self.outbox.effects.push(apply_next::<E>);

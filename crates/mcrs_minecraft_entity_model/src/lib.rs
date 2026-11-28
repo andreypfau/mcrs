@@ -1,9 +1,3 @@
-//! Entity geometry files of the Bedrock format: reading the legacy and the current shape,
-//! the conversion to internal space, the bake to a static model, the bone transform and the
-//! GPU records of a model.
-
-// std: mcrs_minecraft_pack_file
-
 mod bake;
 mod baked_geometry;
 mod bone_pose;

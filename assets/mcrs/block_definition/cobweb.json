@@ -44,6 +44,7 @@
         "seconds_to_destroy": 4
       },
       "minecraft:loot": "minecraft:blocks/cobweb",
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,

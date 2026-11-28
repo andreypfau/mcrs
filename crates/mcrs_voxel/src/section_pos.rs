@@ -38,7 +38,6 @@ impl SectionPos {
         Self(IVec3::new(x, y, z))
     }
 
-    /// The block of the section with the lowest `x`, `y` and `z`.
     #[must_use]
     pub fn min_block(self) -> BlockPos {
         BlockPos::new(

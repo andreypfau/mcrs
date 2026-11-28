@@ -3,7 +3,6 @@ use mcrs_molang::{
     UseContext, ValueType,
 };
 
-/// A query of the context of use `entity` that the animation host supplies.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum EntityQuery {
@@ -21,16 +20,13 @@ pub enum EntityQuery {
     TargetXRotation,
     TargetYRotation,
     BodyYRotation,
-    /// The head index of the argument; `None` for an argument that is not a small whole number.
     HeadXRotation(Option<u8>),
     HeadYRotation(Option<u8>),
     IsBaby,
     IsAlive,
     HurtTime,
     DeathTicks,
-    /// The position of the variant entry in the synced registry.
     Variant,
-    /// The resource location of the variant entry, as a string.
     VariantIdentifier,
     VariantAsset,
     VariantModel,
@@ -42,6 +38,16 @@ pub enum EntityQuery {
     IsSprinting,
     IsSwimming,
     IsInvisible,
+    IsFallFlying,
+    IsSpinAttacking,
+    IsUsingItem,
+    SwimAmount,
+    FallFlyingTicks,
+    VelocityX,
+    VelocityZ,
+    TickVelocityLengthSquared,
+    BedYRotation,
+    HasBed,
     IsRiding,
     HasRider,
     AnimTime,
@@ -91,7 +97,7 @@ const fn later(row: Row, milestone: Milestone) -> Row {
 use EntityQuery as Q;
 use Rate::{AnimationFrame, EntityFrame, EntityTick, Frame};
 
-const ROWS: [Row; 38] = [
+const ROWS: [Row; 48] = [
     row("life_time", Q::LifeTime, EntityFrame),
     any("delta_time", Q::DeltaTime, EntityFrame),
     any("frame_alpha", Q::FrameAlpha, Frame),
@@ -137,6 +143,20 @@ const ROWS: [Row; 38] = [
     row("is_sprinting", Q::IsSprinting, EntityTick),
     row("is_swimming", Q::IsSwimming, EntityTick),
     row("is_invisible", Q::IsInvisible, EntityTick),
+    row("is_fall_flying", Q::IsFallFlying, EntityTick),
+    row("is_spin_attacking", Q::IsSpinAttacking, EntityTick),
+    row("is_using_item", Q::IsUsingItem, EntityTick),
+    row("swim_amount", Q::SwimAmount, EntityFrame),
+    row("fall_flying_ticks", Q::FallFlyingTicks, EntityTick),
+    row("velocity_x", Q::VelocityX, EntityFrame),
+    row("velocity_z", Q::VelocityZ, EntityFrame),
+    row(
+        "tick_velocity_length_squared",
+        Q::TickVelocityLengthSquared,
+        EntityTick,
+    ),
+    row("bed_y_rotation", Q::BedYRotation, EntityFrame),
+    row("has_bed", Q::HasBed, EntityTick),
     row("is_riding", Q::IsRiding, EntityTick),
     row("has_rider", Q::HasRider, EntityTick),
     row("anim_time", Q::AnimTime, AnimationFrame),
@@ -154,7 +174,6 @@ const ROWS: [Row; 38] = [
 ];
 
 impl EntityQuery {
-    /// The name after `query.`.
     #[must_use]
     pub fn name(self) -> &'static str {
         let base = match self {
@@ -167,7 +186,6 @@ impl EntityQuery {
             .map_or("", |row| row.name)
     }
 
-    /// A registry of the context of use `entity` with each entity query declared.
     #[must_use]
     pub fn registry() -> QueryRegistry {
         let mut registry = QueryRegistry::new(UseContext::Entity);
@@ -188,7 +206,6 @@ impl EntityQuery {
         registry
     }
 
-    /// The query of a declaration name with the literal arguments of one query slot.
     #[must_use]
     pub fn from_declaration(name: &str, arguments: &[LiteralKey]) -> Option<Self> {
         let query = ROWS.iter().find(|row| row.name == name)?.query;
@@ -206,7 +223,6 @@ impl EntityQuery {
         })
     }
 
-    /// Whether the animation host supplies the value itself, not the query source.
     #[must_use]
     pub const fn is_animation_supplied(self) -> bool {
         matches!(

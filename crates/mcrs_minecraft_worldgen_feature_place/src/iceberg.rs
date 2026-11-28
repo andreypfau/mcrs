@@ -12,21 +12,10 @@ pub struct CompiledIceberg {
     pub ice_mask: StateMask,
     pub snow_block: VoxelId,
     pub snow_block_mask: StateMask,
-    /// `snow`, the layer, which the smoothing pass drops when the block under
-    /// it goes.
     pub snow_layer_mask: StateMask,
-    /// `packed_ice`, `snow_block` and `blue_ice` — what the smoothing and
-    /// carving passes recognise as iceberg, whichever state the feature writes.
     pub iceberg_mask: StateMask,
 }
 
-/// One iceberg, grown from the sea surface: a stack of noisy discs above the
-/// water and a steeper stack below, smoothed, then usually hollowed by a
-/// slanted ellipse.
-///
-/// Every radius is drawn before the cell it would shape is tested, so a disc
-/// entirely outside the shape still costs its draws.
-/// The shape one iceberg drew before any cell of it was tested.
 struct Iceberg {
     origin: BlockPos,
     snow_on_top: bool,
@@ -163,7 +152,6 @@ fn generate_cut_out<W: WorldGenVolume>(
         carve(cfg, volume, berg, radius, y_off, false, angle, local);
     }
 
-    // The loop's own bound draws once per test, the failing one included.
     let mut y_off = -1;
     while y_off > -height + rng.next_i32_bound(5) {
         let radius = radius_steep(rng, -y_off, height, width);
@@ -172,9 +160,12 @@ fn generate_cut_out<W: WorldGenVolume>(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the configuration, the volume, the iceberg's shape, and the radius, vertical offset, water flag, angle and local position of one carved block"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one carved block"
+    )
 )]
 fn carve<W: WorldGenVolume>(
     cfg: &CompiledIceberg,
@@ -212,9 +203,12 @@ fn carve<W: WorldGenVolume>(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the configuration, the volume, the random source, the iceberg's shape, and the height, local position, radius and offset of one iceberg block"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one iceberg block"
+    )
 )]
 fn generate_block<W: WorldGenVolume>(
     cfg: &CompiledIceberg,
@@ -415,7 +409,6 @@ mod tests {
         }
     }
 
-    /// Air over water to the sea surface, the shape an iceberg grows into.
     fn ocean() -> FakeVolume {
         let mut volume = FakeVolume::default();
         volume.world.water = WATER;
@@ -430,8 +423,6 @@ mod tests {
         volume
     }
 
-    /// The prelude, in the reference's order. A test replays it to learn the
-    /// shape the loops will then draw for.
     fn prelude(seed: u64) -> (bool, bool, i32, i32) {
         let mut rng = WorldgenRandom::new(seed);
         let snow_on_top = rng.next_f64() > 0.7;
@@ -451,9 +442,6 @@ mod tests {
         (snow_on_top, is_ellipse, over_water, under_water)
     }
 
-    /// The round path draws nothing inside the block writer, so its whole draw
-    /// count is geometry: this pins that count for one seed, recorded from this
-    /// implementation rather than measured against the reference.
     #[test]
     fn a_round_iceberg_leaves_a_pinned_source_state() {
         let cfg = config();
@@ -478,9 +466,6 @@ mod tests {
     mod exhaustive {
         use super::*;
 
-        /// The eleven prelude draws decide the whole silhouette, so an iceberg's
-        /// vertical extent is the one thing they can be read back from: nothing is
-        /// written above the drawn over-water height or below the under-water one.
         #[test]
         fn the_silhouette_matches_the_prelude_draws() {
             let cfg = config();

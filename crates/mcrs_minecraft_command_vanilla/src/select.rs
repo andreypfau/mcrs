@@ -7,8 +7,6 @@ use mcrs_minecraft_command_argument_entity::{EntityArgument, SelectorKind, Targe
 use mcrs_minecraft_command_engine::{CommandFailure, Invocation, PlayerEntry};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 
-/// The buffers of a selector search, which a handler keeps between its runs so that a search
-/// allocates only when it finds more entities than every search before it.
 #[derive(Default)]
 pub(crate) struct SelectionBuffers {
     found: Vec<EntityView<'static>>,
@@ -17,7 +15,6 @@ pub(crate) struct SelectionBuffers {
 }
 
 impl SelectionBuffers {
-    /// Lends the buffers to `search` and takes them back on every path out of it.
     pub(crate) fn with<'c, R>(&mut self, search: impl FnOnce(&mut Selection<'c>) -> R) -> R {
         let mut selection = Selection {
             found: mcrs_command::recycle(core::mem::take(&mut self.found)),
@@ -32,8 +29,6 @@ impl SelectionBuffers {
     }
 }
 
-/// The players and the mobs a search found, in the order of the selector, and the buffers the
-/// search reuses.
 pub(crate) struct Selection<'c> {
     found: Vec<EntityView<'c>>,
     candidates: Vec<EntityView<'c>>,
@@ -41,7 +36,6 @@ pub(crate) struct Selection<'c> {
 }
 
 impl<'c> Selection<'c> {
-    /// The number of players and mobs found.
     pub(crate) fn len(&self) -> usize {
         self.found.len()
     }
@@ -50,7 +44,6 @@ impl<'c> Selection<'c> {
         self.found.is_empty()
     }
 
-    /// The entities found, in the order of the selector.
     pub(crate) fn iter(&self) -> impl Iterator<Item = EntityView<'c>> + '_ {
         self.found.iter().copied()
     }
@@ -59,7 +52,6 @@ impl<'c> Selection<'c> {
         self.found.first().copied()
     }
 
-    /// The players found, in the order of the selector.
     pub(crate) fn players(&self) -> impl Iterator<Item = &'c PlayerEntry> + '_ {
         self.found.iter().filter_map(|found| match found {
             EntityView::Player(player) => Some(*player),
@@ -67,26 +59,14 @@ impl<'c> Selection<'c> {
         })
     }
 
-    /// The mobs found, in the order of the selector.
     pub(crate) fn mobs(&self) -> impl Iterator<Item = MobView<'c>> + '_ {
         self.found.iter().filter_map(|found| match found {
             EntityView::Player(_) => None,
             EntityView::Mob { view, .. } => Some(*view),
         })
     }
-
-    /// The first entity found when it is a mob; `command.failed` otherwise, as for a target that
-    /// a mob-only command cannot handle.
-    pub(crate) fn single_mob(&self) -> Result<MobView<'c>, CommandFailure> {
-        match self.first() {
-            Some(EntityView::Mob { view, .. }) => Ok(view),
-            _ => Err(CommandFailure::failed()),
-        }
-    }
 }
 
-/// The entities a selector argument finds: the players in every dimension and the mobs of this
-/// world, in `out`, or the failure of its search.
 pub(crate) fn select<'c>(
     context: &'c VanillaContext,
     call: &Invocation,
@@ -167,8 +147,6 @@ fn select_if_present<'c>(
     Ok(true)
 }
 
-/// What a branch without a selector needs of its source, and the failure when the source is
-/// not that.
 #[derive(Clone, Copy)]
 pub(crate) enum SelfSource {
     Player,
@@ -193,8 +171,6 @@ impl SelfSource {
     }
 }
 
-/// The entities a selector finds, or the source entity when the branch has no selector, in
-/// `out`. A branch without a selector fails when its source is not what `needs` says.
 pub(crate) fn targets_or_self<'c>(
     context: &'c VanillaContext,
     call: &Invocation,
@@ -230,6 +206,7 @@ mod tests {
     use bevy_math::DVec3;
     use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
     use mcrs_minecraft_game_mode::GameMode;
+    use mcrs_minecraft_pose::Pose;
     use mcrs_minecraft_protocol::uuid::Uuid;
 
     #[test]
@@ -246,6 +223,7 @@ mod tests {
                 rotation: Rotation::new(0.0, 0.0),
             },
             mode: GameMode::Survival,
+            dimensions: Pose::Standing.player_dimensions(),
         };
         let player = Some(&entry);
         let cases = [

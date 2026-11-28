@@ -18,11 +18,9 @@ const MAX_DEPTH: i32 = 8;
 const REACH: i32 = 80;
 const START_Y: i32 = 50;
 
-/// `findGenerationPoint`: the whole piece tree is built here, before the
-/// biome test, so its draws happen whether or not the site passes.
 pub fn site(
     mineshaft_type: MineshaftType,
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
     rng.next_f64();
@@ -53,7 +51,11 @@ pub fn site(
     Some((start + IVec3::new(0, dy, 0), Stub::Mineshaft(pieces)))
 }
 
-pub fn layout(_mineshaft_type: MineshaftType, ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
+pub fn layout(
+    _mineshaft_type: MineshaftType,
+    ctx: &mut Context<'_, impl SiteWorld>,
+    site: Site,
+) -> Vec<Piece> {
     let Stub::Mineshaft(mut pieces) = site.stub else {
         return Vec::new();
     };
@@ -78,9 +80,6 @@ pub fn layout(_mineshaft_type: MineshaftType, ctx: &mut Context<'_>, site: Site)
     pieces
 }
 
-/// Which of two columns a corridor crossing both decorates first. The
-/// reference leaves this to the order chunks load; players and pregenerators
-/// both walk outward from the origin, so the column nearer to it goes first.
 pub fn decorates_first(a: ColumnPos, b: ColumnPos) -> Ordering {
     let distance = |column: ColumnPos| {
         let (x, z) = (i64::from(column.x) * 16 + 8, i64::from(column.z) * 16 + 8);
@@ -92,18 +91,11 @@ pub fn decorates_first(a: ColumnPos, b: ColumnPos) -> Ordering {
         .then(a.z.cmp(&b.z))
 }
 
-/// The reference draws the spawner's cell per section from the placement
-/// stream of whichever chunk decorates the corridor first, and the chunks
-/// after it never draw. The column that decorates first among those holding a
-/// section whose three candidate cells all lie inside it and under the ocean
-/// floor stands in for that chunk: the reference's draw there cannot miss, so
-/// it always places by that section. Every corridor of two sections or more
-/// has such a section, since chunk borders can cut at most one of its windows.
 fn spawner_host_of(
     bounds: BoundingBox,
     direction: Option<Orientation>,
     num_sections: i32,
-    world: &mut dyn SiteWorld,
+    world: &mut impl SiteWorld,
 ) -> Option<ColumnPos> {
     let mut host: Option<ColumnPos> = None;
     for section in 0..num_sections {
@@ -148,15 +140,12 @@ fn piece_tree(rng: &mut LegacyRandom, west: i32, north: i32) -> Vec<Piece> {
     layout.pieces.into_iter().map(Piece::Mineshaft).collect()
 }
 
-/// The pieces in placement order, the room first.
 struct Layout {
     room: BoundingBox,
     pieces: Vec<MineshaftPiece>,
 }
 
 impl Layout {
-    /// `MineShaftRoom.addChildren`: a walk along each wall, every child's
-    /// entrance box recorded on the room.
     fn room_children(&mut self, rng: &mut LegacyRandom) {
         use Orientation::*;
         let bounds = self.room;
@@ -222,9 +211,6 @@ impl Layout {
         }
     }
 
-    /// `generateAndAddPiece`: within the depth and the reach of the room, a
-    /// piece is built and its children added before the caller continues; the
-    /// built piece's box.
     fn generate_and_add(
         &mut self,
         rng: &mut LegacyRandom,
@@ -246,7 +232,6 @@ impl Layout {
         Some(bounds)
     }
 
-    /// `createRandomShaftPiece`.
     fn create_random(
         &self,
         rng: &mut LegacyRandom,
@@ -333,10 +318,9 @@ impl Layout {
         }
     }
 
-    /// Each type's `addChildren`.
     #[expect(
         clippy::excessive_nesting,
-        reason = "dispatches each mineshaft piece's child placement by piece type and direction, kept whole so it reads against the reference's addChildren"
+        reason = "one dispatch by piece type and direction"
     )]
     fn add_children(
         &mut self,
@@ -349,7 +333,6 @@ impl Layout {
         use Orientation::*;
         let (min, max) = (*bounds.min, *bounds.max);
         match kind {
-            // The room's children come from `room_children`.
             MineshaftKind::Room { .. } => {}
             MineshaftKind::Corridor { .. } => {
                 let end = rng.next_i32_bound(4);

@@ -1,65 +1,34 @@
 
-import package::shaders::include::fields::{
+import mcrs_minecraft_render::shaders::include::cull_layout::{
+    DRAW_KINDS, ROW_CANDIDATES, ROW_CANDIDATE_DISPATCH, ROW_FIRST_PASS_DRAWS,
+    ROW_FIRST_PASS_QUAD_DISPATCH, ROW_FIRST_PASS_SURVIVORS, ROW_SECOND_PASS_DRAWS,
+    ROW_SECOND_PASS_QUAD_DISPATCH, ROW_SECOND_PASS_SURVIVORS, args, batches, candidates,
+    cave_visible, groups, hiz, model_words, quad_words, sections, visible,
+};
+import mcrs_minecraft_render::shaders::include::fields::{
+    BOUNDS_HI_X_BITS, BOUNDS_HI_X_SHIFT, BOUNDS_HI_Y_BITS, BOUNDS_HI_Y_SHIFT,
+    BOUNDS_HI_Z_BITS, BOUNDS_HI_Z_SHIFT, BOUNDS_LO_X_BITS, BOUNDS_LO_X_SHIFT,
+    BOUNDS_LO_Y_BITS, BOUNDS_LO_Y_SHIFT, BOUNDS_LO_Z_BITS, BOUNDS_LO_Z_SHIFT,
+    FACE_NONE, Group, MODEL_OVERHANG, MODEL_X_WORD, MODEL_Y_WORD, MODEL_Z_WORD, QUAD_WORDS,
     SECTION_SIZE,
-    BOUNDS_HI_X_SHIFT, BOUNDS_HI_X_BITS, BOUNDS_HI_Y_SHIFT, BOUNDS_HI_Y_BITS,
-    BOUNDS_HI_Z_SHIFT, BOUNDS_HI_Z_BITS, BOUNDS_LO_X_SHIFT, BOUNDS_LO_X_BITS,
-    BOUNDS_LO_Y_SHIFT, BOUNDS_LO_Y_BITS, BOUNDS_LO_Z_SHIFT, BOUNDS_LO_Z_BITS,
-    FACE_NONE, MODEL_OVERHANG, MODEL_X_WORD, MODEL_Y_WORD, MODEL_Z_WORD, QUAD_WORDS,
 };
-import package::shaders::include::frame::{PARAMS_MODEL, PARAMS_QUAD_CULL, camera, params};
-import package::shaders::include::quad::{
-    CORNERS_PER_QUAD, MODEL_WORDS_PER_VERTEX, face_normal, greedy_corner, model_position,
+import mcrs_minecraft_render::shaders::include::frame::{PARAMS_MODEL, PARAMS_QUAD_CULL, camera, params};
+import mcrs_minecraft_render::shaders::include::quad::{
+    CORNERS_PER_QUAD, GREEDY_EDGE_OVERLAP, MODEL_WORDS_PER_VERTEX, corner_uv, expanded_quad_uv,
+    face_normal, greedy_corner, model_position,
 };
-import package::shaders::include::section::{SectionDesc, section_origin};
-import package::shaders::include::visibility::{
+import mcrs_minecraft_render::shaders::include::section::section_origin;
+import mcrs_minecraft_render::shaders::include::section_layout::SectionDesc;
+import mcrs_minecraft_render::shaders::include::visibility::{
     Footprint, box_outside, cover, empty_footprint, occluded,
 };
 
-struct Group {
-    quad_base: u32,
-    quad_count: u32,
-    section: u32,
-    face: u32,
-    bounds: u32,
-}
-
-struct DrawArgs {
-    vertex_count: atomic<u32>,
-    instance_count: u32,
-    first_vertex: u32,
-    first_instance: u32,
-}
-
 const VERTICES_PER_QUAD: u32 = 6u;
 
-@group(1) @binding(0) var<storage, read> groups: array<Group>;
-@group(1) @binding(1) var<storage, read_write> visible: array<vec2<u32>>;
-@group(1) @binding(2) var<storage, read_write> args: array<DrawArgs>;
-/// Two bitsets over the section table: the cave walk's, then this frame's, which also leaves out
-/// every section off the screen.
-@group(1) @binding(3) var<storage, read_write> cave_visible: array<u32>;
-@group(1) @binding(4) var<storage, read> sections: array<SectionDesc>;
-@group(1) @binding(5) var<storage, read_write> batches: array<u32>;
-/// The depth pyramid: last frame's for the first pass, rebuilt from what the first pass drew
-/// before the second.
-@group(1) @binding(6) var hiz: texture_2d<f32>;
-/// Two words a group: which of its quads the first pass left to the second, a bit a quad, so a
-/// group holds no more quads than a word has bits; and a place in the list of groups a pass's
-/// group cull kept.
-@group(1) @binding(7) var<storage, read_write> candidates: array<u32>;
-@group(1) @binding(8) var<storage, read> quad_words: array<u32>;
-@group(1) @binding(9) var<storage, read> model_words: array<u32>;
-
-/// The dispatch does not scale with the world: a fixed grid of workgroups strides over the group
-/// arena a batch of `CULL_THREADS` groups at a time, so a resident world of any size is covered
-/// by the same command and the 65535-per-dimension cap on a dispatch can never be reached.
 const CULL_THREADS: u32 = constants::CULL_THREADS;
 const GROUP_THREADS: u32 = constants::GROUP_THREADS;
-const STREAMS: u32 = constants::STREAMS;
 const CAVE_WORDS: u32 = constants::CAVE_WORDS;
 const SECTION_SLOTS: u32 = constants::SECTION_SLOTS;
-/// The most workgroups one dimension of a dispatch may ask for. A kernel reading a list strides
-/// over it, so a list longer than this still gets read whole.
 const MAX_WORKGROUPS: u32 = constants::MAX_WORKGROUPS;
 const NO_SLOT: u32 = 0xffffffffu;
 
@@ -107,7 +76,8 @@ fn group_box(g: Group) -> Box {
         f32(extractBits(g.bounds, BOUNDS_HI_Y_SHIFT, BOUNDS_HI_Y_BITS)),
         f32(extractBits(g.bounds, BOUNDS_HI_Z_SHIFT, BOUNDS_HI_Z_BITS)),
     ) - MODEL_OVERHANG;
-    return Box(origin + lo * scale, origin + hi * scale);
+    let margin = vec3<f32>(GREEDY_EDGE_OVERLAP * scale);
+    return Box(origin + lo * scale - margin, origin + hi * scale + margin);
 }
 
 fn section_shown(slot: u32) -> bool {
@@ -118,7 +88,6 @@ fn survives(g: Group, bounds: Box) -> bool {
     return in_frustum(bounds.mn, bounds.mx) && faces_camera(g.face, bounds.mn, bounds.mx);
 }
 
-/// A section's whole reach, models leaning out of it included.
 fn section_box(slot: u32) -> Box {
     let desc = sections[slot];
     let origin = section_origin(desc);
@@ -126,9 +95,12 @@ fn section_box(slot: u32) -> Box {
     return Box(origin - MODEL_OVERHANG, origin + span + MODEL_OVERHANG);
 }
 
-/// Once a frame, before any group is read: a bit a section the cave walk reaches and the frustum
-/// holds. A group of a section left out is dropped on that one bit, without reading anything of
-/// the section's own.
+fn column_drawn(desc: SectionDesc) -> bool {
+    let reach = i32(camera.render_distance);
+    let away = max(abs(vec2<i32>(desc.x, desc.z) - camera.section.xz) - vec2<i32>(1), vec2<i32>(0));
+    return all(away < vec2<i32>(reach)) && dot(away, away) < reach * reach;
+}
+
 @compute @workgroup_size(CULL_THREADS)
 fn cull_sections(
     @builtin(workgroup_id) workgroup: vec3<u32>,
@@ -147,7 +119,7 @@ fn cull_sections(
         workgroupBarrier();
         if (slot < SECTION_SLOTS && ((cave_visible[slot >> 5u] >> (slot & 31u)) & 1u) != 0u) {
             let bounds = section_box(slot);
-            if (in_frustum(bounds.mn, bounds.mx)) {
+            if (column_drawn(sections[slot]) && in_frustum(bounds.mn, bounds.mx)) {
                 atomicOr(&shown_word, 1u << (slot & 31u));
             }
         }
@@ -160,13 +132,9 @@ fn cull_sections(
 }
 
 const MODEL_BIAS_CONSTANT: f32 = constants::MODEL_BIAS_CONSTANT;
-/// A shader def holds no float, so the slope scale comes as its bits.
 const MODEL_BIAS_SLOPE_BITS: u32 = constants::MODEL_BIAS_SLOPE_BITS;
-/// The spacing of f32 depths just below one, as a share of the depth: the unit of a depth bias
-/// and of the rounding between where the cull projects a corner and where the rasterizer puts it.
 const DEPTH_STEP: f32 = 1.0 / 8388608.0;
 
-/// How far a triangle's depth changes across a pixel at most, which scales a depth bias.
 fn depth_slope(a: vec3<f32>, b: vec3<f32>, c: vec3<f32>) -> f32 {
     let half = 0.5 * camera.viewport;
     let e1 = (b.xy - a.xy) * half;
@@ -200,8 +168,6 @@ fn box_footprint(mn: vec3<f32>, mx: vec3<f32>) -> Footprint {
 }
 
 
-/// A quad the rasterizer would draw: its footprint, or `drawn` false when it faces away, lies
-/// off the screen or covers no pixel centre. Each of those drops only what would draw nothing.
 struct QuadView {
     drawn: bool,
     footprint: Footprint,
@@ -213,13 +179,27 @@ fn view_quad(quad: u32, slot: u32) -> QuadView {
     let scale = f32(desc.scale);
     var corners: array<vec3<f32>, CORNERS_PER_QUAD>;
     if ((params.flags & PARAMS_MODEL) != 0u) {
+        var local: array<vec3<f32>, CORNERS_PER_QUAD>;
         for (var k = 0u; k < CORNERS_PER_QUAD; k++) {
             let base = (quad * CORNERS_PER_QUAD + k) * MODEL_WORDS_PER_VERTEX;
-            corners[k] = origin + model_position(
+            local[k] = model_position(
                 model_words[base + MODEL_X_WORD],
                 model_words[base + MODEL_Y_WORD],
                 model_words[base + MODEL_Z_WORD],
-            ) * scale;
+            );
+        }
+        let u = local[3] - local[0];
+        let v = local[1] - local[0];
+        let is_parallelogram = all(abs(local[0] + u + v - local[2]) < vec3<f32>(1e-4))
+            && dot(u, u) > 1e-8
+            && dot(v, v) > 1e-8;
+        for (var k = 0u; k < CORNERS_PER_QUAD; k++) {
+            if (is_parallelogram) {
+                let quad_uv = expanded_quad_uv(u, v, corner_uv(k), GREEDY_EDGE_OVERLAP);
+                corners[k] = origin + (local[0] + u * quad_uv.x + v * quad_uv.y) * scale;
+            } else {
+                corners[k] = origin + local[k] * scale;
+            }
         }
     } else {
         var words: array<u32, QUAD_WORDS>;
@@ -227,12 +207,11 @@ fn view_quad(quad: u32, slot: u32) -> QuadView {
             words[word] = quad_words[quad * QUAD_WORDS + word];
         }
         for (var k = 0u; k < CORNERS_PER_QUAD; k++) {
-            corners[k] = greedy_corner(words, origin, scale, k).world;
+            corners[k] = greedy_corner(words, origin, scale, k, GREEDY_EDGE_OVERLAP).world;
         }
     }
 
     var out: QuadView;
-    // The same front the rasterizer keeps: counter-clockwise over corners 1, 2, 0.
     let normal = cross(corners[2] - corners[1], corners[0] - corners[1]);
     if (dot(normal, camera.offset - corners[1]) <= 0.0) {
         out.drawn = false;
@@ -248,9 +227,6 @@ fn view_quad(quad: u32, slot: u32) -> QuadView {
         footprint.hi = max(footprint.hi, projected[k].xy);
         footprint.nearest = max(footprint.nearest, projected[k].z);
     }
-    // Models are drawn nudged towards the camera, and the pyramid holds them there, so a model
-    // quad is tested as near as the rasterizer may have put it or it would hide behind itself.
-    // Anything else is allowed the rounding a corner may land off by.
     var nudge = 4.0 * DEPTH_STEP * footprint.nearest;
     if (footprint.in_front && (params.flags & PARAMS_MODEL) != 0u) {
         let slope = max(
@@ -263,7 +239,6 @@ fn view_quad(quad: u32, slot: u32) -> QuadView {
     footprint.nearest += nudge;
     out.footprint = footprint;
     if (!footprint.in_front) {
-        // Crossing the near plane: too close to be worth anything but drawing.
         out.drawn = true;
         return out;
     }
@@ -271,8 +246,6 @@ fn view_quad(quad: u32, slot: u32) -> QuadView {
         out.drawn = false;
         return out;
     }
-    // A box that holds no pixel centre holds none of the quad inside it either. The margin
-    // stands for the rasterizer's snapping of vertices to a fraction of a pixel.
     let margin = 1.0 / 64.0;
     let px_lo = (footprint.lo * 0.5 + 0.5) * camera.viewport - 0.5 - margin;
     let px_hi = (footprint.hi * 0.5 + 0.5) * camera.viewport - 0.5 + margin;
@@ -307,9 +280,6 @@ fn every_quad(count: u32) -> u32 {
     return select((1u << count) - 1u, 0xffffffffu, count >= 32u);
 }
 
-/// Loads this lane's group of the batch starting at `first` and answers whether it is drawn.
-/// A group the last frame's depth alone hides is left to the second pass, and counted against
-/// the draw's counter when asked.
 fn load(first: u32, local: u32, tally: bool) -> bool {
     let slot = first + local;
     if (slot >= params.group_count) {
@@ -337,28 +307,24 @@ fn load(first: u32, local: u32, tally: bool) -> bool {
     return true;
 }
 
-/// Where a draw's per-pass counts sit in the args, past the draws and the hidden-quad counters:
-/// the groups each pass's group cull kept, the groups the first pass left quads of, and the
-/// workgroups the kernels reading those lists dispatch.
 fn survivors_counted(second: bool) -> u32 {
-    return select(3u, 4u, second) * STREAMS + params.args_index;
+    return select(ROW_FIRST_PASS_SURVIVORS, ROW_SECOND_PASS_SURVIVORS, second) * DRAW_KINDS
+        + params.args_index;
 }
 
 fn candidates_counted() -> u32 {
-    return 5u * STREAMS + params.args_index;
+    return ROW_CANDIDATES * DRAW_KINDS + params.args_index;
 }
 
 fn quad_dispatch(second: bool) -> u32 {
-    return select(6u, 7u, second) * STREAMS + params.args_index;
+    return select(ROW_FIRST_PASS_QUAD_DISPATCH, ROW_SECOND_PASS_QUAD_DISPATCH, second) * DRAW_KINDS
+        + params.args_index;
 }
 
 fn candidate_dispatch() -> u32 {
-    return 8u * STREAMS + params.args_index;
+    return ROW_CANDIDATE_DISPATCH * DRAW_KINDS + params.args_index;
 }
 
-/// A group's three words: the quads the first pass left to the second, then its place in the
-/// list of groups a pass's group cull kept, then its place in the list of groups the first pass
-/// left quads of. Both lists start at the draw's first group.
 fn left_word(slot: u32) -> u32 {
     return 3u * (params.group_base + slot);
 }
@@ -371,8 +337,6 @@ fn candidate(index: u32) -> u32 {
     return candidates[3u * (params.group_base + index) + 2u];
 }
 
-/// Appends `count` entries to the list counted at `counter`, growing the dispatch at `dispatch`
-/// to one workgroup every `per_workgroup` entries, and answers where the first one goes.
 fn append(counter: u32, count: u32, dispatch: u32, per_workgroup: u32) -> u32 {
     let at = atomicAdd(&args[counter].vertex_count, count);
     let workgroups = min((at + count + per_workgroup - 1u) / per_workgroup, MAX_WORKGROUPS);
@@ -380,20 +344,15 @@ fn append(counter: u32, count: u32, dispatch: u32, per_workgroup: u32) -> u32 {
     return at;
 }
 
-/// Entries a workgroup found this step, by list.
 const SURVIVORS: u32 = 0u;
 const CANDIDATES: u32 = 1u;
 const KEPT: u32 = 2u;
 var<workgroup> found: array<atomic<u32>, 3>;
 
-/// Where a lane's entry goes among the workgroup's, counted at `found[counter]`. Every lane of the
-/// workgroup has to call it. A subgroup sums its own lanes and takes its run with one atomic,
-/// where lanes going one at a time would queue on the counter.
 fn place(flag: bool, counter: u32) -> u32 {
     @if(SUBGROUPS) {
         let below = subgroupExclusiveAdd(u32(flag));
         let here = subgroupAdd(u32(flag));
-        // The first flagged lane takes the run; every other lane holds zero, so the max is its answer.
         var base = 0u;
         if (flag && below == 0u) {
             base = atomicAdd(&found[counter], here);
@@ -414,7 +373,6 @@ var<workgroup> survivors_base: u32;
 var<workgroup> candidates_base: u32;
 var<workgroup> list_total: u32;
 
-/// Packs the lanes' survivors and candidates into their lists with one atomic each.
 fn publish(local: u32, second: bool, survivor_slot: u32, lives: bool, candidate_slot: u32, left: bool) {
     let at = place(lives, SURVIVORS);
     let left_at = place(left, CANDIDATES);
@@ -446,15 +404,11 @@ fn publish(local: u32, second: bool, survivor_slot: u32, lives: bool, candidate_
     }
 }
 
-/// One lane a group, and nothing held across the test, so a group the section bit or the frustum
-/// drops costs little more than reading its record.
 fn group_cull(workgroup: u32, grid: u32, local: u32) {
     for (var first = workgroup * GROUP_THREADS; first < params.group_count; first += grid * GROUP_THREADS) {
         let slot = first + local;
         var lives = false;
         var hidden = false;
-        // A group's word is read only through the list of groups left to the second pass, so
-        // only a group going on that list needs it written.
         if (slot < params.group_count) {
             let g = groups[params.group_base + slot];
             if (g.quad_count != 0u && section_shown(g.section)) {
@@ -474,8 +428,6 @@ fn group_cull(workgroup: u32, grid: u32, local: u32) {
     }
 }
 
-/// The groups the first pass left quads of, tested again against the depth this frame has drawn
-/// so far.
 fn group_cull_second(workgroup: u32, grid: u32, local: u32) {
     if (local == 0u) {
         list_total = atomicLoad(&args[candidates_counted()].vertex_count);
@@ -494,28 +446,23 @@ fn group_cull_second(workgroup: u32, grid: u32, local: u32) {
     }
 }
 
-/// Groups a quad workgroup takes at once, one to each run of `CULL_THREADS` lanes, so the draw's
-/// counter is contended once for this many groups.
 const GROUPS_PER_STEP: u32 = constants::GROUPS_PER_STEP;
 const QUAD_THREADS: u32 = CULL_THREADS * GROUPS_PER_STEP;
 
 var<workgroup> step_left: array<atomic<u32>, GROUPS_PER_STEP>;
 var<workgroup> survivors_total: u32;
 
-/// The quads of the groups the group cull kept. A group holds no more quads than a run has
-/// lanes, so each lane tests its own quad of its run's group. The second pass tests only the
-/// quads the first left, and packs what it draws after the first pass's quads.
 fn quad_cull(workgroup: u32, grid: u32, local: u32, second: bool) {
     let tested = (params.flags & PARAMS_QUAD_CULL) != 0u && camera.quad_cull != 0u;
     if (local == 0u) {
         survivors_total = atomicLoad(&args[survivors_counted(second)].vertex_count);
     }
     let survivors = workgroupUniformLoad(&survivors_total);
-    var args_slot = params.args_index;
+    var args_slot = ROW_FIRST_PASS_DRAWS * DRAW_KINDS + params.args_index;
     var offset = 0u;
     if (second) {
-        offset = atomicLoad(&args[params.args_index].vertex_count) / VERTICES_PER_QUAD;
-        args_slot = params.args_index + STREAMS;
+        offset = atomicLoad(&args[args_slot].vertex_count) / VERTICES_PER_QUAD;
+        args_slot = ROW_SECOND_PASS_DRAWS * DRAW_KINDS + params.args_index;
         if (workgroup == 0u && local == 0u) {
             args[args_slot].first_vertex = offset * VERTICES_PER_QUAD;
         }
@@ -628,11 +575,6 @@ fn cull_quads_second(
     quad_cull(workgroup.x, grid.x, local, true);
 }
 
-/// Blended geometry keeps the back-to-front order the blend depends on, so its survivors are
-/// packed by a prefix sum over the batches rather than by an atomic: `count_ordered` writes each
-/// batch's surviving quads, `scan_ordered` turns them into where each batch starts, and
-/// `scatter_ordered` writes the quads there. A batch's index is its first group's slot in the
-/// arena over `CULL_THREADS`, which a stream's block, aligned to a power of two, keeps exact.
 @compute @workgroup_size(CULL_THREADS)
 fn count_ordered(
     @builtin(workgroup_id) workgroup: vec3<u32>,
@@ -661,8 +603,6 @@ fn count_ordered(
 
 var<workgroup> partial: array<u32, CULL_THREADS>;
 
-/// One workgroup per ordered draw: each lane scans a run of its batches, the runs are joined,
-/// and the draw's instance count becomes what survived in all.
 @compute @workgroup_size(CULL_THREADS)
 fn scan_ordered(@builtin(local_invocation_index) local: u32) {
     let first = params.group_base / CULL_THREADS;
@@ -686,7 +626,7 @@ fn scan_ordered(@builtin(local_invocation_index) local: u32) {
         running = running + here;
     }
     if (local == CULL_THREADS - 1u) {
-        atomicStore(&args[params.args_index].vertex_count, running * VERTICES_PER_QUAD);
+        atomicStore(&args[ROW_FIRST_PASS_DRAWS * DRAW_KINDS + params.args_index].vertex_count, running * VERTICES_PER_QUAD);
     }
 }
 

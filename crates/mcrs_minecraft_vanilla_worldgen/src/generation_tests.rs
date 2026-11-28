@@ -2,6 +2,7 @@ use crate::generation_input::GenerationInput;
 use crate::generation_stage::{CHUNK_TASK_POOL, GenerationStage, SchedulerConfig};
 use bevy_tasks::{TaskPoolBuilder, block_on};
 use mcrs_engine_link::{InlineEnd, Link, Placement, Stage as _};
+use mcrs_minecraft_anvil::{ChunkStructures, SavedPiece};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
@@ -9,14 +10,15 @@ use mcrs_minecraft_engine::column_generation::GenerationAnswer;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_generator::ColumnBlocks;
+use mcrs_minecraft_worldgen_generator::generate_area;
 use mcrs_minecraft_worldgen_generator::stages::{fill_pooled, run_region};
 use mcrs_minecraft_worldgen_generator::staging::{
     FilledSnapshot, RegionSnapshots, Stage, region_column,
 };
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use mcrs_minecraft_worldgen_generator::tests::corpus;
-use mcrs_minecraft_worldgen_generator::tests::generate_region;
 use mcrs_minecraft_worldgen_generator::tests::ladder::{
     Column, Consumer, Dimension, Region, decode, fill_context, region_columns,
 };
@@ -24,18 +26,16 @@ use mcrs_minecraft_worldgen_generator::tests::surface::{
     fill_context as surface_fill_context, overworld_biome_registry, overworld_material_router,
 };
 use mcrs_voxel::ColumnPos;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 use std::sync::Arc;
 
-/// Every row of `y_sections`, which run without a gap.
 fn all_rows(y_sections: &[i32]) -> Range<i32> {
     let first = y_sections.first().copied().unwrap_or(0);
     let last = y_sections.last().copied().unwrap_or(first - 1);
     first..last + 1
 }
 
-/// The blocks of each row of a generated column, or `None` when the stage dropped it.
 fn generated_blocks(answer: GenerationAnswer) -> Option<BTreeMap<i32, ChunkBlocks>> {
     let stored = answer.stored?;
     let rows = stored.min_section_y..;
@@ -46,9 +46,6 @@ fn generated_blocks(answer: GenerationAnswer) -> Option<BTreeMap<i32, ChunkBlock
     )
 }
 
-/// The order a view asks for the columns in. Every one of them is unobservable
-/// in the finished world, and each puts the stages of neighbouring columns into
-/// a different interleaving.
 #[derive(Clone, Copy, Debug)]
 enum Order {
     Spiral,
@@ -75,26 +72,16 @@ fn ordered(cols: &[ColumnPos], order: Order) -> Vec<ColumnPos> {
     cols
 }
 
-/// When a drive forgets filled snapshots and the deltas beside them, so that
-/// the columns climb the ladder a second time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Evict {
     Never,
-    /// On fixed ticks, wherever a snapshot happens to be at `Filled`.
     OnTicks,
-    /// Only where a neighbour has already run against the snapshot: the one
-    /// state in which a delta can be lost between the eviction and the merge
-    /// that owed it. Fired twice — once before any column of the region has
-    /// merged, once after — because a column that has merged is a writer that
-    /// has to run, and merge, a second time.
     UnderARun,
 }
 
 #[derive(Clone, Copy, Debug)]
 struct Drive {
-    /// Stages allowed on the pool at once: one, two, or what the machine has.
     in_flight: usize,
-    /// Stages dispatched per step of the generation stage.
     batch: usize,
     order: Order,
     evict: Evict,
@@ -108,10 +95,6 @@ fn default_batch() -> usize {
     SchedulerConfig::default().max_dispatch_per_pass
 }
 
-/// How many steps that find something to evict actually evict it. Bounded, or a
-/// column evicted every step would never reach the top of its ladder — and counted
-/// in steps that found something rather than in steps, because how far the ladder
-/// has climbed by any given step is a question about the machine's load.
 const EVICT_FIRINGS: usize = 6;
 
 fn force_eviction(
@@ -160,18 +143,12 @@ fn force_eviction(
     evicted
 }
 
-/// Drive the real generation stage by hand, one step at a time, to the
-/// generation of every wanted column, and read the blocks back off the
-/// generated sections. Between its steps the stage waits for one ladder stage
-/// on the pool to end, so the steps see the pool's own interleaving.
 #[expect(
     clippy::too_many_lines,
-    reason = "the helper drives the real stage to the top of every ladder and reads the blocks back, and the stepping and the read-back share one stage"
+    reason = "stepping and read-back share one stage"
 )]
 fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region, usize) {
     let y_sections = &dim.ctx.y_sections;
-    // The pool is one per test binary, so its thread count is whichever test
-    // reached it first; `in_flight` is what actually bounds the concurrency.
     CHUNK_TASK_POOL.get_or_init(|| {
         TaskPoolBuilder::new()
             .num_threads(std::thread::available_parallelism().map_or(4, |p| p.get()))
@@ -248,9 +225,6 @@ fn run_parallel(dim: &Dimension, wanted: &[ColumnPos], drive: Drive) -> (Region,
         );
     }
 
-    // What a column was generated with is what it stays. The merged blocks
-    // outlive the emission — a section ticketed later is generated from them —
-    // so a re-merge after an eviction has to land on the same column.
     let standing: Vec<(ColumnPos, Column)> = wanted
         .iter()
         .filter_map(|col| {
@@ -310,7 +284,7 @@ fn run_oracle(dim: &Dimension, wanted: &[ColumnPos]) -> Region {
         wanted.iter().map(|c| c.x).max().unwrap(),
         wanted.iter().map(|c| c.z).max().unwrap(),
     );
-    generate_region(&dim.ctx, min, max)
+    generate_area(&dim.ctx, min, max)
         .into_iter()
         .map(|(col, merged)| (col, decode(&merged.sections)))
         .collect()
@@ -400,10 +374,6 @@ fn small_drives() -> Vec<Drive> {
             order: Order::Shuffled(7),
             evict: Evict::OnTicks,
         },
-        // The lost delta: a column dropped after a neighbour ran against it
-        // must come back with that neighbour's writes, and one stage on the
-        // pool at a time is what lets the eviction find a snapshot at `Filled`
-        // beside a column that has run.
         Drive {
             in_flight: 1,
             batch: 1,
@@ -419,20 +389,19 @@ fn small_drives() -> Vec<Drive> {
     ]
 }
 
-/// What `Run` actually produced over a region: how many of the deltas the
-/// units emitted carried a write, and how many of those landed in a column
-/// other than the one that ran.
-///
-/// The oracle-against-parallel comparison is only worth anything while both
-/// sides move blocks. `Run` was a no-op when this file was written, every delta
-/// was empty, and the comparison was two empty pipelines against each other; it
-/// must never be able to fall back to that unnoticed.
 fn run_writes(dim: &Dimension, wanted: &[ColumnPos]) -> (usize, usize) {
     let ctx = &dim.ctx;
     let mut filled: BTreeMap<ColumnPos, Arc<FilledSnapshot>> = BTreeMap::new();
     let fill = |col: ColumnPos| {
         Arc::new(
-            fill_pooled(ctx, col, &CancellationToken::new()).expect("the fill was not cancelled"),
+            fill_pooled(
+                ctx,
+                col,
+                None,
+                &mut AquiferCells::default(),
+                &CancellationToken::new(),
+            )
+            .expect("the fill was not cancelled"),
         )
     };
     let (mut carried, mut crossed) = (0usize, 0usize);
@@ -454,135 +423,86 @@ fn run_writes(dim: &Dimension, wanted: &[ColumnPos]) -> (usize, usize) {
     (carried, crossed)
 }
 
-/// A plains village: jigsaw pieces that straddle columns.
 const VILLAGE: Consumer = Consumer::Structure {
     id: "minecraft:village_plains",
     biome: "minecraft:plains",
 };
 
-/// A pillager outpost, the other jigsaw structure a plains column starts; its
-/// pieces stay inside the clip of the column that runs.
 const OUTPOST: Consumer = Consumer::Structure {
     id: "minecraft:pillager_outpost",
     biome: "minecraft:plains",
 };
 
-/// A desert pyramid: one grid piece over four columns, dug fourteen blocks
-/// below its floor, with chests and the after-place sand, every write clipped
-/// to the column that runs.
 const DESERT_PYRAMID: Consumer = Consumer::Structure {
     id: "minecraft:desert_pyramid",
     biome: "minecraft:desert",
 };
 
-/// A buried treasure: one block of one column, dug down from the ocean floor
-/// to the chest's resting block, with the fill around it never leaving the
-/// column that runs.
 const BURIED_TREASURE: Consumer = Consumer::Structure {
     id: "minecraft:buried_treasure",
     biome: "minecraft:beach",
 };
 
-/// A nether fortress: a tree of grid pieces with bridges reaching over many
-/// columns, blaze spawners and chests, every write clipped to the column that
-/// runs.
 const FORTRESS: Consumer = Consumer::Structure {
     id: "minecraft:fortress",
     biome: "minecraft:nether_wastes",
 };
 
-/// A shipwreck: one template piece lowered to the ocean floor at layout, its
-/// chests seeded through data markers, every write clipped to the column that
-/// runs.
 const SHIPWRECK: Consumer = Consumer::Structure {
     id: "minecraft:shipwreck",
     biome: "minecraft:deep_frozen_ocean",
 };
 
-/// A cold ocean ruin: three rotted templates over one another on the ocean
-/// floor, a cluster of smaller ones around them when the start is large, with
-/// chests and drowned at their markers, every write clipped to the column
-/// that runs.
 const OCEAN_RUIN: Consumer = Consumer::Structure {
     id: "minecraft:ocean_ruin_cold",
     biome: "minecraft:frozen_ocean",
 };
 
-/// A jungle temple: one grid piece over four columns, its cellar dug four
-/// blocks below its floor, with dispensers, chests and a tripwire, every write
-/// clipped to the column that runs.
 const JUNGLE_TEMPLE: Consumer = Consumer::Structure {
     id: "minecraft:jungle_pyramid",
     biome: "minecraft:jungle",
 };
 
-/// A ruined portal: one template written whole from the column holding its
-/// centre, then netherrack spread fourteen blocks around it, so the writes
-/// reach the ring from a single column.
 const RUINED_PORTAL: Consumer = Consumer::Structure {
     id: "minecraft:ruined_portal",
     biome: "minecraft:plains",
 };
 
-/// An ocean monument: one building piece over sixteen columns with its rooms
-/// in memory, water boxes read before they are written, pillars filled down
-/// to the floor and elder guardians spawned, every write clipped to the
-/// column that runs.
 const MONUMENT: Consumer = Consumer::Structure {
     id: "minecraft:monument",
     biome: "minecraft:deep_frozen_ocean",
 };
 
-/// A mineshaft: corridors, crossings and stairs branching from a room below
-/// sea level, with supports read off the column's own blocks, chest minecarts
-/// and cave spider spawners, every write clipped to the column that runs.
 const MINESHAFT: Consumer = Consumer::Structure {
     id: "minecraft:mineshaft",
     biome: "minecraft:plains",
 };
 
-/// An igloo: three templates stacked down a shaft, lowered to the terrain under
-/// the entrance at layout, with the laboratory's chest and its villagers. Its
-/// only write past the clip is the snow over the trapdoor from a neighbour the
-/// top straddles, which the start this seed finds does not.
 const IGLOO: Consumer = Consumer::Structure {
     id: "minecraft:igloo",
     biome: "minecraft:snowy_plains",
 };
 
-/// A nether fossil: one template piece written whole by every column it
-/// touches, so the columns around it carry its blocks into the ring.
 const NETHER_FOSSIL: Consumer = Consumer::Structure {
     id: "minecraft:nether_fossil",
     biome: "minecraft:soul_sand_valley",
 };
 
-/// A stronghold: a tree of grid pieces buried below sea level with its
-/// portal room, chests and silverfish spawner, every write clipped to the
-/// column that runs.
 const STRONGHOLD: Consumer = Consumer::Structure {
     id: "minecraft:stronghold",
     biome: "minecraft:plains",
 };
 
-/// A swamp hut: one grid piece inside its own column, raised to the ground,
-/// with the witch and the cat it spawns.
 const SWAMP_HUT: Consumer = Consumer::Structure {
     id: "minecraft:swamp_hut",
     biome: "minecraft:swamp",
 };
 
-/// An end city: dozens of template pieces over many columns, each write and
-/// each marker's chest seed, shulker or elytra frame clipped to the column
-/// that runs.
 const END_CITY: Consumer = Consumer::Structure {
     id: "minecraft:end_city",
     biome: "minecraft:end_highlands",
 };
 
-/// A woodland mansion: hundreds of template pieces over some fifty columns,
-/// their chests and the mobs its markers spawn, the cobblestone footing under
-/// each column, every write clipped to the column that runs.
 const MANSION: Consumer = Consumer::Structure {
     id: "minecraft:mansion",
     biome: "minecraft:dark_forest",
@@ -665,7 +585,6 @@ fn want(link: &mut Link<GenerationStage>, col: ColumnPos) {
     link.send(GenerationInput::Want(col));
 }
 
-/// Waits for the stage to answer, and returns the blocks of each section it generated by row.
 fn generated_rows(link: &mut Link<GenerationStage>) -> BTreeMap<i32, ChunkBlocks> {
     block_on(link.answered());
     let mut rows = BTreeMap::new();
@@ -678,10 +597,6 @@ fn generated_rows(link: &mut Link<GenerationStage>) -> BTreeMap<i32, ChunkBlocks
     rows
 }
 
-/// The ladder must produce the column the fill alone produces: with no features to run, every
-/// delta is empty and the merge is the identity. This drives the whole of it — the derived 5x5
-/// of fills, the 3x3 of runs, the merge and the emission — through each placement of the stage,
-/// so a readiness or budget bug shows up as a column that never arrives.
 #[test]
 fn the_ladder_generates_the_column_the_fill_produced() {
     for placement in [Placement::Inline, Placement::Thread] {
@@ -721,8 +636,16 @@ fn the_ladder_generates_the_filled_column(placement: Placement) {
     );
 
     let mut buffer = ColumnBlocks::new(&y_sections);
-    let alone = fill_column(&ctx, col, &mut buffer, &CancellationToken::new())
-        .expect("the fill was not cancelled");
+    let mut cells = AquiferCells::default();
+    let alone = fill_column(
+        &ctx,
+        col,
+        &mut buffer,
+        None,
+        &mut cells,
+        &CancellationToken::new(),
+    )
+    .expect("the fill was not cancelled");
     let bottom = y_sections[0];
     for (y, got) in &generated {
         let want = alone.sections[(y - bottom) as usize]
@@ -737,6 +660,49 @@ fn the_ladder_generates_the_filled_column(placement: Placement) {
                 "{placement:?}: section {y} diverged at ({x}, {ly}, {z})"
             );
         }
+    }
+}
+
+#[test]
+fn a_fill_on_a_busy_pool_takes_the_owed_columns_of_its_square() {
+    use mcrs_minecraft_worldgen_generator::tests::{bare_fill_context, build_beta_router};
+
+    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
+    let ctx = bare_fill_context(Arc::new(build_beta_router()));
+    let square: Vec<ColumnPos> = (4..8)
+        .flat_map(|x| (-8..-4).map(move |z| ColumnPos::new(x, z)))
+        .collect();
+    for (num_threads, filling) in [(1, 16), (64, 2)] {
+        let mut end = InlineEnd::new(GenerationStage::new(
+            SchedulerConfig {
+                max_in_flight: 2,
+                max_dispatch_per_pass: 2,
+                num_threads,
+            },
+            all_rows(&ctx.y_sections),
+        ));
+        end.receive(GenerationInput::Context(Box::new(ctx.clone())));
+        for &col in &square {
+            end.receive(GenerationInput::Want(col));
+        }
+        end.receive(GenerationInput::Want(ColumnPos::new(8, -8)));
+        assert_eq!(end.step().count(), 0, "no column is generated yet");
+
+        let mut started: Vec<(i32, i32)> = end
+            .stage()
+            .in_flight
+            .iter()
+            .map(|stage| (stage.col.x, stage.col.z))
+            .collect();
+        started.sort_unstable();
+        started.dedup();
+        let mut expected: Vec<(i32, i32)> = square.iter().map(|col| (col.x, col.z)).collect();
+        expected.sort_unstable();
+        assert_eq!(started.len(), filling, "{num_threads} threads");
+        assert!(
+            started.iter().all(|col| expected.contains(col)),
+            "{num_threads} threads: {started:?} are columns of the square"
+        );
     }
 }
 
@@ -764,8 +730,6 @@ fn a_column_that_left_every_view_is_abandoned() {
     assert_eq!(abandoned, [stale], "a stale column is dropped");
 }
 
-/// The fill covers the whole dimension, because the bedrock floor is a material rule and a
-/// column surfaced over a slice would be left open at the bottom.
 #[test]
 fn a_filled_column_lays_its_bedrock_floor() {
     use mcrs_minecraft_biome::source::BiomeSource;
@@ -788,8 +752,16 @@ fn a_filled_column_lays_its_bedrock_floor() {
 
     let y_sections = ctx.y_sections.clone();
     let mut column = ColumnBlocks::new(&y_sections);
-    let snapshot = fill_column(&ctx, col, &mut column, &CancellationToken::new())
-        .expect("the fill was not cancelled");
+    let mut cells = AquiferCells::default();
+    let snapshot = fill_column(
+        &ctx,
+        col,
+        &mut column,
+        None,
+        &mut cells,
+        &CancellationToken::new(),
+    )
+    .expect("the fill was not cancelled");
 
     let bedrock = VoxelId::from(
         corpus()
@@ -802,17 +774,12 @@ fn a_filled_column_lays_its_bedrock_floor() {
         .expect("the bottom section carries blocks");
     let mut states = Vec::with_capacity(ColumnBlocks::SECTION_VOLUME);
     palette.0.for_each(|state| states.push(state));
-    // The palette runs y, then z, then x, so the first layer is the floor of
-    // the dimension, which `bedrock_floor` covers whole.
     assert!(
         states[..256].iter().all(|state| *state == bedrock),
         "the bottom of the world is open: the material rules never ran over this dispatch"
     );
 }
 
-/// The biome bytes a column stores are the ids the loader numbered its biomes
-/// with, the numbering the registry packet is projected from, so a palette a
-/// client receives names the biome the source chose.
 #[test]
 fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     use mcrs_minecraft_biome::source::BiomeSource;
@@ -850,10 +817,13 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     let ctx = surface_fill_context(router, material, registries.clone(), source);
 
     let mut column = ColumnBlocks::new(&ctx.y_sections);
+    let mut cells = AquiferCells::default();
     let snapshot = fill_column(
         &ctx,
         ColumnPos::new(3, -7),
         &mut column,
+        None,
+        &mut cells,
         &CancellationToken::new(),
     )
     .expect("the fill was not cancelled");
@@ -884,9 +854,6 @@ fn the_parallel_ladder_generates_ores_that_write_across_columns() {
 mod exhaustive {
     use super::*;
 
-    /// The nine columns around the origin, through every worker count, request
-    /// order, batch size and eviction the definition leaves free, for each program
-    /// `Run` has.
     #[test]
     fn the_parallel_ladder_generates_the_oracle_region() {
         for consumer in [
@@ -916,9 +883,6 @@ mod exhaustive {
         }
     }
 
-    /// The same comparison over forty-nine wanted columns — a hundred and
-    /// twenty-one fills per run, so the interior columns are further from the edge
-    /// of the region than any dependency reaches.
     #[test]
     fn the_parallel_ladder_generates_the_large_oracle_region() {
         for consumer in [
@@ -931,4 +895,180 @@ mod exhaustive {
             assert_region_agrees(consumer, 3, &small_drives());
         }
     }
+}
+
+#[test]
+fn a_generated_mineshaft_leaves_its_cave_spider_spawner_in_a_stored_column() {
+    use mcrs_minecraft_block_entity::GeneratedBlockEntity;
+
+    let dim = fill_context(MINESHAFT);
+    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
+    let mut link = Link::new(
+        GenerationStage::new(SchedulerConfig::default(), all_rows(&dim.ctx.y_sections)),
+        Placement::Inline,
+    );
+    link.send(GenerationInput::Context(Box::new(dim.ctx.clone())));
+    let wanted: Vec<ColumnPos> = region_columns(1)
+        .into_iter()
+        .map(|col| ColumnPos::new(col.x + dim.centre.x, col.z + dim.centre.z))
+        .collect();
+    for col in &wanted {
+        want(&mut link, *col);
+    }
+    block_on(link.answered());
+
+    let stored: Vec<_> = link.outputs().filter_map(|answer| answer.stored).collect();
+    assert_eq!(stored.len(), wanted.len(), "a wanted column was not stored");
+    assert!(
+        stored
+            .iter()
+            .any(|column| column.block_entities.iter().any(|entity| matches!(
+                entity,
+                GeneratedBlockEntity::MobSpawner { spawn_data: Some(data), .. }
+                    if data.entity.get_string("id") == Some("minecraft:cave_spider")
+            ))),
+        "the mineshaft's spawner did not reach any stored column"
+    );
+}
+
+fn generated_monument_column() -> (Dimension, GenerationAnswer) {
+    let dim = fill_context(MONUMENT);
+    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
+    let mut link = Link::new(
+        GenerationStage::new(SchedulerConfig::default(), all_rows(&dim.ctx.y_sections)),
+        Placement::Inline,
+    );
+    link.send(GenerationInput::Context(Box::new(dim.ctx.clone())));
+    want(&mut link, dim.centre);
+    block_on(link.answered());
+    let answer = link.outputs().next().expect("the column was answered");
+    (dim, answer)
+}
+
+fn without_rooms(structures: &ChunkStructures) -> ChunkStructures {
+    let mut cleared = structures.clone();
+    for start in cleared.starts.values_mut() {
+        for piece in &mut start.pieces {
+            if let SavedPiece::OceanMonumentBuilding(tag) = piece {
+                tag.rooms.clear();
+                tag.children.clear();
+            }
+        }
+    }
+    cleared
+}
+
+#[test]
+fn a_generated_monument_is_saved_and_its_rooms_are_rebuilt_from_the_seed_once() {
+    let (dim, answer) = generated_monument_column();
+    let column = answer.column;
+    let structures = answer.stored.expect("the column was stored").structures;
+    a_generated_monument_start_and_references_are_saved_with_the_column(&dim, column, &structures);
+    a_saved_monument_without_its_rooms_gets_the_generated_graph_from_the_seed(
+        &dim,
+        column,
+        &structures,
+    );
+    a_rebuilt_monument_marks_its_column_changed_once(&dim, column, &structures);
+}
+
+fn a_generated_monument_start_and_references_are_saved_with_the_column(
+    dim: &Dimension,
+    start_column: ColumnPos,
+    structures: &ChunkStructures,
+) {
+    let id = ResourceLocationBuf::minecraft("monument").unwrap();
+    assert_eq!(
+        structures.starts.get(&id).map(|start| start.references),
+        Some(0)
+    );
+    assert_eq!(
+        structures.references.get(&id),
+        Some(&BTreeSet::from([start_column]))
+    );
+
+    let neighbour = ColumnPos::new(start_column.x + 1, start_column.z);
+    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
+    let mut link = Link::new(
+        GenerationStage::new(SchedulerConfig::default(), all_rows(&dim.ctx.y_sections)),
+        Placement::Inline,
+    );
+    link.send(GenerationInput::Context(Box::new(dim.ctx.clone())));
+    want(&mut link, neighbour);
+    block_on(link.answered());
+    let touched = link
+        .outputs()
+        .find(|answer| answer.column == neighbour)
+        .and_then(|answer| answer.stored)
+        .expect("the neighbour was stored")
+        .structures;
+    assert!(touched.starts.is_empty());
+    assert_eq!(
+        touched.references.get(&id),
+        Some(&BTreeSet::from([start_column]))
+    );
+}
+
+fn a_saved_monument_without_its_rooms_gets_the_generated_graph_from_the_seed(
+    dim: &Dimension,
+    column: ColumnPos,
+    generated: &ChunkStructures,
+) {
+    use crate::saved_monuments::rebuild_rooms;
+
+    let monument = |structures: &ChunkStructures| {
+        structures
+            .starts
+            .values()
+            .flat_map(|start| start.pieces.iter())
+            .find_map(|piece| match piece {
+                SavedPiece::OceanMonumentBuilding(tag) => Some(tag.clone()),
+                _ => None,
+            })
+    };
+    let expected = monument(generated).expect("the start column holds the monument");
+    assert!(!expected.rooms.is_empty() && !expected.children.is_empty());
+
+    let mut saved = without_rooms(generated);
+    let seed = dim.ctx.router.as_ref().unwrap().world_seed as i64;
+    assert!(rebuild_rooms(&mut saved, column, seed));
+    assert_eq!(monument(&saved), Some(expected));
+    assert!(!rebuild_rooms(&mut saved, column, seed));
+}
+
+fn a_rebuilt_monument_marks_its_column_changed_once(
+    dim: &Dimension,
+    column: ColumnPos,
+    generated: &ChunkStructures,
+) {
+    use crate::saved_monuments::rebuild_saved_monument_rooms;
+    use bevy_ecs::system::RunSystemOnce;
+    use bevy_ecs::world::World;
+    use mcrs_minecraft_engine::stored_column::{
+        ColumnRecord, ColumnStructures, PendingColumnFacts, SectionChanged, TakenFromStore,
+    };
+    use mcrs_minecraft_engine_world::world_seed::WorldSeed;
+    use mcrs_voxel::SectionPos;
+
+    let structures = without_rooms(generated);
+
+    let mut world = World::new();
+    world.insert_resource(WorldSeed(dim.ctx.router.as_ref().unwrap().world_seed as _));
+    let owner = world.spawn_empty().id();
+    let section = world
+        .spawn((SectionPos::new(column.x, 0, column.z), TakenFromStore))
+        .id();
+    let mut pending = PendingColumnFacts::default();
+    pending.0.insert(
+        (owner, column),
+        (ColumnStructures(structures), ColumnRecord::default()),
+    );
+    world.insert_resource(pending);
+
+    world.run_system_once(rebuild_saved_monument_rooms).unwrap();
+    assert!(world.entity(section).contains::<SectionChanged>());
+
+    world.entity_mut(section).remove::<SectionChanged>();
+    world.run_system_once(rebuild_saved_monument_rooms).unwrap();
+    assert!(!world.entity(section).contains::<SectionChanged>());
 }

@@ -1,0 +1,19 @@
+[package]
+name = "mcrs_minecraft_swing"
+description = "Pure arm-swing cooldown window and status-effect duration scaling"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_ecs = { workspace = true, optional = true }
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]

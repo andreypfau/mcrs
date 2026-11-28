@@ -5,9 +5,8 @@ use mcrs_minecraft_engine_world::world::light_gate::SectionRelit;
 use mcrs_voxel::SectionPos;
 
 use crate::light_codec::SectionLight;
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
-/// The light of a column that the clients hold, one row for each section from the lowest up.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct HeldLight {
     min_section_y: i32,
@@ -35,8 +34,6 @@ impl HeldLight {
         }
     }
 
-    /// Takes the light of `section` in `layer` as held, and tells whether the clients held
-    /// other light there.
     fn take(&mut self, section: SectionPos, layer: LightLayer, light: &LightStorage) -> bool {
         let row = section
             .y
@@ -58,7 +55,6 @@ impl HeldLight {
     }
 }
 
-/// The sections of a held column whose light the dimension wrote again, by layer.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct RelitSections {
     pub(crate) block: Vec<Entity>,
@@ -75,8 +71,6 @@ impl RelitSections {
         }
     }
 
-    /// The light of the sections that the clients do not hold, which it takes as held.
-    /// Without a record of what the clients hold, every relit section is a change to them.
     pub(crate) fn take_unheld<'a>(
         &self,
         mut held: Option<&mut HeldLight>,
@@ -108,7 +102,6 @@ impl RelitSections {
     }
 }
 
-/// The light of relit sections that the clients do not hold, by layer.
 pub(crate) struct UnheldLight<'a> {
     pub(crate) block: Vec<SectionLight<'a>>,
     pub(crate) sky: Vec<SectionLight<'a>>,

@@ -36,16 +36,8 @@ import net.minecraft.world.level.levelgen.structure.structures.JigsawStructure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import net.minecraft.world.level.storage.LevelStorageSource;
 
-/**
- * Every piece of every start the reference builds, in the form the save
- * carries: `StructurePiece.createTag`, type-specific fields included.
- */
 public final class StructurePieceOracle {
     private static final byte[] MAGIC = "MCSTRPC0".getBytes(StandardCharsets.US_ASCII);
-    /// Structures whose sixteen shared case chunks hold too few starts to pin
-    /// their layout: each gets this many present starts more per seed and
-    /// dimension, found by walking the placement's cells on past the shared
-    /// sixteen.
     private static final Map<String, Integer> MORE_PRESENT = Map.of(
         "minecraft:desert_pyramid", 2,
         "minecraft:buried_treasure", 2,
@@ -98,11 +90,6 @@ public final class StructurePieceOracle {
         System.exit(0);
     }
 
-    /// Every structure with a placement in the dimension that is not a jigsaw
-    /// structure, at the same sixteen case chunks the site dump uses; a jigsaw
-    /// structure contributes its first present case over all seeds only, as
-    /// the parity check of the one piece codec that exists before any other
-    /// type is ported.
     private static void writeStarts(
         final OutputStream out,
         final RegistryAccess.Frozen registries,

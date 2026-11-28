@@ -1,7 +1,3 @@
-//! Addressing is section-major (`section_index << 12 | local`) so that a step
-//! to a neighbour is bit arithmetic in the common case and only touches the
-//! slower path when it crosses a section boundary.
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -17,11 +13,8 @@ use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_volume::{SectionBox, Snapshot, Unavailable};
 use mcrs_voxel::LocalPos;
 
-/// Index of a cell within a [`FieldLayout`].
 pub type CellIndex = u32;
 
-/// Hoist this out of any loop over a whole section: resolving the section
-/// position from an index costs three divisions.
 pub fn block_in(section: SectionPos, local: LocalPos) -> BlockPos {
     BlockPos::new(
         section.x * SECTION_WIDTH + local.x() as i32,
@@ -33,7 +26,6 @@ pub fn block_in(section: SectionPos, local: LocalPos) -> BlockPos {
 const LOCAL_BITS: u32 = 3 * SectionPos::BITS as u32;
 const LOCAL_MASK: u32 = (1 << LOCAL_BITS) - 1;
 
-/// Shape of a working area, in sections.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FieldLayout {
     origin: SectionPos,
@@ -43,7 +35,6 @@ pub struct FieldLayout {
 }
 
 impl FieldLayout {
-    /// Smallest section-aligned layout covering `area`.
     pub fn covering(area: BoundingBox) -> Self {
         let origin = SectionPos::from(area.min);
         let far = SectionPos::from(area.max);
@@ -59,19 +50,14 @@ impl FieldLayout {
         (self.dim_x * self.dim_y * self.dim_z) as usize
     }
 
-    /// The number of section columns the layout spans.
     pub fn column_count(&self) -> usize {
         (self.dim_x * self.dim_z) as usize
     }
 
-    /// Every cell of a section shares this, so a per-column table is resolved
-    /// once per section rather than once per cell.
     pub fn column_index(&self, section_index: usize) -> usize {
         section_index % self.column_count()
     }
 
-    /// The section column one step from `column_index` in x and z, or `None`
-    /// where that step leaves the layout.
     pub fn column_step(&self, column_index: usize, dx: i32, dz: i32) -> Option<usize> {
         let x = (column_index as i32 % self.dim_x) + dx;
         let z = (column_index as i32 / self.dim_x) + dz;
@@ -114,7 +100,6 @@ impl FieldLayout {
         }
     }
 
-    /// The block-coordinate box this layout spans.
     pub fn block_bounds(&self) -> BoundingBox {
         let far = SectionPos::new(
             self.origin.x + self.dim_x - 1,
@@ -124,23 +109,13 @@ impl FieldLayout {
         BoundingBox::of_section(self.origin).union(BoundingBox::of_section(far))
     }
 
-    /// Index of the first cell of a section, to be combined with a [`LocalPos`].
     #[inline]
     pub fn section_base(&self, section_index: usize) -> CellIndex {
         (section_index as CellIndex) << LOCAL_BITS
     }
 
-    /// Steps one cell in `dir`, or `None` when that leaves the working area.
-    ///
-    /// Leaving the area is safe to ignore: the area is built with a shell of
-    /// cells that no edit in this batch can reach, so nothing outside it changes.
     #[inline]
     pub fn step(&self, index: CellIndex, dir: Direction) -> Option<CellIndex> {
-        // The local index is `x | z << 4 | y << 8` and the section grid runs x
-        // fastest then z then y, so an axis is fully described by where its
-        // local coordinate sits and by how far one section of it moves the
-        // index. `Direction::id()` carries the axis above the sign bit, in the
-        // order Y, Z, X.
         let (shift, section_stride, dim) = match dir.id() >> 1 {
             0 => (8, self.section_stride_y(), self.dim_y),
             1 => (4, self.section_stride_z(), self.dim_z),
@@ -154,7 +129,6 @@ impl FieldLayout {
             return Some((index as i32 + if forward { cell } else { -cell }) as CellIndex);
         }
 
-        // Only the section-crossing path pays for the division.
         let coord = (index >> LOCAL_BITS) as i32 / section_stride % dim;
         let next = coord + if forward { 1 } else { -1 };
         if next < 0 || next >= dim {
@@ -165,24 +139,13 @@ impl FieldLayout {
     }
 }
 
-/// Immutable snapshot of the blocks under a working area.
-///
-/// Taking a snapshot is what makes the calculation safe to run off the tick
-/// loop: the main thread may keep editing the world, and a section it edits
-/// simply gets a fresh allocation while this one keeps reading the old.
 pub struct BlockSnapshot {
     sections: Vec<SectionSource>,
 }
 
-/// Where one section's blocks come from.
 pub enum SectionSource {
     Loaded(Arc<SectionBlocks>),
-    /// Above or below the world. There are no blocks here, light passes, and
-    /// this is where sky light enters from.
     Open(VoxelId),
-    /// Inside the world but not loaded. Holds no light of its own and grows
-    /// none: seeding it would let light escape, because leaving a block costs
-    /// nothing and only entering one does.
     Absent(VoxelId),
 }
 
@@ -195,7 +158,6 @@ impl SectionSource {
         }
     }
 
-    /// The block this section holds everywhere, when it holds only one.
     pub fn uniform_block(&self) -> Option<VoxelId> {
         match self {
             SectionSource::Loaded(blocks) => match &blocks.0 {
@@ -213,8 +175,6 @@ impl BlockSnapshot {
         Self { sections }
     }
 
-    /// The sections of `layout` out of a volume snapshot that covers it: open space
-    /// where the snapshot lies outside the world, and absent where it is not loaded.
     pub fn of(layout: &FieldLayout, blocks: &Snapshot, registry: &LightRegistry) -> Self {
         let sections = layout
             .sections()
@@ -227,13 +187,10 @@ impl BlockSnapshot {
         Self::new(layout, sections)
     }
 
-    /// Resolved once per section by the seeding pass, which would otherwise
-    /// re-index and re-match for each of the section's 4096 cells.
     pub fn section(&self, section_index: usize) -> Option<&SectionSource> {
         self.sections.get(section_index)
     }
 
-    /// `None` when `index` lies outside the area the snapshot was taken for.
     #[inline]
     pub fn get(&self, index: CellIndex) -> Option<VoxelId> {
         self.sections
@@ -248,7 +205,6 @@ impl BlockSnapshot {
         )
     }
 
-    /// Whether this section may hold light at all.
     pub fn section_holds_light(&self, section_index: usize) -> bool {
         matches!(
             self.sections.get(section_index),
@@ -257,11 +213,6 @@ impl BlockSnapshot {
     }
 }
 
-/// Light values of a working area, one byte per cell.
-///
-/// The cells are atomic because the calculation writes them from many threads
-/// at once with no partitioning. That is sound because every write is a
-/// `fetch_max`: the result never depends on which thread got there first.
 pub struct LightField {
     layout: FieldLayout,
     cells: Vec<AtomicU8>,
@@ -269,11 +220,10 @@ pub struct LightField {
 
 impl LightField {
     pub fn new(layout: FieldLayout) -> Self {
-        // `AtomicU8` is `repr(transparent)` over `u8`, and a zeroed byte is a
-        // zeroed atomic, so this reaches `alloc_zeroed` instead of writing
-        // several megabytes of zeros per epoch.
         let zeros = vec![0u8; layout.cell_count()];
         let mut zeros = std::mem::ManuallyDrop::new(zeros);
+        // SAFETY: `AtomicU8` has the size, alignment and bit validity of `u8`, so the buffer of `zeros` with its
+        // length and capacity is a valid buffer of zeroed atomics.
         let cells = unsafe {
             Vec::from_raw_parts(
                 zeros.as_mut_ptr() as *mut AtomicU8,
@@ -288,7 +238,6 @@ impl LightField {
         &self.layout
     }
 
-    /// `None` when `index` lies outside the field.
     #[inline]
     pub fn get(&self, index: CellIndex) -> Option<LightLevel> {
         self.cells
@@ -296,7 +245,6 @@ impl LightField {
             .map(|cell| LightLevel::new(cell.load(Ordering::Relaxed)))
     }
 
-    /// Does nothing when `index` lies outside the field.
     #[inline]
     pub fn set(&self, index: CellIndex, level: LightLevel) {
         if let Some(cell) = self.cells.get(index as usize) {
@@ -304,11 +252,6 @@ impl LightField {
         }
     }
 
-    /// Raises a cell to at least `level`, reporting whether it actually rose.
-    ///
-    /// The caller that sees `true` owns the obligation to spread the new value.
-    /// A caller that read a stale, lower value elsewhere can only ever make a
-    /// weaker claim, which some later write corrects.
     #[inline]
     pub fn raise(&self, index: CellIndex, level: LightLevel) -> bool {
         self.cells
@@ -317,7 +260,6 @@ impl LightField {
     }
 
     pub fn fill_section(&mut self, section_index: usize, light: &LightStorage) {
-        // A fresh field is already zeroed, so an empty section needs no work.
         if matches!(light, LightStorage::Empty) {
             return;
         }
@@ -332,9 +274,6 @@ impl LightField {
         }
     }
 
-    /// The section's light, or `None` when it is bit for bit what was published
-    /// for it and the world has nothing to take, or when the field holds no such
-    /// section.
     pub fn section_light_if_changed(
         &self,
         section_index: usize,
@@ -369,36 +308,19 @@ mod tests {
         })
     }
 
-    /// A step must move the cell exactly one block along the axis its direction
-    /// names — the local packing and the section grid disagree on axis order,
-    /// so this is not self-evident from either.
     #[test]
-    fn a_step_moves_one_block_along_its_own_axis() {
+    fn a_step_moves_one_block_along_its_own_axis_inside_and_across_a_section_seam() {
         let layout = layout();
-        let start = BlockPos::new(20, 20, 20);
-        let index = index_of(&layout, start);
-        for dir in Direction::all() {
-            let stepped = layout.step(index, dir).expect("inside the area");
-            let expected = BlockPos::new(
-                start.x + dir.normal().x,
-                start.y + dir.normal().y,
-                start.z + dir.normal().z,
-            );
-            assert_eq!(block_of(&layout, stepped), expected, "{dir:?}");
-        }
-    }
-
-    #[test]
-    fn a_step_crossing_a_section_seam_lands_in_the_next_section() {
-        let layout = layout();
-        for (start, dir) in [
+        let inside = Direction::all().map(|dir| (BlockPos::new(20, 20, 20), dir));
+        let across_a_seam = [
             (BlockPos::new(15, 20, 20), Direction::East),
             (BlockPos::new(16, 20, 20), Direction::West),
             (BlockPos::new(20, 15, 20), Direction::Up),
             (BlockPos::new(20, 16, 20), Direction::Down),
             (BlockPos::new(20, 20, 15), Direction::South),
             (BlockPos::new(20, 20, 16), Direction::North),
-        ] {
+        ];
+        for (start, dir) in inside.into_iter().chain(across_a_seam) {
             let stepped = layout
                 .step(index_of(&layout, start), dir)
                 .expect("inside the area");

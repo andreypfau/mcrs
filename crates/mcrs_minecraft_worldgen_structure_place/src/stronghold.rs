@@ -58,8 +58,6 @@ pub struct StrongholdBlocks {
     pub iron_door_west_upper: Oriented,
     pub button_north: Oriented,
     pub button_south: Oriented,
-    /// Indexed by `Direction::HORIZONTAL` (north first), then by whether the
-    /// frame holds an eye.
     pub portal_frame: [[Oriented; 2]; 4],
     pub spawner: VoxelId,
     pub chest: ChestStates,
@@ -67,7 +65,7 @@ pub struct StrongholdBlocks {
 
 impl StrongholdBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let of = |block: Block, properties: &[(&str, &str)]| {
@@ -150,7 +148,6 @@ impl StrongholdBlocks {
         })
     }
 
-    /// `SmoothStoneSelector.next` on an edge cell.
     fn smooth_stone<R: Random>(&self, rng: &mut R) -> &Oriented {
         let selection = rng.next_f32();
         if selection < 0.2 {
@@ -165,8 +162,6 @@ impl StrongholdBlocks {
     }
 }
 
-/// `generateBox` with the smooth stone selector: mixed stone bricks on the
-/// faces, cave air inside.
 fn walls<W: WorldGenVolume, R: Random>(
     b: &StrongholdBlocks,
     c: &mut PieceCanvas<'_, W>,
@@ -184,7 +179,6 @@ fn walls<W: WorldGenVolume, R: Random>(
     });
 }
 
-/// `generateSmallDoor`.
 fn door<W: WorldGenVolume>(
     b: &StrongholdBlocks,
     c: &mut PieceCanvas<'_, W>,
@@ -231,7 +225,6 @@ fn door<W: WorldGenVolume>(
     }
 }
 
-/// Each type's `postProcess` for one column.
 pub fn paint_stronghold<W: WorldGenVolume, R: Random>(
     b: &StrongholdBlocks,
     kind: StrongholdKind,
@@ -497,9 +490,12 @@ fn straight_stairs_down<W: WorldGenVolume, R: Random>(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the blocks, the canvas, the random source, the entry door and the four flags that say which of the crossing's side exits are open"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one crossing"
+    )
 )]
 fn five_crossing<W: WorldGenVolume, R: Random>(
     b: &StrongholdBlocks,
@@ -573,7 +569,7 @@ fn chest_corridor<W: WorldGenVolume, R: Random>(
 
 #[expect(
     clippy::too_many_lines,
-    reason = "lays out the library's shelves, torches, fences and ladder for both heights in the reference's order, so each call reads against it"
+    reason = "one run of canvas calls in the reference's order"
 )]
 fn library<W: WorldGenVolume, R: Random>(
     b: &StrongholdBlocks,

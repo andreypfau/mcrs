@@ -1,4 +1,3 @@
-/// Where a vertical anchor sits, given the dimension's own extent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HeightContext {
     pub min_y: i32,

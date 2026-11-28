@@ -1,17 +1,16 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::HookContext;
+use bevy_ecs::message::Messages;
 use bevy_ecs::world::DeferredWorld;
 use bevy_ecs::world::World;
 
 use crate::Dropped;
+use crate::SlotChanged;
+use crate::SlotRef;
 use crate::Slots;
+use crate::slot_changed::write_slot_changed;
 
-/// The slot of a holder that holds the stack. Only the placement commands of this crate make one.
-///
-/// An insert that names an occupied slot takes the slot from the stack in it, which stays alive
-/// without placement. An insert that names a slot that does not exist is removed again. An insert
-/// removes [`Dropped`]. The despawn of the stack empties its slot.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[component(immutable, on_insert = occupy, on_discard = vacate)]
 pub struct InSlot {
@@ -24,7 +23,6 @@ impl InSlot {
         Self { holder, index }
     }
 
-    /// The entity whose [`Slots`] hold the stack.
     #[must_use]
     pub fn holder(&self) -> Entity {
         self.holder
@@ -33,6 +31,13 @@ impl InSlot {
     #[must_use]
     pub fn index(&self) -> u16 {
         self.index
+    }
+
+    pub(crate) fn slot_ref(self) -> SlotRef {
+        SlotRef {
+            holder: self.holder,
+            index: self.index,
+        }
     }
 }
 
@@ -43,6 +48,12 @@ fn occupy(mut world: DeferredWorld, context: HookContext) {
     };
     let previous = (world.get_mut::<Slots>(slot.holder))
         .and_then(|mut slots| slots.replace(slot.index, Some(stack)));
+    if previous.is_some_and(|evicted| evicted != Some(stack)) {
+        write_slot_changed(
+            world.get_resource_mut::<Messages<SlotChanged>>(),
+            slot.slot_ref(),
+        );
+    }
     let detached = match previous {
         None => Some(stack),
         Some(evicted) => evicted.filter(|evicted| *evicted != stack),
@@ -67,11 +78,13 @@ fn vacate(mut world: DeferredWorld, context: HookContext) {
     };
     if slots.get(usize::from(slot.index)) == Some(stack) {
         slots.replace(slot.index, None);
+        write_slot_changed(
+            world.get_resource_mut::<Messages<SlotChanged>>(),
+            slot.slot_ref(),
+        );
     }
 }
 
-/// Removes `slot` from `stack` when the stack still names it and the slot holds another stack or
-/// does not exist.
 fn detach(world: &mut World, stack: Entity, slot: InSlot) {
     let holds = (world.get::<Slots>(slot.holder))
         .and_then(|slots| slots.get(usize::from(slot.index)))

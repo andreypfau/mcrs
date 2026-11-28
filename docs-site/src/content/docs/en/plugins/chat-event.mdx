@@ -10,19 +10,20 @@ tracking: [283, 636]
 sources:
   - crates/mcrs_minecraft_chat_server/src/chat_plugin.rs
   - crates/mcrs_minecraft_server/tests/it/chat.rs
+  - crates/mcrs_minecraft_command_engine/src/command_event.rs
   - pr:636
   - issue:283
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 
 import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This tutorial shows how a plugin cancels a chat line or replaces its text. Chat is the first public player event of mcrs and, for now, the only one. It is the first merged part of the planned public, cancellable player events, and events for join, leave, movement and blocks do not exist yet.[^283][^pr636] The examples come from test files of the repository, and we did not run them outside those tests.
+This tutorial shows how a plugin cancels a chat line or replaces its text. Chat is the first public player event of mcrs and the first merged part of the planned public, cancellable player events.[^pr636] A plugin can also cancel a command line with `CommandEvent`, and [Inventory](/docs/en/plugins/inventory/) shows how it denies an inventory request. Events for join, leave, movement and blocks do not exist yet.[^283] The examples come from test files of the repository, and we did not run them outside those tests.
 
 ## The event has three fields
 

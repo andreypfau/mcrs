@@ -18,7 +18,6 @@ pub(crate) enum Scalar {
 }
 
 impl Scalar {
-    /// `value` is already in the range of `ty`.
     pub(crate) fn integer(ty: IntegerType, value: i64) -> Self {
         match ty {
             IntegerType::Byte => Scalar::Byte(value as i8),
@@ -46,7 +45,6 @@ impl ArrayKind {
     }
 }
 
-/// What the read makes of the values it accepts. The read calls it only for parts it keeps.
 pub(crate) trait Build {
     type Value;
     type Compound;
@@ -62,12 +60,10 @@ pub(crate) trait Build {
     fn push(&mut self, list: &mut Self::List, value: Self::Value);
     fn finish_list(&mut self, list: Self::List) -> Self::Value;
     fn array(&mut self, kind: ArrayKind) -> Self::Array;
-    /// `value` is already in the range of the element type of the array.
     fn push_element(&mut self, array: &mut Self::Array, value: i64);
     fn finish_array(&mut self, array: Self::Array) -> Self::Value;
 }
 
-/// Keeps nothing: the read only validates, and allocates nothing.
 pub(crate) struct Validate;
 
 impl Build for Validate {

@@ -1,71 +1,51 @@
-//! The bounds of a teleport and the teleport state of a player.
-
 use bevy_ecs::component::Component;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
-use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
+use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::PositionFlags;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
 
 use crate::coordinator::clock::GameTime;
+use crate::persistence::transform_serde;
 
-/// The horizontal bound, in blocks, of a position a player can reach.
 pub const MAX_XZ_BLOCKS: i32 = 30_000_000;
-/// [`MAX_XZ_BLOCKS`] as a coordinate.
 pub const MAX_XZ: f64 = MAX_XZ_BLOCKS as f64;
-/// The vertical bound of a position a player can reach.
 pub const MAX_Y: f64 = 20_000_000.0;
 
-/// The largest distance, in blocks, between the position of an accept and the destination of its
-/// teleport. The client computes the destination in its own arithmetic.
 pub const OFFSET_THRESHOLD: f64 = 0.001;
 
-/// A move resends the pending teleport once more than this many ticks passed after it was sent.
 pub const RESEND_INTERVAL: i64 = 20;
 
-/// The server-side state of the teleports of a player: the newest id it sent, the teleport the
-/// client did not confirm yet, and the transform the client last knew.
-#[derive(Component, Clone, Debug, Default)]
+#[derive(Component, Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct TeleportState {
-    /// The id of the newest teleport; `None` before the first one.
     last_id: Option<i32>,
     pending: Option<PendingTeleport>,
+    #[serde(with = "transform_serde")]
     synced_transform: Transform,
 }
 
-/// A teleport the client did not confirm yet. Only the newest teleport can be pending: a newer
-/// one replaces it.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PendingTeleport {
     pub id: i32,
+    #[serde(with = "transform_serde")]
     pub destination: Transform,
     pub sent_at: GameTime,
 }
 
-/// What an accept does to the pending teleport.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AcceptOutcome {
-    /// The accept confirmed the pending teleport; moves apply again.
     Confirmed,
-    /// The accept names no pending teleport, or an older one; nothing changes.
     Ignored,
-    /// The accept names the newest teleport, which is already confirmed; the caller disconnects
-    /// the client.
     Invalid,
-    /// The accept names the pending teleport at a position away from its destination. The
-    /// teleport stays pending, and the caller sends a correction to `destination`.
     Mismatch { destination: Transform },
 }
 
 impl TeleportState {
-    /// The teleport the client did not confirm yet.
     pub fn pending(&self) -> Option<&PendingTeleport> {
         self.pending.as_ref()
     }
 
-    /// A teleport to `destination` that the caller sends to the client itself, at `now`: the id
-    /// of the packet, after which the `teleport` system treats `destination` as already sent.
     pub fn sent(&mut self, destination: Transform, now: GameTime) -> i32 {
         let id = self.last_id.map_or(1, |id| {
             id.checked_add(1).filter(|id| *id != i32::MAX).unwrap_or(0)
@@ -80,14 +60,12 @@ impl TeleportState {
         id
     }
 
-    /// The destination to send again when a move arrives at `now` while a teleport is pending.
     pub fn resend_due(&self, now: GameTime) -> Option<Transform> {
         self.pending
             .filter(|pending| now.0.saturating_sub(pending.sent_at.0) > RESEND_INTERVAL)
             .map(|pending| pending.destination)
     }
 
-    /// Applies an accept of `id` at `position`.
     pub fn accept(&mut self, id: i32, position: DVec3) -> AcceptOutcome {
         let Some(pending) = self.pending else {
             return if self.last_id == Some(id) {
@@ -109,20 +87,15 @@ impl TeleportState {
         }
     }
 
-    /// The transform the client last sent or received.
     pub fn synced_transform(&self) -> Transform {
         self.synced_transform
     }
 
-    /// The client reported `transform`, so the `teleport` system does not send it back.
     pub fn sync(&mut self, transform: Transform) {
         self.synced_transform = transform;
     }
 }
 
-/// A teleport from `known`, the transform the client has, to `destination`. The position is
-/// absolute. The client keeps its velocity, as the server does not hold one, and its rotation
-/// when the rotation does not change.
 #[must_use]
 pub fn teleport_to(known: Transform, destination: Transform) -> Teleport {
     let mut relative = Relative::VELOCITY_X | Relative::VELOCITY_Y | Relative::VELOCITY_Z;
@@ -141,19 +114,17 @@ pub fn teleport_to(known: Transform, destination: Transform) -> Teleport {
     }
 }
 
-/// The transform that the client computes from `known` for `teleport`.
 #[must_use]
 pub fn landing(known: Transform, teleport: &Teleport) -> Transform {
     let mut state = PlayerState::new(known.translation);
     let mut rotation = Orientation::facing(known.rotation.yaw(), known.rotation.pitch());
-    apply_teleport(&mut state, &mut rotation, teleport);
+    mcrs_minecraft_physics::apply_teleport(&mut state, &mut rotation, teleport);
     Transform {
         translation: state.body.position,
         rotation: Rotation::new(rotation.yaw, rotation.pitch),
     }
 }
 
-/// The `player_position` packet of `teleport` with the id `teleport_id`.
 #[must_use]
 pub fn position_packet(teleport_id: i32, teleport: &Teleport) -> ClientboundPlayerPosition {
     ClientboundPlayerPosition {

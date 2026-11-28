@@ -4,6 +4,7 @@ use crate::deserializer::NbtReadHelper;
 use crate::encoding::NbtEncoding;
 use crate::serializer::WriteAdaptor;
 use crate::tag::NbtTag;
+use crate::tag::deepest;
 use crate::{END_ID, Error, Nbt, get_nbt_string};
 use std::io::{Read, Seek, Write};
 use std::vec::IntoIter;
@@ -24,12 +25,12 @@ impl NbtCompound {
         reader: &mut NbtReadHelper<R, E>,
     ) -> Result<(), Error> {
         loop {
-            let tag_id = reader.get_u8()?;
+            let tag_id = reader.read_entry_kind()?;
             if tag_id == END_ID {
                 break;
             }
 
-            let len = E::read_string_length(&mut reader.reader)?;
+            let len = reader.read_string_length()?;
             reader.skip_bytes(len as i64)?;
 
             NbtTag::skip_data(reader, tag_id)?;
@@ -41,20 +42,21 @@ impl NbtCompound {
     pub fn deserialize_content<R: Read + Seek, E: NbtEncoding>(
         reader: &mut NbtReadHelper<R, E>,
     ) -> Result<NbtCompound, Error> {
-        let mut compound = NbtCompound::new();
+        let mut child_tags = Vec::new();
 
         loop {
-            let tag_id = reader.get_u8()?;
+            let tag_id = reader.read_entry_kind()?;
             if tag_id == END_ID {
                 break;
             }
 
             let name = get_nbt_string(reader)?;
-            let tag = NbtTag::deserialize_data(reader, tag_id)?;
-            compound.put(&name, tag);
+            NbtTag::deserialize_data(reader, tag_id).map(|tag| child_tags.push((name, tag)))?;
         }
 
-        Ok(compound)
+        Ok(NbtCompound {
+            child_tags: fold_duplicate_keys(child_tags),
+        })
     }
 
     pub fn serialize_content<W: Write, E: NbtEncoding>(
@@ -70,13 +72,48 @@ impl NbtCompound {
         Ok(())
     }
 
-    /// [`NbtTag::matches`] for a compound: `actual` can have more keys.
+    #[must_use]
+    pub fn depth(&self, budget: u32) -> u32 {
+        let Some(budget) = budget.checked_sub(1) else {
+            return 1;
+        };
+        deepest(self.child_tags.iter().map(|(_, child)| child.depth(budget)))
+    }
+
     pub fn matches(&self, actual: &NbtCompound) -> bool {
         self.child_tags.iter().all(|(key, expected)| {
             actual
                 .get(key)
                 .is_some_and(|actual| expected.matches(actual))
         })
+    }
+
+    pub fn merge(&mut self, source: &NbtCompound) {
+        let mut pending: Vec<(&mut NbtCompound, &NbtCompound)> = vec![(self, source)];
+        while let Some((target, source)) = pending.pop() {
+            for (key, value) in &source.child_tags {
+                let existing = target
+                    .child_tags
+                    .iter_mut()
+                    .find(|(existing_key, _)| existing_key == key);
+                let copy = match value {
+                    NbtTag::Compound(_) => NbtTag::Compound(NbtCompound::new()),
+                    _ => value.clone(),
+                };
+                match existing {
+                    Some((_, NbtTag::Compound(_))) if matches!(value, NbtTag::Compound(_)) => {}
+                    Some((_, existing)) => *existing = copy,
+                    None => target.child_tags.push((key.clone(), copy)),
+                }
+            }
+            for (key, value) in target.child_tags.iter_mut() {
+                if let NbtTag::Compound(target_value) = value
+                    && let Some(NbtTag::Compound(source_value)) = source.get(key)
+                {
+                    pending.push((target_value, source_value));
+                }
+            }
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -142,20 +179,12 @@ impl NbtCompound {
             .map(|r| &r.1)
     }
 
-    pub fn get_short(&self, name: &str) -> Option<i16> {
-        self.get(name).and_then(|tag| tag.extract_short())
-    }
-
     pub fn get_int(&self, name: &str) -> Option<i32> {
         self.get(name).and_then(|tag| tag.extract_int())
     }
 
     pub fn get_long(&self, name: &str) -> Option<i64> {
         self.get(name).and_then(|tag| tag.extract_long())
-    }
-
-    pub fn get_bool(&self, name: &str) -> Option<bool> {
-        self.get(name).and_then(|tag| tag.extract_bool())
     }
 
     pub fn get_string(&self, name: &str) -> Option<&str> {
@@ -206,7 +235,6 @@ impl Extend<(String, NbtTag)> for NbtCompound {
     }
 }
 
-// Rust's AsRef is currently not reflexive so we need to implement it manually
 impl AsRef<NbtCompound> for NbtCompound {
     fn as_ref(&self) -> &NbtCompound {
         self
@@ -240,8 +268,9 @@ impl<'de> Deserialize<'de> for NbtCompound {
                 mut map: A,
             ) -> Result<Self::Value, A::Error> {
                 let mut compound = NbtCompound::new();
-                while let Some((key, value)) = map.next_entry::<String, NbtTag>()? {
-                    compound.put(&key, value);
+                while let Some(key) = map.next_key::<String>()? {
+                    map.next_value::<NbtTag>()
+                        .map(|value| compound.put(&key, value))?;
                 }
                 Ok(compound)
             }
@@ -255,4 +284,46 @@ impl From<NbtCompound> for NbtTag {
     fn from(value: NbtCompound) -> Self {
         NbtTag::Compound(value)
     }
+}
+
+fn fold_duplicate_keys(child_tags: Vec<(String, NbtTag)>) -> Vec<(String, NbtTag)> {
+    if child_tags.len() < 2 {
+        return child_tags;
+    }
+    let mut by_key: Vec<(&str, usize)> = child_tags
+        .iter()
+        .enumerate()
+        .map(|(index, (key, _))| (key.as_str(), index))
+        .collect();
+    by_key.sort_unstable();
+    if by_key
+        .windows(2)
+        .all(|pair| matches!(pair, [first, second] if first.0 != second.0))
+    {
+        return child_tags;
+    }
+    let mut value_source: Vec<Option<usize>> = vec![None; child_tags.len()];
+    for group in by_key.chunk_by(|first, second| first.0 == second.0) {
+        if let (Some(first), Some(last)) = (group.first(), group.last())
+            && let Some(source) = value_source.get_mut(first.1)
+        {
+            *source = Some(last.1);
+        }
+    }
+    let mut slots: Vec<Option<(String, NbtTag)>> = child_tags.into_iter().map(Some).collect();
+    let mut folded = Vec::with_capacity(slots.len());
+    for (position, source) in value_source.into_iter().enumerate() {
+        let Some(source) = source else {
+            continue;
+        };
+        let Some((key, first_value)) = slots.get_mut(position).and_then(Option::take) else {
+            continue;
+        };
+        let value = slots
+            .get_mut(source)
+            .and_then(Option::take)
+            .map_or(first_value, |(_, last_value)| last_value);
+        folded.push((key, value));
+    }
+    folded
 }

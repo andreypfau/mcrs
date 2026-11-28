@@ -8,14 +8,12 @@ use mcrs_minecraft_resource::ResourceLocation;
 const TICKS_PER_DAY: f32 = 24_000.0;
 const TICKS_PER_SECOND: f32 = 20.0;
 
-/// `minecraft:time`: a tick count with an optional unit `d`, `s` or `t`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TimeArgument {
     pub min: i32,
 }
 
 impl TimeArgument {
-    /// Suggests the units after the number.
     pub fn suggest<T>(builder: &mut SuggestionBuilder<'_, '_, T>) {
         let mut reader = Reader::at(builder.input(), builder.start());
         if reader.read_float::<()>().is_err() {
@@ -27,7 +25,6 @@ impl TimeArgument {
     }
 }
 
-/// The product rounded half up, then held in the 32-bit range.
 fn round_ticks(product: f32) -> i32 {
     let floor = product.floor();
     let rounded = if product - floor >= 0.5 {
@@ -70,13 +67,9 @@ impl<S> Argument<S> for TimeArgument {
     }
 }
 
-/// The clock that a parsed context selects.
 enum SelectedClock<'i> {
-    /// The branch has no clock node, so the default clock of the source dimension.
     Default,
-    /// The value of the clock node.
     Named(ResourceLocation<'i>),
-    /// The context lacks the clock node or holds no identifier there.
     Unread,
 }
 
@@ -93,16 +86,12 @@ impl<'i> SelectedClock<'i> {
     }
 }
 
-/// A time marker of the selected clock: read as `minecraft:resource_location`, suggested by
-/// the server.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TimeMarkerArgument {
-    /// The node of `<clock>` the branch reads, or `None` for the default clock.
     pub clock: Option<NodeId>,
 }
 
 impl TimeMarkerArgument {
-    /// Suggests the time markers of the selected clock.
     pub fn suggest<'t, L: TimeLookup, T>(
         &self,
         source: &'t Source<'_, L>,
@@ -132,11 +121,8 @@ impl<S> Argument<S> for TimeMarkerArgument {
     }
 }
 
-/// A timeline: read as `minecraft:resource` of the timeline registry, and suggested by the
-/// server from the timelines of the selected clock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TimelineArgument {
-    /// The node of `<clock>` the branch reads, or `None` for the default clock.
     pub clock: Option<NodeId>,
 }
 
@@ -145,7 +131,6 @@ impl TimelineArgument {
         registry: mcrs_minecraft_resource::rl!("minecraft:timeline"),
     };
 
-    /// Suggests the timelines of the selected clock.
     pub fn suggest<'t, L: TimeLookup, T>(
         &self,
         source: &'t Source<'_, L>,

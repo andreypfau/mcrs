@@ -176,6 +176,12 @@
             { "origin": [-8, 0, -8], "size": [12, 16, 12] }
           ]
         }
+      },
+      {
+        "condition": "q.block_state(\u0027thickness\u0027) \u003d\u003d \u0027tip\u0027",
+        "components": {
+          "mcrs:solid": true
+        }
       }
     ]
   }

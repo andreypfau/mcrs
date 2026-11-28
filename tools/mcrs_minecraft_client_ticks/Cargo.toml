@@ -11,6 +11,5 @@ doctest = false
 [lints]
 workspace = true
 
-# std: String and Vec for the parsed lines
 [dependencies]
 thiserror.workspace = true

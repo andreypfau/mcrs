@@ -6,8 +6,7 @@ stated in `docs/spec/molang.md`. This note states how mcrs executes it.
 
 ## 1. Goals and limits
 
-- One implementation for every host. The block-condition subset in
-  `crates/mcrs_minecraft_block/src/definition/molang.rs` goes away (section 12).
+- One implementation for every host, block conditions included.
 - Modern semantics only. A pack with an older `min_engine_version` loads with the modern rules,
   and the loader logs one warning for the pack. The crate does not emulate old versions.
 - No expression text survives into a frame. Every expression becomes a program before the first
@@ -83,8 +82,7 @@ pack and swaps the programs in the arena.
 
 ### 4.1 Lexer and parser
 
-- The lexer folds identifiers and keywords to lower case. It keeps string literals as they are.
-- The parser is a precedence-climbing parser over the modern precedence table of the spec.
+- The tokens and the grammar are MOL-LEX and MOL-SYN of `docs/spec/molang.md`.
 - Every syntax node carries a byte span into the source text.
 - The parser does not stop at the first error. It records diagnostics with spans and continues
   at the next `;` or closing brace. The loader reports all diagnostics of a file together.
@@ -145,7 +143,7 @@ A block host has no variables. Its query slots are the properties of the block:
 - A name that the block does not have is a compile error.
 - A comparison with a literal that is not in the domain of the property is a compile error.
 
-These are the two checks of the current subset. Section 12 states the migration.
+These are the two checks of the current subset.
 
 ## 6. Rate classes
 
@@ -165,7 +163,7 @@ variable gives the variable the rate of the program that writes it.
 
 The compiler hoists each value to its rate:
 
-- A `Load` value is computed once per host key. Block conditions end here (section 12).
+- A `Load` value is computed once per host key.
 - An `EntityTick` value is computed in the tick stage, not in each frame.
 - An `EntityFrame` value that depends only on tick values and the partial tick is interpolated.
   It is not recomputed from the entity.
@@ -449,36 +447,10 @@ The tests catch regressions with independent oracles. Count is not a goal.
    must be equal bit for bit.
 5. **WGSL equals CPU twin.** Run the lowered channels in a compute shader on a headless device.
    The results must have the bits of the CPU twin, and must agree with the scalar VM within the
-   pose tolerance (`crates/mcrs_molang_wgsl/tests/gpu_fuzz.rs`).
+   pose tolerance (`crates/mcrs_molang_wgsl/tests/it/gpu_fuzz.rs`).
 6. **Fuzzing.** A grammar-based generator feeds checks 3, 4 and the parser round trip. A round
    trip alone does not replace check 2.
 7. **Unit cases** for rules that the corpus does not use: the loop limit, `break`, `continue`,
    `->` with an invalid reference, and `??` over a nested missing value.
 8. **Benchmarks** (criterion): `math.cos(q.anim_time*K)*c`, `q.is_baby ? a : b`, a 10-statement
    `pre_animation`, and an animation with nine channels, each at 1, 64 and 256 lanes.
-
-## 12. Migration of block conditions
-
-Block definitions keep their JSON. Only the evaluator changes:
-
-1. `mcrs_minecraft_block` declares a block host. Its query slots are the properties of the block
-   (section 5.3).
-2. For each permutation, the loader compiles the condition against the property table of the
-   block. All values are `Load` values.
-3. The loader runs the program once for each block state, and stores the result as a bit set of
-   states.
-4. No program and no expression survives into a tick, the same as today.
-5. `crates/mcrs_minecraft_block/src/definition/molang.rs` and its error type go away. The
-   compile errors keep their meaning: unknown property, and a value that is not in the domain
-   of the property.
-
-The block corpus uses only `q.block_state('<name>') == <literal>` with `&&` (53,431 uses). The
-literal is a string, `true`, `false` or an integer. The block host gives:
-
-- a boolean property as `Num` 0 or 1;
-- an integer property as `Num`;
-- any other property as `Str`.
-
-A comparison between a `Str` and a `Num` is a compile error for a block host. The corpus
-must compile with no change, and the set of states that match each permutation must stay
-the same. A test compares the bit sets before and after the change.

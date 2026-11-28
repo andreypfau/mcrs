@@ -1,0 +1,178 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment pose_e7_1
+step riptide_wall
+instruction After Go, hold the right mouse button for 1 second, then release it toward the wall.
+fill -16 99 -16 48 99 16 minecraft:stone
+fill 4 100 -16 4 110 16 minecraft:stone
+events
+4310840 < abilities none 0.05
+4310840 < attribute minecraft:attack_speed 4 minecraft:base_attack_speed -2.9000000953674316 0
+4310840 < attribute minecraft:block_interaction_range 4.5
+4310840 < attribute minecraft:entity_interaction_range 3
+4310840 < attribute minecraft:movement_speed 0.10000000149011612
+4310840 < data self 9 float:20
+4310840 < data self 16 byte:0x7f
+4310840 < teleport 3 0.5 100 0.5 0 0 0 -90 0 0
+4369811 > move - - none
+4369813 > tick
+4371003 > move - - on_ground
+4371005 > tick
+4470653 > tick
+4471820 > tick
+4568697 > move 0.5,100,0.5 - on_ground
+4569863 > tick
+4571041 > tick
+4684551 > tick
+4684552 > tick
+4777915 > tick
+4779413 > tick
+4880379 > tick
+4887929 > tick
+4980243 > tick
+4981386 > tick
+5082339 > tick
+5083487 > tick
+5186028 > tick
+5186029 > tick
+5284874 > tick
+5286041 > tick
+5387236 > tick
+5388395 > tick
+5487375 > tick
+5488545 > tick
+5588446 > move 0.5,100,0.5 - on_ground
+5589637 > tick
+5589638 > tick
+5692287 > tick
+5692288 > tick
+5796392 > tick
+5798776 > tick
+5897128 > tick
+5900042 > tick
+6005117 > tick
+6005119 > tick
+6102756 > tick
+6104356 > tick
+6204951 > tick
+6204951 > tick
+6305305 > tick
+6305306 > tick
+6406722 > tick
+6408504 > tick
+6514507 > tick
+6518497 > tick
+6614885 > move 0.5,100,0.5 - on_ground
+6616044 > tick
+6617563 > tick
+6619429 > tick
+6715397 > tick
+6717540 > tick
+6815840 > tick
+6816993 > tick
+6918845 > tick
+6920018 > tick
+7018555 > tick
+7020619 > tick
+7120495 > tick
+7122722 > tick
+7221855 > tick
+7223024 > tick
+7324189 > tick
+7325344 > tick
+7423655 > use_item
+7424830 > tick
+7425983 > tick
+7461039 < block 4 101 0 minecraft:stone
+7461042 < block 3 101 0 minecraft:air
+7463140 < data self 8 byte:0x01
+7524664 > tick
+7528625 > move 0.5,100,0.5 - on_ground
+7530071 > tick
+7628045 > tick
+7628046 > tick
+7727003 > tick
+7728470 > tick
+7823073 > tick
+7824735 > tick
+7925579 > tick
+7927706 > tick
+8027842 > tick
+8029990 > tick
+8132236 > tick
+8132237 > tick
+8228230 > tick
+8230422 > tick
+8326379 > tick
+8328500 > tick
+8426415 > release_use_item
+8429871 > move 3.5,101.12159992694855,0.5 - none
+8431227 > tick
+8432733 > move 3.699999988079071,100.96636792243194,0.5 - horizontal_collision
+8433929 > tick
+8468293 < data self 8 byte:0x04
+8509162 < data self 8 byte:0x00
+8509174 < attribute minecraft:attack_speed 4 minecraft:base_attack_speed -2.9000000953674316 0
+8530424 > move 3.699999988079071,100.73584055351898,0.5 - none
+8532723 > tick
+8533898 > move 3.699999988079071,100.43152372606144,0.5 - none
+8535398 > tick
+8631097 > move 3.699999988079071,100.05489322782279,0.5 - none
+8632301 > tick
+8633749 > move 3.699999988079071,100,0.5 - on_ground
+8634898 > tick
+8736504 > tick
+8737655 > tick
+8837488 > tick
+8840957 > tick
+8936500 > tick
+8938399 > tick
+9039661 > tick
+9043204 > tick
+9138896 > tick
+9140058 > tick
+9244861 > tick
+9246088 > tick
+9344456 > tick
+9345628 > tick
+9446224 > tick
+9447400 > tick
+9550651 > tick
+9560609 > tick
+9646951 > tick
+9646953 > move 3.699999988079071,100,0.5 - on_ground
+9648533 > tick
+9749787 > tick
+9750961 > tick
+9849354 > tick
+9850504 > tick
+9953898 > tick
+9957663 > tick
+10060024 > tick
+10061194 > tick
+10154263 > tick
+10155497 > tick
+10258729 > tick
+10262252 > tick
+10359544 > tick
+10360713 > tick
+10463680 > tick
+10463681 > tick
+10566071 > tick
+10567593 > tick
+10567594 > tick
+10665654 > move 3.699999988079071,100,0.5 - on_ground
+10665655 > tick
+10667266 > tick
+10771131 > tick
+10772643 > tick
+10873351 > tick
+10874756 > tick
+10979962 > tick
+10981737 > tick
+11072195 > tick
+11072197 > tick
+11176591 > tick
+11176593 > tick
+11278815 > tick
+11279982 > tick

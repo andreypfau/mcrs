@@ -7,7 +7,6 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 
 const ISLAND_THRESHOLD: f32 = -0.9;
 
-/// `EndIslandFunction.range()`.
 pub fn range() -> mcrs_minecraft_noise::interval::Interval {
     mcrs_minecraft_noise::interval::Interval::of(-0.84375, 0.5625)
 }
@@ -18,9 +17,6 @@ pub struct EndIslandParams {
 }
 
 impl EndIslandParams {
-    /// The raw world seed, not a per-function hashed fork. The 17292 discarded
-    /// draws and the three origin draws the at-origin constructor still makes
-    /// are both stream positions the permutation table depends on.
     pub fn new(world_seed: u64) -> Self {
         let mut random = LegacyRandom::new(world_seed);
         for _ in 0..17292 {
@@ -52,8 +48,6 @@ impl EndIslandParams {
                 if cell_x * cell_x + cell_z * cell_z <= 4096 {
                     continue;
                 }
-                // `SimplexNoise.get` returns a float, so the value narrows before
-                // the threshold test rather than being compared as a double.
                 let sample = self.noise.sample_2d(cell_x as f64, cell_z as f64, 1.0, 1.0) as f32;
                 if sample >= ISLAND_THRESHOLD {
                     continue;
@@ -82,9 +76,6 @@ mod tests {
         out[0]
     }
 
-    /// The strict profile is the oracle and reproduces the reference bit for
-    /// bit. The fast profile fuses and reassociates by design, so it is held to
-    /// a divergence budget instead; the observed worst is two ulps.
     #[test]
     fn matches_the_vanilla_oracle() {
         const EXPECTED: &[(u64, i32, i32, u32)] = &[
@@ -118,7 +109,6 @@ mod tests {
         let params = EndIslandParams::new(42);
         let at = |bz| value_at(&params, -4000, bz);
         assert_eq!(at(1), at(-1), "-1 and 1 are both section 0");
-        // What floor division would have answered for z = -1.
         assert_ne!(at(-8), at(-1), "section -1 is a different island field");
         #[cfg(not(feature = "fast"))]
         {

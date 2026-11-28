@@ -4,18 +4,14 @@ use crate::Aabb;
 use crate::Axis;
 use crate::tolerance::COLLISION;
 
-/// A shape as grid lines on each axis and the solid cells between them. The lines of an axis are
-/// sorted and at least `1.0E-7` apart.
 pub(crate) trait CellGrid {
     fn line_count(&self, axis: Axis) -> usize;
 
     fn line(&self, axis: Axis, index: usize) -> f64;
 
-    /// True when a cell in the index ranges of the three axes is solid.
     fn any_solid(&self, cells: [Range<usize>; 3]) -> bool;
 }
 
-/// Clips the distance `t` that the box `mover` moves on `axis` against the shape.
 pub(crate) fn clip<G: CellGrid>(grid: &G, axis: Axis, mover: &Aabb, t: f64) -> f64 {
     if t.abs() < COLLISION {
         return 0.0;
@@ -66,7 +62,6 @@ pub(crate) fn clip<G: CellGrid>(grid: &G, axis: Axis, mover: &Aabb, t: f64) -> f
     t
 }
 
-/// True when the shape and the box overlap with a volume that is more than zero.
 pub(crate) fn intersects<G: CellGrid>(grid: &G, query: &Aabb) -> bool {
     let mut cells = [0..0, 0..0, 0..0];
     for axis in Axis::ALL {
@@ -82,15 +77,12 @@ pub(crate) fn intersects<G: CellGrid>(grid: &G, query: &Aabb) -> bool {
     grid.any_solid(cells)
 }
 
-/// The rows on `axis` that the box covers by more than the tolerance.
 fn cross_section<G: CellGrid>(grid: &G, axis: Axis, mover: &Aabb) -> Option<Range<usize>> {
     let high = mover.max_of(axis) - COLLISION;
     let low = mover.min_of(axis) + COLLISION;
     rows_where(grid, axis, |start, end| start <= high && end > low)
 }
 
-/// The contiguous rows whose lines pass the test; the lines are sorted, so the rows that pass
-/// form one range.
 fn rows_where<G: CellGrid>(
     grid: &G,
     axis: Axis,

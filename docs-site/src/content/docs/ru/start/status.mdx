@@ -3,20 +3,20 @@ title: "Статус: что работает сегодня"
 description: Единственная полная таблица того, что mcrs умеет и не умеет, со ссылкой на issue для каждого пробела.
 sidebar:
   order: 3
-translated_from: 3540f457b
+translated_from: 9eac02a81
 ---
 
 import Status from '~/components/Status.astro';
 import StatusRows from '~/components/StatusRows.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-Это единственная полная таблица статуса в документации, на других страницах показана ее часть. У каждой строки есть дата и либо проверка, которую можно запустить, либо раздел PERF.md.
+Это единственная полная таблица статуса в документации, на других страницах показана ее часть. У каждой строки есть дата и проверка, которую можно запустить.
 
 ## Что значат состояния
 
 | Состояние | Значение |
 |---|---|
-| <Status state="works" /> | Это подтверждает тест, который можно запустить, или замер в PERF.md |
+| <Status state="works" /> | Это подтверждает тест, который можно запустить |
 | <Status state="partial" /> | Часть работает, остальное описано в issue или PR |
 | <Status state="wip" /> | В коде этого нет или оно не закончено, и на это есть issue |
 | <Status state="undecided" /> | Решения пока нет. В этом состоянии загрузчик плагинов (jar, wasm, скрипты) |
@@ -29,8 +29,6 @@ import { Aside } from '@astrojs/starlight/components';
 ## Статус по областям
 
 <StatusRows areas="worldgen,lighting,client,protocol,network,persistence,gameplay,commands,entities,physics,datapacks,molang,tools,library" />
-
-Цифры производительности собраны в [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md), у каждой указаны машина и сценарий. Все они сняты на одной машине, Apple M4 Max с macOS. Сравнений с ванилью, Paper и другими серверами мы не публикуем.
 
 ## Что не планируется
 

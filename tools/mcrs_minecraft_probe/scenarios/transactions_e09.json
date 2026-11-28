@@ -1,0 +1,129 @@
+{
+  "target": {
+    "operators": [
+      "itxe09probeplyr"
+    ]
+  },
+  "observe": {
+    "inventory": true
+  },
+  "steps": [
+    {
+      "id": "join",
+      "join": "itxe09probeplyr"
+    },
+    {
+      "id": "peaceful",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "difficulty peaceful"
+      }
+    },
+    {
+      "id": "teleport_to_origin",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "tp @s 0.5 -60 0.5"
+      }
+    },
+    {
+      "id": "survival",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "gamemode survival"
+      }
+    },
+    {
+      "id": "place_chest",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "setblock 1 -60 0 chest"
+      }
+    },
+    {
+      "id": "stone_40_in_chest_0",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "item replace block 1 -60 0 container.0 with stone 40"
+      }
+    },
+    {
+      "id": "stone_40_in_chest_5",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "item replace block 1 -60 0 container.5 with stone 40"
+      }
+    },
+    {
+      "id": "stone_64_in_p0",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "item replace entity @s hotbar.0 with stone 64"
+      }
+    },
+    {
+      "id": "open_chest",
+      "use_block": {
+        "client": "itxe09probeplyr",
+        "position": [
+          1,
+          -60,
+          0
+        ]
+      }
+    },
+    {
+      "id": "quick_move_p0_to_chest",
+      "click": {
+        "client": "itxe09probeplyr",
+        "slot": 54,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "read_chest",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "data get block 1 -60 0 Items"
+      }
+    },
+    {
+      "id": "read_inventory",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "fill_chest_with_dirt",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "data modify block 1 -60 0 Items set value [{Slot:0b,id:\"minecraft:dirt\",count:64},{Slot:1b,id:\"minecraft:dirt\",count:64},{Slot:2b,id:\"minecraft:dirt\",count:64},{Slot:3b,id:\"minecraft:dirt\",count:64},{Slot:4b,id:\"minecraft:dirt\",count:64},{Slot:5b,id:\"minecraft:dirt\",count:64},{Slot:6b,id:\"minecraft:dirt\",count:64},{Slot:7b,id:\"minecraft:dirt\",count:64},{Slot:8b,id:\"minecraft:dirt\",count:64},{Slot:9b,id:\"minecraft:dirt\",count:64},{Slot:10b,id:\"minecraft:dirt\",count:64},{Slot:11b,id:\"minecraft:dirt\",count:64},{Slot:12b,id:\"minecraft:dirt\",count:64},{Slot:13b,id:\"minecraft:dirt\",count:64},{Slot:14b,id:\"minecraft:dirt\",count:64},{Slot:15b,id:\"minecraft:dirt\",count:64},{Slot:16b,id:\"minecraft:dirt\",count:64},{Slot:17b,id:\"minecraft:dirt\",count:64},{Slot:18b,id:\"minecraft:dirt\",count:64},{Slot:19b,id:\"minecraft:dirt\",count:64},{Slot:20b,id:\"minecraft:dirt\",count:64},{Slot:21b,id:\"minecraft:dirt\",count:64},{Slot:22b,id:\"minecraft:dirt\",count:64},{Slot:23b,id:\"minecraft:dirt\",count:64},{Slot:24b,id:\"minecraft:dirt\",count:64},{Slot:25b,id:\"minecraft:dirt\",count:64},{Slot:26b,id:\"minecraft:dirt\",count:64}]"
+      }
+    },
+    {
+      "id": "full_chest_stone_64_in_p0",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "item replace entity @s hotbar.0 with stone 64"
+      }
+    },
+    {
+      "id": "full_chest_quick_move_p0",
+      "click": {
+        "client": "itxe09probeplyr",
+        "slot": 54,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "full_chest_read_inventory",
+      "command": {
+        "client": "itxe09probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    }
+  ]
+}

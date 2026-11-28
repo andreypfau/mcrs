@@ -1,0 +1,18 @@
+# Walk with Shift under a ceiling at the height 1.5, release Shift under it, and walk out
+# backward. Experiment E2, step 2, of docs/spec/player-pose.md: POSE-NET-005, POSE-SRV-009.
+experiment pose_e2_2
+arena -16 96 -16 48 110 16
+
+step low_ceiling
+instruction After Go, hold Shift and W for 3 seconds, release W, then release Shift after 1 second; after 1 more second, hold S for 3 seconds.
+input 61 forward,shift
+input 121 shift
+input 141 none
+input 161 backward
+input 221 none
+fill -16 99 -16 48 99 16 minecraft:stone
+fill 2 101 -2 12 101 2 minecraft:smooth_stone_slab[type=top,waterlogged=false]
+run gamemode survival @a
+run effect clear @a
+start 0.5 100 0.5 -90 0
+ticks 240

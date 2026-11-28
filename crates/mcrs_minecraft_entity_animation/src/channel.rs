@@ -1,7 +1,6 @@
 use mcrs_minecraft_pack_file::{DiagnosticKind, FieldCompiler, Json};
 use mcrs_molang::Expression;
 
-/// How the sample between a keyframe and the next one is computed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum LerpMode {
     #[default]
@@ -9,7 +8,6 @@ pub enum LerpMode {
     CatmullRom,
 }
 
-/// A keyframe: a time in seconds and the values on each side of it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Keyframe {
     pub time: f32,
@@ -18,32 +16,20 @@ pub struct Keyframe {
     pub lerp_mode: LerpMode,
 }
 
-/// The keyframes of one channel, sorted by time.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Channel {
     pub keyframes: Vec<Keyframe>,
 }
 
-/// The keyframes that a sample at one time uses.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Segment {
-    /// Before the first keyframe: its `pre`.
     Pre(usize),
-    /// At or after the last keyframe: its `post`.
     Post(usize),
-    /// Between the keyframe `from` and the next one.
-    Linear {
-        from: usize,
-        alpha: f32,
-    },
-    CatmullRom {
-        from: usize,
-        alpha: f32,
-    },
+    Linear { from: usize, alpha: f32 },
+    CatmullRom { from: usize, alpha: f32 },
 }
 
 impl Segment {
-    /// `query.key_frame_lerp_time` of the sample.
     #[must_use]
     pub const fn alpha(self) -> f32 {
         match self {
@@ -54,7 +40,6 @@ impl Segment {
 }
 
 impl Channel {
-    /// The keyframes around `time`; `None` for a channel with no keyframe.
     #[must_use]
     pub fn segment(&self, time: f32) -> Option<Segment> {
         let after = self.keyframes.partition_point(|key| key.time <= time);
@@ -74,8 +59,6 @@ impl Channel {
         })
     }
 
-    /// The value of the channel for `segment`. `axis` evaluates one axis expression; the
-    /// sample evaluates only the expressions that it uses.
     pub fn sample(
         &self,
         segment: Segment,
@@ -135,8 +118,6 @@ impl Channel {
         value
     }
 
-    /// Reads a channel of a bone: a value, or an object of keyframes. `None` for a content
-    /// error.
     pub(crate) fn compile(
         json: &Json,
         compiler: &mut FieldCompiler,
@@ -175,7 +156,6 @@ impl Channel {
         Some(Self { keyframes })
     }
 
-    /// The time of the last keyframe.
     #[must_use]
     pub fn end(&self) -> f32 {
         self.keyframes.last().map_or(0.0, |key| key.time)
@@ -245,8 +225,6 @@ fn keyframe(
     })
 }
 
-/// A value of a channel or a keyframe: a number or an expression for all three axes, or an
-/// array of one or three of them.
 fn vector(json: &Json, compiler: &mut FieldCompiler, context: &str) -> Option<[Expression; 3]> {
     let elements = match json {
         Json::Array(elements) => elements.as_slice(),

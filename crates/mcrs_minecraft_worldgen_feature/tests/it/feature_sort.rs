@@ -1,6 +1,3 @@
-//! The per-step feature order and the per-biome sets, against the dump the
-//! reference produced for the same three biome sources.
-
 use bytes::Buf;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_resource::ResourceLocationBuf;
@@ -16,7 +13,6 @@ struct Source {
     id: String,
     biomes: Vec<ResourceLocationBuf>,
     steps: Vec<Vec<String>>,
-    /// `[biome][step]`, the feature positions the biome carries.
     per_biome: Vec<Vec<Vec<usize>>>,
 }
 

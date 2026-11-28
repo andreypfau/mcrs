@@ -39,7 +39,7 @@ pub struct FortressBlocks {
 
 impl FortressBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let oriented = |block: Block| Oriented::named(world, blocks, block, &[]);
@@ -83,7 +83,6 @@ impl FortressBlocks {
     }
 }
 
-/// Each type's `postProcess` for one column.
 pub fn paint_fortress<W: WorldGenVolume, R: Random>(
     b: &FortressBlocks,
     kind: FortressKind,
@@ -262,8 +261,6 @@ fn corridor_balcony<W: WorldGenVolume>(b: &FortressBlocks, c: &mut PieceCanvas<'
     }
 }
 
-/// The shell the castle entrance and the stalk room share: walls, the fenced
-/// gallery and the roof rail.
 fn castle_hall<W: WorldGenVolume>(b: &FortressBlocks, c: &mut PieceCanvas<'_, W>) {
     let nb = &b.bricks;
     c.solid(nb, [0, 3, 0], [12, 4, 12]);

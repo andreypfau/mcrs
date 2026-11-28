@@ -9,7 +9,7 @@ use crate::terrain_debug_entry;
 use mcrs_minecraft_client_gui::debug_screen::{DebugScreenSet, collecting};
 use mcrs_minecraft_client_gui::{debug_entry_fps, debug_entry_system_specs};
 use mcrs_minecraft_client_world::columns::ClientTerrainSet;
-use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
+use mcrs_minecraft_client_world::local_player::LocalPlayerTick;
 
 pub mod census;
 pub mod chunk_guard;
@@ -17,8 +17,11 @@ pub mod entry_frame;
 pub mod flight;
 #[cfg(target_os = "macos")]
 pub mod gputrace;
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+pub mod join_menu;
 pub mod knobs;
 pub mod light_guard;
+pub mod play_world;
 pub mod raster;
 pub mod traces;
 #[cfg(feature = "telemetry-tracy")]
@@ -43,7 +46,8 @@ impl Plugin for DevPlugin {
         }
         #[cfg(target_os = "macos")]
         app.insert_resource(gputrace::AutoTrace(knobs.gputrace_path()))
-            .add_systems(Update, gputrace::gputrace);
+            .init_resource::<gputrace::CaptureFrames>()
+            .add_systems(Update, gputrace::gputrace.run_if(gputrace::trace_due));
         #[cfg(not(target_family = "wasm"))]
         {
             if let Some(level) = knobs.light_guard() {
@@ -68,7 +72,7 @@ impl Plugin for DevPlugin {
         }
         if let Some(seconds) = knobs.census_interval() {
             app.insert_resource(census::Census::every(seconds))
-                .add_systems(Update, census::census);
+                .add_systems(Update, census::census.run_if(census::due));
         }
         #[cfg(feature = "telemetry-tracy")]
         if knobs.tracy_preview() {
@@ -100,12 +104,13 @@ impl Plugin for DevPlugin {
     }
 }
 
-pub fn script_flight(app: &mut App, player: Entity) {
+pub fn script_flight(app: &mut App) {
     let knobs = Knobs::of(app);
     let Some(speed) = knobs.scripted_flight() else {
         return;
     };
     app.insert_resource(flight::ScriptedFlight {
+        flying_speed: speed,
         turn_at: knobs.turn_after(),
         turned: false,
     })
@@ -115,21 +120,8 @@ pub fn script_flight(app: &mut App, player: Entity) {
             .after(crate::input::read_movement_keys)
             .before(LocalPlayerTick),
     );
-    app.world_mut()
-        .entity_mut(player)
-        .insert(FlyingSpeed(speed));
 }
 
-/// Opens the window on the fastest display rather than on the system's primary
-/// one.
-///
-/// Whenever the engine is quicker than the display, the frame rate a run reads
-/// is the display's: a 60 Hz external panel pins a whole chunk load to sixty
-/// frames a second and everything paced per frame along with it, while the
-/// laptop's own panel does a hundred and twenty. `MCRS_MONITOR=primary` puts it
-/// back. The placement is absolute rather than a `MonitorSelection`, which macOS
-/// ignores once the window exists — which is also why `FULLSCREEN=1` still takes
-/// over the primary display and not this one.
 pub fn place_window(
     monitors: Query<(&Monitor, Has<PrimaryMonitor>)>,
     window: Option<Single<&mut Window>>,

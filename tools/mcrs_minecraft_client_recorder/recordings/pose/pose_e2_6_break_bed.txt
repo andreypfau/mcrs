@@ -1,0 +1,191 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment pose_e2_6
+step break_bed
+instruction After Go, right-click the bed in front; the console breaks the bed after 2 seconds.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+12611882 < abilities none 0.05
+12611882 < attribute minecraft:block_interaction_range 4.5
+12611882 < attribute minecraft:entity_interaction_range 3
+12611882 < attribute minecraft:movement_speed 0.10000000149011612
+12611882 < data self 6 pose:standing
+12611882 < data self 9 float:20
+12611882 < data self 14 block_pos:-
+12611882 < data self 16 byte:0x7f
+12611882 < teleport 7 0.5 100 0.5 0 0 0 -90 0 0
+12663196 > move - - none
+12664392 > tick
+12665571 > move - - on_ground
+12665572 > tick
+12764533 > move 0.5,100,0.5 - on_ground
+12766701 > tick
+12770813 > tick
+12868824 > tick
+12870072 > tick
+12991804 > tick
+12991806 > tick
+12992965 > tick
+13019627 > tick
+13069281 > tick
+13119235 > tick
+13167920 > tick
+13219484 > tick
+13269046 > tick
+13317845 > tick
+13367685 > tick
+13418696 > tick
+13467979 > tick
+13519395 > tick
+13569165 > tick
+13620254 > tick
+13669068 > move 0.5,100,0.5 - on_ground
+13669069 > tick
+13720166 > tick
+13768963 > tick
+13819949 > tick
+13869043 > tick
+13917956 > tick
+13967775 > tick
+14018812 > tick
+14067799 > tick
+14120373 > tick
+14169146 > tick
+14217863 > tick
+14269107 > tick
+14320159 > tick
+14368866 > tick
+14419963 > tick
+14468673 > tick
+14519705 > tick
+14568500 > tick
+14619503 > tick
+14668306 > move 0.5,100,0.5 - on_ground
+14668307 > tick
+14719332 > tick
+14768716 > tick
+14819778 > tick
+14868655 > tick
+14919728 > tick
+14968978 > tick
+15020086 > tick
+15067524 > tick
+15118585 > tick
+15168184 > tick
+15219485 > tick
+15268782 > tick
+15317569 > tick
+15368670 > tick
+15419901 > tick
+15469488 > tick
+15518878 > tick
+15568804 > move - -90,30 on_ground
+15568805 > tick
+15608519 < teleport 8 3.5 100.6875 0.5 0 0 0 -90 0 0
+15609692 < block 2 100 0 minecraft:red_bed[facing=east,occupied=true,part=foot]
+15609693 < block 2 101 0 minecraft:air
+15609696 < block 2 100 0 minecraft:red_bed[facing=east,occupied=true,part=foot]
+15609696 < block 3 100 0 minecraft:red_bed[facing=east,occupied=true,part=head]
+15609699 < data self 6 pose:sleeping
+15609699 < data self 14 block_pos:3,100,0
+15618144 > move 3.5,100.6875,0.5 -90,0 none
+15619288 > tick
+15669020 > move 3.5,100.60909999847412,0.5 - none
+15670167 > tick
+15719071 > move 3.5,100.5625,0.5 - on_ground
+15719072 > tick
+15768550 > move 3.5,100.6150560409655,0.5 - none
+15769700 > tick
+15818750 > move 3.5,100.58816096058824,0.5 - none
+15819907 > tick
+15868715 > move 3.5,100.5625,0.5 - on_ground
+15869736 > tick
+15917586 > move 3.5,100.57505219488203,0.5 - none
+15918738 > tick
+15967816 > move 3.5,100.5625,0.5 - on_ground
+15968970 > tick
+16019801 > tick
+16068301 > tick
+16118714 > tick
+16168015 > tick
+16219019 > tick
+16268835 > tick
+16317741 > tick
+16368750 > tick
+16418361 > tick
+16467802 > tick
+16521086 > tick
+16567930 > tick
+16617806 > tick
+16667423 > tick
+16718407 > tick
+16774199 > tick
+16818630 > tick
+16869484 > tick
+16918794 > tick
+16968366 > move 3.5,100.5625,0.5 - on_ground
+16969513 > tick
+17019194 > tick
+17067900 > tick
+17117821 > tick
+17168777 > tick
+17218075 > tick
+17271437 > tick
+17317840 > tick
+17368917 > tick
+17418136 > tick
+17469173 > tick
+17520951 > tick
+17557768 < data 3 8 serializer:7
+17567524 > tick
+17608858 < block 2 100 0 minecraft:air
+17608858 < block 3 100 0 minecraft:air
+17608864 < data 3 8 serializer:7
+17608866 < teleport 9 3.5 100.6875 0.5 0 0 0 -90 0 0
+17621340 > move 3.5,100.6875,0.5 - none
+17622485 > tick
+17659001 < data self 6 pose:standing
+17659001 < data self 14 block_pos:-
+17670284 > move 3.5,100.60909999847412,0.5 - none
+17670284 > tick
+17719072 > move 3.5,100.45386799395752,0.5 - none
+17719074 > tick
+17770141 > move 3.5,100.22334062504456,0.5 - none
+17770142 > tick
+17818912 > move 3.5,100,0.5 - on_ground
+17820062 > tick
+17869155 > tick
+17918111 > tick
+17969111 > tick
+18019030 > tick
+18068918 > tick
+18118881 > tick
+18168056 > tick
+18217963 > tick
+18271122 > tick
+18317762 > tick
+18368796 > tick
+18418135 > tick
+18467437 > tick
+18520743 > tick
+18567632 > tick
+18621181 > tick
+18667599 > tick
+18718538 > tick
+18771799 > tick
+18818911 > move 3.5,100,0.5 - on_ground
+18820058 > tick
+18868820 > tick
+18918042 > tick
+18969097 > tick
+19020141 > tick
+19067652 > tick
+19117765 > tick
+19168718 > tick
+19218077 > tick
+19271229 > tick
+19317992 > tick
+19371513 > tick
+19418778 > tick
+19469867 > tick
+19518834 > tick

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mcrs": {
+      "command": "${CLAUDE_PROJECT_DIR:-.}/target/debug/mcrs_minecraft_mcp",
+      "args": []
+    }
+  }
+}

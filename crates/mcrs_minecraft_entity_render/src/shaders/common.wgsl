@@ -1,7 +1,3 @@
-// The records of the entity passes. The Rust records lay out the same bytes, and a test of
-// `gpu_pipelines.rs` compares their sizes and the shared constants. Each record uses scalar
-// fields, so no WGSL alignment rule moves a field.
-
 struct Frame {
     clip_from_relative: mat4x4<f32>,
     frustum: array<vec4<f32>, 5>,
@@ -20,6 +16,10 @@ struct Frame {
     bone_capacity: u32,
     visible_capacity: u32,
     face_capacity: u32,
+    view: u32,
+    spare0: u32,
+    spare1: u32,
+    spare2: u32,
 }
 
 const SHADE_TABLE_NETHER: u32 = 1u;
@@ -44,6 +44,7 @@ struct CullRecord {
 
 const CULL_VALID: u32 = 1u;
 const CULL_FULL_RIG_ONLY: u32 = 2u;
+const CULL_VIEWS_SHIFT: u32 = 8u;
 
 struct StateRecord {
     definition_mask: u32,
@@ -65,12 +66,12 @@ const STATE_DYING: u32 = 16u;
 const STATE_HIDDEN_SHIFT: u32 = 16u;
 
 struct InputRecord {
-    values: array<f32, 16>,
+    values: array<f32, 32>,
     clips: array<vec2<u32>, 4>,
 }
 
 struct ModelRecord {
-    bound_x: f32,
+    @align(16) bound_x: f32,
     bound_y: f32,
     bound_z: f32,
     bound_radius: f32,
@@ -89,7 +90,7 @@ struct ModelRecord {
 }
 
 struct BoneRecord {
-    pivot_x: f32,
+    @align(16) pivot_x: f32,
     pivot_y: f32,
     pivot_z: f32,
     parent_palette: u32,
@@ -123,14 +124,12 @@ const CUBOID_EXPLICIT: u32 = 128u;
 const INFLATE_STEP: f32 = 1.0 / 8192.0;
 
 struct Variant {
-    array_layer: u32,
+    @align(16) array_layer: u32,
     uv_scale_x: f32,
     uv_scale_y: f32,
     cutout_first: u32,
 }
 
-/// The entity transform of a visible mob, from internal space in model units to the space
-/// relative to the origin of the camera section, as three rows; then its overlay and its light.
 struct Instance {
     row0: vec4<f32>,
     row1: vec4<f32>,
@@ -174,8 +173,6 @@ fn face_normal(face: u32) -> vec3<f32> {
     }
 }
 
-/// The drawn box of a cuboid: the box grown by the inflate, collapsed to its middle on an axis
-/// where a negative inflate turns it inside out.
 struct DrawnBox {
     lo: vec3<f32>,
     hi: vec3<f32>,
@@ -209,7 +206,6 @@ fn drawn_box(cuboid: CuboidRecord) -> DrawnBox {
     return DrawnBox(select(grown_lo, middle, flat), select(grown_hi, middle, flat));
 }
 
-/// The corners `c0`, `c1`, `c2` and `c3` of a face of the box from `lo` to `hi`.
 fn face_corner(face: u32, corner: u32, lo: vec3<f32>, hi: vec3<f32>) -> vec3<f32> {
     let right = (corner & 1u) != 0u;
     let low = (corner & 2u) != 0u;
@@ -223,8 +219,6 @@ fn face_corner(face: u32, corner: u32, lo: vec3<f32>, hi: vec3<f32>) -> vec3<f32
     }
 }
 
-/// The texel of a corner of a face of a box UV with the origin `uv`, the layout sizes
-/// `layout` (`w`, `h`, `d`) and the mirror flag.
 fn box_uv_corner(face: u32, corner: u32, uv: vec2<f32>, sizes: vec3<f32>, mirror: bool) -> vec2<f32> {
     let u = uv.x;
     let v = uv.y;
@@ -269,8 +263,6 @@ fn transform_vector(row0: vec4<f32>, row1: vec4<f32>, row2: vec4<f32>, v: vec3<f
     return vec3<f32>(dot(row0.xyz, v), dot(row1.xyz, v), dot(row2.xyz, v));
 }
 
-/// The direction of a normal under the linear part of a transform with these rows: the
-/// inverse transpose, with the sign of the determinant, so a mirror keeps it outward.
 fn transform_normal(row0: vec4<f32>, row1: vec4<f32>, row2: vec4<f32>, n: vec3<f32>) -> vec3<f32> {
     let a = vec3<f32>(row0.x, row1.x, row2.x);
     let b = vec3<f32>(row0.y, row1.y, row2.y);
@@ -281,7 +273,6 @@ fn transform_normal(row0: vec4<f32>, row1: vec4<f32>, row2: vec4<f32>, n: vec3<f
     return normalize(select(cofactor, -cofactor, det < 0.0));
 }
 
-/// A transform as three rows.
 struct Placed {
     row0: vec4<f32>,
     row1: vec4<f32>,
@@ -297,7 +288,6 @@ fn compose_row(r: vec4<f32>, b0: vec4<f32>, b1: vec4<f32>, b2: vec4<f32>) -> vec
     );
 }
 
-/// The instance transform after the bone transform with the rows `b0`, `b1` and `b2`.
 fn compose_rows(instance: Instance, b0: vec4<f32>, b1: vec4<f32>, b2: vec4<f32>) -> Placed {
     return Placed(
         compose_row(instance.row0, b0, b1, b2),
@@ -313,7 +303,6 @@ fn relative_block(bx: i32, by: i32, bz: i32) -> vec3<f32> {
     return vec3<f32>(vec3<i32>(bx, by, bz) - frame.camera_section * 16);
 }
 
-/// The angle equal to `degrees` modulo 360, in `[-180, 180)`.
 fn wrap_degrees(angle: f32) -> f32 {
     let shifted = angle + 180.0;
     let wrapped = shifted - floor(shifted / 360.0) * 360.0 - 180.0;
@@ -363,14 +352,12 @@ fn rotation_z(angle: f32) -> mat3x3<f32> {
     return mat3x3<f32>(vec3<f32>(c, s, 0.0), vec3<f32>(-s, c, 0.0), vec3<f32>(0.0, 0.0, 1.0));
 }
 
-/// The red overlay of a hurt or dying entity, or none, as `(colour, alpha)` for `mix`.
 fn entity_overlay(state: StateRecord, whole_age: i32, dying: bool) -> vec4<f32> {
     let hurt_ticks = whole_age - i32(state.hurt_start);
     let red = (hurt_ticks >= 0 && hurt_ticks < HURT_TICKS) || dying;
     return select(vec4<f32>(0.0, 0.0, 0.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, RED_OVERLAY_ALPHA), red);
 }
 
-/// The block light and the sky light of the state record, on the scale of the lightmap.
 fn entity_light(state: StateRecord) -> vec4<f32> {
     return vec4<f32>(
         f32(state.light_scale & 0xffu) * 16.0,
@@ -380,18 +367,10 @@ fn entity_light(state: StateRecord) -> vec4<f32> {
     );
 }
 
-/// The draw record of one impostor that the prepare pass writes.
 struct ImpostorDraw {
-    /// The frame position relative to the camera section, and the body yaw in degrees.
     origin_yaw: vec4<f32>,
-    /// The direction across the view times the scale (x and z), the scale, and the bits of the
-    /// texel of the top left corner of the view image, x in the low half.
     axes: vec4<f32>,
-    /// The left, right, low and high edges of the quad at the scale 1.
     bounds: vec4<f32>,
-    /// The image sets of the layers two to a word, the block and the sky light, and 1 for the
-    /// red overlay.
     words: vec4<u32>,
-    /// The rectangle of the view image of each layer.
     rects: array<vec4<f32>, 4>,
 }

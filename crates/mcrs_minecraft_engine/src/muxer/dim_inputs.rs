@@ -5,7 +5,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::ResMut;
+use bevy_ecs::system::{Res, ResMut};
 use mcrs_minecraft_engine_world::world::channels::TO_DIM_CAPACITY;
 use rustc_hash::FxHashMap;
 
@@ -16,18 +16,14 @@ use crate::dim_tick::{TickDimensions, TickDimensionsSet};
 use crate::to_coordinator::RoutedInput;
 use crate::to_muxer::{DimClosed, DimOpened};
 
-/// What the host holds for each dimension world until its next tick, by the label entity of the
-/// dimension.
 #[derive(Resource, Default)]
 pub struct DimInputs(FxHashMap<Entity, RoutedInput>);
 
 impl DimInputs {
-    /// Takes input for the dimension `dim` from now on.
     pub fn insert(&mut self, dim: Entity) {
         self.0.entry(dim).or_insert_with(|| RoutedInput::new(dim));
     }
 
-    /// Stops taking input for the dimension `dim` and drops what it holds.
     pub fn remove(&mut self, dim: Entity) {
         self.0.remove(&dim);
     }
@@ -37,8 +33,6 @@ impl DimInputs {
         self.0.contains_key(&dim)
     }
 
-    /// Queues a lifecycle message for the dimension `dim`. A control message is never refused,
-    /// so a burst of joins never loses one. Returns `false` when the dimension is gone.
     pub fn send_control(&mut self, dim: Entity, message: ToDim) -> bool {
         let Some(pending) = self.0.get_mut(&dim) else {
             return false;
@@ -47,8 +41,6 @@ impl DimInputs {
         true
     }
 
-    /// Queues a serverbound packet for the dimension `dim`. Hands the packet back when the
-    /// dimension is gone or holds [`TO_DIM_CAPACITY`] packets for its next tick already.
     pub fn try_send_serverbound(
         &mut self,
         dim: Entity,
@@ -63,8 +55,6 @@ impl DimInputs {
         }
     }
 
-    /// Queues what the muxer asks of the version streams of the columns of `dim`. Returns
-    /// `false` when the dimension is gone.
     pub fn send_column_requests(
         &mut self,
         dim: Entity,
@@ -77,14 +67,12 @@ impl DimInputs {
         true
     }
 
-    /// The control messages that wait for the next tick of `dim`.
     pub fn control(&self, dim: Entity) -> &[ToDim] {
         self.0
             .get(&dim)
             .map_or(&[], |pending| pending.control.as_slice())
     }
 
-    /// The serverbound packets that wait for the next tick of `dim`.
     pub fn serverbound(&self, dim: Entity) -> &[InboundPlayerPacket] {
         self.0
             .get(&dim)
@@ -97,16 +85,21 @@ impl DimInputs {
     }
 }
 
-/// Hands the coordinator the input that each dimension got during the update, for its tick.
+pub(crate) fn dim_inputs_pending(inputs: Res<DimInputs>) -> bool {
+    inputs.0.values().any(|pending| !pending.is_empty())
+}
+
 pub fn route_dim_inputs(mut inputs: ResMut<DimInputs>, mut routed: MessageWriter<RoutedInput>) {
     for (&dim, pending) in &mut inputs.0 {
         if !pending.is_empty() {
+            pending
+                .serverbound
+                .sort_unstable_by_key(|packet| (packet.arrival, packet.session.0));
             routed.write(mem::replace(pending, RoutedInput::new(dim)));
         }
     }
 }
 
-/// The input of the dimensions: what the muxer routes to each one until its next tick.
 pub struct DimInputsPlugin;
 
 impl Plugin for DimInputsPlugin {
@@ -117,7 +110,9 @@ impl Plugin for DimInputsPlugin {
         app.add_message::<RoutedInput>();
         app.add_systems(
             TickDimensions,
-            route_dim_inputs.in_set(TickDimensionsSet::Route),
+            route_dim_inputs
+                .run_if(dim_inputs_pending)
+                .in_set(TickDimensionsSet::Route),
         );
     }
 }

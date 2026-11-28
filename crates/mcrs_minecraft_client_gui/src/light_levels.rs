@@ -1,4 +1,5 @@
 use bevy::color::Mix;
+use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 use bevy::text::FontSize;
 use bevy::transform::TransformSystems;
@@ -9,14 +10,9 @@ use mcrs_voxel::BlockPos;
 
 use std::marker::PhantomData;
 
-/// `LightDebugRenderer.MAX_RENDER_DIST`.
 const RADIUS: i32 = 10;
-/// The nearest labels the pool can hold. A 21-cube of lit cells reaches several
-/// thousand, and every one of them is a laid-out text node.
 const LABELS: usize = 512;
 const FONT_SIZE: f32 = 22.0;
-/// Distance at which a label draws at its font size, standing in for the
-/// perspective a billboarded quad would have had.
 const FULL_SIZE_AT: f32 = 8.0;
 const SCALE_MIN: f32 = 0.7;
 const SCALE_MAX: f32 = 1.6;
@@ -73,14 +69,12 @@ struct Label {
     color: Color,
 }
 
-/// Labels every block near the camera marked `C` with its light level.
 pub struct LightLevelsPlugin<C> {
     visible: bool,
     camera: PhantomData<C>,
 }
 
 impl<C> LightLevelsPlugin<C> {
-    /// `visible` shows the labels from the first frame.
     pub fn new(visible: bool) -> Self {
         Self {
             visible,
@@ -96,7 +90,14 @@ impl<C: Component> Plugin for LightLevelsPlugin<C> {
         } else {
             LightLevels::Off
         })
-        .add_systems(Update, (toggle, sync_pool).chain())
+        .add_systems(
+            Update,
+            (
+                toggle.run_if(input_just_pressed(KeyCode::F4)),
+                sync_pool.run_if(resource_changed::<LightLevels>),
+            )
+                .chain(),
+        )
         .add_systems(
             PostUpdate,
             render::<C>
@@ -168,8 +169,6 @@ fn label(
     })
 }
 
-/// `ARGB.srgbLerp`: the endpoints are mixed as they are written, not in linear
-/// light.
 fn colour(level: u8, dim: Srgba, bright: Srgba) -> Color {
     dim.mix(&bright, f32::from(level) / 15.0).into()
 }
@@ -182,6 +181,7 @@ fn render<C: Component>(
     levels: Res<LightLevels>,
     store: Option<Res<ColumnStore>>,
     camera: Single<(&Camera, &GlobalTransform), With<C>>,
+    mut wanted: Local<Vec<Label>>,
     mut labels: Query<
         (
             &mut UiTransform,
@@ -198,7 +198,7 @@ fn render<C: Component>(
     };
     let (camera, eye) = *camera;
     let origin = eye.translation().floor().as_ivec3();
-    let mut wanted = Vec::new();
+    wanted.clear();
     for dy in -RADIUS..=RADIUS {
         for dz in -RADIUS..=RADIUS {
             for dx in -RADIUS..=RADIUS {
@@ -233,13 +233,11 @@ fn render<C: Component>(
         }
     }
 
-    // Nearest first to survive the cap, then reversed: the pool is drawn in
-    // order, so the last one written lands on top of the ones behind it.
     wanted.sort_unstable_by(|a, b| a.distance.total_cmp(&b.distance));
     wanted.truncate(LABELS);
     wanted.reverse();
 
-    let mut wanted = wanted.into_iter();
+    let mut wanted = wanted.drain(..);
     for (mut transform, mut visibility, mut text, mut color, node) in &mut labels {
         let Some(label) = wanted.next() else {
             visibility.set_if_neq(Visibility::Hidden);
@@ -247,11 +245,10 @@ fn render<C: Component>(
         };
         visibility.set_if_neq(Visibility::Inherited);
         if text.0 != label.text {
-            text.0 = label.text.to_owned();
+            text.0.clear();
+            text.0.push_str(label.text);
         }
         color.set_if_neq(TextColor(label.color));
-        // A node's transform sits at its centre, so half its own size is what
-        // puts the digit on the cell rather than beside it.
         let half = node.size() * node.inverse_scale_factor() / 2.0;
         transform.set_if_neq(UiTransform {
             translation: Val2::px(label.screen.x - half.x, label.screen.y - half.y),

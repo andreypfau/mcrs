@@ -96,7 +96,7 @@ pub(super) struct Dump {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "reads the oracle's dump section by section in the order it was written, so each read follows the layout"
+    reason = "reads the oracle's dump section by section in the order it was written"
 )]
 fn read_dump() -> Dump {
     let source = fixture("template_placement");
@@ -216,8 +216,6 @@ pub(super) fn dump() -> &'static Dump {
     &DUMP
 }
 
-/// The parity program: the corpus over one biome with every pool element
-/// compiled, at the world seed the oracle's stub level answers.
 pub(super) fn program() -> &'static FeatureProgram {
     static PROGRAM: LazyLock<FeatureProgram> = LazyLock::new(|| {
         build_program_with(
@@ -287,7 +285,6 @@ pub(super) fn fnv(entries: &[([i32; 3], u32)]) -> u64 {
     hash
 }
 
-/// First write fixes the order, last write fixes the state.
 pub(super) fn written(writes: &[(BlockPos, VoxelId)]) -> Vec<(BlockPos, VoxelId)> {
     let mut slot: HashMap<BlockPos, usize> = HashMap::new();
     let mut out: Vec<(BlockPos, VoxelId)> = Vec::new();
@@ -354,11 +351,7 @@ struct Outcome {
     rng: [i64; 2],
 }
 
-/// Every way one placement can differ from the oracle's, as one line each.
-#[expect(
-    clippy::too_many_lines,
-    reason = "compares one placement's flag, blocks, entities and random state with the oracle's and reports every difference as a line"
-)]
+#[expect(clippy::too_many_lines, reason = "reports every difference as a line")]
 fn compare(label: &str, expected: &DumpPlacement, got: &Outcome) -> Vec<String> {
     let mut faults = Vec::new();
     let fault = |faults: &mut Vec<String>, what: String| faults.push(format!("{label}: {what}"));
@@ -615,7 +608,6 @@ pub(super) fn feature_program(node: &Feature) -> FeatureProgram {
     )
 }
 
-/// `RuinedPortalPiece.makeSettings`, from the properties the case key spells.
 fn portal_processors(key: &str) -> Vec<StructureProcessor> {
     let fields: BTreeMap<&str, &str> = key
         .strip_prefix("portal:")

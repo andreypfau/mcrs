@@ -1,5 +1,6 @@
 use crate::error::{ArgumentError, CommandSyntaxError};
 use crate::nbt_compound_argument::NbtCompoundArgument;
+use crate::nbt_path_argument::NbtPathArgument;
 use crate::vanilla_lookup::VanillaLookup;
 use core::fmt;
 use mcrs_command::{
@@ -24,65 +25,38 @@ use mcrs_minecraft_keys::command_argument_type as parser;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_wire::VarInt;
 
-/// The command tree of the vanilla argument types, with handlers of type `H`.
 pub type VanillaGraph<H> = Graph<VanillaArgument, PermissionCheck, H>;
 
-/// The argument types of the vanilla commands.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum VanillaArgument {
-    /// `brigadier:bool`.
     Bool(BoolArgument),
-    /// `brigadier:integer`.
     Integer(IntegerArgument),
-    /// `brigadier:long`.
     Long(LongArgument),
-    /// `brigadier:float`.
     Float(FloatArgument),
-    /// `brigadier:double`.
     Double(DoubleArgument),
-    /// `brigadier:string`.
     String(StringArgument),
-    /// `minecraft:entity`.
     Entity(EntityArgument),
-    /// `minecraft:vec3`.
     Vec3(Vec3Argument),
-    /// `minecraft:rotation`.
     Rotation(RotationArgument),
-    /// `minecraft:resource_location`.
     ResourceLocationBuf(ResourceLocationArgument),
-    /// `minecraft:entity_anchor`.
     EntityAnchor(EntityAnchorArgument),
-    /// `minecraft:dimension`.
     Dimension(DimensionArgument),
-    /// `minecraft:gamemode`.
     GameMode(GameModeArgument),
-    /// `minecraft:resource_or_tag` or `minecraft:resource_or_tag_key`.
     ResourceOrTag(ResourceOrTagArgument),
-    /// `minecraft:block_pos`.
     BlockPos(BlockPosArgument),
-    /// `minecraft:column_pos`.
     ColumnPos(ColumnPosArgument),
-    /// `minecraft:block_state`.
     BlockState(BlockStateArgument),
-    /// `minecraft:swizzle`.
     Swizzle(SwizzleArgument),
-    /// `minecraft:heightmap`.
     Heightmap(HeightmapArgument),
-    /// `minecraft:block_predicate`.
     BlockPredicate(BlockPredicateArgument),
-    /// `minecraft:time`.
     Time(TimeArgument),
-    /// `minecraft:resource`.
     Resource(ResourceArgument),
-    /// A time marker of a clock.
     TimeMarker(TimeMarkerArgument),
-    /// A timeline of a clock.
     Timeline(TimelineArgument),
-    /// The name of a player that may not be online.
     PlayerName(PlayerNameArgument),
-    /// `minecraft:nbt_compound_tag`.
     NbtCompound(NbtCompoundArgument),
+    NbtPath(NbtPathArgument),
 }
 
 macro_rules! variant_conversions {
@@ -133,6 +107,7 @@ variant_conversions! {
     Timeline(TimelineArgument)
     PlayerName(PlayerNameArgument)
     NbtCompound(NbtCompoundArgument)
+    NbtPath(NbtPathArgument)
 }
 
 fn check<S, A: Argument<S>>(
@@ -185,6 +160,7 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             VanillaArgument::Timeline(argument) => check(argument, reader, source),
             VanillaArgument::PlayerName(argument) => check(argument, reader, source),
             VanillaArgument::NbtCompound(argument) => check(argument, reader, source),
+            VanillaArgument::NbtPath(argument) => check(argument, reader, source),
         }
     }
 
@@ -220,12 +196,12 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for VanillaArgument {
             | VanillaArgument::Rotation(_)
             | VanillaArgument::ResourceLocationBuf(_)
             | VanillaArgument::ColumnPos(_)
-            | VanillaArgument::NbtCompound(_) => {}
+            | VanillaArgument::NbtCompound(_)
+            | VanillaArgument::NbtPath(_) => {}
         }
     }
 }
 
-/// The suggestion type of the `commands` packet.
 const ASK_SERVER: ResourceLocation<'static> = mcrs_minecraft_resource::rl!("minecraft:ask_server");
 
 fn range<T>((min, max): (Option<T>, Option<T>)) -> NumberRange<T> {
@@ -236,8 +212,7 @@ fn limits<T: Copy>(range: &NumberRange<T>, any: (T, T)) -> (T, T) {
     (range.min.unwrap_or(any.0), range.max.unwrap_or(any.1))
 }
 
-/// The arguments with no properties on the wire, each told apart by its parser id alone.
-const UNIT_ARGUMENTS: [VanillaArgument; 13] = [
+const UNIT_ARGUMENTS: [VanillaArgument; 14] = [
     VanillaArgument::Vec3(Vec3Argument),
     VanillaArgument::Rotation(RotationArgument),
     VanillaArgument::ResourceLocationBuf(ResourceLocationArgument),
@@ -251,9 +226,9 @@ const UNIT_ARGUMENTS: [VanillaArgument; 13] = [
     VanillaArgument::Heightmap(HeightmapArgument),
     VanillaArgument::BlockPredicate(BlockPredicateArgument),
     VanillaArgument::NbtCompound(NbtCompoundArgument),
+    VanillaArgument::NbtPath(NbtPathArgument),
 ];
 
-/// The parser of an argument has no id in the `command_argument_type` registry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnknownParser(pub ResourceLocation<'static>);
 
@@ -275,7 +250,6 @@ fn parser_id(key: ResourceLocation<'static>) -> Result<VarInt, UnknownParser> {
 }
 
 impl VanillaArgument {
-    /// The registry whose entries the argument reads, if it reads one.
     pub(crate) fn registry(&self) -> Option<ResourceLocation<'static>> {
         match self {
             VanillaArgument::ResourceOrTag(argument) => Some(argument.registry),
@@ -288,9 +262,6 @@ impl VanillaArgument {
         }
     }
 
-    /// The inverse of [`WireArgument::wire`], or `None` when no argument has that parser, or
-    /// `registry` does not resolve its registry. A time marker and a timeline read back as the
-    /// resource location and the resource they are sent as: their clock is not on the wire.
     pub(crate) fn from_wire(
         parser: &ArgumentParser<'_>,
         registry: impl Fn(ResourceLocation<'_>) -> Option<ResourceLocation<'static>>,
@@ -367,7 +338,6 @@ impl VanillaArgument {
 impl WireArgument for VanillaArgument {
     type WireError = UnknownParser;
 
-    /// `minecraft:ask_server` for an argument whose suggestions only the server can make.
     fn suggestion_type(&self) -> Option<ResourceLocation<'static>> {
         matches!(
             self,
@@ -447,6 +417,7 @@ impl WireArgument for VanillaArgument {
                 ParserProperties::String(StringMode::Word),
             ),
             VanillaArgument::NbtCompound(_) => (parser::NBT_COMPOUND_TAG, ParserProperties::None),
+            VanillaArgument::NbtPath(_) => (parser::NBT_PATH, ParserProperties::None),
         };
         Ok(ArgumentParser {
             id: parser_id(key)?,
@@ -595,6 +566,7 @@ mod tests {
             "minecraft:heightmap",
             "minecraft:block_predicate",
             "minecraft:nbt_compound_tag",
+            "minecraft:nbt_path",
         ];
         arguments.extend(UNIT_ARGUMENTS.into_iter().zip(unit_names));
         for (argument, name) in arguments {

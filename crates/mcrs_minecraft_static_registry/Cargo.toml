@@ -1,0 +1,24 @@
+[package]
+name = "mcrs_minecraft_static_registry"
+description = "The StaticEntry trait and the helpers that number the entries of a static registry by protocol id"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[features]
+default = []
+std = ["dep:mcrs_minecraft_wire", "dep:serde"]
+
+[dependencies]
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_wire = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

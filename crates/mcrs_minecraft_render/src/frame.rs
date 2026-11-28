@@ -1,24 +1,22 @@
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::RenderApp;
+use bevy::render::camera::ExtractedCamera;
 use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::view::ExtractedView;
 
 use super::Occlusion;
+use super::WorldFog;
 use super::draws::PARAMS_STRIDE;
-use super::frame_view::{FrameView, SIDE_PLANES};
-use super::stats::args_reset;
+use super::frame_view::FrameView;
+use super::shared_types::{CAMERA_SIZE, CameraUniform};
 use super::terrain::Terrain;
 use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_mesh::face_shade;
-use mcrs_minecraft_mesh::{SECTION_SIZE, STREAMS};
+use mcrs_minecraft_mesh::{DrawKind, SECTION_SIZE};
 
-use super::Budget;
-
-/// The camera split into the section it stands in and where it stands inside that section, so
-/// the terrain shaders never need an absolute world coordinate in f32.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct CameraOrigin {
@@ -35,57 +33,18 @@ impl CameraOrigin {
         }
     }
 
-    /// Subtracted in i32, so a block at the edge of the world still lands where it belongs.
     pub fn relative(&self, block: IVec3) -> Vec3 {
         (block - self.section * SECTION_SIZE as i32).as_vec3()
     }
 }
 
-/// The directional shade table of the dimension the camera is in.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct TerrainShade(pub CardinalLight);
 
-impl TerrainShade {
-    #[must_use]
-    pub fn is_nether(self) -> bool {
-        self.0 == CardinalLight::Nether
-    }
-}
-
-/// The frame's view, expressed against the origin of the section the camera stands in. Nothing
-/// here is an absolute world coordinate: at the edge of the world f32 has no block left to give.
-#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub(super) struct CameraUniform {
-    clip_from_relative: [f32; 16],
-    frustum: [[f32; 4]; SIDE_PLANES],
-    section: [i32; 3],
-    _pad_section: i32,
-    offset: [f32; 3],
-    _pad_offset: f32,
-    tint_origin: [f32; 2],
-    tint_scale: [f32; 2],
-    hiz_levels: u32,
-    quad_cull: u32,
-    viewport: [f32; 2],
-    shade_table: u32,
-    _pad_end: [u32; 3],
-}
-
-pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
-
 pub(super) struct Frame {
     pub params: Buffer,
     pub camera: Buffer,
-    pub cave: Buffer,
-    pub args: Buffer,
-    // Copied over `args` once a frame so the cull pass starts from zeroed instance counts
-    // without one small clear per draw.
-    pub args_reset: Buffer,
-    /// The dispatch sizes the cull computes into `args`, copied here because a dispatch cannot
-    /// read its size from a buffer it may also write.
-    pub dispatch: Buffer,
 }
 
 pub fn uniform(label: &str, size: u64, device: &RenderDevice) -> Buffer {
@@ -98,40 +57,14 @@ pub fn uniform(label: &str, size: u64, device: &RenderDevice) -> Buffer {
 }
 
 impl Frame {
-    pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
-        let args_init = args_reset();
+    pub fn new(device: &RenderDevice) -> Self {
         Self {
             params: uniform(
                 "terrain draw params",
-                STREAMS as u64 * PARAMS_STRIDE as u64,
+                DrawKind::COUNT as u64 * PARAMS_STRIDE as u64,
                 device,
             ),
             camera: uniform("terrain camera", CAMERA_SIZE, device),
-            // The cave walk's bits, then the frame's, which the cull writes.
-            cave: device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("terrain cave visibility"),
-                contents: bytemuck::cast_slice(&vec![u32::MAX; 2 * budget.sections.div_ceil(32)]),
-                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            }),
-            args: device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("terrain draw args"),
-                contents: bytemuck::cast_slice(&args_init),
-                usage: BufferUsages::STORAGE
-                    | BufferUsages::INDIRECT
-                    | BufferUsages::COPY_DST
-                    | BufferUsages::COPY_SRC,
-            }),
-            args_reset: device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("terrain draw args reset"),
-                contents: bytemuck::cast_slice(&args_init),
-                usage: BufferUsages::COPY_SRC,
-            }),
-            dispatch: device.create_buffer(&BufferDescriptor {
-                label: Some("terrain cull dispatch"),
-                size: super::stats::DISPATCH_BYTES,
-                usage: BufferUsages::INDIRECT | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            }),
         }
     }
 }
@@ -140,37 +73,44 @@ pub fn clip_from_relative(clip_from_view: Mat4, rotation: Quat, offset: Vec3) ->
     clip_from_view * Mat4::from_rotation_translation(rotation, offset).inverse()
 }
 
-/// Publishes the view of the frame for the passes of the render world.
 pub(super) fn write_frame_view(
     mut commands: Commands,
     origin: Option<Res<CameraOrigin>>,
-    views: Query<&ExtractedView, With<Camera3d>>,
+    frame_view: Option<ResMut<FrameView>>,
+    views: Populated<(&ExtractedView, &ExtractedCamera), With<Camera3d>>,
 ) {
-    let (Some(origin), Some(view)) = (origin, views.iter().next()) else {
+    let (Some(origin), Some((view, _))) = (origin, views.iter().next()) else {
         return;
     };
-    commands.insert_resource(FrameView::new(
+    let next = FrameView::new(
         view.clip_from_view,
         Mat4::from_rotation_translation(view.world_from_view.rotation(), origin.offset).inverse(),
         *origin,
         view.viewport.zw().as_vec2(),
-    ));
+    );
+    match frame_view {
+        Some(mut frame_view) => {
+            frame_view.set_if_neq(next);
+        }
+        None => commands.insert_resource(next),
+    }
 }
 
 pub(super) fn write_camera(
-    terrain: Option<Res<Terrain>>,
+    If(terrain): If<Res<Terrain>>,
     frame_view: Option<Res<FrameView>>,
+    views: Query<(&ExtractedView, &ExtractedCamera), With<Camera3d>>,
     occlusion: Res<Occlusion>,
     quad_cull: Res<super::QuadCull>,
+    render_distance: Res<super::RenderDistance>,
     shade: Res<TerrainShade>,
+    fog: Res<WorldFog>,
     queue: Res<RenderQueue>,
 ) {
-    let (Some(terrain), Some(frame_view)) = (terrain, frame_view) else {
+    let Some(frame_view) = frame_view else {
         return;
     };
     let section = frame_view.camera_section;
-    // The tint window wraps, so only the camera section's place inside it matters, and that
-    // stays exact in i32 where the section's absolute position would not in f32.
     let tint_origin = [
         -(section.x * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[0] as i32) as f32,
         -(section.z * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[1] as i32) as f32,
@@ -188,10 +128,21 @@ pub(super) fn write_camera(
                 1.0 / terrain.budget.tint_size[0] as f32,
                 1.0 / terrain.budget.tint_size[1] as f32,
             ],
-            hiz_levels: if occlusion.0 { terrain.hiz.levels() } else { 0 },
+            hiz_levels: terrain.hiz_levels(&occlusion),
             viewport: frame_view.viewport.to_array(),
+            raster_viewport: views
+                .iter()
+                .next()
+                .and_then(|(_, camera)| camera.physical_target_size)
+                .map_or(frame_view.viewport.to_array(), |size| {
+                    size.as_vec2().to_array()
+                }),
             quad_cull: quad_cull.0 as u32,
             shade_table: face_shade::shader_index(shade.0),
+            render_distance: u32::from(render_distance.0),
+            fog_color: fog.color,
+            fog_environmental: [fog.environmental.start, fog.environmental.end],
+            fog_render_distance: [fog.render_distance.start, fog.render_distance.end],
             ..default()
         }),
     );
@@ -219,14 +170,11 @@ mod tests {
         assert_ne!(far.as_vec3() - eye.as_vec3(), truth);
     }
 
-    /// A block a render distance away, seen from the far edge of the world. Against an f64
-    /// ground truth the camera-relative projection holds to a ten-thousandth of a pixel, while
-    /// the same projection built on absolute f32 coordinates drifts by more than one.
     #[test]
     fn the_relative_projection_survives_a_coordinate_f32_cannot_hold() {
-        let eye = DVec3::new(30_000_000.5, 16_777_216.25, -30_000_000.5);
+        let eye = DVec3::new(30_000_000.9, 16_777_216.9, -30_000_000.9);
         let origin = CameraOrigin::of(eye);
-        let block = (origin.section + IVec3::new(96, -4, -96)) * SECTION_SIZE as i32;
+        let block = (origin.section + IVec3::new(48, -4, -48)) * SECTION_SIZE as i32;
         let rotation =
             Quat::from_rotation_arc(Vec3::NEG_Z, (block.as_dvec3() - eye).normalize().as_vec3())
                 * Quat::from_rotation_y(0.3);

@@ -13,14 +13,9 @@ import java.lang.instrument.Instrumentation;
 import java.nio.file.Path;
 import java.security.ProtectionDomain;
 
-/**
- * Calls {@link Input#tick()} at the start of each client tick. It changes no other code of the
- * client. The agent argument is the path of the input script.
- */
 public final class Agent {
     private static final String CLIENT = "net/minecraft/client/Minecraft";
 
-    /** Kept here: a field of {@link Input} would load the client classes before the hook. */
     static Path script;
 
     private Agent() {}

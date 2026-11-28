@@ -1,31 +1,21 @@
-use mcrs_minecraft_client_entity::{FrameValues, TICKS_PER_SECOND};
 use mcrs_minecraft_entity_animation::{EntityQuery, QuerySource};
-use mcrs_minecraft_protocol_game::entity::Pose;
+use mcrs_minecraft_entity_visual::{FrameValues, TICKS_PER_SECOND};
+use mcrs_minecraft_pose::Pose;
 use mcrs_molang::{Value, string_hash};
 
-/// The variant of an entity, resolved by the host from its entity data, the default variant of
-/// its type and the synced registry. An id that the registry does not hold has the hash of `''`
-/// in each string.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VariantEntry {
-    /// The numeric variant id: the position of the entry in the synced registry.
     pub id: f32,
-    /// The [`string_hash`] of the resource location of the entry.
     pub identifier: u64,
-    /// The [`string_hash`] of the asset identifier, the baby one for a baby.
     pub asset: u64,
-    /// The [`string_hash`] of the model type in lower case.
     pub model: u64,
 }
 
-/// The queries of one client entity in one frame, read from [`FrameValues`].
 #[derive(Clone, Copy, Debug)]
 pub struct FrameQueries<'a> {
     pub frame: &'a FrameValues,
-    /// `None` for a type with no variant.
     pub variant: Option<VariantEntry>,
     pub time_of_day: f32,
-    /// An in-water flag of the host that adds to [`FrameValues::in_water`].
     pub in_water: bool,
 }
 
@@ -80,6 +70,18 @@ impl QuerySource for FrameQueries<'_> {
             EntityQuery::IsSprinting => Self::flag(frame.sprinting),
             EntityQuery::IsSwimming => Self::flag(frame.swimming),
             EntityQuery::IsInvisible => Self::flag(frame.invisible),
+            EntityQuery::IsFallFlying => Self::flag(frame.fall_flying),
+            EntityQuery::IsSpinAttacking => Self::flag(frame.spin_attacking),
+            EntityQuery::IsUsingItem => Self::flag(frame.using_item),
+            EntityQuery::SwimAmount => Value::Number(frame.swim_amount),
+            EntityQuery::FallFlyingTicks => Value::Number(frame.fall_flying_ticks as f32),
+            EntityQuery::VelocityX => Value::Number(frame.velocity.x as f32),
+            EntityQuery::VelocityZ => Value::Number(frame.velocity.z as f32),
+            EntityQuery::TickVelocityLengthSquared => {
+                Value::Number(frame.tick_velocity_length_squared as f32)
+            }
+            EntityQuery::BedYRotation => Value::Number(frame.bed_y_rotation),
+            EntityQuery::HasBed => Self::flag(frame.has_bed),
             _ => Value::Number(0.0),
         };
         Some(value)
@@ -107,7 +109,6 @@ const POSES: [(Pose, &str); 18] = [
     (Pose::Inhaling, "inhaling"),
 ];
 
-/// The value of `query.pose` for a pose of the entity data.
 #[must_use]
 pub fn pose_name(pose: Pose) -> &'static str {
     POSES
@@ -116,7 +117,6 @@ pub fn pose_name(pose: Pose) -> &'static str {
         .map_or("standing", |(_, name)| name)
 }
 
-/// The pose that `query.pose` names, or `None` for a name that no pose has.
 #[must_use]
 pub fn pose_from_name(name: &str) -> Option<Pose> {
     POSES

@@ -1,24 +1,18 @@
 # Scattering: the footprint scheduler and the feature pipeline
 
-A specification for steps 5 and 6 of `worldgen.md` §19: the scheduler that
-plans work by footprints, and the scattered-object half of step 6 — ore on the
-modern path and trees — as its first two consumers. Structure materialisation
-and the structure placement index (§10, G1) are outside this document; §7 says
-what is deferred and why.
+A specification of the scheduler that plans work by footprints, and of the
+scattered-object pipeline — ore on the modern path and trees — as its first two
+consumers. Structure materialisation and the structure placement index are
+outside this document; `structures.md` specifies them.
 
 `worldgen.md` is the authority on invariants and vocabulary; this document
 cites its sections and labels rather than restating them. `heightmap.md` owns
-the maps the placement modifiers read. Reference paths are relative to
-`~/src/gitlab.com/andreypfau/minecraft/src/main/java/net/minecraft`, at the version
-named by `assets/minecraft/version.json`; they are cited as data, never as a shape to copy.
+the maps the placement modifiers read.
 
-Every count below is a count; the measurements that settled the cost claims
-are in `PERF.md`.
-
-One correction to the brief this document was written against: the version named by `assets/minecraft/version.json` has no
+The version named by `assets/minecraft/version.json` has no
 `configured_feature` registry. A `Feature` carries its own configuration
 (`Feature`), a `PlacedFeature` refers to
-it directly (`PlacedFeature.DIRECT_CODEC`), and the corpus folder is
+it directly, and the corpus folder is
 `data/minecraft/worldgen/feature/` of the client jar (235 files) beside
 `worldgen/placed_feature/` (273 files). This document uses the names of that version.
 
@@ -47,50 +41,48 @@ units of unrelated positions ran.
 
 **S2. The seed chain is data from the reference.** The unit seed is
 `setDecorationSeed(worldSeed, originX, originZ)` with the column's block origin
-(`ChunkGenerator.applyBiomeDecoration`): reseed a Xoroshiro source with the world seed,
-draw two longs through `WorldgenRandom.nextLong` and OR each with 1, and take
-`(originX·a + originZ·b) ^ seed` (`WorldgenRandom.setDecorationSeed`). The
-wrapper matters: over a Xoroshiro source `WorldgenRandom.next(32)` is the top
-32 bits of one Xoroshiro long (`WorldgenRandom.next`), and
-`BitRandomSource.nextLong` composes each long from two such draws, the first
-shifted up 32 and the second added sign-extended (`BitRandomSource.nextLong`),
+: reseed a Xoroshiro source with the world seed,
+draw two longs and OR each with 1, and take
+`(originX·a + originZ·b) ^ seed`. The
+wrapper matters: over a Xoroshiro source a 32-bit draw is the top
+32 bits of one Xoroshiro long, and
+the long draw composes each long from two such draws, the first
+shifted up 32 and the second added sign-extended,
 so each of the two longs costs two Xoroshiro longs and is not either of them.
 `decoration_seed` in `crates/mcrs_minecraft_worldgen_generator/src/stages.rs`
 does exactly that, pinned against the per-chunk stream seeds the structure
 geometry fixture records. An object's seed is
-`decorationSeed + index + 10000·step` (`WorldgenRandom.setFeatureSeed`), and every
+`decorationSeed + index + 10000·step`, and every
 reseed is a fresh 128-bit upgrade of the long
-(`XoroshiroRandomSource.setSeed`). The decoration source is always
+. The decoration source is always
 Xoroshiro, regardless of the `legacy_random_source` flag of the noise settings
-(`ChunkGenerator.applyBiomeDecoration`). `XoroshiroRandom::new` performs the same upgrade
-(`crates/mcrs_minecraft_random/src/xoroshiro.rs`, `XoroshiroRandom`, `new`).
+. `XoroshiroRandom::new` performs the same upgrade
+(`crates/mcrs_minecraft_random/src/xoroshiro.rs`).
 
 Consequences of S2 that the scheduler must not break: the RNG state does not
 carry across objects, so skipping an object that does not belong to the window's
-biomes shifts nothing (`ChunkGenerator.applyBiomeDecoration`: absent features are
+biomes shifts nothing (absent features are
 skipped, present ones keep their global index); the chain and the generator
 share one source, so the draw order inside an object is part of the definition
 (§4.2).
 
 **S3. What a program reads is part of the definition too.** An object reads
 blocks, heightmaps and biomes, and its draws depend on what it read (a tree
-clips its height to the free space above it,
-`TreeFeature.doPlace`, `TreeFeature.getMaxFreeTreeHeight`; an ore vein draws a float per candidate
-block when its air-exposure chance is fractional,
-`AbstractOreFeature.shouldSkipAirCheck`). So the state an object sees must be
+clips its height to the free space above it;
+an ore vein draws a float per candidate
+block when its air-exposure chance is fractional). So the state an object sees must be
 pinned as precisely as the seed. This document pins it in Wn2 (§3.4): a unit
 sees the *filled* window plus its own earlier writes, and never another unit's
 scattering writes. That is a deliberate divergence from the reference, whose
 units see whatever neighbours happened to be decorated first, i.e. the
-player's route (§15 of `worldgen.md`, last paragraph). D2 in §9 decides it.
+player's route (§15 of `worldgen.md`, last paragraph).
 
 **S4. The write footprint is a hard bound, not a hint.** Every object's origin
-lies in its own column (`InSquarePlacement.modify` jitters by
+lies in its own column (`in_square` jitters by
 0..15 from the column origin; `count_on_every_layer` and `fixed_placement` do
-the same, `CountOnEveryLayerPlacement.modify`, `FixedPlacement.isSameChunk`),
+the same),
 and the reference refuses any write beyond one column from it
-(`WorldGenRegion.isWithinWriteZone`, `WorldGenRegion.ensureCanWrite`, with the radius set at
-`ChunkPyramid.GENERATION_PYRAMID`). A write outside the footprint is a data
+(with the radius set at). A write outside the footprint is a data
 error: the corpus never does it, because the reference would have logged it. A
 write that lands outside the window is dropped and asserted in debug builds,
 never deferred and never applied later.
@@ -105,10 +97,9 @@ position with, whether a unit's program ran once or was re-run after eviction
 
 **S6. Structures occupy a slot in the same loop and consume none of the
 feature numbering.** The reference walks eleven steps
-(`GenerationStep.Decoration`, or more if a datapack has longer lists,
-`ChunkGenerator.applyBiomeDecoration`); in each step it first places the structure starts
+(or more if a datapack has longer lists); in each step it first places the structure starts
 of that step with a counter of their own, then the step's features with the
-sorted global index (`ChunkGenerator.applyBiomeDecoration`). Feature seeds do
+sorted global index. Feature seeds do
 not depend on the structure counter, so a pipeline that runs the feature half
 alone produces the same features it will produce once structures exist.
 
@@ -117,39 +108,39 @@ alone produces the same features it will produce once structures exist.
 ## 2. Footprints
 
 **What radius a tree needs.** Foliage radius is bounded by the codec at 16
-(`FoliagePlacer.foliagePlacerParts`), trunk height at 32 plus two
-random terms (`TrunkPlacer.trunkPlacerParts`, `TrunkPlacer.getTreeHeight`), and the branching
+, trunk height at 32 plus two
+random terms, and the branching
 placers add horizontal reach on top. The reference does not bound the tree by
 its data; it bounds it by the write radius of the stage, one column
-(`ChunkPyramid.GENERATION_PYRAMID`), and drops the rest (S4). A tree reads free space
-over a `minimum_size` footprint around the trunk (`TreeFeature.doPlace`, `TreeFeature.getMaxFreeTreeHeight`)
+, and drops the rest (S4). A tree reads free space
+over a `minimum_size` footprint around the trunk
 and rewrites leaf distances within its own bounding box
-(`TreeFeature.place`, `TreeFeature.updateLeaves`), so its read radius is the same one
+, so its read radius is the same one
 column. `r_w = r_r = 1`.
 
 **What radius an ore vein needs.** A modern vein spreads `size/8 ≤ 8` blocks
 from the origin along a random direction and probes a box a further
-`ceil((size/16·2 + 1)/2) ≤ 5` blocks wide (`OreFeature.place`),
+`ceil((size/16·2 + 1)/2) ≤ 5` blocks wide,
 so it reaches at most thirteen blocks past an origin that lies inside the
 column: `r_w = 1`. Before placing it scans the `OCEAN_FLOOR_WG` heightmap over
-that box (`OreFeature.place`), and with a fractional air-exposure chance it
-reads six neighbours per candidate (`AbstractOreFeature.isAdjacentToAir`, `AbstractOreFeature.checkNeighbors`): `r_r = 1`.
+that box, and with a fractional air-exposure chance it
+reads six neighbours per candidate: `r_r = 1`.
 
 **Where the reference's radii come from.** Features require terrain at radius
 1 and write at radius 1; light requires initialised light at radius 1
-(`ChunkPyramid.GENERATION_PYRAMID`). Terrain at radius 1 around features at radius 1
+. Terrain at radius 1 around features at radius 1
 is the twenty-five-column window that §3.3 derives independently. The
 structure-starts requirement at radius 8 on the same lines is the dependency
 §10 of `worldgen.md` rejects, and it is absent here.
 
 **The two heightmap generations.** The reference keeps two sets of maps
-(`ChunkStatus.WORLDGEN_HEIGHTMAPS`, `ChunkStatus.FINAL_HEIGHTMAPS`). `WORLD_SURFACE_WG` and
+. `WORLD_SURFACE_WG` and
 `OCEAN_FLOOR_WG` are maintained by the fill and by the surface stage
-(`ChunkTerrainBuilder.fillChunk`; surface writes go through
-`ProtoChunk.setBlockState` while the status is still `biomes`), and no
+(surface writes go through
+the proto-chunk while the status is still `biomes`), and no
 carver touches them. The four final maps are primed after carving
-(`ChunkStatusTasks.buildTerrain`) and updated on every decoration write
-(`ChunkStatus.TERRAIN`, `ChunkStatus.FEATURES` selects them for the `terrain` and `features`
+ and updated on every decoration write
+(the status selects them for the `terrain` and `features`
 statuses). So a placement that names a `_WG` map reads the column **before
 carving**, and one that names a final map reads it **after carving and after
 the column's own earlier objects**. `heightmap.md`'s appendix calls the pairs a
@@ -169,7 +160,7 @@ Classifying every value before storing it, per the project's ECS rule:
 
 | Value | Category | Owner | Note |
 | --- | --- | --- | --- |
-| Seed, compiled feature tables (§4.3) | truth | `WorldgenFreeze` build | cloned into the sub-app once, like `DimensionRouters` (`crates/mcrs_minecraft_vanilla_worldgen/src/routers.rs`, `DimensionRouters`) |
+| Seed, compiled feature tables (§4.3) | truth | the freeze build | cloned into the sub-app once, like `DimensionRouters` (`crates/mcrs_minecraft_vanilla_worldgen/src/routers.rs`, `DimensionRouters`) |
 | Which columns players want, at which target | derived from players | the generation actor, at each request | `worldgen.md` §16: never stored |
 | A column's stage | derived, but only recoverable by redoing the work | the staging store | an enum field, not a marker (X10); each section entity holds one `SectionStage` that moves `Loading → Generating → Loaded` |
 | A filled column, its palettes, its six maps | materialised projection of the seed | the staging store | read by up to nine `run`s; recomputing is a whole fill |
@@ -226,7 +217,7 @@ Delivered(U) requires  Merged(U)
 
 Hence `Delivered(U)` requires `Filled` over the 5×5 around `U`: twenty-five
 columns, the same accumulated window the reference pays to light a chunk
-(`ChunkPyramid.GENERATION_PYRAMID`; the `structure_starts` requirement excluded). It is
+(the `structure_starts` requirement excluded). It is
 not the same as what the pipeline pays today, which fills only the columns a
 view asks for. The halo cost is `(2V+5)²/(2V+1)²` in fills per wanted column —
 1.42 at a view radius of ten, counted, not measured — and the reference pays
@@ -239,15 +230,15 @@ once produced, and writes only `U`. So every stage is a field stage in the
 sense of §1: two `Run`s never conflict, two `Merge`s never conflict, and C3
 holds without a colouring, a barrier or a lock. This is form 1 of
 `worldgen.md` §14 — compute locally, push cross-border output into a delta
-queue, apply in a separate phase — chosen over the in-place colouring of §13
+queue, apply in a separate phase — chosen over the in-place colouring
 for the reason in §3.3.
 
-**Q3. The rank is the colour index of §13, fixed as data.** With
-`r_w = r_r = 1` the §13 formula gives `d = 2`, `k = 3` and nine colours;
+**Q3. The rank is the colour index, fixed as data.** With
+`r_w = r_r = 1` the colouring formula gives `d = 2`, `k = 3` and nine colours;
 `rank(U) = (x mod 3)·3 + (z mod 3)` with Euclidean remainders, so that negative
 coordinates colour like positive ones. Merging applies the nine writers of a
 position in ascending rank, last write standing. Any pure function of the
-coordinates would define *a* world; this one keeps §13's vocabulary and makes
+coordinates would define *a* world; this one keeps the colouring vocabulary and makes
 the in-place executor of §6.4 comparable. Changing it is a different world
 (§15). No configuration hash exists in the workspace yet; St3 owes one, and
 its inputs are fixed here so the first version is complete: the world version
@@ -261,12 +252,11 @@ radius from `d` — cannot occur. What replaces it is the merge-order bug: a
 writer applied out of rank, or a delta lost between eviction and merge. §6.3
 is written against that.
 
-### 3.3 Why not the colouring of §13
+### 3.3 Why not the colouring
 
-`worldgen.md` §13 derives the colouring for an in-place scattering stage and
-notes that its barrier is paid at the maximum unit cost of the batch (N3).
-There is a second cost it does not derive, and it is the one that decides the
-design here.
+An in-place scattering stage needs a colouring, and its barrier is paid at the
+maximum unit cost of the batch (N3). There is a second cost, and it is the one
+that decides the design here.
 
 In-place execution with the colour order means: `U` may run when every
 conflicting unit of lower colour has run. With nine colours and `d = 2`, a unit
@@ -303,10 +293,10 @@ own column, unpacked from the centre snapshot. The dense buffer is the existing
 per-worker `ColumnBlocks` (`crates/mcrs_minecraft_worldgen_generator/src/column_blocks.rs`, `ColumnBlocks`);
 F7 is honoured for the centre because it already is. For the ring, reads go
 through the snapshots' paletted sections with a last-section cache, the shape
-of the reference's `BulkSectionAccess` (`BulkSectionAccess.level`, `BulkSectionAccess.acquiredSections`, `BulkSectionAccess.lastSection`).
+of the reference's `BulkSectionAccess`.
 Whether the ring should be flat too is unmeasured; the ring is read by the
 tree's free-space scan and the vein's probe and adjacency tests, and the count
-of those reads per column is what decides it (measured in `PERF.md`). Unpacking
+of those reads per column is what decides it (measured in). Unpacking
 eight neighbours densely would be eight more buffers of 98,304 cells per
 worker (`crates/mcrs_minecraft_worldgen_generator/src/column_blocks.rs`, `new`), which T2 argues against without a measurement
 for it.
@@ -315,7 +305,7 @@ for it.
 unit's own earlier write to `p` if there is one, anywhere in the 3×3; else the
 `Filled` block of the snapshot that holds `p`; else, outside the 3×3, air, with
 a debug assertion. The reference logs a read outside the write zone as unsafe
-(`WorldGenRegion.warnIfReadOutsideWriteZone`), so the corpus does not do it; the fixed
+, so the corpus does not do it; the fixed
 answer keeps the rule a pure function should a datapack do it anyway. Own
 writes are found through a written-mask of one bit per cell over the 3×3
 (nine times 12 KB per worker, cleared per unit) and, for the ring, the delta
@@ -324,8 +314,7 @@ entry the mask points at.
 **Wn3. The window carries six maps per column.** Two pre-carve maps
 (`SURFACE`, `SOLID` in the vocabulary of `heightmap.md` §2, answering
 `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG`) frozen at `Filled`; and the four
-final maps (`heightmap.md` §2, answering the four final names of
-`Heightmap.Types`), frozen at `Filled` for the ring and **live for the
+final maps (`heightmap.md` §2, answering the four final names of), frozen at `Filled` for the ring and **live for the
 centre**: every write into the centre updates them by the rule of
 `heightmap.md` §5. A tree write is the cheap "rise" branch; an ore write
 replaces stone with ore and moves nothing, which the §7 cut-off of
@@ -339,9 +328,9 @@ descent per column before carving, which by the fast path of
 **Wn4. The biome set is computed once per `Run`.** F6 asks for once per batch;
 here the batch is the unit, and the set is the union of the distinct entries of
 every section palette of the nine snapshots
-(`ChunkGenerator.applyBiomeDecoration`; `VoxelPalette::for_each_distinct`,
+(`VoxelPalette::for_each_distinct`,
 `crates/mcrs_minecraft_chunk/src/voxel_palette.rs`, `set`), intersected with the
-biome source's possible biomes as the reference does at line 400. The
+biome source's possible biomes as the reference does. The
 block-resolution biome query the `biome` filter needs (F3, Cl4) reads the
 window's stored palettes through the zoom
 (`crates/mcrs_minecraft_biome/src/zoom.rs`, `obfuscate_seed`); unlike the surface stage,
@@ -391,8 +380,7 @@ column" for "wanted".
 
 **Q8. Delivery is the only point where a column becomes visible, and nothing
 writes into it afterwards.** By Q1, when `U` is delivered every unit that can
-write into `U` has run and its delta has been merged. This closes the hole that
-§13 of `worldgen.md` describes: light reads its neighbours at radius one
+write into `U` has run and its delta has been merged. This closes the hole of a delivered column that a later write changes: light reads its neighbours at radius one
 (`crates/mcrs_minecraft_light_engine/src/epoch.rs`, `of`), and every neighbour it can see is either delivered — and
 so final — or absent, which the light code already treats as "not yet"
 (`light.rs` seeds on a section landing in `Loaded` and re-seeds seams as
@@ -422,37 +410,35 @@ exists only as the measurement instrument of §6.4.
 Two registries, both type-dispatched, both ordinary serde.
 
 `worldgen/feature/<id>.json` is a `Feature`: a `type` field and the fields of
-that type (`Feature`; the 58 registered types are listed at
-`FeatureTypes.bootstrap`; the corpus uses 47 of them, `tree` 45 times,
+that type (`Feature`; the 58 registered types are listed in the registry; the corpus uses 47 of them, `tree` 45 times,
 `simple_block` 37, `ore` 30, `random_selector` 21). In Rust that is one enum
-with `#[serde(tag = "type")]`, the shape `NoiseChunkGenerator` already uses
+with `#[serde(tag = "type")]`, the shape the noise chunk generator already uses
 (`crates/mcrs_minecraft_game_registries/src/worldgen/chunk_generator.rs`). An
 unknown type is a load error, as a mismatch with the targeted version always is.
 
 `worldgen/placed_feature/<id>.json` is a `PlacedFeature`: `feature` and
-`placement` (`PlacedFeature.DIRECT_CODEC`). `feature` is either an id or an
+`placement`. `feature` is either an id or an
 inline `Feature` — the reference's `Holder` codec — and so is every
 `PlacedFeature` reference inside a selector feature
-(`RandomSelectorFeature.Feature`, `RandomSelectorFeature.CODEC`,
-`WeightedPlacedFeature.CODEC`; `trees_plains` in the corpus inlines two
+(`trees_plains` in the corpus inlines two
 and references one). That is the either-form of `worldgen.md`'s serde section:
 a hand-written `Deserialize` with a symmetric `Serialize`, so the shape
 round-trips unchanged; `TimeMarker` is the in-repo model
 (`crates/mcrs_minecraft_environment/src/timeline/marker.rs`). `placement`
 is a list of `PlacementModifier`, a tagged enum over the eighteen registered
-types (`PlacementModifierTypes.bootstrap`; the corpus uses fifteen,
+types (the corpus uses fifteen,
 `biome` 211 times, `count` 201, `in_square` 198, `block_predicate_filter` 155,
 `heightmap` 111).
 
 Nested shapes the two registries pull in, each a serde type under
 `crates/mcrs_minecraft_worldgen_feature/src/`:
 
-| Shape | Reference |
-| --- | --- |
-| `IntProvider`, `HeightProvider`, `VerticalAnchor` | `util/valueproviders`, `levelgen/heightproviders` |
-| `BlockState` (name or name plus properties) | `BlockState.CODEC` |
-| `RuleTest` (`predicate_type`-tagged, ten types) | `RuleTestTypes.bootstrap` |
-| `BlockPredicate` (`type`-tagged, sixteen types) | `BlockPredicateType` |
+| Shape |
+| --- |
+| `IntProvider`, `HeightProvider`, `VerticalAnchor` |
+| `BlockState` (name or name plus properties) |
+| `RuleTest` (`predicate_type`-tagged, ten types) |
+| `BlockPredicate` (`type`-tagged, sixteen types) |
 | `BlockStateProvider` (ten concrete), `TrunkPlacer` (ten), `FoliagePlacer` (twelve), `TreeDecorator` (eleven), `FeatureSize` (two), `RootPlacer` (one) | `feature/stateproviders`, `trunkplacers`, `foliageplacers`, `treedecorators`, `featuresize`, `rootplacers` |
 
 Where the type of a value depends on a sibling — every one of the shapes above
@@ -465,25 +451,24 @@ indices, `VoxelId`s and tag masks happens once at `OnEnter(WorldgenFreeze)`,
 the way carvers are resolved (`crates/mcrs_minecraft_vanilla_worldgen/src/modern_carvers.rs`, `build_modern_carver_biomes`) and routers
 compiled (`crates/mcrs_minecraft_vanilla_worldgen/src/routers.rs`, `DimensionRouters`, `build_dimension_routers`), and the result is a resource cloned into each
 dimension's sub-app. Every range the reference's codecs enforce is enforced
-there: `count` 0..4096 (`CountPlacement.CODEC`), ore `size` 0..64 and the
-air-exposure chance 0..1 (`AbstractOreFeature.makeCodec`), foliage radius
-0..16, offsets −16..16 (`OffsetPlacement.CODEC`), environment-scan steps
-1..32 (`EnvironmentScanPlacement.CODEC`). An id that resolves to nothing — a
+there: `count` 0..4096, ore `size` 0..64 and the
+air-exposure chance 0..1, foliage radius
+0..16, offsets −16..16, environment-scan steps
+1..32. An id that resolves to nothing — a
 feature a biome names, a block a provider names, a tag a rule test names — is
 a freeze error naming the asset. The freeze build resolves the biomes' ids the
 way the carver build resolves carver ids (`crates/mcrs_minecraft_vanilla_worldgen/src/modern_carvers.rs`, `build_modern_carver_biomes`).
 
 A biome's step list is a `HolderSet`: either a `#tag` of placed features or a
 list whose entries are ids or inline placed features
-(`HolderSetCodec`,
-`RegistryCodecs.holder` with `allowInline` true; `alwaysUseList` only fixes
+(inline entries allowed; a flag only fixes
 the serialised form). The shipped corpus uses ids only and ships no
 `tags/worldgen/placed_feature/`, but the targeted version admits all three, so the proto is a
 `Vec<FeatureStepList>` where a step list is the either-form of a tag or a list
 of holders, and the current `Vec<Vec<ResourceLocation>>`
 (`crates/mcrs_minecraft_biome/src/lib.rs`, `Biome`) changes. At freeze a tag
 expands to its entries in the tag file's order, and an inline entry is a vertex
-of its own in the sort (§4.3, D13). The biome asset declares no dependencies
+of its own in the sort (§4.3). The biome asset declares no dependencies
 and keeps not doing so; the feature registries load
 through Fe2 and are joined by id at freeze.
 
@@ -500,7 +485,7 @@ the pattern of `material::proto` and `material::compile`
 
 **Fe3. Beta's populate step is one feature.** Beta draws every object of a
 chunk's populate step from one `LegacyRandom` seeded per chunk
-(`beta_chunk_seed`), in the order `ChunkProviderGenerate.getChunkAt` fixes, and
+(`beta_chunk_seed`), in the order the step walk fixes, and
 where that stream stands when an object starts depends on what the objects
 before it read: clay spends its vein draws only where it finds water. A placed
 feature is seeded from the decoration seed, its step and its index alone, so no
@@ -512,14 +497,13 @@ its veins cross column borders as Beta's did.
 
 ### 4.2 The modifier chain
 
-The reference's placer is an explicit stack machine (`FeaturePlacer.place`):
+The reference's placer is an explicit stack machine:
 a stack of positions with the index of the modifier that should consume each;
 the origin is pushed with index 0; the loop pops, runs one modifier, and pushes
 that modifier's outputs **in reverse** so they pop in emission order
-(lines 63-66); outputs of the last modifier go to the generator (lines 68-73).
-The random source is shared by every modifier and by the generator (lines 60,
-69), so the traversal order fixes the draw order and is part of the definition
-(S5). An empty chain runs the generator at the origin directly (lines 45-50).
+; outputs of the last modifier go to the generator.
+The random source is shared by every modifier and by the generator, so the traversal order fixes the draw order and is part of the definition
+(S5). An empty chain runs the generator at the origin directly.
 
 **Fe4. The chain is compiled to an enum and driven by reused stacks.** One
 `Vec<Modifier>` per placed feature, no boxing, no recursion; one
@@ -533,15 +517,15 @@ What each modifier reads, so that its footprint is known before it runs:
 
 | Modifier | Reads | Draws |
 | --- | --- | --- |
-| `count`, `noise_based_count`, `noise_threshold_count`, `count_on_every_layer` | the count provider; the two noise variants sample a simplex noise with the fixed seed 2345 that no world seed enters (`Biome.BIOME_INFO_NOISE`, `NoiseBasedCountPlacement.count`); the layer variant reads `MOTION_BLOCKING` and descends through blocks per layer (`CountOnEveryLayerPlacement.modify`, `CountOnEveryLayerPlacement.findOnGroundYPosition`) | count, then per-layer jitter |
+| `count`, `noise_based_count`, `noise_threshold_count`, `count_on_every_layer` | the count provider; the two noise variants sample a simplex noise with the fixed seed 2345 that no world seed enters; the layer variant reads `MOTION_BLOCKING` and descends through blocks per layer | count, then per-layer jitter |
 | `in_square` | nothing | two |
-| `height_range` | the height provider against the dimension extent (`HeightRangePlacement.modify`) | the provider's |
-| `heightmap` | one map at the origin's strip (`HeightmapPlacement.modify`); which generation, per Wn3 | none |
-| `surface_water_depth_filter` | `OCEAN_FLOOR` and `WORLD_SURFACE` at the strip (`SurfaceWaterDepthFilter.shouldPlace`) | none |
+| `height_range` | the height provider against the dimension extent | the provider's |
+| `heightmap` | one map at the origin's strip; which generation, per Wn3 | none |
+| `surface_water_depth_filter` | `OCEAN_FLOOR` and `WORLD_SURFACE` at the strip | none |
 | `surface_relative_threshold_filter` | one map at the strip | none |
-| `block_predicate_filter` | blocks around the origin through a `BlockPredicate` (`BlockPredicateFilter.shouldPlace`); `would_survive` is four tag rules by block family, §5.2 | a `random_*` rule test draws |
-| `environment_scan` | a vertical run of blocks, at most 32 (`EnvironmentScanPlacement.modify`) | none |
-| `biome` | the block-resolution biome at the origin, then the biome's feature set (`BiomeFilter.shouldPlace`) | none |
+| `block_predicate_filter` | blocks around the origin through a `BlockPredicate`; `would_survive` is four tag rules by block family, §5.2 | a `random_*` rule test draws |
+| `environment_scan` | a vertical run of blocks, at most 32 | none |
+| `biome` | the block-resolution biome at the origin, then the biome's feature set | none |
 | `rarity_filter`, `random_chance` | nothing | one float |
 | `offset` | nothing | three |
 | `randomly_selected` | one of its sub-modifiers | one, then the sub-modifier's |
@@ -553,53 +537,48 @@ which is the `r_r = 1` of §2.
 
 **Fe5. The step loop is the reference's, minus the structure slot.** For each
 step from 0 to `max(11, longest biome list)`: the structure slot (empty until
-§7); then the features of this step present in the window's biomes, ascending
-by global index, each reseeded by S2 and placed with the biome check
-(`ChunkGenerator.applyBiomeDecoration`).
+structures exist); then the features of this step present in the window's biomes, ascending
+by global index, each reseeded by S2 and placed with the biome check.
 
 ### 4.3 The topological sort
 
 F2 prescribes copying the algorithm, and this section says which lines. Input:
-the biome source's possible biomes in the source's own order
-(`ChunkGenerator` passes `List.copyOf(biomeSource.possibleBiomes())`),
-and per biome its list of step lists. `FeatureSorter.buildFeaturesPerStep`
-(`FeatureSorter.buildFeaturesPerStep`):
+the biome source's possible biomes in the source's own order,
+and per biome its list of step lists:
 
 1. Assign each distinct placed feature an index in order of first encounter,
-   walking biomes in input order and steps in order (lines 33-34, 44-58).
+   walking biomes in input order and steps in order.
    Identity is object identity (a `Reference2IntMap`); two biomes naming the
    same registry entry share one vertex, two inline copies of the same shape
    are two vertices.
-2. Vertices are `(index, step, feature)` ordered by step then index (lines
-   39-41); the edge map is a `TreeMap` in that order, and each biome's list
+2. Vertices are `(index, step, feature)` ordered by step then index; the edge map is a `TreeMap` in that order, and each biome's list
    contributes the edges `feature[i] → feature[i+1]` within its own list, with
-   every vertex present even when it has no successor (lines 60-67).
+   every vertex present even when it has no successor.
 3. Depth-first search over the edge map's key order, with the three-set
-   colouring of `Graph.depthFirstSearch`: a vertex is emitted after its
+   colouring: a vertex is emitted after its
    successors, in post-order; a back edge is a cycle. The emitted list is
-   reversed (line 112).
-4. The result is split by step, keeping the sorted order within each step
-   (lines 115-122); a feature's position in its step's list is the
-   `index` of S2 (lines 127-130, used at `ChunkGenerator.applyBiomeDecoration`).
+   reversed.
+4. The result is split by step, keeping the sorted order within each step;
+   a feature's position in its step's list is the
+   `index` of S2.
 
 A cycle is a freeze error naming the biomes involved
-(`FeatureSorter.buildFeaturesPerStep`: the reference's reduction loop is diagnostics,
+(the reference's reduction loop is diagnostics,
 not recovery).
 
-**Fe6. The sort output is a per-dimension resource.** `possibleBiomes` differs
+**Fe6. The sort output is a per-dimension resource.** possible biomes differs
 per biome source, so the tables are keyed by dimension exactly as routers and
 carver tables are (`crates/mcrs_minecraft_vanilla_worldgen/src/routers.rs`, `DimensionRouters`; `crates/mcrs_minecraft_vanilla_worldgen/src/modern_carvers.rs`, `build_modern_carver_biomes`). Per step: the
 sorted list of compiled placed features. Per biome: a bit set over each
 step's list saying which of the step's features the biome carries — the union
 across the window's biomes is `possibleFeaturesThisStep`
-(`ChunkGenerator.applyBiomeDecoration`), and the per-biome test is `hasFeature` for
+, and the per-biome test is `hasFeature` for
 the `biome` filter. The set is derived from the assets at freeze, so a
 datapack that adds a feature to a biome is picked up without a code change.
 
-**Fe7. The order of `possibleBiomes` is part of the definition for every
+**Fe7. The order of possible biomes is part of the definition for every
 biome source.** The reference takes the distinct biomes in order of first
-appearance in the parameter list (`BiomeSource.possibleBiomes`,
-`MultiNoiseBiomeSource.collectPossibleBiomes`); the in-repo overworld and nether lists
+appearance in the parameter list; the in-repo overworld and nether lists
 keep that order and say so (`crates/mcrs_minecraft_biome/src/overworld_preset.rs`). The other sources
 in the workspace (`crates/mcrs_minecraft_biome/src/source.rs`, `BiomeSource`): `Fixed` is one biome;
 `Checkerboard` is its list in file order; `TheEnd` is the reference's five end
@@ -618,7 +597,7 @@ generator needs: the six maps of Wn3, the block-resolution biome (Wn4), the
 dimension extent, the block tag registry
 (`crates/mcrs_minecraft_worldgen_generator/src/ids.rs`, `block_tags`, which reaches the actor in the fill context) resolved to masks at freeze, and
 the property-transition tables a tree needs to rewrite a leaf's `distance`
-(`TreeFeature.updateLeaves`) — a state-to-state map per block, built at freeze
+ — a state-to-state map per block, built at freeze
 from the block definitions, since `try_resolve_state` already moves a stated
 property (`crates/mcrs_minecraft_worldgen_generator/src/block_state.rs`, `try_resolve_state`).
 
@@ -634,23 +613,23 @@ sometimes `rarity_filter`, as in `ore_coal_upper` and `ore_diamond` in the
 corpus. From the assets a vein needs:
 
 - `targets`: a list of `{target: RuleTest, state: BlockState}`
-  (`BlockReplacement.CODEC`). The corpus's rule tests are
+. The corpus's rule tests are
   `tag_match` over `stone_ore_replaceables`, `deepslate_ore_replaceables` and
   `height_specific_ore_replaceables`, `height_match` on `y`, and `any_of`,
   `all_of`, `not` over them — resolved to tag masks and ranges at freeze.
 - `size` 0..64 and `discard_chance_on_air_exposure` 0..1.
 
 From the window it reads the pre-carve `OCEAN_FLOOR_WG` map over its probe box
-(`OreFeature.place`; the box reaches the ring), the block at every
+(the box reaches the ring), the block at every
 candidate, and six neighbours per candidate when the chance is fractional.
 
-The algorithm is `OreFeature.doPlace` (`OreFeature.doPlace`): `size`
+The algorithm: `size`
 sphere centres interpolated along the segment with one double drawn each
-(lines 92-103), the pairwise cull of a smaller sphere inside a larger one
-(lines 105-123), and a per-box `tested` bit set that visits every position once
-across spheres (lines 88, 148-153). The bit set is not an optimisation: with a
+, the pairwise cull of a smaller sphere inside a larger one
+, and a per-box `tested` bit set that visits every position once
+across spheres. The bit set is not an optimisation: with a
 fractional air-exposure chance every visited candidate draws a float
-(`AbstractOreFeature.shouldSkipAirCheck`), so visiting a position twice draws twice.
+, so visiting a position twice draws twice.
 
 The existing Beta ore port (`crates/mcrs_minecraft_worldgen_feature_place/src/ore_beta.rs`, `OreConfig`) is the Beta algorithm —
 no cull, no bit set, no probe, `+2` on the vertical endpoints — and stays what
@@ -677,31 +656,31 @@ over `oak_bees_005`, `fancy_oak_bees_005` and `fallen_oak_tree`, placed with
 - `decorators`: `place_on_ground` 20, `beehive` 16, `shelf_mushroom` 6,
   `leave_vine` 5, and six rarer ones. `beehive` places a bee nest and then, if
   the level hands back a block entity, draws `2 + nextInt(2)` occupants with
-  `nextInt(599)` each (`BeehiveDecorator.place`). The draws
-  sit inside that `ifPresent`, so a level without block entities would also
-  skip them and shift every later draw; D6 gives the decorator a channel to
-  write into so the draws always happen.
+  `nextInt(599)` each. The draws
+  sit inside that block-entity branch, so a level without block entities would also
+  skip them and shift every later draw; the decorator writes into a channel so
+  the draws always happen.
 - `ignore_vines`, `root_placer` (mangrove only).
 
 From the window it reads free space (`isFree`: air or the
-`replaceable_by_trees` tag, `TrunkPlacer.validTreePos`, `TrunkPlacer.isFree`, `TreeFeature.isVine`, `TreeFeature.isAirOrLeaves`)
+`replaceable_by_trees` tag)
 over the `minimum_size` footprint up to the tree's height
-(`TreeFeature.doPlace`, `TreeFeature.getMaxFreeTreeHeight`), vines when not ignored, the block under a sapling
-for `would_survive` (`WouldSurvivePredicate.test`), and
+, vines when not ignored, the block under a sapling
+for `would_survive`, and
 its own bounding box during the leaf-distance pass
-(`TreeFeature.place`, `TreeFeature.updateLeaves`). It writes logs, leaves with `distance` and
+. It writes logs, leaves with `distance` and
 `persistent`, roots, and the decorators' blocks.
 
 **`would_survive` is four rules over tags.** The corpus tests thirteen states
 through it; at the targeted version each one's `canSurvive` is a tag test plus a shape, and the
 tags are in the data pack (`data/minecraft/tags/block/supports_*.json`):
 
-| States | Rule | Reference |
-| --- | --- | --- |
-| the ten saplings, `firefly_bush` | the block below is in `supports_vegetation` | `VegetationBlock.mayPlaceOn`, `VegetationBlock.canSurvive`; `FireflyBushBlock` extends it (`FireflyBushBlock`) |
-| `sugar_cane` | below is sugar cane; or below is in `supports_sugar_cane` and one of its four horizontal neighbours is in `supports_sugar_cane_adjacently` as a block or as a fluid | `SugarCaneBlock.canSurvive` |
-| `cactus` | no horizontal neighbour is solid or lava; below is cactus or in `supports_cactus`; above is not liquid | `CactusBlock.canSurvive` |
-| `mangrove_propagule` | below is in `supports_mangrove_propagule`; the hanging form tests `supports_hanging_mangrove_propagule` above | `MangrovePropaguleBlock.mayPlaceOn`, `MangrovePropaguleBlock.canSurvive` |
+| States | Rule |
+| --- | --- |
+| the ten saplings, `firefly_bush` | the block below is in `supports_vegetation`  |
+| `sugar_cane` | below is sugar cane; or below is in `supports_sugar_cane` and one of its four horizontal neighbours is in `supports_sugar_cane_adjacently` as a block or as a fluid |
+| `cactus` | no horizontal neighbour is solid or lava; below is cactus or in `supports_cactus`; above is not liquid |
+| `mangrove_propagule` | below is in `supports_mangrove_propagule`; the hanging form tests `supports_hanging_mangrove_propagule` above |
 
 The shapes are code, keyed by block family at freeze; the tags are data. A
 `would_survive` naming a state outside these families is a freeze error with
@@ -710,14 +689,13 @@ the state's name (Fe1), and a fifth shape is added when a datapack needs it.
 
 The reference records every write of a tree in four sets and runs the
 leaf-distance pass over their bounding box afterwards
-(`TreeFeature.setBlock`, `TreeFeature.place`). That pass reads the leaves of other trees inside
+. That pass reads the leaves of other trees inside
 the box and lowers their `distance`; under Wn2 it reads the `Filled` ring,
 where there are no leaves, and the own-column leaves it wrote itself. Then it
-asks the level to update shapes on every face of the written shape (line 216;
-`StructureTemplate.updateShapeAtEdge` calls `updateShape`
+asks the level to update shapes on every face of the written shape (it calls the shape update
 on each face cell and its outward neighbour). For leaves that is one more
-distance recomputation from the neighbour (`LeavesBlock.updateShape`); D7
-says what is kept of it.
+distance recomputation from the neighbour. Live-world block updates inside a
+feature are not reproduced: the tree's own pass already recomputes every leaf it wrote.
 
 ---
 
@@ -729,7 +707,7 @@ world — each fixture is a dump from `tools/vanilla-oracle` and carries
 
 - the sort, per shipped biome source
   (`crates/mcrs_minecraft_worldgen_feature/tests/it/feature_sort.rs`);
-- ore geometry, `OreFeature.doPlace` over a flat all-stone array
+- ore geometry over a flat all-stone array
   (`crates/mcrs_minecraft_worldgen_feature_place/tests/it/ore_vein_parity.rs`);
 - tree geometry, through the oracle's stub level
   (`crates/mcrs_minecraft_worldgen_feature_place/tests/it/tree_geometry_parity.rs`).
@@ -749,139 +727,3 @@ sizes, forced evictions (`generate/tests/ladder.rs`).
 
 §6.4's number — how far Wn2 sits from an in-place sequential executor over the
 same region — is not yet measured.
-
----
-
-## 7. Deferred: structures and the placement index
-
-Structure materialisation and the placement index of §10 (G1) are not in this
-document. The reasons:
-
-- The index needs the `structure_set`, `structure`, `template_pool` and
-  `processor_list` registries, of which `StructureSet` is the one defined so far
-  (`crates/mcrs_minecraft_worldgen_structure/src/lib.rs`), and
-  jigsaw assembly on top.
-- Terrain adaptation needs the density-graph leaf that B4 of `worldgen.md`
-  owes at the same time as the first structure.
-- Its load profile is the one §17 says must be measured apart from objects.
-
-What this document leaves ready for it: the step slot of S6 and Fe5; and the
-fact that piece materialisation runs inside `Run` under the ladder of §3.2 and
-needs no fourth stage. Its write radius is one, not zero: the reference clips
-template pieces to the chunk's own box (`ChunkGenerator.applyBiomeDecoration`,
-`getWritableArea`), but three hardcoded pieces write one column beyond it,
-which Wn5 already routes into a delta. `structures.md` (M1, SD2) is the
-specification.
-
----
-
-## 8. Decisions
-
-Every question the first draft left open is decided here. A decision that
-depends on a measurement names the checkpoint that takes it; nothing else
-waits.
-
-**D1. The delta form is in force; §13 of `worldgen.md` is amended.** §3.3 is
-the argument. `worldgen.md` §13 keeps its derivation as the derivation for an
-in-place stage and says which form is in force, §14 names this document at
-form 1, §18 qualifies its two colouring entries, and the appendix row for
-scattering stages says "private writes merged in a fixed rank". Done in the
-same change as this section.
-
-**D2. The read rule Wn2 is the definition.** A unit sees the `Filled` window
-and its own writes, never another unit's scattering writes. The reference's
-alternative is route-dependent and was never reproducible; §6.4's number is
-recorded when it exists and does not reopen the decision.
-
-**D3. Two generations of two maps; `heightmap.md` is amended.** The pre-carve
-`SURFACE` and `SOLID` maps are built by one descent after the surface stage and
-before carving, live only in the staging snapshot, and are never stored: one
-descent recovers them, and nothing after `Run` reads them. The four final maps
-keep their lifecycle. `heightmap.md` §4 and its appendix say so now.
-
-**D4. `possibleBiomes` order per source is fixed in Fe7.** Multi-noise as the
-reference; Beta as `BetaLandBiome` discriminant order; the
-choice is an input of the configuration hash (Q3).
-
-**D5. `would_survive` is four tag rules keyed by block family** (§5.2). The
-tags are data; the four shapes are code; a state outside the families fails at
-freeze with its name. Expressing the shapes as data is not pursued: the
-reference keeps them as code, and there is no datapack shape to be compatible
-with.
-
-**D6. Block entities are entities of their own, parented to the section; the
-generated column carries them as data until delivery spawns them.** The anvil
-reader already carries block entities per chunk
-(`crates/mcrs_minecraft_anvil/src/chunk.rs`, `unpack`), the chunk packet already has
-the entry (`crates/mcrs_minecraft_protocol_game/src/chunk.rs`, `decode_bit_set`), and the block
-schema knows which blocks have one; what is missing
-is the runtime form. That form is an entity per block entity with a back-link
-to its section, in the shape the column-to-section link already has: a
-custom component naming the parent
-(`crates/mcrs_minecraft_engine_world/src/world/storage/column.rs`, `Column`, `ColumnSlot`), a forward
-index on the parent maintained by the same reconcile step that attaches the
-back-link, and not the built-in hierarchy (X8 of `worldgen.md`). The section's
-despawn (`crates/mcrs_minecraft_engine_world/src/world/lifecycle/ticket.rs`, `track_simulation_tickets`, `release_simulation_ticket`) despawns its block entities through
-that index, since a custom link does not cascade. Position, kind and the
-kind's state — for a bee nest, its occupants — are the entity's components,
-typed per kind. NBT is a serialisation format and appears nowhere at run time:
-the same typed state derives `Serialize`/`Deserialize` and is what
-`mcrs_minecraft_nbt` writes into the save and the chunk packet, and what the anvil reader
-parses into, so one type serves the three encoders and no compound is held or
-inspected in memory (the project's serde rule).
-
-Generation never touches the ECS (X1), so the generated column gains
-`block_entities: Vec<GeneratedBlockEntity>` beside its sections — position plus
-a typed enum over the kinds a generator can produce — written by `beehive`
-from step 6 so its draws happen (§5.2). The entities a structure spawns are a
-second list of the same shape, `entities: Vec<GeneratedEntity>`
-(`crates/mcrs_minecraft_worldgen_feature_place/src/entity.rs`): one typed
-entry per kind with the position, rotation, UUID, equipment and passengers its
-spawn draws, routed through the deltas and the merge exactly as the block
-entities are. The `Delivered` branch spawns one entity per entry under the
-section entity it inserts, the anvil path spawns the same entities from the
-saved list through the same types, and the packet assembler serialises them
-back through the section's index; a spawned mob is linked to its section the
-same way and despawns with it. What `structures.md` M7 and §15 say about the
-mobs holds here: static, tracked per player, not yet saved.
-
-**D7. Live-world block updates inside a feature are not reproduced.** The
-face update after a tree (`TreeFeature.place`) and the post-processing
-marks of disks, lakes and fallen trees (`Feature.markAboveForPostProcessing`;
-`DiskFeature.placeColumn`, `LakeFeature.place`,
-`FallenTreeFeature.placeLogBlock`) are neighbour-shape semantics of the running
-world: the leaf case is a `distance` recomputation the tree's own pass already
-performed for every leaf it wrote (`TreeFeature.place`, `TreeFeature.updateLeaves`), and the
-post-processing marks are resolved by the live world when the column becomes
-full. What they change on a generated column is the `distance` of pre-existing
-leaves at the face of a new tree, which under D2 are none. Listed under the
-reference divergences of `worldgen.md`; not measured, because the set of
-affected blocks is empty by construction under D2.
-
-**D8. Unit is the column; rank is the colour index (Q3).** Both are inputs of
-the configuration hash, whose inputs Q3 now lists. A larger unit is a different
-world and is not revisited after the first shipped world.
-
-**D9. Paletted snapshots in the store, a dense centre, a paletted ring**
-(Wn1). Settled by measurement: `PERF.md` has the numbers, `DECISIONS.md` the
-entry.
-
-**D10. The 5×5 halo is accepted.** Its outer ring is read by the `Run`s of
-the inner ring — free-space scans, vein probes, adjacency tests, maps — and a
-cheaper `Filled` for it would be a second definition of a column. The
-reference pays the same window (`ChunkPyramid.GENERATION_PYRAMID`).
-
-**D11. Beta populate beyond ore is later work inside `mcrs:beta_populate`.**
-Lakes, dungeons, trees and flowers of Beta's populate step run in that feature
-in Beta's order; they are outside this document's consumers, and until they
-exist Beta's vein positions keep the divergence `apply_beta_ores_in` records.
-
-**D12. Tree parity goes through a stub level in the oracle tool** (§6.1).
-Ore parity goes through the verbatim harness. The method subset the stub needs
-is discovered by running, not designed.
-
-**D13. Inline and tag entries in biome step lists are supported** (§4.1).
-An inline entry is a vertex per occurrence, as the reference's identity map
-makes it (`FeatureSorter.buildFeaturesPerStep`); a tag expands in tag-file order.
-The corpus exercises neither, so both are covered by synthetic assets in the
-round-trip and sort tests.

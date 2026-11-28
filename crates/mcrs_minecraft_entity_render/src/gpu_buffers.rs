@@ -13,7 +13,6 @@ const INSTANCE_BYTES: u64 = 80;
 pub(crate) struct SlotBuffers {
     pub(crate) capacity: u32,
     pub(crate) ticks: Buffer,
-    pub(crate) previous_ticks: Buffer,
     pub(crate) tick_of_record: Buffer,
     pub(crate) culls: Buffer,
     pub(crate) states: Buffer,
@@ -34,11 +33,7 @@ impl SlotBuffers {
         let count = u64::from(capacity);
         Self {
             capacity,
-            ticks: storage("entity ticks", count * size_of::<TickRecord>() as u64),
-            previous_ticks: storage(
-                "entity previous ticks",
-                count * size_of::<TickRecord>() as u64,
-            ),
+            ticks: storage("entity ticks", 2 * count * size_of::<TickRecord>() as u64),
             tick_of_record: storage("entity tick of record", count * 4),
             culls: storage("entity culls", count * size_of::<CullRecord>() as u64),
             states: storage("entity states", count * size_of::<StateRecord>() as u64),
@@ -49,7 +44,6 @@ impl SlotBuffers {
     pub(crate) fn copy_into(&self, other: &Self, encoder: &mut CommandEncoder) {
         for (from, to) in [
             (&self.ticks, &other.ticks),
-            (&self.previous_ticks, &other.previous_ticks),
             (&self.tick_of_record, &other.tick_of_record),
             (&self.culls, &other.culls),
             (&self.states, &other.states),
@@ -70,7 +64,7 @@ pub(crate) struct StaticBuffers {
 
 impl StaticBuffers {
     pub(crate) fn new(device: &Device, library: &EntityLibrary) -> Self {
-        let storage = |label: &str, bytes: &[u8]| {
+        let table = |label: &str, bytes: &[u8], usage: BufferUsages| {
             let padded;
             let contents = if bytes.is_empty() {
                 padded = vec![0u8; 64];
@@ -81,15 +75,28 @@ impl StaticBuffers {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(label),
                 contents,
-                usage: BufferUsages::STORAGE,
+                usage,
             })
         };
+        let (uniform, storage) = (BufferUsages::UNIFORM, BufferUsages::STORAGE);
         Self {
-            models: storage("entity models", bytemuck::cast_slice(&library.models)),
-            bones: storage("entity bones", bytemuck::cast_slice(&library.bones)),
-            cuboids: storage("entity cuboids", &library.cuboids),
-            variants: storage("entity variants", bytemuck::cast_slice(&library.variants)),
-            cutout: storage("entity cutout", &library.cutout),
+            models: table(
+                "entity models",
+                bytemuck::cast_slice(&library.models),
+                uniform,
+            ),
+            bones: table(
+                "entity bones",
+                bytemuck::cast_slice(&library.bones),
+                uniform,
+            ),
+            cuboids: table("entity cuboids", &library.cuboids, storage),
+            variants: table(
+                "entity variants",
+                bytemuck::cast_slice(&library.variants),
+                uniform,
+            ),
+            cutout: table("entity cutout", &library.cutout, storage),
         }
     }
 }
@@ -105,17 +112,12 @@ pub(crate) struct FrameBuffers {
     pub(crate) indirect: Buffer,
     pub(crate) scatter: Buffer,
     pub(crate) scatter_capacity: u32,
-    /// The slot of each impostor of the frame.
     pub(crate) impostors: Buffer,
-    /// The draw record of each impostor of the frame.
     pub(crate) impostor_draws: Buffer,
 }
 
-/// The bytes of the draw record of one impostor.
 const IMPOSTOR_DRAW_BYTES: u64 = 128;
 
-/// The draw records of the impostors of `slots` slots: the impostors that discard from the
-/// start, the small ones from the end.
 pub(crate) fn impostor_draws(device: &Device, slots: u32) -> Buffer {
     device.create_buffer(&BufferDescriptor {
         label: Some("entity impostor draws"),
@@ -125,7 +127,6 @@ pub(crate) fn impostor_draws(device: &Device, slots: u32) -> Buffer {
     })
 }
 
-/// The impostor list of `slots` slots.
 pub(crate) fn impostor_list(device: &Device, slots: u32) -> Buffer {
     device.create_buffer(&BufferDescriptor {
         label: Some("entity impostors"),
@@ -201,5 +202,9 @@ impl FrameBuffers {
             impostors: impostor_list(device, scatter_capacity),
             impostor_draws: impostor_draws(device, scatter_capacity),
         }
+    }
+
+    pub(crate) fn reset_counters(&self, encoder: &mut CommandEncoder) {
+        encoder.copy_buffer_to_buffer(&self.counters_zero, 0, &self.counters, 0, COUNTERS * 4);
     }
 }

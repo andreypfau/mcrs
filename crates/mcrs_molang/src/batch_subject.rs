@@ -5,7 +5,6 @@ use crate::layout::{Bank, VariableLayout, VariableSlot};
 use crate::query::QuerySlot;
 use crate::value::ValueType;
 
-/// The `variable.` stores of the lanes of one block, one column for each slot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BatchVariables<const N: usize> {
     pub(crate) numbers: Vec<[f32; N]>,
@@ -15,7 +14,6 @@ pub struct BatchVariables<const N: usize> {
 }
 
 impl<const N: usize> BatchVariables<N> {
-    /// Stores with each variable of each lane missing.
     #[must_use]
     pub fn new(layout: &VariableLayout) -> Self {
         Self {
@@ -26,7 +24,6 @@ impl<const N: usize> BatchVariables<N> {
         }
     }
 
-    /// The raw value of a slot of a lane, or `None` when it is missing.
     #[must_use]
     pub fn get(&self, lane: usize, slot: VariableSlot) -> Option<u64> {
         let index = usize::from(slot.index);
@@ -44,7 +41,6 @@ impl<const N: usize> BatchVariables<N> {
         }
     }
 
-    /// Stores a raw value in a slot of a lane, or makes it missing with `None`.
     pub fn set(&mut self, lane: usize, slot: VariableSlot, raw: Option<u64>) {
         let index = usize::from(slot.index);
         match slot.bank {
@@ -68,7 +64,6 @@ impl<const N: usize> BatchVariables<N> {
     }
 }
 
-/// The query values of the lanes of one block, one column for each slot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BatchQueries<const N: usize> {
     pub(crate) numbers: Vec<[f32; N]>,
@@ -77,7 +72,6 @@ pub struct BatchQueries<const N: usize> {
 }
 
 impl<const N: usize> BatchQueries<N> {
-    /// `count` slots, missing in each lane.
     #[must_use]
     pub fn new(count: usize) -> Self {
         Self {
@@ -87,7 +81,6 @@ impl<const N: usize> BatchQueries<N> {
         }
     }
 
-    /// Gives a slot of a lane a raw value, or makes it missing with `None`.
     pub fn set(&mut self, lane: usize, slot: QuerySlot, raw: Option<u64>) {
         let index = usize::from(slot.0);
         if index >= self.set.len() {
@@ -107,12 +100,10 @@ impl<const N: usize> BatchQueries<N> {
         }
     }
 
-    /// Gives a slot of a lane a number.
     pub fn set_number(&mut self, lane: usize, slot: QuerySlot, value: f32) {
         self.set(lane, slot, Some(u64::from(value.to_bits())));
     }
 
-    /// The raw value of a slot of a lane, or `None` when it is missing.
     #[must_use]
     pub fn get(&self, lane: usize, slot: QuerySlot) -> Option<u64> {
         let index = usize::from(slot.0);
@@ -122,21 +113,16 @@ impl<const N: usize> BatchQueries<N> {
     }
 }
 
-/// The inputs and stores of the lanes of one block.
 #[derive(Debug)]
 pub struct BatchSubjects<'a, const N: usize> {
     pub variables: &'a mut BatchVariables<N>,
     pub queries: &'a BatchQueries<N>,
     pub this: &'a [f32; N],
-    /// The number of lanes that hold a subject, from the first lane; at most `N`.
-    /// [`BatchVm::run_masked`](crate::BatchVm::run_masked) takes a mask instead.
     pub lanes: usize,
 }
 
-/// The results of one batch run.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BatchOutput<'a, const N: usize> {
     Numbers(&'a [f32; N]),
-    /// The raw 64-bit results of a program with a string or resource result.
     Bits(&'a [u64; N], ValueType),
 }

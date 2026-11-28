@@ -8,10 +8,9 @@ publish = false
 [lints]
 workspace = true
 
-# std: child processes, tokio and sockets
 [dependencies]
 anyhow.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_network.workspace = true
 mcrs_minecraft_protocol.workspace = true

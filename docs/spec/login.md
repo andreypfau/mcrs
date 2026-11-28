@@ -1,22 +1,19 @@
 # The LOGIN protocol: behavioural specification
 
+Version: see `assets/minecraft/version.json`.
+
 | Field | 26.3 | 26.4 |
 |-------|------|------|
-| Game version | `26.3` (release) | `26.4-snapshot-5` (Minecraft Java Edition, 26.4 Snapshot 5) |
-| Protocol version | `777` | `1073742167` |
 | Switch mode | immediate switch | acknowledged switch |
 
 This document states the LOGIN state of the game protocol for two versions, 26.3
-and 26.4. mcrs supports both versions on one server and on one client. The rules
-for 26.4 come from snapshot 5. The LOGIN changes of 26.4 first occur in snapshot
-5. Snapshots 1 to 4 of 26.4 have the LOGIN packets of 26.3.
+and 26.4. mcrs supports both versions on one server and on one client.
 
 This document also states the handshake that leads to LOGIN. The frame format,
 compression and the cipher layer are in `compression.md`. This document states
 when each side switches them on.
 
 This document states only what a client, a server or a packet capture can see.
-It does not prescribe an architecture.
 
 ## 0. Conventions
 
@@ -86,14 +83,13 @@ It does not prescribe an architecture.
 
 ### 0.3 Provenance and confidence
 
-This document uses the provenance labels of `registry.md`, section 0.3. None of
-the experiments in this document has been run. Each one is a proposal.
+This document uses the provenance labels of `registry.md`, section 0.3.
 
 ### 0.4 Artefacts cited
 
-- `assets/mcrs/reports/packets.json`: the packet id report of `26.4-snapshot-4`.
-  Its LOGIN section gives the packet ids of the 26.3 table (LOGIN-PKT-001,
-  LOGIN-PKT-002). No artefact in the repository gives the 26.4 snapshot 5 table.
+- `assets/mcrs/reports/packets.json`: the packet id report. Its LOGIN section gives
+  the packet ids of the 26.3 table (LOGIN-PKT-001, LOGIN-PKT-002). No artefact in
+  the repository gives the 26.4 table.
 
 ### 0.5 ID prefixes
 
@@ -142,17 +138,12 @@ The document names data, never code. It uses these names of the game:
 | Version | Protocol version | Hexadecimal |
 |---------|------------------|-------------|
 | 26.3 | `777` | `0x00000309` |
-| 26.4 (snapshot 5) | `1073742167` | `0x40000157` |
-| 26.4 (snapshot 4) | `1073742166` | `0x40000156` |
+| 26.4 | `1073742167` | `0x40000157` |
 
 - **Behavior:** the client writes its protocol version in the handshake
   (LOGIN-HS-001).
-- **Edge cases:** snapshot 4 of 26.4 uses the LOGIN packets and the switch mode
-  of 26.3. This document does not require support for it.
 
-Provenance: `source_suggested`. The snapshot 4 value is `black_box_confirmed`
-(`assets/minecraft/version.json`). Confidence: high. Experiment: capture the
-handshake of each vanilla client.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-VER-002: Switch mode of a connection
 
@@ -168,9 +159,7 @@ handshake of each vanilla client.
 - **Invariants:** a vanilla server accepts only its own protocol version. A server
   that accepts both versions selects the mode per connection.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: connect a 26.3
-client to a 26.4 vanilla server. The server sends `login_disconnect` with
-`multiplayer.disconnect.incompatible`.
+Provenance: `source_suggested`. Confidence: high.
 
 ## 2. Handshake
 
@@ -199,8 +188,7 @@ state.
   - A 26.3 server rejects a host of more than 255 characters. A 26.4 server
     accepts up to 1024 characters.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: send a vanilla
-server a handshake with intent `4`. The connection closes.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-HS-002: Transfer intent
 
@@ -214,8 +202,7 @@ server a handshake with intent `4`. The connection closes.
 - **Behavior:** the transfer mark does not change the LOGIN packets or the switch
   points.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: send intent `3` to a
-vanilla server with `accepts-transfers=false`.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-HS-003: Version check
 
@@ -230,8 +217,7 @@ vanilla server with `accepts-transfers=false`.
 - **Behavior:** when the server accepts the version, the serverbound direction
   also enters the LOGIN state.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: send a vanilla
-26.3 server a handshake with version `753`, then with version `778`.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-HS-004: Connection id filter (26.4 only)
 
@@ -252,9 +238,7 @@ Provenance: `source_suggested`. Confidence: high. Experiment: send a vanilla
 - **Edge cases:** a 26.3 server treats the query part as a part of the host. A
   26.3 client never sends a query part.
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: set
-`allowed-connection-ids=abc` on a 26.4 vanilla server. Connect with the address
-`abc@host` and with the address `host`. Only the first connection logs in.
+Provenance: `source_suggested`. Confidence: medium.
 
 ## 3. Packets
 
@@ -275,9 +259,8 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: set
   Only the names changed.
 
 Provenance: 26.3 ids `source_suggested_black_box_confirmed`
-(`assets/mcrs/reports/packets.json`, from snapshot 4, which has the 26.3 table).
-26.4 ids `source_suggested`. Confidence: high. Experiment: run the packet report
-of the 26.4 snapshot 5 server, and compare its LOGIN section with this table.
+(`assets/mcrs/reports/packets.json`).
+26.4 ids `source_suggested`. Confidence: high.
 
 ### LOGIN-PKT-002: Serverbound packet ids
 
@@ -332,9 +315,7 @@ The profile in `login_finished` has this layout:
     them.
   - A vanilla server ignores the profile id of the serverbound `hello`.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: capture an offline
-login and an online login of each version. Decode each packet with this table,
-and find no byte that remains.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-PKT-004: Option flags (26.4)
 
@@ -354,10 +335,7 @@ byte.
 - **Conformance:** a server that conforms sends only the values of the vanilla
   server.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: capture a 26.4
-online login with a threshold of 256, and with a threshold of -1. Read
-`apply_options` = `0x01`, and `options` of `login_finished` = `0x02` and then
-`0x00`.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-PKT-005: Terminal packets
 
@@ -370,9 +348,7 @@ online login with a threshold of 256, and with a threshold of -1. Read
   packets in that direction. A disconnect after this point closes the connection
   without a packet.
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: a scripted client
-sends `login_acknowledged` and the first CONFIGURATION packet in one TCP segment.
-A vanilla server decodes the second packet as CONFIGURATION.
+Provenance: `source_suggested`. Confidence: medium.
 
 ## 4. Server inputs
 
@@ -391,8 +367,7 @@ A vanilla server decodes the second packet as CONFIGURATION.
   A 26.3 server reads it when it sends `login_compression`.
 
 Provenance: `source_suggested`, `documentation` for the property and its default.
-Confidence: high. Experiment: set `network-compression-threshold=-1` and log in.
-The capture has no compression packet.
+Confidence: high.
 
 ### LOGIN-CFG-002: Online mode
 
@@ -403,12 +378,15 @@ The capture has no compression packet.
   - the name in `hello` is not equal to the owner's name. The comparison ignores
     case.
 - **Behavior:** in all other cases, the server uses offline mode.
+- **Behavior:** when proxy forwarding is on, the server never uses online mode
+  (`proxy-forwarding.md`, FWD-CFG-002).
 - **Behavior:** when the name is equal to the owner's name, the server uses the
   owner's profile. Otherwise, offline mode uses an offline profile (LOGIN-SEQ-001).
+  When proxy forwarding is on, the forwarded profile replaces both
+  (`proxy-forwarding.md`, FWD-USE-001).
 
-Provenance: `source_suggested`, `documentation` for the property. Confidence:
-high. Experiment: start a dedicated server with `online-mode=false`, and capture a
-login without `hello` from the server.
+Provenance: `source_suggested`, `documentation` for the property. Kind: semantic.
+Confidence: high.
 
 ### LOGIN-CFG-003: In-process connection
 
@@ -417,9 +395,7 @@ login without `hello` from the server.
 - **Behavior:** a 26.3 client ignores `login_compression` on an in-process
   connection. A vanilla server does not send it there.
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: not possible
-with a capture, because an in-process connection has no socket. Confirm it with a
-modified client that logs the options byte in single-player.
+Provenance: `source_suggested`. Confidence: medium.
 
 ## 5. Sequences
 
@@ -437,8 +413,7 @@ modified client that logs the options byte in single-player.
 - **Behavior:** in online mode, the server sends the key data (LOGIN-SEQ-005).
 
 Provenance: `source_suggested`, `documentation` for the offline UUID.
-Confidence: high. Experiment: log in offline as `Steve`, and compare the UUID in
-`login_finished` with the version 3 UUID of `OfflinePlayer:Steve`.
+Confidence: high.
 
 ### LOGIN-SEQ-002: Verification and the end of LOGIN
 
@@ -457,9 +432,7 @@ Confidence: high. Experiment: log in offline as `Steve`, and compare the UUID in
 - **Invariants:** the compression packet comes before `login_finished`. Step 3
   can put a delay between them.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: log in two times
-with the same offline name. The first player leaves. The capture of the second
-login shows the compression packet, a delay, and then `login_finished`.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-SEQ-003: Offline login
 
@@ -478,8 +451,7 @@ the state of each frame. "P" is plain, "C" is compressed, "U" is uncompressed.
 - **Behavior:** with compression off, rows 3 to 6 are all U. Row 3 is absent.
   In 26.4, `login_finished.options` is `0`.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: capture an offline
-login of each version with a threshold of 256.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-SEQ-004: Online login, 26.3
 
@@ -498,9 +470,7 @@ login of each version with a threshold of 256.
 - **Behavior:** the cipher layer is on before step 6. The session server check
   occurs while the connection is encrypted.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: a scripted 26.3
-client with a known shared secret logs in to a vanilla server. Capture the
-stream, and decrypt it from the frame after `key`.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-SEQ-005: Key exchange (both versions)
 
@@ -531,9 +501,7 @@ stream, and decrypt it from the frame after `key`.
   world, the client logs a message and continues. For other servers, the client
   closes the connection.
 
-Provenance: `documentation`, `source_suggested`. Confidence: high. Experiment:
-a scripted client logs in to a vanilla server. Compare its hash with the hash
-that the server sends to a stub session server.
+Provenance: `documentation`, `source_suggested`. Confidence: high.
 
 ### LOGIN-SEQ-006: Online login, 26.4
 
@@ -561,10 +529,7 @@ that the server sends to a stub session server.
 - **Behavior:** after `options_applied`, the server continues with the
   verification of LOGIN-SEQ-002.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: a scripted 26.4
-client with a known shared secret logs in to a vanilla server. Capture the
-stream, and decrypt the clientbound direction from the frame after
-`apply_options`.
+Provenance: `source_suggested`. Confidence: high.
 
 ## 6. Switch points
 
@@ -577,7 +542,7 @@ stream, and decrypt the clientbound direction from the frame after
 - **Postconditions:** in each direction, `key` and the clientbound `hello` are the
   last plain frames. Every later frame is encrypted.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: as LOGIN-SEQ-004.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-SW-002: Immediate switch, compression (26.3)
 
@@ -593,8 +558,7 @@ Provenance: `source_suggested`. Confidence: high. Experiment: as LOGIN-SEQ-004.
   pass the compression step before that moment. A server that conforms must switch
   at the frame boundary, with no such race.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: as LOGIN-SEQ-003,
-26.3 column.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-SW-003: Acknowledged switch, cipher layer (26.4)
 
@@ -610,7 +574,7 @@ Provenance: `source_suggested`. Confidence: high. Experiment: as LOGIN-SEQ-003,
 - **Postconditions:** `apply_options` is the last plain clientbound frame.
   `options_applied` is the last plain serverbound frame.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: as LOGIN-SEQ-006.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-SW-004: Acknowledged switch, compression (26.4)
 
@@ -632,8 +596,7 @@ Provenance: `source_suggested`. Confidence: high. Experiment: as LOGIN-SEQ-006.
   `login_acknowledged` is the last uncompressed serverbound frame. The first
   CONFIGURATION frame in each direction is compressed.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: as LOGIN-SEQ-003,
-26.4 column.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-SW-005: Summary of the switch points
 
@@ -667,9 +630,7 @@ Provenance: `source_suggested`. Confidence: high.
   - Bit 0 when the cipher layer is already on is an error on the vanilla client.
 - **Conformance:** a server that conforms never sends these cases (LOGIN-PKT-004).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: a scripted 26.4
-server sends `login_finished` with `0x02` and no `setup_compression`. The vanilla
-client then compresses every serverbound packet.
+Provenance: `source_suggested`. Confidence: medium.
 
 ## 7. Other LOGIN packets
 
@@ -682,8 +643,7 @@ These rules are the same in both versions.
 - **Behavior:** the frame of `login_disconnect` uses the layers that are on for
   the clientbound direction at that moment.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: log in to a
-whitelisted vanilla server with a name that is not on the whitelist.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-OTH-002: Custom query
 
@@ -694,10 +654,10 @@ whitelisted vanilla server with a name that is not on the whitelist.
   Boolean is false).
 - **Behavior:** when the vanilla server receives `custom_query_answer`, it sends
   `login_disconnect` with `multiplayer.disconnect.unexpected_query_response`.
+- **Behavior:** when proxy forwarding is on, the server sends one `custom_query`
+  and accepts its answer. `proxy-forwarding.md` states this exception.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: a scripted server
-sends `custom_query` with id 7 to a vanilla client. The answer is `0x07 0x00`
-after the packet id.
+Provenance: `source_suggested`. Kind: wire. Confidence: high.
 
 ### LOGIN-OTH-003: Cookies
 
@@ -709,9 +669,7 @@ after the packet id.
 - **Behavior:** when the vanilla server receives `cookie_response` in LOGIN, it
   sends `login_disconnect` with `multiplayer.disconnect.unexpected_query_response`.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: a scripted server
-sends `cookie_request` for `a:b` to a vanilla client that has no cookie. The
-answer has the key `a:b` and the Boolean false.
+Provenance: `source_suggested`. Confidence: high.
 
 ### LOGIN-OTH-004: Login timeout
 
@@ -725,9 +683,7 @@ answer has the key `a:b` and the Boolean false.
   `disconnect.timeout`.
 - **Note:** 600 ticks is 30 seconds when the server is not overloaded.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: a scripted client
-sends `hello` to an online vanilla server, and then sends nothing. Measure the
-time to `login_disconnect`.
+Provenance: `source_suggested`. Confidence: high.
 
 ## 8. Errors and edge cases
 
@@ -742,17 +698,22 @@ time to `login_disconnect`.
 | `key` | the server sent the key data and waits for `key` |
 | `options_applied` (26.4) | the server sent `apply_options` and waits for the acknowledgement |
 | `login_acknowledged` | the server sent `login_finished` |
-| `custom_query_answer`, `cookie_response` | never (LOGIN-OTH-002, LOGIN-OTH-003) |
+| `custom_query_answer` | never (LOGIN-OTH-002), except the forwarding answer of `proxy-forwarding.md` |
+| `cookie_response` | never (LOGIN-OTH-003) |
 
-- **Behavior:** at any other point, the packet is an error. The server sends
+- **Behavior:** an answer that this table does not accept, `custom_query_answer` or
+  `cookie_response`, gives `multiplayer.disconnect.unexpected_query_response`
+  (LOGIN-OTH-002, LOGIN-OTH-003). This includes a `custom_query_answer` with a
+  transaction id that is not that of the forwarding query (`proxy-forwarding.md`,
+  FWD-CHK-001).
+- **Behavior:** at any other point, another packet is an error. The server sends
   `login_disconnect` with `disconnect.genericReason` and one argument. Then it
   closes the connection.
 - **Behavior:** an invalid name in `hello` (LOGIN-SEQ-001) has the same result.
 - **Edge cases:** the 26.4 server switches compression on before it checks
   `login_acknowledged` (LOGIN-ERR-002).
 
-Provenance: `source_suggested`. Confidence: high. Experiment: send `key` to an
-offline vanilla server after `hello`.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### LOGIN-ERR-002: Premature `login_acknowledged` (26.4)
 
@@ -776,10 +737,7 @@ offline vanilla server after `hello`.
   that the client can read. The client cannot see the difference, except for a
   readable reason.
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: a scripted 26.4
-client sends `hello` and then `login_acknowledged` at once to an offline vanilla
-server with threshold 256. Capture the clientbound frame. It starts with a data
-length field.
+Provenance: `source_suggested`. Confidence: medium.
 
 ### LOGIN-ERR-003: Absent `options_applied` (26.4)
 
@@ -794,9 +752,7 @@ length field.
 - **Edge cases:** the 30-second read limit of LOGIN-OTH-004 can close the
   connection first, without a packet.
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: a scripted 26.4
-client completes the key exchange and does not answer `apply_options`. Measure
-the time to the close, and capture the plain `login_disconnect`.
+Provenance: `source_suggested`. Confidence: medium.
 
 ### LOGIN-ERR-004: Disconnect between the sides of a switch (26.4)
 
@@ -808,9 +764,7 @@ the time to the close, and capture the plain `login_disconnect`.
 - **Postconditions:** in 26.4, no compressed frame reaches a client that did not
   switch compression on, except in LOGIN-ERR-002.
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: a scripted 26.4
-client reads `login_finished` and does not answer. The connection closes after
-the timeout with no further frame.
+Provenance: `source_suggested`. Confidence: medium.
 
 ### LOGIN-ERR-005: Key and authentication failures
 
@@ -825,59 +779,15 @@ the timeout with no further frame.
 - **Behavior:** in 26.4, the integrated server then sends `apply_options` as for a
   successful check.
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: point a vanilla
-server at a stub session server that answers with no content. Capture the
-`login_disconnect`, and check whether it is encrypted.
+Provenance: `source_suggested`. Confidence: medium.
 
 ---
 
-## 9. Configuration points (non-normative)
+## 10. Unresolved
 
-This section suggests configuration points for mcrs. It is not a rule.
-
-- **Compression threshold.** One integer per server, with the same function as
-  `network-compression-threshold`. The default is `256`. A negative value turns
-  compression off for all versions.
-- **Accepted versions.** A set of protocol versions that the server accepts. The
-  default is `{777, 1073742167}`. The server selects the switch mode from the
-  handshake (LOGIN-VER-002). A version outside the set gets the reject of
-  LOGIN-HS-003.
-- **Version name in a reject.** The text for the argument of
-  `multiplayer.disconnect.incompatible`. One example is `26.3 or 26.4`.
-- **Client version.** A client configuration point that selects the protocol version that it
-  sends, `777` or `1073742167`. The client then uses the switch mode of that
-  version.
-- **Online mode.** One boolean, with the same function as `online-mode`.
-- **Connection ids.** One list, with the same function as `allowed-connection-ids`.
-  It applies only to 26.4 connections, because a 26.3 client sends no `_id`.
-
-## 10. Open questions
-
-- **LQ-01: 26.4 packet report** (LOGIN-PKT-001, LOGIN-PKT-002). Run the packet
-  report of the 26.4 snapshot 5 server, and store it as an artefact. Then change
-  the labels of the 26.4 ids.
 - **LQ-02: Handshake decode errors in 26.3** (LOGIN-HS-001). It is not confirmed
   whether a 26.3 server sends any bytes before it closes the connection on an
-  unknown intent. A 26.4 server sends none. Experiment: capture the clientbound
-  bytes after a handshake with intent `4` to a 26.3 server.
+  unknown intent. A 26.4 server sends none.
 - **LQ-03: Owner shortcut on a LAN world** (LOGIN-CFG-002). The name check ignores
-  case. Confirm that a LAN guest with the owner's name in other case gets the
-  owner's profile without encryption.
-- **LQ-04: Captures** (all rules). Capture the sequences of LOGIN-SEQ-003,
-  LOGIN-SEQ-004 and LOGIN-SEQ-006 with vanilla programs, and store them as
-  artefacts.
-
-## 11. Conflicts with `crates/mcrs_minecraft_protocol/README.md`
-
-- The README says that the crate supports exactly one game version. This
-  document requires two packet tables and two switch modes on one server and on
-  one client (LOGIN-VER-002).
-- The README example uses the packet name `login_compression` only. In 26.4 the
-  name of packet `0x03` is `setup_compression` (LOGIN-PKT-001). The layout did
-  not change.
-- The README says that the game "inflates the declared count and ignores the
-  rest". The game also rejects a zlib stream that gives fewer bytes than the data
-  length (`compression.md`, FRAME-007, step 5). This is not a conflict with the
-  mcrs rule, which is stricter.
-- The README states that mcrs applies the strict check on the client as well.
-  That is a permitted difference (`compression.md`, FRAME-008).
+  case. It is not confirmed that a LAN guest with the owner's name in other case
+  gets the owner's profile without encryption.

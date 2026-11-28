@@ -1,16 +1,3 @@
-// The Molang math of the generated channel functions. `gpu_math.rs` computes the same
-// operations on the CPU; change both together.
-//
-// Metal compiles with fast math: it contracts `a * b + c` to an FMA, reassociates constants,
-// ignores the sign of zero (`0.0 - x` becomes `-x`, `x * 0.0` becomes `0.0`) and flushes
-// subnormal values. Each operand and each result of a float operation therefore goes through an
-// integer operation with `molang_zero`, a zero that the compiler cannot see. The compiler then
-// knows no operand value and has no chain of float operations to rewrite, and every backend gives
-// the bits of the CPU twin. For the same reason a Boolean becomes a number with an integer
-// select, and `molang_min` and `molang_max` compare opaque copies of their operands: a float
-// `select` over a comparison of its own operands becomes a min or max instruction, which can
-// drop the sign of a zero.
-
 var<private> molang_zero: u32;
 
 fn molang_flush(x: f32) -> f32 {
@@ -21,6 +8,8 @@ fn molang_flush(x: f32) -> f32 {
 fn molang_constant(bits: u32) -> f32 {
     return molang_flush(bitcast<f32>(bits | molang_zero));
 }
+
+fn molang_nan() -> f32 { return bitcast<f32>(0x7fc00000u | molang_zero); }
 
 fn molang_opaque(x: f32) -> f32 { return bitcast<f32>(bitcast<u32>(x) | molang_zero); }
 fn molang_add(a: f32, b: f32) -> f32 { return molang_flush(molang_opaque(a) + molang_opaque(b)); }
@@ -105,7 +94,7 @@ fn molang_divide(a: f32, b: f32) -> f32 {
 fn molang_sqrt(x: f32) -> f32 {
     let bits = bitcast<u32>(x);
     if ((bits & 0x7fffffffu) == 0u) { return x; }
-    if ((bits & 0x80000000u) != 0u) { return bitcast<f32>(0x7fc00000u); }
+    if ((bits & 0x80000000u) != 0u) { return molang_nan(); }
     if (bits >= 0x7f800000u) { return x; }
     var exponent = i32(bits >> 23u) - 127;
     var mantissa = (bits & 0x007fffffu) | 0x00800000u;
@@ -143,7 +132,7 @@ fn molang_mod(a: f32, b: f32) -> f32 {
     let ax = ua & 0x7fffffffu;
     let bx = ub & 0x7fffffffu;
     if (bx == 0u) { return 0.0; }
-    if (ax >= 0x7f800000u || bx > 0x7f800000u) { return bitcast<f32>(0x7fc00000u); }
+    if (ax >= 0x7f800000u || bx > 0x7f800000u) { return molang_nan(); }
     if (ax < bx) { return a; }
     if (ax == bx) { return bitcast<f32>(sign); }
     var ex = i32(ax >> 23u);
@@ -257,7 +246,7 @@ fn molang_exp2(value: f32) -> f32 {
 fn molang_ln(x: f32) -> f32 {
     let bits = bitcast<u32>(x);
     if ((bits & 0x80000000u) != 0u || (bits & 0x7fffffffu) == 0u || bits >= 0x7f800000u) {
-        return bitcast<f32>(0x7fc00000u);
+        return molang_nan();
     }
     var exponent = i32(bits >> 23u) - 127;
     var mantissa = bitcast<f32>((bits & 0x007fffffu) | 0x3f800000u);
@@ -382,7 +371,6 @@ fn molang_bounce(u: f32) -> f32 {
     return molang_bounce_curve(u, 0x3f745d17u, 0.984375);
 }
 
-// The shapes in the order of the shape index of `molang_ease_in`.
 fn molang_ease_in(shape: u32, t: f32) -> f32 {
     switch (shape) {
         case 0u: { return molang_mul(t, t); }
@@ -409,7 +397,6 @@ fn molang_ease_in(shape: u32, t: f32) -> f32 {
     }
 }
 
-// `direction` is 0 for `in`, 1 for `out` and 2 for `in_out`.
 fn molang_ease(direction: u32, shape: u32, start: f32, end: f32, t: f32) -> f32 {
     var progress: f32;
     if (direction == 0u) {
@@ -424,7 +411,6 @@ fn molang_ease(direction: u32, shape: u32, start: f32, end: f32, t: f32) -> f32 
     return molang_lerp(start, end, progress);
 }
 
-// NaN gives 0; the rest is limited to [-1e6, 1e6], with integer tests that fast math keeps.
 fn molang_pose_clamp(x: f32) -> f32 {
     let bits = bitcast<u32>(x);
     if ((bits & 0x7f800000u) == 0x7f800000u) {

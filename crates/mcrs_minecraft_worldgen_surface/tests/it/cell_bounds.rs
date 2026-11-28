@@ -1,6 +1,3 @@
-//! A cell the bound settles is filled with one block state outright, so a bound
-//! that does not contain every density inside its cell writes stone through air.
-
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_resource::rl;
@@ -20,8 +17,6 @@ use mcrs_minecraft_worldgen_surface::{
 };
 use mcrs_minecraft_worldgen_testing as corpus;
 
-/// The margin the chunk generator keeps away from zero: f32 interval arithmetic
-/// without outward rounding, so a bound landing on zero is not trustworthy.
 const SLACK: f32 = 1e-5;
 
 const BLOCKS: RouterBlocks = RouterBlocks {
@@ -46,9 +41,6 @@ fn router(seed: u64) -> NoiseRouter {
     .unwrap()
 }
 
-/// The overworld with its material rules compiled in, every block they name
-/// resolved to a placeholder: the bounds under test are over the
-/// vein densities, which read no block.
 fn material_router(seed: u64) -> (NoiseRouter, MaterialProgram) {
     let rules: BTreeMap<_, MaterialRuleHolder> = corpus::registry("material_rule");
     let conditions: BTreeMap<_, MaterialConditionHolder> = corpus::registry("material_condition");
@@ -69,7 +61,6 @@ fn material_router(seed: u64) -> (NoiseRouter, MaterialProgram) {
     .unwrap()
 }
 
-/// The corner hull of one cell, per lattice row.
 fn corner_hull(values: &[f32], stride: usize, size: IVec3, at: IVec3, out: &mut [(f32, f32)]) {
     let index = |x: i32, y: i32, z: i32| (y + (x + z * size.x) * size.y) as usize;
     for (k, bound) in out.iter_mut().enumerate() {
@@ -102,10 +93,6 @@ fn a_settled_cell_bound_contains_every_block_density_in_it() {
     assert!(checked > 0, "no cell produced a bound");
 }
 
-/// The surface stage skips the ore vein rule throughout a cell whose density
-/// bound stays negative, so the same containment must hold over the vein
-/// roots — whose graphs, unlike the terrain's, read `y` above the
-/// interpolation.
 #[test]
 fn a_settled_vein_cell_bound_contains_every_block_density_in_it() {
     let (router, material) = material_router(845);
@@ -118,14 +105,12 @@ fn a_settled_vein_cell_bound_contains_every_block_density_in_it() {
             &router,
             Some(&material),
             vein.density,
-            |corners, min, max| bounds.eval(&router.program, corners, min, max, &mut terms),
+            |corners, min, max| bounds.eval(router.program(), corners, min, max, &mut terms),
         );
         assert!(checked > 0, "vein {index} produced no bound");
     }
 }
 
-/// Every cell of a column at the origin whose bound `eval` answers, checked
-/// against every block density inside it; returns how many were checked.
 fn check_root(
     router: &NoiseRouter,
     material: Option<&MaterialProgram>,
@@ -171,7 +156,7 @@ fn check_root(
                 };
                 let dense = SampleGrid::dense(cell, origin);
                 let mut density = vec![0.0f32; dense.len()];
-                router.program.fill(&mut ws, &dense, root, &mut density);
+                router.program().fill(&mut ws, &dense, root, &mut density);
                 for (i, &value) in density.iter().enumerate() {
                     assert!(
                         value >= bounds.min() - SLACK && value <= bounds.max() + SLACK,

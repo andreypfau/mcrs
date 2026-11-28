@@ -104,8 +104,6 @@ fn refused_by_the_loader(registry: &str, name: &str, json: &str) -> String {
     load_text(&[(&format!("minecraft/{registry}/{name}.json"), json)])
 }
 
-/// One load for many refused files: each case is written as its own entry, and its text is
-/// what the diagnostics say about that entry.
 fn refused_each(cases: &[(&str, String)]) -> Vec<(String, String)> {
     let names: Vec<String> = (0..cases.len()).map(|at| format!("odd{at:03}")).collect();
     let paths: Vec<String> = cases
@@ -613,7 +611,7 @@ impl Plugin for KitPlugin {
 }
 
 #[test]
-fn a_plugin_registry_loads_from_its_embedded_pack_and_leaves_what_a_client_receives_unchanged() {
+fn plugin_registry_loads_from_embedded_pack_client_view_unchanged() {
     let app = plugin_app(KitPlugin);
     let loaded: &Registries = app.world().resource::<CurrentRegistries>();
 
@@ -640,7 +638,7 @@ fn a_plugin_registry_loads_from_its_embedded_pack_and_leaves_what_a_client_recei
 }
 
 #[test]
-fn an_embedded_pack_overrides_vanilla_below_the_root_packs_and_is_always_sent_with_data() {
+fn embedded_pack_overrides_vanilla_below_root_packs_and_is_sent() {
     let pattern =
         |name: &str| format!(r#"{{"asset_id":"minecraft:{name}","translation_key":"k"}}"#);
     let source = WithFiles::over_assets()

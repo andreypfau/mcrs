@@ -12,10 +12,6 @@ pub enum SplineValue {
 
 #[derive(Clone, Debug)]
 pub struct Multipoint {
-    /// Index into the `coords` list of the owning `Node::Spline`, assigned by
-    /// the compiler's pre-order walk: a multipoint's own coordinate first, then
-    /// each point's sub-spline in list order, deduplicated by structural
-    /// equality so equal coordinates share one index and one graph node.
     pub coord: usize,
     pub locations: Box<[f32]>,
     pub derivatives: Box<[f32]>,
@@ -28,7 +24,7 @@ pub struct CompiledSpline {
 }
 
 impl CompiledSpline {
-    pub fn eval<'a>(&self, out: &mut [f32], coords: &dyn Fn(usize) -> Runs<'a>, ext: &SampleGrid) {
+    pub fn eval<'a>(&self, out: &mut [f32], coords: &impl Fn(usize) -> Runs<'a>, ext: &SampleGrid) {
         each_column(out, ext, |run, ix, iz| {
             let read = |k: usize| coords(k).col(ix, iz);
             for (i, slot) in run.iter_mut().enumerate() {
@@ -37,14 +33,12 @@ impl CompiledSpline {
         });
     }
 
-    /// The interval of the whole spline given the interval of each coordinate,
-    /// indexed the same way as `eval`'s `read`.
     pub fn range(&self, coord_ranges: &[Interval]) -> Interval {
         value_range(&self.root, coord_ranges)
     }
 }
 
-fn sample<'a>(value: &SplineValue, read: &dyn Fn(usize) -> &'a [f32], i: usize) -> f32 {
+fn sample<'a>(value: &SplineValue, read: &impl Fn(usize) -> &'a [f32], i: usize) -> f32 {
     let m = match value {
         SplineValue::Constant(v) => return *v,
         SplineValue::Multipoint(m) => m,
@@ -54,8 +48,6 @@ fn sample<'a>(value: &SplineValue, read: &dyn Fn(usize) -> &'a [f32], i: usize) 
         let value = m.values.first().map_or(0.0, |v| sample(v, read, i));
         return linear_extend(input, &m.locations, value, &m.derivatives, 0);
     };
-    // Only the last point has no successor, so a missing pair is the extension
-    // past it.
     let segment = start..start + 2;
     let (Some(&[x1, x2]), Some([v1, v2]), Some(&[d1, d2])) = (
         m.locations.get(segment.clone()),
@@ -73,9 +65,6 @@ fn sample<'a>(value: &SplineValue, read: &dyn Fn(usize) -> &'a [f32], i: usize) 
     mul_add(t * (1.0 - t), lerp(t, a, b), lerp(t, y1, y2))
 }
 
-/// `Mth.binarySearch(0, len, i -> input < locations[i]) - 1`, transcribed rather
-/// than expressed as `partition_point`: the codec accepts unsorted locations, and
-/// two binary searches over an unsorted array need not agree on the index.
 fn find_interval_start(locations: &[f32], input: f32) -> isize {
     let mut from = 0usize;
     let mut len = locations.len();
@@ -93,9 +82,6 @@ fn find_interval_start(locations: &[f32], input: f32) -> isize {
     from as isize - 1
 }
 
-/// The zero-derivative case returns `value` untouched instead of computing
-/// `value + 0.0 * (input - location)`, which is what keeps an infinite input
-/// from poisoning a flat extension. `-0.0` takes it too.
 fn linear_extend(
     input: f32,
     locations: &[f32],
@@ -130,8 +116,6 @@ fn value_range(value: &SplineValue, coord_ranges: &[Interval]) -> Interval {
     }
 }
 
-/// `CubicSpline.Multipoint.range()`. `value_ranges` holds the range of each point
-/// value, in point order; the caller owns the recursion over the sub-splines.
 pub(crate) fn multipoint_range(
     input: Interval,
     locations: &[f32],
@@ -181,8 +165,6 @@ pub(crate) fn multipoint_range(
             continue;
         };
         let (d1, d2) = (*d1, *d2);
-        // Skipping this guard widens the interval on every flat segment of the
-        // shipped continentalness and erosion splines.
         if d1 == 0.0 && d2 == 0.0 {
             continue;
         }
@@ -199,8 +181,6 @@ pub(crate) fn multipoint_range(
         max_value = max_f32(max_value, max_lerp1 + 0.25 * max_lerp2);
     }
 
-    // Vanilla throws instead; a NaI point value or an infinity cancelling in an
-    // extension leaves nothing known, which is what NaI means.
     if min_value.is_nan() || max_value.is_nan() {
         return Interval::NAI;
     }

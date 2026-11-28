@@ -1,12 +1,3 @@
-//! Full production-topology join without a real TCP socket: the host emits
-//! `InboundPlayerSpawn` on the Game transition, the sub-app materializes the
-//! in-dim entity, `emit_play_login` writes `PacketPayload::PlayerLogin`, and
-//! `bridge_outbound` + `dispatch_encode` coalesce a non-empty blob to the mock
-//! socket. This is the regression test that would have caught the original
-//! "Joining world" hang: it exercises a real connection crossing into a sub-app
-//! and verifies the play-login blob reaches the host-resident connection, not
-//! just the in-process bus.
-
 use crate::mock_connection;
 
 use bevy_app::{App, Update};
@@ -31,13 +22,6 @@ use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::inbound_rate::InboundPacketRate;
 use mcrs_minecraft_protocol::uuid::Uuid;
 
-// ---------------------------------------------------------------------------
-// e2e_join_releases_joining_world
-// ---------------------------------------------------------------------------
-
-/// Build a host `App` with the full join + delivery stack wired as systems
-/// so a real `app.update()` pump exercises the entire production path.
-///
 fn build_join_host_app() -> App {
     let mut app = crate::host_app::make_host_app();
     app.insert_resource(crate::support::dimension_list_with_extra());
@@ -64,26 +48,12 @@ fn build_join_host_app() -> App {
     app
 }
 
-/// Full production-topology regression for the "Joining world" release.
-///
-/// This is the test that would have caught the original failure: it exercises
-/// a real connection crossing into a sub-app (`InboundPlayerSpawn` → in-dim
-/// entity via `consume_inbound_player_spawn`) and verifies that the play-login
-/// packet (`PacketPayload::PlayerLogin`) is encoded and delivered as a non-empty
-/// blob to the joining player's host-resident mock socket connection, which is
-/// what releases the client from the "Joining world" screen.
-///
-/// Asserts:
-/// 1. The session is attached to its dimension (handoff bound).
-/// 2. A non-empty blob reaches the mock socket channel (play-login delivered).
 #[test]
 fn e2e_join_releases_joining_world() {
     use mcrs_minecraft_network::ConnectionState;
 
     let mut app = build_join_host_app();
 
-    // Spawn a connection entity with a mock socket so dispatch_encode can
-    // coalesce and deliver blobs to it.
     let (raw, mut rx) = mock_connection::make_mock_raw_connection();
     let connection_entity = app
         .world_mut()
@@ -94,8 +64,6 @@ fn e2e_join_releases_joining_world() {
         ))
         .id();
 
-    // Drive login: insert GameProfile + LoginState::Accepted so the
-    // on_login_accepted observer creates the host-anchor and its session.
     app.world_mut().entity_mut(connection_entity).insert((
         GameProfile {
             id: Uuid::new_v4(),
@@ -104,7 +72,6 @@ fn e2e_join_releases_joining_world() {
         },
         LoginState::Accepted,
     ));
-    // Flush the on_login_accepted observer.
     app.update();
 
     let host_anchor = app
@@ -115,7 +82,6 @@ fn e2e_join_releases_joining_world() {
         .expect("HostAnchorRef present after login")
         .0;
 
-    // Bring up the server and spawn a real sub-app.
     app.world_mut()
         .resource_mut::<NextState<AppState>>()
         .set(AppState::Playing);
@@ -131,22 +97,15 @@ fn e2e_join_releases_joining_world() {
         });
     drain_dim_spawn_queue(&mut app);
 
-    // Transition to Game — mirrors what on_configuration_ack does in production.
     app.world_mut()
         .entity_mut(connection_entity)
         .insert(ConnectionState::Game);
 
-    // Tick 1: the initial player spawn queues ToDim::Spawn for the dimension, which ticks
-    //         after the host: it spawns the player and hands over OutboundPlayerAttached and
-    //         the play-login packets in its output, which the host takes between ticks.
-    // Tick 2: bridge_player_attach attaches the session; bridge_outbound routes the
-    //         play-login packets to the OutboundQueue and dispatch_encode sends the blob.
     for _ in 0..3 {
         app.update();
         take_dim_outputs(app.world_mut());
     }
 
-    // Assertion 1: handoff completed — the session is attached.
     let place = app
         .world()
         .get::<SessionPlacement>(host_anchor)
@@ -157,7 +116,6 @@ fn e2e_join_releases_joining_world() {
         "the session must be attached to its dim after the full handoff round-trip, got {place:?}",
     );
 
-    // Assertion 2: play-login delivered — at least one non-empty blob on the socket.
     let blob = rx.try_recv().expect(
         "dispatch_encode must have sent at least one blob to the mock socket; \
                  play-login not delivered — 'Joining world' would hang",
@@ -167,7 +125,3 @@ fn e2e_join_releases_joining_world() {
         "the blob reaching the mock socket must be non-empty (play-login bytes)",
     );
 }
-
-// ---------------------------------------------------------------------------
-// Shared test utilities
-// ---------------------------------------------------------------------------

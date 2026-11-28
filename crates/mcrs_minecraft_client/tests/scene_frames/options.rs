@@ -1,10 +1,7 @@
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_client::options::ClientOptions;
+use mcrs_minecraft_client_options::ClientOptions;
 
-/// The client options that give the options of a scene, which are keys of `options.txt` with
-/// values as that file writes them. A feature that mcrs does not draw yet counts as off, so the
-/// scene must ask for it off.
 pub fn client_options(options: &BTreeMap<String, String>) -> Result<ClientOptions, String> {
     let mut client = ClientOptions::default();
     for (key, value) in options {
@@ -21,9 +18,6 @@ pub fn client_options(options: &BTreeMap<String, String>) -> Result<ClientOption
                 );
             }
             "gamma" => client.brightness = number(key, value)?,
-            // mcrs has no view bobbing, entity shadow, vignette or improved transparency, no
-            // entity distance cull and no section fade, and its block atlas always holds the
-            // full mip chain of a 16-pixel sprite: four levels below the base.
             "bobView" | "entityShadows" | "vignette" | "improvedTransparency" => {
                 absent(key, value, "false")?;
             }
@@ -37,7 +31,7 @@ pub fn client_options(options: &BTreeMap<String, String>) -> Result<ClientOption
             }
         }
     }
-    client.validate()?;
+    client.validate().map_err(|error| error.to_string())?;
     Ok(client)
 }
 
@@ -65,7 +59,6 @@ fn clouds(value: &str) -> Result<bool, String> {
     }
 }
 
-/// mcrs has no setting for this option, and what it draws matches `expected`.
 fn absent(key: &str, value: &str, expected: &str) -> Result<(), String> {
     if value == expected {
         Ok(())

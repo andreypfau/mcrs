@@ -1,22 +1,24 @@
 use crate::item::harness::wire_form;
 use glam::DVec3;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant, ZombieNautilusVariant};
-use mcrs_minecraft_entity::{
-    attribute_keys::Attribute, entity_type_keys::EntityType,
-    villager_profession_keys::VillagerProfession, villager_type_keys::VillagerType,
-};
+use mcrs_minecraft_entity::villager_profession_keys::VillagerProfession;
+use mcrs_minecraft_entity::villager_type_keys::VillagerType;
+use mcrs_minecraft_entity_attribute::AttributeModifier;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{
-    AttributeModifier, AttributeOperation, AttributeSnapshot, ClientboundAddEntity,
-    ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
-    ClientboundUpdateAttributes,
+    AttributeSnapshot, ClientboundAddEntity, ClientboundSetEntityData, ClientboundSetEquipment,
+    ClientboundSetPassengers, ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol_game::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
-    OptionalUnsignedInt, Pose, VillagerData,
+    OptionalUnsignedInt, VillagerData,
 };
 use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3, ProtoStack};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
@@ -192,8 +194,6 @@ fn equipment_chains_slots_with_the_continuation_bit() {
     };
     let mut buf = Vec::new();
     let bytes = round_trip(&packet, &mut buf);
-    // entity id; main hand continues: 1 x item 1506 (two-byte varint) with no
-    // components; off hand continues: empty; head last: 3 x item 1.
     assert_eq!(
         bytes,
         [9, 0x80, 1, 0xE2, 0x0B, 0, 0, 0x81, 0, 5, 3, 1, 0, 0]
@@ -233,17 +233,17 @@ fn attributes_round_trip_with_modifiers() {
         entity_id: VarInt(5),
         attributes: vec![
             AttributeSnapshot {
-                attribute: Attribute::MaxHealth,
+                attribute: Attribute::MaxHealth.into(),
                 base: 26.0,
                 modifiers: vec![],
             },
             AttributeSnapshot {
-                attribute: Attribute::KnockbackResistance,
+                attribute: Attribute::KnockbackResistance.into(),
                 base: 0.0,
                 modifiers: vec![AttributeModifier {
                     id: ResourceLocation::read("minecraft:random_spawn_bonus").unwrap(),
                     amount: 0.025,
-                    operation: AttributeOperation::AddValue,
+                    operation: ModifierOperation::AddValue,
                 }],
             },
         ],
@@ -307,4 +307,52 @@ fn a_player_info_update_reads_the_list_order_and_hat_actions_from_the_top_two_bi
         panic!("{:?}", update.entries);
     };
     assert_eq!((entry.list_order, entry.show_hat), (5, true));
+}
+
+#[test]
+fn animate_and_swing_animation_packets_match_wire_layout_and_table_ids() {
+    use mcrs_minecraft_protocol::Packet;
+    use mcrs_minecraft_protocol_game::clientbound::{
+        ClientboundAnimate, ClientboundSwingAnimation,
+    };
+    use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
+
+    assert_eq!(ClientboundAnimate::ID, 2);
+    assert_eq!(ClientboundSwingAnimation::ID, 123);
+
+    for action in [0, 1, 2] {
+        let packet = ClientboundAnimate {
+            entity_id: VarInt(42),
+            action,
+        };
+        let mut buf = Vec::new();
+        let bytes = round_trip(&packet, &mut buf);
+        assert_eq!(bytes, [42, action]);
+    }
+
+    for (hand, hand_byte) in [(Hand::Main, 0), (Hand::Off, 1)] {
+        for (animation, anim_byte) in [
+            (SwingAnimationKind::None, 0),
+            (SwingAnimationKind::Whack, 1),
+            (SwingAnimationKind::Stab, 2),
+        ] {
+            for (duration, dur_bytes) in [
+                (0, &[0u8][..]),
+                (6, &[6][..]),
+                (17, &[17][..]),
+                (150, &[0x96, 0x01][..]),
+            ] {
+                let packet = ClientboundSwingAnimation {
+                    entity_id: VarInt(99),
+                    hand,
+                    animation,
+                    duration: VarInt(duration),
+                };
+                let mut buf = Vec::new();
+                let bytes = round_trip(&packet, &mut buf);
+                assert_eq!(&bytes[..3], [99, hand_byte, anim_byte]);
+                assert_eq!(&bytes[3..], dur_bytes);
+            }
+        }
+    }
 }

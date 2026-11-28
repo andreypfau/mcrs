@@ -3,49 +3,26 @@ use core::num::NonZeroI16;
 
 use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error, VarI32};
 
-/// An ingredient of an auto craft recipe: an item descriptor and a count.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BedrockEncode, BedrockDecode)]
 pub struct Ingredient<'a> {
-    /// The items that the ingredient accepts.
     pub descriptor: ItemDescriptor<'a>,
-    /// The number of items.
     pub count: VarI32,
 }
 
-/// The items that an [`Ingredient`] accepts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ItemDescriptor<'a> {
-    /// Type 0: no item.
     Empty,
-    /// Type 1: an item network id; `None` writes the id 0 and no metadata.
     Default(Option<DefaultItem>),
-    /// Type 2: a molang expression.
-    MolangExpression {
-        /// The expression.
-        expression: &'a str,
-        /// The molang version.
-        version: u8,
-    },
-    /// Type 3: an item tag.
+    MolangExpression { expression: &'a str, version: u8 },
     ItemTag(&'a str),
-    /// Type 4: a full item name with metadata.
-    FullName {
-        /// The full name of the item.
-        name: &'a str,
-        /// The metadata of the item.
-        metadata: i16,
-    },
-    /// Type 5: a complex alias name.
+    FullName { name: &'a str, metadata: i16 },
     ComplexAlias(&'a str),
 }
 
-/// The item of [`ItemDescriptor::Default`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DefaultItem {
-    /// The item network id.
     pub network_id: NonZeroI16,
-    /// The metadata of the item.
     pub metadata: i16,
 }
 

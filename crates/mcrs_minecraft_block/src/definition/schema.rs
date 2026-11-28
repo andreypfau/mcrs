@@ -6,10 +6,9 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+pub use super::placement_filter::{PlacementCondition, PlacementFilter, PlacementRule, Support};
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
-use mcrs_minecraft_core::direction::Direction;
-use mcrs_minecraft_registries::TagEntry;
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
 
@@ -49,12 +48,10 @@ pub struct Permutation {
     pub components: Components,
 }
 
-/// The block's properties in the order of the game's block-state report. The
-/// order decides state ids, so it is carried as a sequence and never as a map.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct BlockProperties(pub Vec<BlockProperty>);
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BlockProperty {
     pub name: Box<str>,
     pub values: Vec<PropertyValue>,
@@ -103,8 +100,6 @@ impl<'de> Deserialize<'de> for BlockProperties {
     }
 }
 
-/// A property value keeps the JSON type it was dumped with: `"true"` and
-/// `true` are different values, and so are `"3"` and `3`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum PropertyValue {
@@ -114,10 +109,6 @@ pub enum PropertyValue {
 }
 
 impl PropertyValue {
-    /// Whether the value renders as this text. A save and a datapack state
-    /// every property as text, and the type is never inferred back from it:
-    /// `"true"` and `"5"` are strings for any block that declares them as one,
-    /// so the declared value is rendered and compared instead.
     pub fn renders_to(&self, text: &str) -> bool {
         match self {
             PropertyValue::Str(value) => &**value == text,
@@ -145,8 +136,6 @@ impl fmt::Display for PropertyValue {
     }
 }
 
-/// One box in Bedrock convention: sixteenths of a block, origin relative to
-/// the block centre on X and Z and to the block bottom on Y.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelBox {
@@ -161,8 +150,6 @@ impl ModelBox {
     };
 }
 
-/// `minecraft:collision_box` and friends: a boolean, one box, or an array of
-/// boxes. `false` is no box at all and `true` is the full cube.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(from = "BoxListRepr")]
 pub struct BoxList(pub Vec<ModelBox>);
@@ -212,11 +199,6 @@ pub struct FluidStateDef {
     pub source: bool,
 }
 
-/// `minecraft:destructible_by_mining`: `false` for a state mining can never
-/// break, `true` for one that breaks instantly, and otherwise the hardness —
-/// which is what Bedrock's `seconds_to_destroy` states, its name
-/// notwithstanding. The harvesting items are stated only when the state needs
-/// the right tool to drop anything.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DestructibleByMining {
     pub hardness: f32,
@@ -356,10 +338,6 @@ pub struct RedstoneProducer {
     pub power: u8,
 }
 
-/// Bedrock states the note block sound under `up` for a block that works above
-/// the note block and under `down` for one it stands on. Which key carries the
-/// instrument is the instrument's own property, so exactly one of the two is
-/// stated and the pair collapses to the instrument itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InstrumentSound(pub NoteBlockInstrument);
 
@@ -415,9 +393,6 @@ impl Serialize for InstrumentSound {
     }
 }
 
-/// The instrument a note block placed
-/// above the block plays. Unrelated to the note block's own `instrument`
-/// property, which is an ordinary block state property.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NoteBlockInstrument {
@@ -451,8 +426,6 @@ pub enum NoteBlockInstrument {
 }
 
 impl NoteBlockInstrument {
-    /// A mob head sounds from above the note block; every tunable instrument
-    /// sounds from the block the note block stands on.
     pub const fn works_above_note_block(self) -> bool {
         matches!(
             self,
@@ -493,33 +466,8 @@ impl Serialize for MapColor {
     }
 }
 
-/// The survival rule as data: the block stands when, for some condition, the
-/// neighbour on one of its `allowed_faces` is in `block_filter`. A face names
-/// the side of the neighbour the block is placed against, so `up` is the block
-/// below.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct PlacementFilter {
-    pub conditions: Vec<PlacementCondition>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct PlacementCondition {
-    #[serde(default = "every_face")]
-    pub allowed_faces: Vec<Direction>,
-    pub block_filter: Vec<TagEntry>,
-}
-
-fn every_face() -> Vec<Direction> {
-    Direction::all().to_vec()
-}
-
 macro_rules! components {
     ($($name:literal => $field:ident : $ty:ty),+ $(,)?) => {
-        /// Every component the corpus may carry, in either the block-wide map,
-        /// a permutation, or a `mcrs:state_components` entry. An absent field
-        /// is a component the corpus did not state at that level.
         #[derive(Debug, Clone, Default)]
         pub struct Components {
             $(pub $field: Option<$ty>,)+
@@ -532,8 +480,6 @@ macro_rules! components {
                 })+
             }
 
-            /// The first component this state leaves unstated that a state may
-            /// not leave unstated.
             pub fn missing(&self) -> Option<&'static str> {
                 $(if self.$field.is_none() && !OPTIONAL_COMPONENTS.contains(&$name) {
                     return Some($name);
@@ -602,6 +548,8 @@ components! {
     "minecraft:redstone_producer" => redstone_producer: RedstoneProducer,
     "minecraft:loot" => loot: ResourceLocationBuf,
     "minecraft:placement_filter" => placement_filter: PlacementFilter,
+    "minecraft:support" => support: Support,
+    "mcrs:solid" => solid: bool,
     "mcrs:experience_drop" => experience_drop: IntProvider,
     "mcrs:use_shape_for_light_occlusion" => use_shape_for_light_occlusion: bool,
     "mcrs:fluid_state" => fluid_state: FluidStateDef,
@@ -611,15 +559,13 @@ components! {
     "mcrs:block_sound_set" => block_sound_set: ResourceKeyBuf<BlockSoundSet>,
 }
 
-/// The components a state may leave unstated. Each is a component whose
-/// absence is itself the statement: no fluid, not replaceable, lava cannot
-/// ignite it, no block entity, no redstone signal, the occlusion shade that the
-/// collision shape implies.
 pub const OPTIONAL_COMPONENTS: &[&str] = &[
     "mcrs:fluid_state",
     "mcrs:experience_drop",
     "minecraft:loot",
     "minecraft:placement_filter",
+    "minecraft:support",
+    "mcrs:solid",
     "minecraft:replaceable",
     "minecraft:flammable",
     "minecraft:block_entity",

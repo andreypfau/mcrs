@@ -44,7 +44,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .link-plain { transition: text-decoration-thickness var(--t-hover) ease; }
 [data-reveal] { transition-delay: calc(var(--i, 0) * 80ms) !important; }
 
-/* hero */
 .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: max(100svh, 46rem); background: var(--night); color: var(--on-dark); }
 .hero-text { display: flex; flex-direction: column; justify-content: space-between; gap: 4rem; padding: 2rem var(--margin) 3rem; }
 .nav { display: flex; align-items: baseline; gap: 2.5rem; flex-wrap: wrap; }
@@ -73,7 +72,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 }
 @keyframes drift { from { transform: scale(1.06) translateX(1.5%); } to { transform: scale(1) translateX(0); } }
 
-/* the tick */
 .tickfig { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); margin-top: var(--section); }
 .tick-clause { background: var(--ink); color: var(--on-dark); padding: 4rem var(--margin) 3.5rem; display: flex; flex-direction: column; justify-content: space-between; gap: 3rem; }
 .tick-clause h2 { font-size: var(--step-head); max-width: 11ch; }
@@ -193,7 +191,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .stops button:hover { color: var(--ink); }
 .stops button[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
 
-/* why */
 .why { padding-top: var(--section); }
 .why-grid { row-gap: 2rem; align-items: start; }
 .why-title { grid-column: 1 / span 6; max-width: 14ch; }
@@ -209,7 +206,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .ct-ours { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
 .ct-row:nth-child(odd) .ct-ours { background: #4a5c34; }
 
-/* modules */
 .kit { padding-top: var(--section); }
 .kit-head { row-gap: 2rem; align-items: start; }
 .kit-title { grid-column: 1 / span 6; max-width: 12ch; }
@@ -238,7 +234,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .wall-proof { margin-top: 1.5rem; color: var(--muted); max-width: 90ch; }
 .wall-proof code { color: var(--ink); }
 
-/* tests */
 .gameplay { padding-top: var(--section); }
 .gameplay-grid { align-items: start; row-gap: 3rem; }
 .gameplay-text { grid-column: 1 / span 5; }
@@ -257,7 +252,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .dot.ok { background: var(--accent); }
 .dot.part { background: #b08a3e; }
 
-/* snapshots */
 .snap { background: var(--field-1); color: var(--field-1-ink); margin-top: calc(var(--section) * 0.7); padding-block: 6rem; }
 .snap-grid { align-items: center; row-gap: 3rem; }
 .snap-text { grid-column: 1 / span 6; }
@@ -270,7 +264,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .update-read div { display: flex; justify-content: space-between; gap: 1rem; padding: 0.55rem 0.8rem; background: #4b6834; }
 .update-read dd { margin: 0; text-align: right; color: #e4ead9; }
 
-/* client */
 .viewer { padding-top: var(--section); }
 .viewer-head { align-items: end; row-gap: 1.5rem; }
 .viewer-title { grid-column: 1 / span 6; }
@@ -282,7 +275,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 .viewer-side img { aspect-ratio: 16 / 10; }
 .viewer figure { overflow: clip; }
 
-/* run */
 .run { margin-top: var(--section); overflow: clip; }
 .run-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 6fr) minmax(0, 1.4fr); gap: 12px; margin-inline: -6vw; min-height: 24rem; }
 .run-photo { overflow: clip; background: var(--ink); }
@@ -297,7 +289,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
 @media (hover: hover) and (pointer: fine) { .button-paper:hover { background: #fff; } }
 .run-actions .link-plain { color: #fff; }
 
-/* footer */
 .foot { margin-top: 22svh; padding-bottom: 1.9rem; display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; gap: 0.75rem 1.5rem; font-size: var(--step-small); }
 .foot-what, .foot-legal { color: var(--muted); }
 .foot-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
@@ -310,7 +301,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
   .blk, .tick-end, .fill, .stage-text, .tl, .chunk { transition: none; }
 }
 
-/* tablet */
 @media (max-width: 64rem) {
   .hero { grid-template-columns: minmax(0, 1fr); }
   .hero-text { display: contents; }
@@ -344,7 +334,6 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
   .run-photo, .run-field { height: 8rem; }
 }
 
-/* phone */
 @media (max-width: 40rem) {
   .nav { gap: 0.5rem 1.5rem; }
   .nav-links { gap: 1rem; font-size: var(--step-small); }
@@ -380,12 +369,10 @@ p code { background: var(--surface); padding: 0.08em 0.3em; }
   .foot-legal { text-align: left; }
 }
 
-/* long Russian words would otherwise push the compare table's columns out of line */
 @media (min-width: 40.01rem) and (max-width: 46rem) {
   :lang(ru) .ct-row > span { padding-inline: 0.625rem; }
 }
 
-/* the switcher shares the wordmark's row, the links get their own */
 @media (max-width: 28rem) {
   .js .nav { row-gap: 0; }
   .js .nav-links { order: 1; flex-basis: 100%; }

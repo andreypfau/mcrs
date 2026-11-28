@@ -288,7 +288,6 @@ const BIOMES: &[BiomeRow] = {
     ]
 };
 
-/// Every biome as code describes it, its carvers and features still names.
 pub fn drafts() -> impl Iterator<Item = (ResourceLocationBuf, Draft)> {
     BIOMES
         .iter()

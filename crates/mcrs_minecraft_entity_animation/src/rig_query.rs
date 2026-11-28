@@ -4,8 +4,6 @@ use crate::entity_query::EntityQuery;
 use crate::rig::Rig;
 
 impl Rig {
-    /// The entity query that a query slot of the expressions of this rig reads, or `None` for a
-    /// slot of a query that the entity host does not know.
     #[must_use]
     pub fn slot_query(&self, slot: QuerySlot) -> Option<EntityQuery> {
         let bindings = &self.queries;

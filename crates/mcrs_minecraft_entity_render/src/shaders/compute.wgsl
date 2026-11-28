@@ -1,14 +1,11 @@
-// The bindings of the entity compute passes. A pass binds only those its entry point reads.
-
 @group(0) @binding(0) var<uniform> frame: Frame;
 @group(0) @binding(1) var<storage, read_write> ticks: array<TickRecord>;
-@group(0) @binding(2) var<storage, read_write> previous_ticks: array<TickRecord>;
 @group(0) @binding(3) var<storage, read_write> tick_of_record: array<u32>;
 @group(0) @binding(4) var<storage, read> culls: array<CullRecord>;
 @group(0) @binding(5) var<storage, read> states: array<StateRecord>;
 @group(0) @binding(6) var<storage, read> inputs: array<InputRecord>;
-@group(0) @binding(8) var<storage, read> models: array<ModelRecord>;
-@group(0) @binding(9) var<storage, read> bones: array<BoneRecord>;
+@group(0) @binding(8) var<uniform> models: array<ModelRecord, MODELS>;
+@group(0) @binding(9) var<uniform> bones: array<BoneRecord, BONES>;
 @group(0) @binding(10) var<storage, read> cuboids: array<CuboidRecord>;
 @group(0) @binding(11) var<storage, read_write> visible: array<vec2<u32>>;
 @group(0) @binding(12) var<storage, read_write> bone_matrices: array<vec4<f32>>;
@@ -18,11 +15,10 @@
 @group(0) @binding(16) var<storage, read_write> indirect: array<u32>;
 @group(0) @binding(17) var<storage, read> scatter: array<ScatterEntry>;
 @group(0) @binding(18) var hiz: texture_2d<f32>;
-@group(0) @binding(19) var<storage, read> variants: array<Variant>;
+@group(0) @binding(19) var<uniform> variants: array<Variant, VARIANTS>;
 @group(0) @binding(20) var<storage, read> cutout: array<u32>;
 @group(0) @binding(21) var<storage, read_write> impostors: array<u32>;
 @group(0) @binding(22) var<storage, read> impostor_pairs: array<u32>;
-@group(0) @binding(23) var<storage, read> impostor_frames: array<vec4<f32>>;
 @group(0) @binding(24) var<storage, read_write> impostor_draws: array<ImpostorDraw>;
 @group(0) @binding(25) var<storage, read> impostor_covers: array<vec4<f32>>;
 
@@ -33,30 +29,34 @@ struct ScatterEntry {
 }
 
 const WORKGROUP: u32 = 64u;
-/// The bit of a scatter tick for a record with no previous one: both records take it.
 const SCATTER_FRESH: u32 = 0x80000000u;
 const DEFINITIONS: u32 = #{DEFINITIONS}u;
 const ARRAYS: u32 = #{ARRAYS}u;
 const EXPAND_LANES = #{EXPAND_LANES};
-/// The height of the entity box at the scale 1 and the baby scale of each definition.
 const BOX_SIZES = #{BOX_SIZES};
 const VARIANTS: u32 = #{VARIANTS}u;
+const MODELS: u32 = #{MODELS}u;
+const BONES: u32 = #{BONES}u;
+const FIRST_COVER: u32 = #{FIRST_COVER}u;
 const COUNTER_BONES: u32 = 0u;
 const COUNTER_VISIBLE: u32 = 1u;
 const COUNTER_FACES: u32 = 17u;
 const COUNTER_DROPPED: u32 = 25u;
 const NO_SLOT: u32 = 0xffffffffu;
 const COUNTER_IMPOSTORS: u32 = 26u;
-/// The impostors that draw with the discard of the uncovered pixels, and the small ones that
-/// draw their whole quad.
 const COUNTER_CUTOUT_IMPOSTORS: u32 = 27u;
 const COUNTER_SMALL_IMPOSTORS: u32 = 28u;
-/// The face records of each texture array with a cutout texel, which fill its range from the end.
 const COUNTER_CUTOUT_FACES: u32 = 29u;
 const NO_IMPOSTOR: u32 = 0xffffffffu;
 
-/// The scatter of the tick records that the CPU wrote since the last frame: the current record
-/// of each slot becomes its previous record.
+fn current_tick(slot: u32) -> u32 {
+    return 2u * slot;
+}
+
+fn previous_tick(slot: u32) -> u32 {
+    return 2u * slot + 1u;
+}
+
 @compute @workgroup_size(64)
 fn scatter_ticks(@builtin(global_invocation_id) id: vec3<u32>) {
     if (id.x >= frame.scatter_count) {
@@ -65,11 +65,11 @@ fn scatter_ticks(@builtin(global_invocation_id) id: vec3<u32>) {
     let entry = scatter[id.x];
     let fresh = (entry.tick & SCATTER_FRESH) != 0u;
     if (fresh) {
-        previous_ticks[entry.slot] = entry.record;
+        ticks[previous_tick(entry.slot)] = entry.record;
     } else {
-        previous_ticks[entry.slot] = ticks[entry.slot];
+        ticks[previous_tick(entry.slot)] = ticks[current_tick(entry.slot)];
     }
-    ticks[entry.slot] = entry.record;
+    ticks[current_tick(entry.slot)] = entry.record;
     tick_of_record[entry.slot] = entry.tick & ~SCATTER_FRESH;
 }
 
@@ -80,7 +80,6 @@ var<workgroup> group_visible_base: array<u32, 16>;
 var<workgroup> group_impostors: atomic<u32>;
 var<workgroup> group_impostors_base: u32;
 
-/// Whether each active layer of `state` has an impostor image set baked with its hidden bones.
 fn impostor_ready(state: StateRecord) -> bool {
     let mask = layer_mask(state);
     let hidden = state.flags >> STATE_HIDDEN_SHIFT;
@@ -127,9 +126,6 @@ fn sphere_hidden(centre: vec3<f32>, radius: f32) -> bool {
     return occluded(hiz, frame.viewport, frame.hiz_levels, footprint);
 }
 
-/// One lane for each slot. A visible slot under the height threshold goes to the impostor list.
-/// Another visible slot reserves its bones and goes to the visible list of its definition; when
-/// the bones or the list are full, it draws as an impostor.
 @compute @workgroup_size(64)
 fn cull(
     @builtin(workgroup_id) workgroup: vec3<u32>,
@@ -158,7 +154,8 @@ fn cull(
         if (slot < frame.slot_count) {
             let record = culls[slot];
             let flags = record.radius_flags >> 16u;
-            if ((flags & CULL_VALID) != 0u) {
+            let in_view = ((flags >> CULL_VIEWS_SHIFT) & frame.view) != 0u;
+            if ((flags & CULL_VALID) != 0u && in_view) {
                 let radius = unpack2x16float(record.radius_flags & 0xffffu).x + 0.8660254;
                 let centre = relative_block(record.bx, record.by, record.bz) + vec3<f32>(0.5);
                 keep = sphere_in_frustum(centre, radius) && !sphere_hidden(centre, radius);
@@ -239,7 +236,6 @@ fn cull(
     }
 }
 
-/// The dispatch of the pose and of the expand of each definition, from the visible counts.
 @compute @workgroup_size(1)
 fn dispatch_args() {
     for (var definition = 0u; definition < DEFINITIONS; definition = definition + 1u) {
@@ -256,7 +252,6 @@ fn dispatch_args() {
     }
 }
 
-/// The draw of each texture array, from the face counts.
 @compute @workgroup_size(1)
 fn draw_args() {
     for (var layer_array = 0u; layer_array < ARRAYS; layer_array = layer_array + 1u) {
@@ -284,8 +279,6 @@ fn draw_args() {
     indirect[impostor_draw + 6u] = 1u;
 }
 
-/// The draws of the two kinds of impostors, after their prepare pass. The small impostors take
-/// the draw records from the end of the slot range down.
 @compute @workgroup_size(1)
 fn impostor_draw_args() {
     let impostor_draw = DEFINITIONS * 6u + ARRAYS * 4u;

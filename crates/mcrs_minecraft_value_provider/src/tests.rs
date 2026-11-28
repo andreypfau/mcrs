@@ -30,9 +30,6 @@ where
     parsed
 }
 
-/// Runs a sampler and an independently written replay of its reference draw
-/// sequence from the same seed. Equal values prove the arithmetic, equal RNG
-/// state proves the number and order of draws.
 #[track_caller]
 fn pin_draws<T: PartialEq + std::fmt::Debug>(
     sample: impl FnOnce(&mut XoroshiroRandom) -> T,
@@ -55,9 +52,6 @@ fn a_bare_number_is_a_constant() {
     );
 }
 
-/// The corpus never writes it, but `constant` is a member of all three provider
-/// registries, so a datapack may. The reference encodes a constant through
-/// `Either.left(value)`, so the object form is accepted and written back bare.
 #[test]
 fn the_explicit_constant_form_loads_and_normalises() {
     assert_eq!(
@@ -148,7 +142,6 @@ fn the_carver_registry_forms_round_trip() {
     );
 }
 
-/// Every shape the feature and placed_feature corpus carries, verbatim.
 #[test]
 fn the_feature_registry_forms_round_trip() {
     round_trip::<IntProvider>(r#"{"type":"minecraft:trapezoid","max":7,"min":-7,"plateau":0}"#);
@@ -227,8 +220,6 @@ fn a_vertical_anchor_offset_is_bounded_as_the_reference_bounds_it() {
     }
 }
 
-/// `plateau` and `inner` are `optionalFieldOf` in the reference, so their
-/// defaults must not be written back out.
 #[test]
 fn the_height_defaults_are_omitted_on_the_way_out() {
     let trapezoid = HeightProvider::Dispatched(DispatchedHeightProvider::Trapezoid {
@@ -321,8 +312,6 @@ fn an_anchor_resolves_against_the_dimension_extent() {
     );
 }
 
-/// Every provider draws exactly the values Java's own `sample` does, in the
-/// same order, so a shared seed has to produce the same numbers.
 #[test]
 fn sampling_matches_the_reference_draw_order() {
     let mut rng = LegacyRandom::new(42);
@@ -423,9 +412,6 @@ fn a_weighted_list_draws_the_selection_then_the_entry() {
     );
 }
 
-/// `IntProviders.codec(0, 16)` judges a provider by its whole range, so a
-/// uniform that reaches past the bound is refused even though every value
-/// it could draw might be in range on a given day.
 #[test]
 fn a_bounded_provider_is_judged_by_its_range() {
     type Size = BoundedIntProvider<0, 16>;
@@ -478,8 +464,6 @@ fn clamped_normal_spends_one_gaussian() {
     );
 }
 
-/// The symmetric zero-plateau form the `offset` modifier uses is a difference
-/// of two draws, not the two-ramp sum.
 #[test]
 fn the_symmetric_int_trapezoid_is_a_difference_of_two_draws() {
     let provider = IntProvider::Dispatched(DispatchedIntProvider::Trapezoid {
@@ -530,8 +514,6 @@ fn the_height_trapezoid_sums_two_ramps() {
     );
 }
 
-/// `VeryBiasedToBottomHeight` is not the int provider of the same name: three
-/// guarded draws over shrinking ranges, offset by `inner`.
 #[test]
 fn the_height_very_biased_to_bottom_spends_three_guarded_draws() {
     let provider = HeightProvider::Dispatched(DispatchedHeightProvider::VeryBiasedToBottom {

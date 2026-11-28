@@ -1,0 +1,51 @@
+name: Task
+description: One change with a settled decision and a result that someone can observe.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write each field before the work starts. No code starts while the decision or the specification is open.
+        One task is one pull request. An umbrella issue lists its steps as issues.
+  - type: input
+    id: goal
+    attributes:
+      label: Goal
+      description: One sentence. State the outcome, not the activity.
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Decision
+      description: The settled design - the crates, the layer and the public names. Write "none needed" if the change makes no design choice.
+    validations:
+      required: true
+  - type: textarea
+    id: observable-result
+    attributes:
+      label: Observable result
+      description: What a player, the client, a test or a number shows when the task is done.
+    validations:
+      required: true
+  - type: textarea
+    id: not-in-scope
+    attributes:
+      label: Not in scope
+      description: What this task does not do. Write "nothing to exclude" if no limit applies.
+    validations:
+      required: true
+  - type: textarea
+    id: check
+    attributes:
+      label: Check
+      description: The command or the run that proves the result - `cargo nextest run -p <crate>`, `--profile full`, a client run or a browser run.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: specification
+    attributes:
+      label: Specification
+      description: The path under `docs/spec/`, or "needed first", or "none needed" for a change without game behaviour.
+    validations:
+      required: true

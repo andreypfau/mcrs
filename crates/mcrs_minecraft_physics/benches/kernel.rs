@@ -1,4 +1,3 @@
-//! The kernel targets of the physics design note, on one core with a warm cache.
 #![expect(
     clippy::indexing_slicing,
     reason = "a dense test world indexes its sections"
@@ -10,7 +9,7 @@ use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::Body;
@@ -46,7 +45,6 @@ use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
-/// Sections in a flat array, as the engine stores them: 4 × 4 × 4 sections from the origin.
 struct DenseWorld {
     sections: Vec<DenseSection>,
 }
@@ -182,7 +180,7 @@ fn bench_entities(c: &mut Criterion) {
     let view = View::new(&world, &NoBodies, &tables);
     let mut scratch = Scratch::new();
     let mut actions = Vec::new();
-    let key = EntityKey(0);
+    let key = EntityUuid::from_u128(0);
     let walker_row = MotionRow::zombie();
     let mut walker = EntityState::new(
         key,

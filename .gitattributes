@@ -24,11 +24,13 @@ crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/ore_vein.bin
 crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/tree_geometry.bin linguist-generated
 crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/structure_cells.bin linguist-generated
 crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla/beard.bin linguist-generated
+crates/mcrs_minecraft_loot_table/tests/fixtures/vanilla/loot.bin linguist-generated
 crates/mcrs_minecraft_game_registries/src/entity/fixtures/registry_census.bin linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_full.nbt linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_terrain.nbt linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_retrogen.nbt linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_retrogen_minimal.nbt linguist-generated
+crates/mcrs_minecraft_save/tests/fixtures/vanilla/local_worlds.json linguist-generated
 crates/mcrs_minecraft_snbt/src/fixtures/snbt.json linguist-generated
 crates/mcrs_minecraft_item/src/fixtures/hash_ops.json linguist-generated
 crates/mcrs_minecraft_protocol_game/tests/fixtures/text/vanilla.json linguist-generated
@@ -56,6 +58,8 @@ crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_animations.json lingui
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json linguist-generated
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_types.json linguist-generated
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_entity_poses.json linguist-generated
+crates/mcrs_minecraft_model/tests/fixtures/vanilla/sign_text.json linguist-generated
+crates/mcrs_minecraft_client_gui/tests/fixtures/vanilla/font.json linguist-generated
 crates/mcrs_minecraft_numeric/tests/fixtures/vanilla/numeric.json linguist-generated
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_models.json linguist-generated
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_faces.json linguist-generated
@@ -63,3 +67,13 @@ crates/mcrs_minecraft_environment/tests/fixtures/vanilla/environment.json lingui
 crates/mcrs_minecraft_mesh/tests/fixtures/vanilla/block_smooth_light.json linguist-generated
 crates/mcrs_minecraft_mesh/tests/fixtures/vanilla/block_occlusion_shade.json linguist-generated
 crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/** linguist-generated
+crates/mcrs_minecraft_entity/tests/fixtures/vanilla/attributes.json linguist-generated
+crates/mcrs_minecraft_entity/tests/fixtures/vanilla/player_dimensions.json linguist-generated
+tools/mcrs_minecraft_client_recorder/recordings/inventory/inventory_e17_*.txt linguist-generated
+crates/mcrs_minecraft_model/tests/fixtures/vanilla/potion_colors.json linguist-generated
+
+# byte-exact LF: embedded and compared byte-wise (version.json) or against generated text (shader layout test)
+assets/minecraft/version.json text eol=lf
+crates/mcrs_minecraft_render/src/shared_types.rs text eol=lf
+crates/mcrs_minecraft_render/src/shared_bindings.rs text eol=lf
+crates/mcrs_minecraft_render/src/shaders/include/*.wesl text eol=lf

@@ -2,13 +2,9 @@ use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error, VarU32};
 
 const LENGTH_FIELD: usize = 4;
 
-/// The opaque data of `Login`: a byte array that holds two parts, each behind an `i32le`
-/// byte length.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ConnectionRequest<'a> {
-    /// UTF-8 JSON: an object with the key `chain`, an array of JWT strings.
     pub chain: &'a [u8],
-    /// One JWT in its compact form.
     pub client_data: &'a [u8],
 }
 

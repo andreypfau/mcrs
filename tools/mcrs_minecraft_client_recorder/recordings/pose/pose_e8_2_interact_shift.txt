@@ -1,0 +1,170 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment pose_e8_2
+step interact_shift
+instruction After Go, hold Shift; after half a second, right-click the pig once; release Shift after 2 seconds.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+13000098 < abilities none 0.05
+13000098 < attribute minecraft:block_interaction_range 4.5
+13000098 < attribute minecraft:entity_interaction_range 3
+13000098 < attribute minecraft:movement_speed 0.10000000149011612
+13000098 < data self 9 float:20
+13000098 < data self 16 byte:0x7f
+13000098 < teleport 5 0.5 100 0.5 0 0 0 -90 30 0
+13073982 > move - - none
+13073984 > tick
+13073984 > move 0.5,100,0.5 - on_ground
+13073985 > tick
+13185409 > tick
+13185412 > tick
+13278127 > tick
+13279294 > tick
+13384460 > tick
+13384461 > tick
+13486476 > tick
+13486478 > tick
+13586043 > tick
+13586045 > tick
+13687889 > tick
+13689057 > tick
+13690224 > tick
+13795726 > tick
+13810588 > tick
+13893719 > tick
+13895099 > tick
+13995980 > tick
+13997170 > tick
+14099109 > move 0.5,100,0.5 - on_ground
+14099111 > tick
+14099111 > tick
+14198467 > tick
+14199636 > tick
+14301274 > tick
+14301275 > tick
+14405017 > tick
+14405019 > tick
+14500877 > tick
+14502034 > tick
+14606579 > tick
+14608780 > tick
+14706766 > tick
+14718389 > tick
+14810135 > tick
+14810136 > tick
+14912043 > tick
+14912045 > tick
+15019799 > tick
+15019802 > tick
+15115365 > move 0.5,100,0.5 - on_ground
+15115368 > tick
+15115369 > tick
+15223480 > tick
+15223481 > tick
+15322400 > tick
+15322401 > tick
+15423830 > tick
+15423831 > tick
+15528867 > tick
+15528869 > tick
+15631796 > tick
+15631797 > tick
+15731385 > tick
+15732551 > tick
+15838342 > tick
+15848300 > tick
+15937294 > tick
+15938460 > tick
+15938461 > tick
+16042271 > input none
+16042272 > tick
+16042273 > move 0.5,100,0.5 - on_ground
+16042274 > tick
+16152794 > tick
+16152795 > tick
+16246037 > tick
+16246040 > tick
+16350470 > tick
+16350471 > tick
+16454188 > tick
+16454189 > tick
+16558710 > interact true
+16558711 > interact true
+16558711 > tick
+16558711 > tick
+16612623 < data self 0 byte:0x02
+16653219 < data self 6 pose:crouching
+16660888 > tick
+16660889 > tick
+16768393 > tick
+16768395 > tick
+16863971 > tick
+16865141 > tick
+16971840 > tick
+16971842 > tick
+17069319 > tick
+17069321 > move 0.5,100,0.5 - on_ground
+17069323 > tick
+17179885 > tick
+17179887 > tick
+17278913 > tick
+17281028 > tick
+17386453 > tick
+17386453 > tick
+17489651 > tick
+17489653 > tick
+17489653 > tick
+17593963 > tick
+17593965 > tick
+17688044 > tick
+17689198 > tick
+17795441 > tick
+17795443 > tick
+17895614 > tick
+17896716 > tick
+17998486 > tick
+17998488 > input none
+17998488 > tick
+18047307 < data self 0 byte:0x00
+18095795 < data self 6 pose:standing
+18100203 > move 0.5,100,0.5 - on_ground
+18100204 > tick
+18100204 > tick
+18204730 > tick
+18204731 > tick
+18302161 > tick
+18303340 > tick
+18404912 > tick
+18404913 > tick
+18511698 > tick
+18511699 > tick
+18616411 > tick
+18617802 > tick
+18714416 > tick
+18715639 > tick
+18819580 > tick
+18819582 > tick
+18919549 > tick
+18920721 > tick
+19025517 > tick
+19025518 > tick
+19131673 > move 0.5,100,0.5 - on_ground
+19131679 > tick
+19131679 > tick
+19237717 > tick
+19237717 > tick
+19342067 > tick
+19342069 > tick
+19342069 > tick
+19441573 > tick
+19442740 > tick
+19545372 > tick
+19545373 > tick
+19647140 > tick
+19649563 > tick
+19754370 > tick
+19754370 > tick
+19857044 > tick
+19857045 > tick
+19960451 > tick
+19960453 > tick

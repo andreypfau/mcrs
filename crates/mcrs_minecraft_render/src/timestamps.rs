@@ -50,7 +50,6 @@ impl PassSlot {
 
 #[derive(Resource, Default)]
 pub struct PassTimestamps {
-    /// The query set and the index of this frame's first query, or `None` when no pass is timed.
     pub queries: Option<(QuerySet, u32)>,
 }
 

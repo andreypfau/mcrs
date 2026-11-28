@@ -12,7 +12,6 @@ use mcrs_command::{
 };
 use std::convert::Infallible;
 
-/// The source is a permission level; a node requires one.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Level(pub u8);
 

@@ -8,11 +8,9 @@
 
 use mcrs_minecraft_nbt::ArrayKind;
 
-/// The hash of one node of the saved form of a component.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct NodeHash(u32);
 
-/// One entry of a map node. The order is the order of the entries in the hash of the map.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct MapEntry {
     pub(crate) key: NodeHash,
@@ -64,7 +62,6 @@ impl NodeHash {
         Self::string_of_parts(&[value])
     }
 
-    /// The hash of the string node that is the concatenation of `parts`.
     #[must_use]
     pub(crate) fn string_of_parts(parts: &[&str]) -> Self {
         let units: usize = parts.iter().map(|part| part.encode_utf16().count()).sum();
@@ -110,7 +107,6 @@ impl NodeHash {
         array.finish()
     }
 
-    /// The hash of a list node from the hashes of its elements in order.
     #[must_use]
     pub(crate) fn list(elements: impl IntoIterator<Item = Self>) -> Self {
         let mut list = ListHash::new();
@@ -120,7 +116,6 @@ impl NodeHash {
         list.finish()
     }
 
-    /// The hash of a map node. Sorts `entries` in place; the input order has no effect.
     #[must_use]
     pub(crate) fn map(entries: &mut [MapEntry]) -> Self {
         entries.sort_unstable();
@@ -133,14 +128,12 @@ impl NodeHash {
         checksum.push(&[0x03]).finish()
     }
 
-    /// The value that the hashed stack carries on the wire.
     #[must_use]
     pub(crate) fn as_i32(self) -> i32 {
         self.0.cast_signed()
     }
 }
 
-/// A list node whose elements come one at a time, for elements whose hash can fail.
 #[derive(Clone, Copy)]
 pub(crate) struct ListHash(Checksum);
 
@@ -161,8 +154,6 @@ impl ListHash {
     }
 }
 
-/// An array node whose elements come one at a time. Each element is pushed in the little-endian
-/// bytes of the kind of the array.
 #[derive(Clone, Copy)]
 pub(crate) struct ArrayHash {
     checksum: Checksum,
@@ -207,7 +198,6 @@ impl Checksum {
         Self(u32::MAX).push(&[tag])
     }
 
-    // chisle: one bit per step. A 256-entry table lifts the cost when a profile shows this hash.
     fn push(mut self, bytes: &[u8]) -> Self {
         for &byte in bytes {
             self.0 ^= u32::from(byte);

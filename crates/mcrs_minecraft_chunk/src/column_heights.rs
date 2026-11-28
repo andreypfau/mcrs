@@ -1,9 +1,6 @@
 use crate::{entries_per_long, packed_len};
 use mcrs_voxel::SectionPos;
 
-/// One packed Y scalar over the 16x16 column footprint, indexed by `(x, z)` in
-/// `0..16` each. The stored value is `1 + y` of the topmost block satisfying the
-/// map's predicate, or `min_y` when the column holds no such block.
 #[derive(Debug, Clone)]
 pub struct ColumnHeights {
     longs: Vec<u64>,
@@ -14,7 +11,6 @@ pub struct ColumnHeights {
 
 impl ColumnHeights {
     pub fn new(height: u32, min_y: i32) -> Self {
-        // stored value range is [0, height]
         let bits = (u32::BITS - height.leading_zeros()).max(1);
         Self {
             longs: vec![0; packed_len(bits, SectionPos::AREA)],
@@ -22,6 +18,15 @@ impl ColumnHeights {
             height,
             min_y,
         }
+    }
+
+    pub fn from_raw(height: u32, min_y: i32, longs: &[i64]) -> Option<Self> {
+        let mut heights = Self::new(height, min_y);
+        if longs.len() != heights.longs.len() {
+            return None;
+        }
+        heights.longs = longs.iter().map(|&long| long as u64).collect();
+        Some(heights)
     }
 
     pub fn height(&self) -> u32 {
@@ -32,7 +37,6 @@ impl ColumnHeights {
         self.min_y
     }
 
-    /// One past the highest Y this map can name.
     pub fn max_y(&self) -> i32 {
         self.min_y + self.height as i32
     }

@@ -21,6 +21,7 @@ use mcrs_minecraft_client_jar::{RELEASE, get, official_dir};
 mod block_entity_assets;
 mod blocks;
 mod corpus;
+mod creative_tabs;
 mod definitions;
 mod fixtures;
 mod game_rules;
@@ -28,6 +29,7 @@ mod gradle;
 mod keys;
 mod names;
 mod owners;
+mod potions;
 mod registries;
 mod release;
 #[cfg(test)]
@@ -37,6 +39,7 @@ const USAGE: &str = "\
 usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory>]
        mcrs_minecraft_update recapture <fixture name | --all>
        mcrs_minecraft_update names
+       mcrs_minecraft_update creative-tabs
        mcrs_minecraft_update keys
        mcrs_minecraft_update block-entities [--check]
 
@@ -63,6 +66,10 @@ entry names of every registry of datapack.json that has elements and the tag nam
 registry, in sorted order. It prints the entries and tags added and removed against the stored
 file, then writes the registry key sources from the stored reports. It touches nothing else.
 
+creative-tabs runs the oracle task dumpCreativeTabs, checks its output with the creative report
+reader and writes assets/mcrs/reports/creative_tabs.json. The update writes it after the names
+report.
+
 block-entities writes the geometry files and the data files of the static block entities under
 assets/mcrs from the oracle artefacts and the shape table; --check fails when they differ.
 keys writes the registry key sources from the stored reports alone: the src/*_keys.rs modules
@@ -74,6 +81,7 @@ generator stops and names a declaration that is missing.";
 const VERSION_FILE: &str = "assets/minecraft/version.json";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";
 const FONT_HINT: &str = "crates/mcrs_minecraft_client_jar/src/font_hint.json";
+const INDEX_OBJECTS: &str = "crates/mcrs_minecraft_client_jar/src/index_objects.json";
 const REPORTS: &str = "assets/mcrs/reports";
 const REPORT_FILES: [&str; 3] = ["registries.json", "packets.json", "datapack.json"];
 const NAMES_FILE: &str = "names.json";
@@ -95,6 +103,7 @@ enum Recapture {
 enum Invocation {
     Recapture(Recapture),
     Names,
+    CreativeTabs,
     Keys,
     BlockEntities { check: bool },
     Update(Options),
@@ -105,6 +114,7 @@ fn main() {
     let result = match command(args).unwrap_or_else(|| usage()) {
         Invocation::Recapture(args) => recapture(&args),
         Invocation::Names => names_report(),
+        Invocation::CreativeTabs => write_creative_tabs(&workspace_root()),
         Invocation::Keys => write_keys(&workspace_root(), None),
         Invocation::BlockEntities { check: false } => block_entity_assets::write(&workspace_root()),
         Invocation::BlockEntities { check: true } => block_entity_assets::check(&workspace_root()),
@@ -120,6 +130,7 @@ fn command(args: Vec<String>) -> Option<Invocation> {
     match args.first().map(String::as_str) {
         Some("recapture") => recapture_target(&args[1..]).map(Invocation::Recapture),
         Some("names") => (args.len() == 1).then_some(Invocation::Names),
+        Some("creative-tabs") => (args.len() == 1).then_some(Invocation::CreativeTabs),
         Some("keys") => (args.len() == 1).then_some(Invocation::Keys),
         Some("block-entities") => match &args[1..] {
             [] => Some(Invocation::BlockEntities { check: false }),
@@ -241,12 +252,22 @@ fn run(options: &Options) -> Result<(), String> {
     release::check_version(&version, &listing.id)?;
     let descriptor = release::descriptor(&download, &jar, &listing, &package)?;
     let font_hint = release::font_hint(&jar)?;
+    let asset_index = release::asset_index(&package)?;
+    let index = get(&asset_index.url)?;
+    release::check(
+        &asset_index.url,
+        &asset_index.sha1,
+        Some(asset_index.size),
+        &index,
+    )?;
+    let index_objects = release::index_objects(&index)?;
 
     if corpus::write_if_changed(&root, VERSION_FILE, &version)? {
         println!("wrote {VERSION_FILE}");
     }
     write(&root.join(DESCRIPTOR), &descriptor)?;
     write(&root.join(FONT_HINT), &font_hint)?;
+    write(&root.join(INDEX_OBJECTS), &index_objects)?;
 
     let diff_out = options.diff_out.as_deref();
     with_gradle_output(&root, "dumpReports", "reportsOut", |generated| {
@@ -259,7 +280,12 @@ fn run(options: &Options) -> Result<(), String> {
             replace_definitions(&root, dumped, diff_out)
         })
     })?;
-    write_names(&root, &jar, diff_out)
+    write_names(&root, &jar, diff_out)?;
+    write_creative_tabs(&root)
+}
+
+fn write_creative_tabs(root: &Path) -> Result<(), String> {
+    creative_tabs::write(root, &root.join(REPORTS))
 }
 
 fn write_names(root: &Path, jar: &[u8], diff_out: Option<&Path>) -> Result<(), String> {
@@ -314,14 +340,49 @@ fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, 
             .map(|krate| (*krate).to_owned())
             .collect(),
     )?;
-    let path = root.join(game_rules::DEFINITIONS);
-    let json = fs::read_to_string(&path).map_err(|error| corpus::io(&path, error))?;
-    let rules = files
-        .get_mut(game_rules::ENUM_FILE)
-        .ok_or_else(|| format!("{}: not generated", game_rules::ENUM_FILE))?;
-    rules.push_str(&game_rules::definition_impl(&json)?);
-    *rules = keys::rustfmt(game_rules::ENUM_FILE, rules)?;
+    let appended = [
+        AppendedImpl {
+            registry: game_rules::REGISTRY,
+            definitions: game_rules::DEFINITIONS,
+            enum_file: game_rules::ENUM_FILE,
+            implementation: game_rules::definition_impl,
+        },
+        AppendedImpl {
+            registry: potions::POTION,
+            definitions: potions::POTION_DEFINITIONS,
+            enum_file: potions::POTION_ENUM_FILE,
+            implementation: potions::potion_effects_impl,
+        },
+        AppendedImpl {
+            registry: potions::MOB_EFFECT,
+            definitions: potions::EFFECT_DEFINITIONS,
+            enum_file: potions::EFFECT_ENUM_FILE,
+            implementation: potions::effect_colors_impl,
+        },
+    ];
+    for appended in appended {
+        let path = root.join(appended.definitions);
+        let json = fs::read_to_string(&path).map_err(|error| corpus::io(&path, error))?;
+        registries::check_definition_keys(
+            &registries,
+            appended.registry,
+            appended.definitions,
+            &json,
+        )?;
+        let source = files
+            .get_mut(appended.enum_file)
+            .ok_or_else(|| format!("{}: not generated", appended.enum_file))?;
+        source.push_str(&(appended.implementation)(&json)?);
+        *source = keys::rustfmt(appended.enum_file, source)?;
+    }
     Ok(files)
+}
+
+struct AppendedImpl {
+    registry: &'static str,
+    definitions: &'static str,
+    enum_file: &'static str,
+    implementation: fn(&str) -> Result<String, String>,
 }
 
 fn write_keys(root: &Path, names: Option<&names::Names>) -> Result<(), String> {
@@ -397,7 +458,7 @@ fn status(root: &Path) -> Result<String, String> {
         .arg(root)
         .args(["status", "--porcelain", "--", VERSION_FILE, REPORTS])
         .args(definitions)
-        .args([DESCRIPTOR, FONT_HINT])
+        .args([DESCRIPTOR, FONT_HINT, INDEX_OBJECTS])
         .output()
         .map_err(|error| format!("git: {error}"))?;
     if !output.status.success() {
@@ -427,10 +488,15 @@ mod tests {
             (&["keys", "1.0"], false),
             (&["names"], true),
             (&["names", "--allow-dirty"], false),
+            (&["creative-tabs"], true),
+            (&["creative-tabs", "--allow-dirty"], false),
         ] {
             let parsed = command(args.iter().map(|arg| arg.to_string()).collect());
             assert_eq!(
-                matches!(parsed, Some(Invocation::Keys | Invocation::Names)),
+                matches!(
+                    parsed,
+                    Some(Invocation::Keys | Invocation::Names | Invocation::CreativeTabs)
+                ),
                 accepted,
                 "{args:?}"
             );

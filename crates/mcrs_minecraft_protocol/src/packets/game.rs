@@ -3,8 +3,6 @@ pub mod clientbound {
     use mcrs_minecraft_text::Text;
     use mcrs_minecraft_wire::{Decode, Encode};
 
-    /// Opens or closes a bundle: the client handles the packets between two delimiters in one
-    /// pass.
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundBundleDelimiter;
 

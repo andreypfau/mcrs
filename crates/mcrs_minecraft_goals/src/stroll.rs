@@ -9,25 +9,18 @@ use crate::STROLL_WAIT;
 use crate::SearchRange;
 use crate::random_position;
 
-/// The chance of the random gate of the stroll in one examined full evaluation: a uniform integer
-/// in `[0, 60)` is 0.
 pub const STROLL_CHANCE: f64 = 1.0 / 60.0;
 
-/// A mob with this idle time or more starts no stroll (GOAL-STR-001, AIT-VAN-020).
 pub const STROLL_IDLE_LIMIT: u32 = 100;
 
-/// A qualified player nearer than this resets the idle time of a mob (AIT-VAN-020).
 pub const IDLE_RESET_RANGE: f64 = 32.0;
 
-/// The random stroll that avoids water (GOAL-STR-001).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct StrollGoal {
     gate: Gate,
 }
 
 impl StrollGoal {
-    /// The parts of the start condition before the gate, `ticks` after the snapshot of the turn:
-    /// no passenger controls the mob, and the idle time is less than 100 (GOAL-WAKE-012).
     #[must_use]
     pub fn is_eligible<W: ?Sized>(turn: &Turn<'_, W>, ticks: u64) -> bool {
         let view = turn.view;
@@ -35,8 +28,6 @@ impl StrollGoal {
         !view.flags.contains(MobFlags::CONTROLLED) && idle < u64::from(STROLL_IDLE_LIMIT)
     }
 
-    /// The start condition of an examined stroll: the destination when the goal starts. An
-    /// examined stroll that is not eligible ends its wait.
     pub fn start_destination<W: GoalWorld + ?Sized>(
         &mut self,
         turn: &Turn<'_, W>,
@@ -66,8 +57,6 @@ impl StrollGoal {
     }
 }
 
-/// GOAL-STR-002: `L(15, 7)` and then `D(10, 7)` in water; else `L(10, 7)` with the chance 0.999 and
-/// `D(10, 7)` with the chance 0.001.
 fn stroll_destination<W: GoalWorld + ?Sized>(turn: &Turn<'_, W>) -> Option<DVec3> {
     let mut random = turn.random(STROLL_SEARCH);
     let world = turn.world;

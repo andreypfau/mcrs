@@ -8,6 +8,7 @@ use mcrs_minecraft_chunk::{
     PalettedContainer, RemapError, SectionKind, VoxelId, any_entry_past, first_entry_past,
     pack_from, packed_len, remap_into, unpack_into,
 };
+use mcrs_minecraft_nbt::END_ID;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::wire::{Context, bail, ensure};
 use mcrs_minecraft_protocol::{
@@ -38,14 +39,6 @@ impl<'a> Default for ChunkData<'a> {
     }
 }
 
-/// A single 2048-byte light nibble payload (4 bits per block × 4096 blocks)
-/// for one 16×16×16 chunk.
-///
-/// Encoded on the wire as `VarInt(2048) + 2048 bytes` as the light arrays of the light data.
-/// We keep it as a newtype so a `Cow<'_, [LightChunk]>` keeps zero-copy semantics
-/// while the per-element prefix is emitted automatically.
-///
-/// Public protocol documentation calls this structure a "light section".
 #[derive(Clone, Copy)]
 pub struct LightChunk(pub [u8; 2048]);
 
@@ -129,8 +122,6 @@ pub struct LightData<'a> {
     pub block_light_arrays: Cow<'a, [LightChunk]>,
 }
 
-/// A bit set on the wire: the words as
-/// little-endian bytes with trailing zero bytes dropped, behind a VarInt length.
 fn encode_bit_set(words: &[u64], mut w: impl Write) -> Result<()> {
     let mut bytes: Vec<u8> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
     while bytes.last() == Some(&0) {
@@ -192,12 +183,46 @@ impl<'a> Default for LightData<'a> {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct ChunkDataBlockEntity<'a> {
     pub packed_xz: i8,
     pub y: i16,
     pub kind: BlockEntityType,
     pub data: Cow<'a, NbtCompound>,
+}
+
+impl EncodeTrait for ChunkDataBlockEntity<'_> {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        self.packed_xz.encode(&mut w)?;
+        self.y.encode(&mut w)?;
+        self.kind.encode(&mut w)?;
+        if self.data.is_empty() {
+            END_ID.encode(w)
+        } else {
+            self.data.encode(w)
+        }
+    }
+}
+
+impl<'a> DecodeTrait<'a> for ChunkDataBlockEntity<'a> {
+    fn decode(r: &mut &'a [u8]) -> Result<Self> {
+        let packed_xz = i8::decode(r)?;
+        let y = i16::decode(r)?;
+        let kind = BlockEntityType::decode(r)?;
+        let data = match r.split_first() {
+            Some((&END_ID, rest)) => {
+                *r = rest;
+                NbtCompound::new()
+            }
+            _ => NbtCompound::decode(r)?,
+        };
+        Ok(Self {
+            packed_xz,
+            y,
+            kind,
+            data: Cow::Owned(data),
+        })
+    }
 }
 
 #[bitfield(u64)]
@@ -226,8 +251,6 @@ impl mcrs_minecraft_protocol::Decode<'_> for ChunkBlockUpdateEntry {
     }
 }
 
-/// The network form drops the palette list past `MAX_INDIRECT_BITS` and packs
-/// registry ids directly; the save keeps a palette at every size.
 pub fn encode_container<V: SectionEntry + Hash + Eq, const DIM: usize>(
     container: &PalettedContainer<V, DIM>,
     direct_bits: u32,
@@ -390,11 +413,6 @@ impl ChunkSection {
 }
 
 impl<'a> ChunkData<'a> {
-    /// The column's sections, in wire order from the dimension's lowest section
-    /// upwards. `section_count` comes from the dimension's height,
-    /// `block_state_count` from the block states the reader knows and
-    /// `biome_registry_len` from the registry the connection received: the blob
-    /// carries none of them and nothing in it can recover them.
     pub fn sections(
         &self,
         section_count: usize,

@@ -4,12 +4,9 @@ use crate::error::Error;
 use crate::traits::{BedrockDecode, BedrockEncode};
 use crate::var_int::VarI32;
 
-/// A chunk position: a varint32 x, then a varint32 z.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct NetworkChunkPos {
-    /// The chunk x coordinate.
     pub x: i32,
-    /// The chunk z coordinate.
     pub z: i32,
 }
 

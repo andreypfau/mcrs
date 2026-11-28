@@ -3,9 +3,10 @@ use bevy_ecs::change_detection::{Res, ResMut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Query, Resource, resource_changed};
+use bevy_ecs::prelude::{Resource, resource_changed};
 use bevy_ecs::query::{Changed, With};
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::system::Populated;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_network::{ServerSideConnection, StatusPlayers, StatusPublisher};
 use mcrs_minecraft_protocol::ConnectionState;
@@ -53,13 +54,13 @@ fn on_disconnect_handle(
 }
 
 fn on_connection_state_change_handle(
-    query: Query<
+    query: Populated<
         (Entity, &ConnectionState, &GameProfile),
         (Changed<ConnectionState>, With<ServerSideConnection>),
     >,
     mut players: ResMut<OnlinePlayers>,
 ) {
-    for (entity, state, profile) in &query {
+    for (entity, state, profile) in query.iter() {
         if *state == ConnectionState::Game && !players.players.iter().any(|x| x.0 == entity) {
             players
                 .players

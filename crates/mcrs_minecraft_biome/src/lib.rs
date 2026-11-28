@@ -32,9 +32,6 @@ pub enum TemperatureModifier {
     Frozen,
 }
 
-/// The part of a biome every crate that names one can hold: its climate and its
-/// colours. The environment attributes and the generation settings are columns
-/// beside the registry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Biome {
     pub temperature: f32,

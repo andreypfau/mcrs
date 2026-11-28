@@ -6,9 +6,6 @@ use crate::GoalWorld;
 const STEP: f64 = 0.5;
 const LONGEST: f64 = 64.0;
 
-/// A straight route on walkable ground: from the block of `from` to `target`, each half block of
-/// the line must be walkable at the level of the last sample or one block above or below it. The
-/// end is the bottom centre of the target column at the level that the line reaches.
 pub fn straight_route<W: GoalWorld + ?Sized>(
     world: &W,
     from: DVec3,

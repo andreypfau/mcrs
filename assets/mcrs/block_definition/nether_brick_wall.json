@@ -148,7 +148,8 @@
         "components": {
           "minecraft:collision_box": [],
           "minecraft:selection_box": [],
-          "mcrs:occlusion_shape": []
+          "mcrs:occlusion_shape": [],
+          "mcrs:solid": true
         }
       },
       {

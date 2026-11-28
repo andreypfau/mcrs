@@ -25,6 +25,22 @@ impl GameMode {
         GameMode::Spectator,
     ];
 
+    #[must_use]
+    pub const fn from_id(id: i32) -> Option<Self> {
+        match id {
+            0 => Some(GameMode::Survival),
+            1 => Some(GameMode::Creative),
+            2 => Some(GameMode::Adventure),
+            3 => Some(GameMode::Spectator),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn id(self) -> i32 {
+        self as i32
+    }
+
     pub const fn name(self) -> &'static str {
         match self {
             GameMode::Survival => "survival",
@@ -55,7 +71,6 @@ impl fmt::Display for GameMode {
     }
 }
 
-/// A name that no [`GameMode`] has.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnknownGameMode;
 
@@ -78,8 +93,6 @@ impl FromStr for GameMode {
     }
 }
 
-/// An optional [`GameMode`] on the wire as a VarInt: `0` is `None`, otherwise
-/// the mode id plus one.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug, From, Into)]
 pub struct OptGameMode(pub Option<GameMode>);
 

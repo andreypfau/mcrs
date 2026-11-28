@@ -2,8 +2,6 @@ use glam::IVec3;
 pub use mcrs_minecraft_core::Axis;
 use mcrs_minecraft_numeric::{floor_div, floor_mod};
 
-/// A strided box of block positions: `size` samples per axis, starting at
-/// `min_block`, spaced `step_block` apart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SampleGrid {
     size: IVec3,
@@ -61,15 +59,11 @@ impl SampleGrid {
         self.step_block
     }
 
-    /// The last block the volume spans, which is not the last block it samples
-    /// unless every step is 1.
     #[inline]
     pub fn max_block(&self) -> IVec3 {
         self.min_block + self.size * self.step_block - IVec3::ONE
     }
 
-    /// Y is the fastest axis. Changing this breaks every `Slice` broadcast into
-    /// a strided write and invalidates the binary parity fixtures.
     #[inline]
     pub fn index_unchecked(&self, x: i32, y: i32, z: i32) -> usize {
         (y + (x + z * self.size.x) * self.size.y) as usize
@@ -95,8 +89,6 @@ impl SampleGrid {
         (self.size.x * self.size.y * self.size.z) as usize
     }
 
-    /// `None` when the block lies outside the volume, or inside its span but off
-    /// the step lattice.
     pub fn index_of_block(&self, bx: i32, by: i32, bz: i32) -> Option<usize> {
         let r = IVec3::new(bx, by, bz) - self.min_block;
         if self.step_block == IVec3::ONE {
@@ -165,7 +157,6 @@ mod tests {
 
     #[test]
     fn index_of_block_handles_negative_relative_coords() {
-        // floor_mod, not `%`: a truncating remainder would accept -4 here.
         let v = SampleGrid::new(
             IVec3::new(2, 1, 1),
             IVec3::new(0, 0, 0),

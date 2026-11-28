@@ -1,6 +1,3 @@
-// Generated from the field table in pack.rs. `cargo test -p mcrs_minecraft_client`
-// checks it; `MCRS_BLESS=1 cargo test -p mcrs_minecraft_client` rewrites it.
-
 const QUAD_X_WORD: u32 = 0u;
 const QUAD_X_SHIFT: u32 = 0u;
 const QUAD_X_BITS: u32 = 5u;
@@ -117,3 +114,11 @@ const FLUID_INSET: f32 = 0.001;
 
 const BIOME_TINTS: u32 = 4u;
 const FIXED_TINTS = array<u32, 44>(0x619961u, 0x80a755u, 0xe0c71cu, 0x208030u, 0x00ff00u, 0x20f704u, 0x40ef08u, 0x60e70cu, 0x80df10u, 0xa0d714u, 0xc0cf18u, 0xe0c71cu, 0x4c0000u, 0x700000u, 0x7a0000u, 0x840000u, 0x8e0000u, 0x990000u, 0xa30000u, 0xad0000u, 0xb70000u, 0xc10000u, 0xcc0000u, 0xd60000u, 0xe00000u, 0xea0600u, 0xf41b00u, 0xff3200u, 0xf9fffeu, 0xf9801du, 0xc74ebdu, 0x3ab3dau, 0xfed83du, 0x80c71fu, 0xf38baau, 0x474f52u, 0x9d9d97u, 0x169c9cu, 0x8932b8u, 0x3c44aau, 0x835432u, 0x5e7c16u, 0xb02e26u, 0x1d1d21u);
+
+struct Group {
+    quad_base: u32,
+    quad_count: u32,
+    section: u32,
+    face: u32,
+    bounds: u32,
+}

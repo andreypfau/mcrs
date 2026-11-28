@@ -10,11 +10,16 @@ pub mod arena;
 pub mod block;
 mod connectivity;
 mod cube;
+mod draw_kind;
 pub mod face_shade;
 mod fluid;
+mod group;
 mod model;
 pub mod pack;
+mod pending_group;
+mod quad_format;
 mod scratch;
+mod section_draw;
 pub mod smooth_light;
 pub mod state_variants;
 mod sweep;
@@ -28,59 +33,26 @@ use crate::pack::{
     Field, MODEL_OVERHANG, MODEL_STEPS, MODEL_X, MODEL_Y, MODEL_Z, QUAD_DROP, QUAD_FACE,
     QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z,
 };
+use crate::pending_group::PendingGroup;
 use crate::smooth_light::SmoothLight;
 use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_volume::{BlockVolume, LightVolume};
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
+pub use draw_kind::DrawKind;
+pub use group::Group;
+pub use quad_format::QuadFormat;
 pub use scratch::Scratch;
+pub use section_draw::SectionDraw;
 
 pub const SECTION_SIZE: usize = mcrs_voxel::SectionPos::SIZE;
 pub const SECTION_VOLUME: usize = mcrs_voxel::SectionPos::VOLUME;
 
-pub const STREAMS: usize = Pass::COUNT * 2;
-
-/// Most quads a group holds. The cull tests a group as one box, so a small group hugs its quads
-/// and hides behind terrain that a whole section's worth of them would reach past.
 pub const GROUP_QUADS: usize = 32;
 
-pub const STREAM_NAMES: [&str; STREAMS] = [
-    "solid greedy",
-    "solid model",
-    "cutout greedy",
-    "cutout model",
-    "translucent greedy",
-    "translucent model",
-];
-
-pub const fn stream_pass(stream: u32) -> Pass {
-    Pass::from_index(stream as usize / 2)
-}
-
-pub const fn stream_is_model(stream: u32) -> bool {
-    stream % 2 == 1
-}
-
-#[derive(Copy, Clone, Default, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct Group {
-    pub quad_base: u32,
-    pub quad_count: u32,
-    pub section: u32,
-    pub face: u32,
-    /// The box its quads lie in, packed by the `BOUNDS_*` fields.
-    pub bounds: u32,
-}
-
-#[derive(Copy, Clone, Default, Debug)]
-pub struct StreamSpan {
-    pub group_count: u32,
-    pub quad_count: u32,
-}
-
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
 pub struct Draw {
-    pub stream: u32,
+    pub kind: DrawKind,
     pub first_group: u32,
     pub group_count: u32,
     pub quad_count: u32,
@@ -88,17 +60,17 @@ pub struct Draw {
 
 pub struct SectionMesh {
     pub section: [i32; 3],
-    pub simple: Vec<[u32; QUAD_WORDS]>,
+    pub greedy: Vec<[u32; QUAD_WORDS]>,
     pub faces: Vec<[u32; FACE_WORDS]>,
-    pub complex: Vec<u32>,
+    pub models: Vec<u32>,
     pub groups: Vec<Group>,
-    pub spans: [StreamSpan; STREAMS],
+    pub draws: [SectionDraw; DrawKind::COUNT],
     pub connectivity: Connectivity,
 }
 
 impl SectionMesh {
     pub fn model_quads(&self) -> usize {
-        self.complex.len() / model::WORDS_PER_QUAD
+        self.models.len() / model::WORDS_PER_QUAD
     }
 }
 
@@ -113,7 +85,6 @@ pub const fn face_normal(face: usize) -> [i32; 3] {
     }
 }
 
-/// The coordinate of `point` along `axis`, the third axis standing for any past the second.
 #[inline]
 fn axis_mut<T>(point: &mut [T; 3], axis: u8) -> &mut T {
     let [x, y, z] = point;
@@ -125,65 +96,66 @@ fn axis_mut<T>(point: &mut [T; 3], axis: u8) -> &mut T {
 }
 
 struct Sink {
-    simple: Vec<[u32; QUAD_WORDS]>,
-    complex: Vec<u32>,
-    groups: Vec<(u32, Group)>,
+    greedy: Vec<[u32; QUAD_WORDS]>,
+    models: Vec<u32>,
+    groups: Vec<PendingGroup>,
     slot: u32,
 }
 
 impl Sink {
     fn group(
         &mut self,
-        stream: usize,
+        kind: DrawKind,
         face: u64,
         quad_base: usize,
         quad_count: usize,
         bounds: u32,
     ) {
-        self.groups.push((
-            stream as u32,
-            Group {
+        self.groups.push(PendingGroup {
+            kind,
+            group: Group {
                 quad_base: quad_base as u32,
                 quad_count: quad_count as u32,
                 section: self.slot,
                 face: face as u32,
                 bounds,
             },
-        ));
+        });
     }
 
-    fn simple(&mut self, pass: usize, face: u64, quads: &[[u32; QUAD_WORDS]]) {
+    fn greedy(&mut self, pass: Pass, face: u64, quads: &[[u32; QUAD_WORDS]]) {
+        let kind = DrawKind::new(pass, QuadFormat::Greedy);
         for run in quads.chunks(GROUP_QUADS) {
-            let base = self.simple.len();
+            let base = self.greedy.len();
             let mut bounds = Bounds::EMPTY;
             for quad in run {
                 bounds.cover_greedy(quad[0]);
             }
-            self.group(pass * 2, face, base, run.len(), bounds.pack());
-            self.simple.extend_from_slice(run);
+            self.group(kind, face, base, run.len(), bounds.pack());
+            self.greedy.extend_from_slice(run);
         }
     }
 
-    fn complex(&mut self, pass: usize, face: u64, verts: &[u32]) {
+    fn model(&mut self, pass: Pass, face: u64, verts: &[u32]) {
+        let kind = DrawKind::new(pass, QuadFormat::Model);
         for run in verts.chunks(GROUP_QUADS * model::WORDS_PER_QUAD) {
-            let base = self.complex.len() / model::WORDS_PER_QUAD;
+            let base = self.models.len() / model::WORDS_PER_QUAD;
             let mut bounds = Bounds::EMPTY;
             for vertex in run.chunks(model::WORDS_PER_QUAD / 4) {
                 bounds.cover_model(vertex);
             }
             self.group(
-                pass * 2 + 1,
+                kind,
                 face,
                 base,
                 run.len() / model::WORDS_PER_QUAD,
                 bounds.pack(),
             );
-            self.complex.extend_from_slice(run);
+            self.models.extend_from_slice(run);
         }
     }
 }
 
-/// A box in blocks from a section's corner, grown to take in quads as `quad.wesl` places them.
 struct Bounds {
     lo: [f32; 3],
     hi: [f32; 3],
@@ -202,9 +174,6 @@ impl Bounds {
         }
     }
 
-    /// The rectangle spans the quad's size along its face's u and v axes from its corner. A
-    /// fluid surface drops below the plane it names and is pulled in off the face behind it,
-    /// both along the normal and by less than a block.
     fn cover_greedy(&mut self, word: u32) {
         let word = word as u64;
         let corner = [QUAD_X, QUAD_Y, QUAD_Z].map(|field| field.get(word) as f32);
@@ -254,8 +223,6 @@ impl Bounds {
     }
 }
 
-/// A section's mesh reads the blocks and light of the section and the blocks around it.
-/// A block the world cannot give is air.
 pub fn mesh_section(
     world: &(impl BlockVolume + LightVolume),
     catalog: &[BlockInfo],
@@ -270,8 +237,8 @@ pub fn mesh_section(
     scratch.load(world, catalog, section.map(|n| n * SECTION_SIZE as i32));
 
     let mut sink = Sink {
-        simple: Vec::new(),
-        complex: Vec::new(),
+        greedy: Vec::new(),
+        models: Vec::new(),
         groups: Vec::new(),
         slot,
     };
@@ -286,17 +253,17 @@ pub fn mesh_section(
     model::emit(scratch, &mut sink);
 
     let mut groups = Vec::with_capacity(sink.groups.len());
-    let mut spans = [StreamSpan::default(); STREAMS];
-    for (stream, span) in spans.iter_mut().enumerate() {
+    let mut draws = [SectionDraw::default(); DrawKind::COUNT];
+    for (&kind, draw) in DrawKind::ALL.iter().zip(&mut draws) {
         let first = groups.len();
         let mut quads = 0u32;
-        for &(from, group) in &sink.groups {
-            if from as usize == stream {
+        for &PendingGroup { kind: from, group } in &sink.groups {
+            if from == kind {
                 quads += group.quad_count;
                 groups.push(group);
             }
         }
-        *span = StreamSpan {
+        *draw = SectionDraw {
             group_count: (groups.len() - first) as u32,
             quad_count: quads,
         };
@@ -304,23 +271,21 @@ pub fn mesh_section(
 
     SectionMesh {
         section,
-        simple: sink.simple,
+        greedy: sink.greedy,
         faces: std::mem::take(&mut scratch.section_faces),
-        complex: sink.complex,
+        models: sink.models,
         groups,
-        spans,
+        draws,
         connectivity: connectivity::connectivity(&scratch.occludes),
     }
 }
 
-/// One unlit section at the world origin, with every block chosen by `pick`.
 #[cfg(test)]
 pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> OneSection {
     let mut blocks = Box::new([mcrs_voxel::BlockStateId::AIR; SECTION_VOLUME]);
     for y in 0..SECTION_SIZE {
         for z in 0..SECTION_SIZE {
             for x in 0..SECTION_SIZE {
-                // A test catalog row is any u16, so every one of them is a state.
                 let state = mcrs_voxel::BlockStateId::checked(pick(x, y, z), 1 << 16);
                 blocks[(y * SECTION_SIZE + z) * SECTION_SIZE + x] =
                     state.unwrap_or(mcrs_voxel::BlockStateId::AIR);
@@ -330,8 +295,6 @@ pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> OneSectio
     OneSection(blocks)
 }
 
-/// The section at the origin, alone in its column: the rows beside it in the
-/// column are dark, and everything past the column is open sky.
 #[cfg(test)]
 pub struct OneSection(Box<[mcrs_voxel::BlockStateId; SECTION_VOLUME]>);
 
@@ -377,21 +340,20 @@ impl LightVolume for OneSection {
 
 #[cfg(test)]
 pub struct Batch {
-    pub simple: Vec<[u32; QUAD_WORDS]>,
+    pub greedy: Vec<[u32; QUAD_WORDS]>,
     pub faces: Vec<[u32; FACE_WORDS]>,
     pub face_base: Vec<u32>,
     pub quad_section: Vec<u32>,
-    pub complex: Vec<u32>,
+    pub models: Vec<u32>,
 }
 
 #[cfg(test)]
 impl Batch {
     pub fn model_quads(&self) -> usize {
-        self.complex.len() / model::WORDS_PER_QUAD
+        self.models.len() / model::WORDS_PER_QUAD
     }
 }
 
-/// The named sections, meshed into one batch, with a table slot handed out in walk order.
 #[cfg(test)]
 pub fn mesh_world(
     world: &(impl BlockVolume + LightVolume),
@@ -400,11 +362,11 @@ pub fn mesh_world(
     scratch: &mut Scratch,
 ) -> Batch {
     let mut batch = Batch {
-        simple: Vec::new(),
+        greedy: Vec::new(),
         faces: Vec::new(),
         face_base: Vec::new(),
         quad_section: Vec::new(),
-        complex: Vec::new(),
+        models: Vec::new(),
     };
     for &section in sections {
         let slot = batch.face_base.len() as u32;
@@ -417,9 +379,9 @@ pub fn mesh_world(
             CardinalLight::Default,
             scratch,
         );
-        batch.simple.extend_from_slice(&mesh.simple);
-        batch.quad_section.resize(batch.simple.len(), slot);
-        batch.complex.extend_from_slice(&mesh.complex);
+        batch.greedy.extend_from_slice(&mesh.greedy);
+        batch.quad_section.resize(batch.greedy.len(), slot);
+        batch.models.extend_from_slice(&mesh.models);
         batch.face_base.push(batch.faces.len() as u32);
         batch.faces.extend_from_slice(&mesh.faces);
     }
@@ -498,8 +460,8 @@ mod tests {
         );
 
         assert_eq!(fresh.faces, again.faces, "face attributes");
-        assert_eq!(fresh.simple, again.simple, "greedy quads");
-        assert_eq!(fresh.complex, again.complex, "model vertices");
+        assert_eq!(fresh.greedy, again.greedy, "greedy quads");
+        assert_eq!(fresh.models, again.models, "model vertices");
         assert_eq!(fresh.groups.len(), again.groups.len(), "groups");
         assert_eq!(fresh.connectivity, again.connectivity, "connectivity");
     }
@@ -620,7 +582,6 @@ mod tests {
             outer: [[u16::MAX; 16]; 6],
             inner: [[u16::MAX; 16]; 6],
         }));
-        // One layer: the floor is covered whole, each side along its lowest two rows.
         let mut sides = [[0u16; 16]; 6];
         sides[0] = [u16::MAX; 16];
         for (side, rows) in sides.iter_mut().enumerate().skip(2) {
@@ -656,7 +617,7 @@ mod tests {
             &mut Scratch::new(),
         );
         let tops: Vec<_> = mesh
-            .simple
+            .greedy
             .iter()
             .filter(|quad| QUAD_FACE.read(*quad) == 1)
             .collect();
@@ -710,29 +671,30 @@ mod tests {
         );
 
         assert!(
-            mesh.spans[0].quad_count > 0 && mesh.spans[3].quad_count > 0,
+            mesh.draws[0].quad_count > 0 && mesh.draws[3].quad_count > 0,
             "the fixture has to reach both a greedy and a model bucket"
         );
         let mut at = 0usize;
-        for stream in 0..STREAMS {
-            let run = mesh.spans[stream].group_count as usize;
+        for (draw, &kind) in mesh.draws.iter().zip(&DrawKind::ALL) {
+            let run = draw.group_count as usize;
             let held = &mesh.groups[at..at + run];
             at += run;
             let mut quads = 0u32;
             let mut covered = 0u32;
             for group in held {
-                assert_eq!(group.quad_base, covered, "stream {stream} leaves a hole");
+                assert_eq!(group.quad_base, covered, "{} leaves a hole", kind.label());
                 quads += group.quad_count;
                 covered += group.quad_count;
             }
-            assert_eq!(quads, mesh.spans[stream].quad_count);
-            let total = match stream_is_model(stream as u32) {
-                true => mesh.model_quads(),
-                false => mesh.simple.len(),
+            assert_eq!(quads, draw.quad_count);
+            let total = match kind.format {
+                QuadFormat::Model => mesh.model_quads(),
+                QuadFormat::Greedy => mesh.greedy.len(),
             };
             assert!(
                 covered as usize <= total,
-                "stream {stream} names more quads than the section holds"
+                "{} names more quads than the section holds",
+                kind.label()
             );
         }
         assert_eq!(at, mesh.groups.len(), "a group belongs to no bucket");

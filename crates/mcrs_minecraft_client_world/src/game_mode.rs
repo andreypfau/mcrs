@@ -1,6 +1,7 @@
+use crate::abilities;
 use crate::joined_game::JoinedGame;
 use bevy::prelude::*;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{PlayerGameMode, PreviousGameMode};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityEvent, ClientboundGameEvent, ClientboundLogin, ClientboundRespawn,
@@ -9,36 +10,6 @@ use mcrs_minecraft_protocol_game::game_event::GameEventKind;
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 
 use crate::player::Player;
-
-/// The local player's game mode as the server last set it. Absent until the
-/// login packet arrives.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LocalGameMode {
-    pub current: GameMode,
-    pub previous: Option<GameMode>,
-}
-
-impl LocalGameMode {
-    fn spawned(info: &PlayerSpawnInfo) -> Self {
-        Self {
-            current: info.game_mode,
-            previous: info.prev_game_mode.0,
-        }
-    }
-
-    /// A change event only moves the old mode into `previous` when the mode
-    /// actually differs.
-    pub fn changed_to(self, mode: GameMode) -> Self {
-        Self {
-            current: mode,
-            previous: if mode == self.current {
-                self.previous
-            } else {
-                Some(self.current)
-            },
-        }
-    }
-}
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PermissionLevel(pub u8);
@@ -63,6 +34,10 @@ impl Plugin for GameModePlugin {
         app.add_observer(on_respawn);
         app.add_observer(on_game_event);
         app.add_observer(on_entity_event);
+        app.add_observer(abilities::on_login);
+        app.add_observer(abilities::on_respawn);
+        app.add_observer(abilities::on_game_event);
+        app.add_observer(abilities::on_player_abilities);
     }
 }
 
@@ -86,26 +61,27 @@ fn on_respawn(
     }
 }
 
-/// A login or respawn stands up a fresh local player, whose permissions start
-/// empty until the server sends the level again.
 fn spawned(info: &PlayerSpawnInfo, player: Query<Entity, With<Player>>, mut commands: Commands) {
     if let Ok(player) = player.single() {
-        commands
-            .entity(player)
-            .insert((LocalGameMode::spawned(info), PermissionLevel::default()));
+        commands.entity(player).insert((
+            PlayerGameMode(info.game_mode),
+            PreviousGameMode(info.prev_game_mode.0),
+            PermissionLevel::default(),
+        ));
     }
 }
 
 fn on_game_event(
     event: On<Received<ClientboundGameEvent>>,
-    mut mode: Query<&mut LocalGameMode, With<Player>>,
+    mut player: Query<(&mut PlayerGameMode, &mut PreviousGameMode), With<Player>>,
 ) {
     if let Some(packet) = event.packet()
         && let GameEventKind::ChangeGameMode(changed) = packet.game_event
-        && let Ok(mut mode) = mode.single_mut()
+        && let Ok((mut mode, mut previous)) = player.single_mut()
+        && mode.0 != changed
     {
-        let next = mode.changed_to(changed);
-        mode.set_if_neq(next);
+        previous.set_if_neq(PreviousGameMode(Some(mode.0)));
+        mode.0 = changed;
     }
 }
 
@@ -128,7 +104,7 @@ fn on_entity_event(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_game_mode::OptGameMode;
+    use mcrs_minecraft_game_mode::{GameMode, OptGameMode};
     use mcrs_minecraft_network::ConnectionState;
     use mcrs_minecraft_network::metrics::PacketDispatcher;
     use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
@@ -161,9 +137,15 @@ mod tests {
             .dispatch(P::STATE, P::ID, &data)
             .unwrap()
             .unwrap();
-        trigger.raise(&mut app.world_mut().commands(), connection, data.into());
+        trigger.raise(app.world_mut().commands(), connection, data.into());
         app.world_mut().flush();
     }
+
+    type ModeState = (
+        Option<PlayerGameMode>,
+        Option<PreviousGameMode>,
+        Option<PermissionLevel>,
+    );
 
     fn spawn_info(mode: GameMode, previous: Option<GameMode>) -> PlayerSpawnInfo {
         let overworld = Id::checked(0, 1).unwrap();
@@ -200,28 +182,29 @@ mod tests {
         }
     }
 
-    fn state(app: &mut App) -> (Option<LocalGameMode>, Option<PermissionLevel>) {
+    fn state(app: &mut App) -> ModeState {
         let world = app.world_mut();
-        let mut query = world
-            .query_filtered::<(Option<&LocalGameMode>, Option<&PermissionLevel>), With<Player>>();
-        let (mode, level) = query.single(world).unwrap();
-        (mode.copied(), level.copied())
+        let mut query = world.query_filtered::<(
+            Option<&PlayerGameMode>,
+            Option<&PreviousGameMode>,
+            Option<&PermissionLevel>,
+        ), With<Player>>();
+        let (mode, previous, level) = query.single(world).unwrap();
+        (mode.copied(), previous.copied(), level.copied())
     }
 
     #[test]
     fn login_game_events_and_respawn_set_the_mode() {
         let (mut app, connection) = app();
         receive(&mut app, connection, change(GameMode::Creative));
-        assert_eq!(state(&mut app), (None, None));
+        assert_eq!(state(&mut app), (None, None, None));
 
         receive(&mut app, connection, login(GameMode::Survival, None));
         assert_eq!(
             state(&mut app),
             (
-                Some(LocalGameMode {
-                    current: GameMode::Survival,
-                    previous: None
-                }),
+                Some(PlayerGameMode(GameMode::Survival)),
+                Some(PreviousGameMode(None)),
                 Some(PermissionLevel(0))
             )
         );
@@ -229,11 +212,12 @@ mod tests {
         for _ in 0..2 {
             receive(&mut app, connection, change(GameMode::Creative));
             assert_eq!(
-                state(&mut app).0,
-                Some(LocalGameMode {
-                    current: GameMode::Creative,
-                    previous: Some(GameMode::Survival)
-                }),
+                state(&mut app),
+                (
+                    Some(PlayerGameMode(GameMode::Creative)),
+                    Some(PreviousGameMode(Some(GameMode::Survival))),
+                    Some(PermissionLevel(0))
+                ),
                 "a change to the same mode keeps the previous one"
             );
         }
@@ -247,11 +231,12 @@ mod tests {
             },
         );
         assert_eq!(
-            state(&mut app).0,
-            Some(LocalGameMode {
-                current: GameMode::Adventure,
-                previous: Some(GameMode::Spectator)
-            })
+            state(&mut app),
+            (
+                Some(PlayerGameMode(GameMode::Adventure)),
+                Some(PreviousGameMode(Some(GameMode::Spectator))),
+                Some(PermissionLevel(0))
+            )
         );
     }
 
@@ -267,7 +252,7 @@ mod tests {
                 entity_status: 28,
             },
         );
-        assert_eq!(state(&mut app).1, Some(PermissionLevel(0)));
+        assert_eq!(state(&mut app).2, Some(PermissionLevel(0)));
 
         for (status, level) in [
             (26, 2),
@@ -287,7 +272,7 @@ mod tests {
                 },
             );
             assert_eq!(
-                state(&mut app).1,
+                state(&mut app).2,
                 Some(PermissionLevel(level)),
                 "status {status}"
             );
@@ -301,6 +286,6 @@ mod tests {
                 data_to_keep: 0,
             },
         );
-        assert_eq!(state(&mut app).1, Some(PermissionLevel(0)));
+        assert_eq!(state(&mut app).2, Some(PermissionLevel(0)));
     }
 }

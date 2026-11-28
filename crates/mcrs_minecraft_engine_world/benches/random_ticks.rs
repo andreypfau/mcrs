@@ -1,8 +1,3 @@
-//! Random ticks of one step over the sections of 1,250 players (1/8 of 10k players: 262,144
-//! listed sections), on one core. Every section holds the same 120 ticking positions, so 2.9% of
-//! the picks run a handler, the rate of 185k handler runs in 6.3M picks. The handler reads the
-//! footprint of a grass block (SIM-MODEL-009, Table 1) and writes nothing: the cost of a real
-//! handler is added to the measured time.
 #![expect(clippy::expect_used, reason = "a bench reports a failure by panicking")]
 
 use std::hint::black_box;
@@ -109,7 +104,6 @@ impl BlockBehaviour<Bench> for Counted {
     }
 }
 
-/// Every section holds the blocks of `template`; the index lists their ticking positions.
 struct World {
     template: ChunkBlocks,
     index: RandomTickIndex,

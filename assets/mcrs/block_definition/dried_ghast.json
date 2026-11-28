@@ -49,6 +49,7 @@
       },
       "minecraft:destructible_by_mining": true,
       "minecraft:loot": "minecraft:blocks/dried_ghast",
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,

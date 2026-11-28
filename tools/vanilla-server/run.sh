@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Provisions the vanilla dedicated server of the corpus version under target/vanilla-server,
-# verified against the package descriptor pinned in release.json, with online mode off on
-# loopback and the compression threshold of VANILLA_COMPRESSION (default -1, compression off;
-# 0 and up compress packets of that size and more). `serve` runs it until interrupted; `attempt`
-# (the default) runs one headless join of the MCRS client against it. `fetch` only provisions the
-# server jar and prints its path, for the scene frame tests of mcrs_minecraft_client. Exit: 0 joined, 1 not
-# joined, 2 provisioning failed or a bad argument, 3 the Minecraft EULA is not accepted in this
-# environment.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -41,14 +33,11 @@ fetch_verified() {
     check_file "$file" "$sha1" "$size"
 }
 
-# The server reads the threshold with Integer.parseInt and silently falls back to 256 on a
-# value outside the int range.
 valid_compression() {
     [[ $1 == -1 ]] && return 0
     [[ $1 =~ ^0*([0-9]{1,10})$ ]] && ((10#${BASH_REMATCH[1]} <= 2147483647))
 }
 
-# Prints the path of the verified server jar of the corpus version.
 fetch_server() {
     local id package_url package_sha1
     id=$(jq -r '.id' "$release")

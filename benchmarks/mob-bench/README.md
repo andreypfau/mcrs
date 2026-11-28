@@ -11,7 +11,7 @@ load average).
 ```sh
 cargo build --release -p mcrs_mob_bench -p mcrs --bins
 # Horizon, in its own checkout, with its own target folder:
-(cd ~/src/github.com/horizon && CARGO_TARGET_DIR=target-mobbench \
+(cd <horizon checkout> && CARGO_TARGET_DIR=target-mobbench \
     cargo build --release -p horizon-client --no-default-features && \
     CARGO_TARGET_DIR=target-mobbench cargo build --release -p horizon-bots)
 MINECRAFT_EULA=true tools/mob-bench/run.sh
@@ -336,84 +336,9 @@ thread setting, so the harness refuses `--threads` for it.
   is in `harness_cores`.
 - Vanilla is 26.4-snapshot-7 and Horizon follows 26.3. The scene uses only commands and rules that
   both have; both gave the same answers to every setting line.
-- The recorded results below use the old method: a creative client and the phases roam, crowd
-  and stimulus with no stir. In them the pigs near the client strolled and the other pigs stood,
-  so they do not compare with the phases of this method.
 - The watcher reads the packets of up to 30,000 moving pigs a second. Its reader hands them over
   through a bounded channel, so it drains that channel every millisecond; a slower client falls
   behind, misses keep-alives and is timed out.
 - At 50,000 pigs vanilla's `tick query` mean is well below the wall time a tick from the console
   probe and the sprint: the query leaves out work outside its timed part of the tick. Compare
   servers on the external probes first.
-
-## Results: 2026-11-09-provisional
-
-**Provisional.** Every window is marked `contended`: the machine ran a desktop session (about 3
-cores of other work: a database, a container VM, browsers), other agents compiled Rust during the
-Horizon runs (up to 11.7 other cores), and the user's vanilla server ran beside it (it was idle).
-The official runs need a quiet machine. The runs themselves are complete.
-
-**Machine.** Apple M4 Max, 16 logical CPUs (12 performance, 4 efficiency), 128 GB, macOS (Darwin
-25.6.0 arm64), OpenJDK 25.0.1. **Versions.** Harness at 222f84a57 (Horizon runs at ba38f660f: the
-pig UUIDs had no population number then, the same work). Vanilla 26.4-snapshot-7. Horizon at
-e2116fb8c2, `horizon-client` built with `--no-default-features`, `horizon-bots` as its client.
-mcrs at 915316881 with no pig AI.
-
-Times in ms. "Server" is the server's own metric (`tick query` means of the answers; mcrs: every
-`mcrs_tick`). "Console" is the real TPS and the wall time a tick from the game time. "Sprint" is
-the wall time a tick of `tick sprint 100`. "set_time" is the watcher's P50 / P99 wall time a tick.
-Motion: share of pigs that moved / mean path in blocks a second (console: the 32 named pigs;
-watcher: every tracked pig). CPU in cores: the server process / every other process.
-
-| Run | Phase | Server mean | P50 | P95 | P99 | Console TPS | Console ms | set_time P50 / P99 | Sprint | Motion console | Motion watcher (pigs / moved / path) | Server cores | Other cores | RSS MiB |
-|---|---|---:|---:|---:|---:|---:|---:|---|---:|---|---|---:|---:|---:|
-| vanilla-watcher | idle | 4.11 | 3.21 | 9.07 | 12.04 | 20.0 | 49.99 | 50.03 / 50.61 | 1.54 | – | – | 0.09 | 2.89 | 7,396 |
-| vanilla-watcher | roam | 275.25 | 275.01 | 292.09 | 305.23 | 2.95 | 339.48 | 329.88 / 364.14 | 326.42 | 0.22 / 0.0059 | 9,839 / 0.33 / 0.0135 | 1.02 | 3.04 | 12,284 |
-| vanilla-watcher | crowd | 531.68 | 530.80 | 555.72 | 570.84 | 1.35 | 739.13 | 732.07 / 742.93 | 733.97 | 1.00 / 0.0533 | 27,201 / 1.00 / 0.086 | 1.05 | 2.82 | 12,760 |
-| vanilla-watcher | stimulus | 591.07 | 589.02 | 621.44 | 681.43 | 1.19 | 841.80 | 841.06 / 857.84 | 822.99 | 1.00 / 0.081 | 27,142 / 1.00 / 0.113 | 1.04 | 3.05 | 12,740 |
-| vanilla-none | idle | 4.65 | 3.53 | 9.48 | 12.38 | 20.0 | 49.99 | – | 1.64 | – | – | 0.09 | 3.10 | 6,585 |
-| vanilla-none | roam | 254.61 | 253.53 | 267.97 | 290.13 | 4.00 | 249.75 | – | 249.89 | 0.16 / 0.0018 | – | 1.02 | 2.86 | 11,887 |
-| vanilla-none | crowd | 483.77 | 481.03 | 507.88 | 551.57 | 2.05 | 486.63 | – | 464.95 | 1.00 / 0.0564 | – | 1.01 | 3.02 | 12,857 |
-| vanilla-none | stimulus | 519.12 | 516.40 | 544.10 | 601.28 | 1.90 | 526.80 | – | 508.99 | 1.00 / 0.0976 | – | 1.01 | 3.20 | 12,964 |
-| horizon-watcher | idle | 3.13 | 2.95 | 3.64 | 8.45 | 20.0 | 50.00 | – | – | – | – | 1.07 | 4.54 | 329 |
-| horizon-watcher | roam | 209.63 | 199.82 | 267.80 | 370.32 | 4.92 | 203.09 | – | – | 0.09 / 0.0021 | – | 0.97 | 8.96 | 985 |
-| horizon-watcher | crowd | 259.24 | 243.77 | 356.79 | 488.76 | 3.79 | 264.09 | – | – | 1.00 / 0.0814 | – | 0.94 | 11.74 | 2,587 |
-| horizon-watcher | stimulus | 258.62 | 260.62 | 290.58 | 317.08 | 3.88 | 257.97 | – | – | 1.00 / 0.1183 | – | 1.01 | 2.88 | 2,588 |
-| horizon-none | idle | 2.67 | 2.61 | 2.97 | 4.63 | 20.0 | 50.00 | – | – | – | – | 1.07 | 3.10 | 304 |
-| horizon-none | roam | 145.37 | 145.18 | 152.26 | 164.84 | 6.88 | 145.39 | – | – | 0.00 / 0.0000 | – | 1.00 | 3.13 | 787 |
-| horizon-none | crowd | 183.70 | 182.68 | 198.47 | 216.40 | 5.47 | 182.66 | – | – | 1.00 / 0.0774 | – | 1.00 | 3.03 | 1,991 |
-| horizon-none | stimulus | 218.12 | 219.13 | 256.01 | 308.02 | 4.45 | 224.61 | – | – | 1.00 / 0.1145 | – | 0.99 | 4.26 | 1,991 |
-| mcrs-watcher | idle | 1.25 | 0.80 | 2.73 | 4.72 | 17.66 | 56.62 | – | 0.65 | – | – | 0.03 | 2.84 | 498 |
-| mcrs-none | idle | 1.12 | 0.76 | 2.54 | 4.85 | 17.59 | 56.84 | – | 0.86 | – | – | 0.03 | 3.19 | 530 |
-
-mcrs's roam, crowd and stimulus phases were skipped: mcrs refuses `summon` with a `UUID` tag
-(`Unable to summon entity`), so the pig count stayed at 0.
-
-**Thread scaling** (vanilla, crowd, no client, `-XX:ActiveProcessorCount=N`):
-
-| N | Server mean | P99 | Console TPS | Console ms | Sprint | Server cores | RSS MiB |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 516.68 | 638.20 | 1.93 | 518.48 | 495.24 | 1.01 | 6,204 |
-| 4 | 511.61 | 589.67 | 1.95 | 513.05 | 500.29 | 1.01 | 11,643 |
-| 16 | 513.52 | 574.43 | 1.95 | 512.96 | 492.91 | 1.02 | 11,928 |
-
-**Findings.**
-
-- Every server kept the 50,000 pigs: the count was 50,000 before and after each pig phase.
-- In the crowd and stimulus phases every sampled pig moved on every server: the crowd pushes them
-  with no player near. In the roam phase with no client the pigs stood still (vanilla 16 % of the
-  named pigs moved, 0.002 blocks a second; Horizon none), as the 32-block stroll rule says.
-- With 50,000 pigs vanilla ran at 1.2 to 4 TPS and Horizon at 3.8 to 6.9 TPS. Horizon's tick was
-  1.7 to 3.3 times shorter than vanilla's on the console probe, on one core as vanilla's.
-- The watcher cost vanilla 36 % to 60 % more wall time a tick in the pig phases (739 against
-  487 ms in the crowd phase), mostly outside what `tick query` times (532 against 484 ms): the tracking and the sending
-  of about 30,000 move packets a second.
-- Horizon's own `tick query` matches the console probe (within 3 %); vanilla's misses up to 28 %
-  with the watcher. Horizon gives no `tick sprint` answer.
-- Horizon idles at one full core (1.07 cores with no pig), vanilla at 0.09 and mcrs at 0.03.
-- mcrs's idle tick takes 1.1 ms, but the console probe shows 17.6 TPS (56.8 ms a tick): its tick
-  loop falls behind the 50 ms pace with no load.
-- Vanilla's thread count changes nothing for its tick (the tick is on one thread); fewer CPUs only
-  shrink the heap that the JVM commits.
-- Horizon takes about 5 s for one entity selector over 50,000 pigs (`@e[...]`) and ticks nothing
-  meanwhile; a UUID target answers at once. The scene therefore addresses each pig by UUID.

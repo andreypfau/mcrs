@@ -35,6 +35,16 @@ to an AI agent. These conditions apply:
 mcrs does not restrict contributions that an AI agent writes. Such contributions are welcome
 when the contributor knows how the game is structured.
 
+### Third-party open source implementations
+
+The owner can allow a named third-party open source implementation as a source for a
+specification author. The same wall applies as for the game. The author reads the
+implementation, and the implementer never reads it. No name of a class, method, field or file of
+it, no path into it, and no quotation of its code appears in the repository. A specification
+states its behaviour in the words of the author. A rule from such a source has the label
+`design`, because it is a choice of mcrs and not behaviour of the game. The owner allows GrimAC
+for the specifications of lag compensation and reach.
+
 The rules on this page have one purpose. They make sure that nobody copies code or algorithms
 from the original game, or from modifications of the game, by accident.
 
@@ -45,11 +55,15 @@ from the original game, or from modifications of the game, by accident.
 - Text that says code is a port, a transcription or a mirror of the game's code.
 - A test, a tool or a script that reads the game's code.
 
+A tool that runs inside the game and drives the vanilla client, such as `tools/vanilla-client`,
+names the classes of the client that it calls; this is permitted for that tool only.
+
 ### Community terms
 
 The community of the game uses some names of the game's code as common terms. These names are
-allowed in all places: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and
-`PalettedContainer`. A new name goes into this list only after a review.
+allowed in all places: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`,
+`PalettedContainer`, `LootContext` and `NumberProvider`. A new name goes into this list only
+after a review.
 
 The output of the game is evidence and is allowed. A parity test compares our output with an
 artefact the game produced.
@@ -59,7 +73,8 @@ artefact the game produced.
 Each rule carries a provenance label (`docs/spec/registry.md`, section 0.3). A rule with the
 label `source_suggested` is allowed: the author read the reference implementation, and the
 rule states only behaviour. An experiment that the game confirms changes the label to a
-confirmed one.
+confirmed one. A specification with a `source_suggested` rule is not ready, and an implementer does not
+start on it.
 
 ## Exception: world generation
 

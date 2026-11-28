@@ -1,8 +1,3 @@
-//! All of Minecraft's network packets.
-//!
-//! Packets are grouped in submodules according to the protocol stage they're
-//! used in.
-
 pub mod common;
 pub mod configuration;
 pub mod cookie;

@@ -1,0 +1,11 @@
+#!/bin/sh
+i=0
+while [ $i -lt 300 ]; do
+    echo "line $i"
+    i=$((i + 1))
+done
+echo "ERROR something broke on port $MCRS_PORT"
+echo "INFO entering Playing state"
+while read -r line; do
+    echo "INFO mcrs_console: $line"
+done

@@ -1,10 +1,8 @@
 use glam::{IVec3, Vec3};
 use mcrs_minecraft_core::{Axis, Direction};
 
-/// What the light of a face reads of the block state in a cell.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct LightState {
-    /// `0.2` darkens the corners of the faces beside the state, `1.0` leaves them lit.
     pub occlusion_shade: f32,
     pub solid_render: bool,
     pub light_dampening: u8,
@@ -23,13 +21,11 @@ impl LightState {
         emissive: false,
     };
 
-    /// Whether a cell of this state lets light reach the edge of a face beside it.
     #[must_use]
     pub fn is_open(&self) -> bool {
         !self.solid_render || self.light_dampening == 0
     }
 
-    /// The light of a cell whose own light is `light`, read for a face of this state.
     #[must_use]
     pub fn light_under(&self, light: CellLight) -> CellLight {
         if self.emissive {
@@ -49,7 +45,6 @@ impl Default for LightState {
     }
 }
 
-/// The block light level and the sky light level of a cell, `0` to `15` each.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct CellLight {
     pub block: u8,
@@ -59,8 +54,6 @@ pub struct CellLight {
 impl CellLight {
     pub const FULL: CellLight = CellLight { block: 15, sky: 15 };
 
-    /// A light volume's form of a cell's light: block light in the high nibble, sky light in
-    /// the low.
     #[must_use]
     pub const fn from_packed(packed: u8) -> Self {
         CellLight {
@@ -76,8 +69,6 @@ impl From<u8> for CellLight {
     }
 }
 
-/// The block light value and the sky light value of a vertex, in sixteenths of a level, `0` to
-/// `240` each.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct VertexLight {
     pub block: u8,
@@ -93,7 +84,6 @@ impl VertexLight {
         }
     }
 
-    /// Raises both kinds to at least the light emission of the quad's element, in whole levels.
     #[must_use]
     pub fn with_emission(self, emission: u8) -> Self {
         if emission == 0 {
@@ -107,21 +97,18 @@ impl VertexLight {
     }
 }
 
-/// What a face reads of one cell: the block state there and the cell's own light.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Sample {
     pub state: LightState,
     pub light: CellLight,
 }
 
-/// The occlusion and the light of the four vertices of a quad, in vertex order.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct VertexValues {
     pub occlusion: [f32; 4],
     pub light: [VertexLight; 4],
 }
 
-/// The client option that turns smooth light on.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SmoothLight {
     #[default]
@@ -129,7 +116,6 @@ pub enum SmoothLight {
     Off,
 }
 
-/// How the faces of one block state get their occlusion and light.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum LightPath {
     Smooth,
@@ -137,8 +123,6 @@ pub enum LightPath {
 }
 
 impl LightPath {
-    /// `ambient_occlusion` is the flag of the state's block model, of its first part when it has
-    /// more than one.
     #[must_use]
     pub fn choose(option: SmoothLight, own: &LightState, ambient_occlusion: bool) -> Self {
         if option == SmoothLight::On && own.emission == 0 && ambient_occlusion {
@@ -149,8 +133,6 @@ impl LightPath {
     }
 }
 
-/// The values of the vertices of a quad of the block in the cell at offset zero. `sample`
-/// reads the cell at an offset from it, never further than two on any axis.
 #[must_use]
 pub fn light_quad(
     path: LightPath,
@@ -165,7 +147,6 @@ pub fn light_quad(
     }
 }
 
-/// The values of a quad on the flat path: no occlusion, and the light of one cell.
 #[must_use]
 pub fn flat(
     positions: &[Vec3; 4],
@@ -188,7 +169,6 @@ pub fn flat(
     }
 }
 
-/// The values of a quad on the smooth path: each corner blends the cells around it.
 #[must_use]
 pub fn smooth(
     positions: &[Vec3; 4],
@@ -261,15 +241,12 @@ pub fn smooth(
     }
 }
 
-/// The shade byte of a vertex: its occlusion as a byte, times the face shade of the quad.
 #[must_use]
 pub fn shade_byte(occlusion: f32, face_shade: f32) -> u8 {
     let occlusion_byte = (occlusion * 255.0).floor();
     (occlusion_byte * face_shade).clamp(0.0, 255.0) as u8
 }
 
-/// The vertex positions of the face of the box `min`..`max` that looks along `direction`, in
-/// the vertex order that the light of a quad reads.
 #[must_use]
 pub fn corners(direction: Direction, min: Vec3, max: Vec3) -> [Vec3; 4] {
     let at = |side: Direction, point: Vec3| {
@@ -309,7 +286,6 @@ impl Corner {
         vertex == [first, second] || vertex == [second, first]
     }
 
-    /// The side of this corner on the axis of `side`.
     fn side_along(&self, side: Direction) -> Direction {
         let [first, second] = self.sides;
         if first.axis() == side.axis() {
@@ -352,7 +328,6 @@ fn corner_values(a: Lit, b: Lit, diagonal: Lit, centre: Lit) -> CornerValues {
     }
 }
 
-/// The corner values at `point`, a bilinear blend of the four corners in their order.
 fn interpolate(corners: &[Corner; 4], point: [f32; 2], vertex: [Direction; 2]) -> CornerValues {
     let [first, second] = vertex;
     let factor = |side: Direction, at: f32| if side.is_positive() { at } else { 1.0 - at };
@@ -388,7 +363,6 @@ const DOWN_NORTH: [Direction; 2] = [Direction::Down, Direction::North];
 const DOWN_SOUTH: [Direction; 2] = [Direction::Down, Direction::South];
 const UP_SOUTH: [Direction; 2] = [Direction::Up, Direction::South];
 
-/// The corner of each vertex index of a quad: its side on each of the two in-plane axes.
 const fn vertex_sides(direction: Direction) -> [[Direction; 2]; 4] {
     match direction {
         Direction::Down => [WEST_SOUTH, WEST_NORTH, EAST_NORTH, EAST_SOUTH],
@@ -400,7 +374,6 @@ const fn vertex_sides(direction: Direction) -> [[Direction; 2]; 4] {
     }
 }
 
-/// The four edge directions of a face. The first two are opposite, and so are the last two.
 const fn edge_directions(direction: Direction) -> [Direction; 4] {
     use Direction::*;
     match direction {
@@ -465,7 +438,6 @@ impl Bounds {
         })
     }
 
-    /// The point of a vertex on the two in-plane axes, in the order of its sides.
     fn point(&self, vertex: [Direction; 2]) -> [f32; 2] {
         vertex.map(|side| {
             let value = if side.is_positive() {

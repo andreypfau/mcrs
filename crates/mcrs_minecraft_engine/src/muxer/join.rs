@@ -6,8 +6,6 @@ use crate::channel_types::ToDim;
 use crate::muxer::dim_inputs::DimInputs;
 use crate::to_muxer::JoinPlaced;
 
-/// Sends the spawn of each player that the coordinator placed into its dimension's next tick,
-/// and marks its session as joining that dimension.
 pub fn admit_placed_players(
     mut placed: MessageReader<JoinPlaced>,
     anchors: Res<SessionAnchors>,

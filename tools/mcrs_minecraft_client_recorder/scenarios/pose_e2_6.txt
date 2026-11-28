@@ -1,0 +1,31 @@
+# Sleep in a bed at night, then leave it with the leave button; sleep again, and the console
+# breaks the bed. Experiment E2, step 6, of docs/spec/player-pose.md: POSE-SRV-006, POSE-CLI-002.
+experiment pose_e2_6
+arena -16 96 -16 48 110 16
+
+step leave_button
+instruction After Go, right-click the bed in front; after 2 seconds, press the leave button.
+input 61 use -90 30
+input 62 none
+input 101 leave_bed
+input 102 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run setblock 3 100 0 minecraft:red_bed[facing=east,part=head]
+run setblock 2 100 0 minecraft:red_bed[facing=east,part=foot]
+run time set 13000
+start 0.5 100 0.5 -90 0
+ticks 140
+
+step break_bed
+instruction After Go, right-click the bed in front; the console breaks the bed after 2 seconds.
+input 61 use -90 30
+input 62 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run setblock 3 100 0 minecraft:red_bed[facing=east,part=head]
+run setblock 2 100 0 minecraft:red_bed[facing=east,part=foot]
+run time set 13000
+start 0.5 100 0.5 -90 0
+at 100 fill 2 100 0 3 100 0 minecraft:air
+ticks 140

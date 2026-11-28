@@ -16,7 +16,6 @@ pub struct AboveRootPlacement {
     pub chance: f32,
 }
 
-/// One `mangrove_root_placer` with every name it carries already resolved.
 #[derive(Clone, Debug)]
 pub struct MangroveRoots {
     pub trunk_offset_y: IntProvider,
@@ -37,13 +36,10 @@ struct RootRay {
 }
 
 impl MangroveRoots {
-    /// `RootPlacer.getTrunkOrigin`, drawn where the reference draws it: after
-    /// the crown's radius and before the height bounds are checked.
     pub fn trunk_origin(&self, rng: &mut WorldgenRandom, origin: BlockPos) -> BlockPos {
         origin + IVec3::Y * self.trunk_offset_y.sample(rng)
     }
 
-    /// The roots as written, or `None` when the tree must refuse to place.
     pub fn place_roots<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
@@ -112,8 +108,6 @@ impl MangroveRoots {
         true
     }
 
-    /// The one place a root draws while it is still being simulated: a skew
-    /// roll, and past it a coin that decides between going out and going down.
     fn potential_root_positions(
         &self,
         rng: &mut WorldgenRandom,
@@ -166,8 +160,6 @@ impl MangroveRoots {
         }
     }
 
-    /// `getPotentiallyWaterloggedState` and the write in one: a state with no
-    /// `waterlogged` property comes back unchanged.
     fn set<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
@@ -227,8 +219,6 @@ mod tests {
         }
     }
 
-    /// Mud at y = 64 and below, air above, so a branch walking downward or
-    /// outward is stopped by stone under the mud.
     fn volume() -> FakeVolume {
         let mut volume = FakeVolume {
             world: WorldStates {
@@ -252,8 +242,6 @@ mod tests {
 
     const ORIGIN: BlockPos = BlockPos::new(0, 65, 0);
 
-    /// The trunk sits one above the origin, the roots run down and outward from
-    /// it, and every root that landed in mud came out as the muddy state.
     #[test]
     fn the_roots_reach_the_mud_and_are_written_in_simulation_order() {
         let mut volume = volume();
@@ -298,8 +286,6 @@ mod tests {
         );
     }
 
-    /// A blocked column between origin and trunk refuses the whole tree, and
-    /// nothing is written on the way out.
     #[test]
     fn a_blocked_column_refuses_and_writes_nothing() {
         let mut volume = volume();

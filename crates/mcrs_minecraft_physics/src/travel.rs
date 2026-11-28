@@ -19,34 +19,25 @@ use crate::block_scan::state_at;
 use crate::move_body;
 use crate::move_body::friction_below;
 
-/// The largest horizontal speed and the fastest descent on a climbable block: `0.15F`.
 const CLIMB_SPEED: f32 = 0.15;
 
-/// The vertical velocity of a climb after a horizontal collision or a jump.
 const CLIMB_UP: f64 = 0.2;
 
-/// What the travel step of a living entity reads besides its body.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct TravelInput<'a> {
-    /// The mover, with its gravity before the effect `slow_falling`.
     pub(crate) mover: &'a Mover,
     pub(crate) attributes: &'a MotionAttributes,
     pub(crate) effects: &'a MotionEffects,
     pub(crate) input: MoveInput,
-    /// The speed on the ground before the friction factor.
     pub(crate) speed: f32,
-    /// The speed off the ground.
     pub(crate) air_speed: f32,
     pub(crate) yaw: f32,
     pub(crate) jump: bool,
-    /// The type uses the horizontal air drag on the vertical axis too.
     pub(crate) omnidirectional: bool,
-    /// The entity climbs in this tick as it did inside powder snow in the previous tick.
     pub(crate) climbs_powder_snow: bool,
     pub(crate) player: bool,
 }
 
-/// The travel step of a living entity on land and in air. Returns the move.
 pub(crate) fn travel<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     input: &TravelInput<'_>,
@@ -112,8 +103,6 @@ pub(crate) fn travel<W: CollisionWorld, B: BodyView>(
     outcome
 }
 
-/// The gravity after the effect `slow_falling`, which caps it at 0.01 while `vertical` is not
-/// above zero.
 pub(crate) fn effective_gravity(gravity: f64, slow_falling: bool, vertical: f64) -> f64 {
     if slow_falling && vertical <= 0.0 {
         gravity.min(0.01)
@@ -122,7 +111,6 @@ pub(crate) fn effective_gravity(gravity: f64, slow_falling: bool, vertical: f64)
     }
 }
 
-/// The friction of the block under the body with the friction modifier, or 1 off the ground.
 pub(crate) fn ground_friction<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     body: &Body,
@@ -138,12 +126,10 @@ pub(crate) fn ground_friction<W: CollisionWorld, B: BodyView>(
     }
 }
 
-/// `mod(f, k) = clamp(1 - (1 - f) × k, 0, 1)`, in f32.
 pub(crate) fn modifier(factor: f32, modifier: f32) -> f32 {
     (1.0 - (1.0 - factor) * modifier).clamp(0.0, 1.0)
 }
 
-/// Adds the input vector, scaled by `speed` and rotated by the yaw, to the velocity.
 pub(crate) fn accelerate(body: &mut Body, input: MoveInput, speed: f32, yaw: f32) {
     let mut vector = DVec3::new(
         f64::from(input.sideways),
@@ -173,7 +159,6 @@ pub(crate) fn accelerate(body: &mut Body, input: MoveInput, speed: f32, yaw: f32
     );
 }
 
-/// The climbable block at the position of the entity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Climb {
     Scaffolding,

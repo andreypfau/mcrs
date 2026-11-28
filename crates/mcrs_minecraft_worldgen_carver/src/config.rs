@@ -1,6 +1,3 @@
-//! `worldgen/carver/*.json` in full: the configuration surface the shared
-//! carver engine has to express.
-
 use mcrs_minecraft_registries::dispatch;
 use serde::{Deserialize, Serialize};
 
@@ -39,8 +36,6 @@ pub enum CarverConfig {
         vertical_rotation: FloatProvider,
         shape: CanyonShape,
     },
-    /// Beta's `MapGenCaves`. Nothing about it is configurable: its draws, its
-    /// seed and its abort on water are the carver.
     #[dispatch(id = "mcrs:beta_cave")]
     BetaCave,
 }
@@ -62,9 +57,6 @@ pub struct CanyonShape {
 }
 
 impl CarverConfig {
-    /// Whether this carver seeds a cave in the source chunk at all. The draw
-    /// happens once per source, before any of the per-cave draws; a carver with
-    /// no probability takes no such draw.
     pub fn probability(&self) -> Option<f32> {
         match *self {
             CarverConfig::Cave { probability, .. } | CarverConfig::Canyon { probability, .. } => {

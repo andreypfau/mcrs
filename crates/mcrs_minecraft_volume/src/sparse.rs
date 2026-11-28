@@ -13,7 +13,6 @@ use crate::bounds::SectionBox;
 use crate::paletted::{Container, PalettedSection, PalettedSectionMut};
 use crate::visit::{Missing, SectionVolume, VisitOptions, VisitOrder, walk};
 
-/// Sections keyed so that ascending order is `y`, then `z`, then `x`.
 type Key = (i32, i32, i32);
 
 const fn key(at: SectionPos) -> Key {
@@ -24,10 +23,6 @@ fn position((y, z, x): Key) -> SectionPos {
     SectionPos::new(x, y, z)
 }
 
-/// Paletted sections where they are present and nothing elsewhere: a test world, a
-/// structure template, sections read from a save. An absent section inside the bounds is
-/// [`Access::Unloaded`]; a present one is writable. Only a section wholly inside the
-/// bounds can be present, so the cells of a section the bounds cut stay unloaded.
 #[derive(Clone, Debug)]
 pub struct SparseVolume {
     bounds: BoundingBox,
@@ -49,8 +44,6 @@ impl SparseVolume {
         })
     }
 
-    /// Makes the section present with every cell `state`, replacing what it held. Refused,
-    /// answering `false`, for a section not wholly inside the bounds.
     pub fn insert(&mut self, at: SectionPos, state: BlockStateId) -> bool {
         if !section_inside(self.bounds, at) {
             return false;
@@ -60,7 +53,6 @@ impl SparseVolume {
         true
     }
 
-    /// Answers whether the section was present.
     pub fn remove(&mut self, at: SectionPos) -> bool {
         self.sections.remove(&key(at)).is_some()
     }

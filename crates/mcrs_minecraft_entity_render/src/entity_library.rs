@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Range;
 
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
@@ -14,26 +15,18 @@ use crate::impostor_frame::{ImpostorFrames, entity_point};
 use crate::pose_program::{PoseProgram, PoseProgramError};
 use crate::records::{HIDEABLE_ENTRIES, MAX_LAYERS};
 
-/// The palette index of a bone that no animation writes and no render controller hides.
 pub const NO_PALETTE: u16 = u16::MAX;
-/// The most definitions and texture arrays that the passes hold.
 pub const MAX_DEFINITIONS: usize = 16;
 pub const MAX_ARRAYS: usize = 8;
 
-/// One client entity definition as the loader gives it.
 #[derive(Clone, Copy, Debug)]
 pub struct DefinitionSource<'a> {
     pub rig: &'a Rig,
-    /// The geometries in the order of the geometry map of the client entity; `None` for a
-    /// short name with no baked geometry.
     pub geometries: &'a [Option<BakedGeometry>],
-    /// The render controllers whose `part_visibility` patterns can hide bones.
     pub controllers: &'a RenderControllers,
-    /// The flip angle of the death tilt, in degrees.
     pub death_flip: f32,
 }
 
-/// An entity texture: the identifier `ns:path` and its RGBA pixels.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextureImage {
     pub identifier: String,
@@ -42,51 +35,36 @@ pub struct TextureImage {
     pub rgba: Vec<u8>,
 }
 
-/// The 16-byte record of one texture in the `variants` buffer.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 pub struct VariantRecord {
-    /// The layer in the low half and the texture array in the high half.
     pub array_layer: u32,
     pub uv_scale: [f32; 2],
-    /// The byte of the cutout mask of the first cuboid slot.
     pub cutout_first: u32,
 }
 
-/// The layers of one `texture_2d_array`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextureArray {
     pub side: u32,
-    /// RGBA pixels of each layer, `side` by `side`.
     pub layers: Vec<Vec<u8>>,
 }
 
-/// The static tables of one definition.
 #[derive(Clone, Debug)]
 pub struct DefinitionTables {
     pub identifier: String,
-    /// The global index of the model of the geometry short name 0.
     pub first_model: u32,
-    /// For each geometry short name, its global model, or `None` when it has no geometry.
     pub models: Vec<Option<u16>>,
     pub palette: Vec<String>,
-    /// For each layer of the render controllers, the palette entries below
-    /// [`HIDEABLE_ENTRIES`] that each `part_visibility` pattern matches, as a hidden mask.
     pub part_masks: Vec<Vec<u16>>,
-    /// The lanes of one mob in the expand pass: the cuboids of its largest layers.
     pub expand_lanes: u32,
-    /// The bones of one mob with its largest layers.
     pub max_bones: u32,
     pub death_flip: f32,
     pub program: Result<PoseProgram, PoseProgramError>,
-    /// The height of the entity box at the scale 1, in blocks.
     pub box_height: f32,
-    /// The size of a baby relative to the adult.
     pub baby_scale: f32,
 }
 
 impl DefinitionTables {
-    /// The palette entry of a bone name, without regard to letter case.
     #[must_use]
     pub fn palette_entry(&self, name: &str) -> Option<usize> {
         self.palette
@@ -94,8 +72,6 @@ impl DefinitionTables {
             .position(|entry| entry.eq_ignore_ascii_case(name))
     }
 
-    /// The hidden mask of the state record for the bones that the patterns of `choice` hide.
-    /// A later pattern overrides an earlier one for the bones that both match.
     #[must_use]
     pub fn hidden_mask(&self, choice: &LayerChoice) -> u16 {
         let Some(masks) = self.part_masks.get(choice.entry) else {
@@ -113,31 +89,23 @@ impl DefinitionTables {
     }
 }
 
-/// The static data of the entity passes: the model tables of each definition, the pose
-/// programs and the textures.
 #[derive(Clone, Debug, Default)]
 pub struct EntityLibrary {
     pub definitions: Vec<DefinitionTables>,
     pub models: Vec<ModelRecord>,
     pub bones: Vec<BoneRecord>,
-    /// The 32-byte cuboid slots of all models.
     pub cuboids: Vec<u8>,
     pub variants: Vec<VariantRecord>,
     pub cutout: Vec<u8>,
-    /// The transform of each bone of `bones` at rest, as three rows, in model units.
     pub rest_bones: Vec<[[f32; 4]; 3]>,
-    /// The views of the impostor images of each model of `models`. The models of one
-    /// definition share the depth radius, so the images of its layers compare their depths.
     pub impostor_frames: Vec<ImpostorFrames>,
     pub arrays: Vec<TextureArray>,
-    /// The variant of each texture identifier.
     pub textures: HashMap<String, u16>,
-    /// The diagnostics of the build.
+    pub skin_variants: Range<u16>,
     pub diagnostics: Vec<String>,
 }
 
 impl EntityLibrary {
-    /// Builds the tables. `layer_limit` is the most layers of one texture array.
     #[must_use]
     pub fn build(
         sources: &[DefinitionSource<'_>],
@@ -364,8 +332,6 @@ impl EntityLibrary {
     }
 }
 
-/// The box height and the baby scale of the entity type `identifier`. A type with no box takes
-/// the height of the rest pose of its models.
 fn box_size(identifier: &str, rest_points: &[Vec3]) -> (f32, f32) {
     let traits = EntityType::read(identifier).and_then(EntityTypeData::of);
     let (low, high) = rest_points
@@ -384,8 +350,6 @@ fn box_size(identifier: &str, rest_points: &[Vec3]) -> (f32, f32) {
     )
 }
 
-/// The corners of the faces of `geometry` at rest, in entity space at the body yaw 0.
-/// The file rotation of each palette bone in the first geometry that has it.
 fn rest_rotations(geometries: &[Option<BakedGeometry>], palette: &[String]) -> Vec<Vec3> {
     palette
         .iter()
@@ -416,8 +380,10 @@ fn rest_corners(geometry: &BakedGeometry) -> impl Iterator<Item = Vec3> + '_ {
     })
 }
 
-/// The image in the top left corner of a transparent square of `side`.
 fn pad(image: &TextureImage, side: u32) -> Vec<u8> {
+    if image.rgba.is_empty() {
+        return Vec::new();
+    }
     let side = side as usize;
     let row = image.width as usize * 4;
     let mut out = vec![0; side * side * 4];
@@ -432,7 +398,6 @@ fn pad(image: &TextureImage, side: u32) -> Vec<u8> {
     out
 }
 
-/// The faces of `cube` with a texel of `image` under the cutout limit, as a face mask.
 fn cutout_faces(image: &TextureImage, cube: &BakedCube) -> u8 {
     cube.faces
         .iter()
@@ -440,7 +405,6 @@ fn cutout_faces(image: &TextureImage, cube: &BakedCube) -> u8 {
         .fold(0, |mask, face| mask | face.face.mask_bit())
 }
 
-/// Whether a texel under the face rectangle `uvs` has an alpha under the cutout limit.
 fn has_cutout(image: &TextureImage, uvs: [glam::Vec2; 4]) -> bool {
     let (width, height) = (image.width as f32, image.height as f32);
     let min = uvs.iter().fold(glam::Vec2::INFINITY, |a, b| a.min(*b));
@@ -472,8 +436,6 @@ fn part_patterns(controllers: &RenderControllers) -> impl Iterator<Item = &str> 
         .map(|(pattern, _)| pattern.as_str())
 }
 
-/// The hidden mask of the palette entries that each `part_visibility` pattern of each layer
-/// matches.
 fn part_masks(controllers: &RenderControllers, palette: &[String]) -> Vec<Vec<u16>> {
     let pattern_mask = |pattern: &str| {
         let mut mask = 0u16;

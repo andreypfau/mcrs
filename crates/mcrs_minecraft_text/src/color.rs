@@ -1,5 +1,4 @@
-//! [`Color`] and related data structures.
-
+use std::cmp::Ordering;
 use std::fmt;
 use std::hash::Hash;
 
@@ -7,64 +6,39 @@ use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
-/// Text color
-#[derive(Debug, PartialOrd, Eq, Ord, Clone, Copy)]
+#[derive(Debug, Eq, Clone, Copy)]
 pub enum Color {
-    /// RGB Color
     Rgb(RgbColor),
-    /// One of the 16 named Minecraft colors
     Named(NamedColor),
 }
 
-/// RGB Color
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct RgbColor {
-    /// Red channel
     pub r: u8,
-    /// Green channel
     pub g: u8,
-    /// Blue channel
     pub b: u8,
 }
 
-/// Named Minecraft color
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum NamedColor {
-    /// Hex digit: `0`, name: `black`
     Black = 0,
-    /// Hex digit: `1`, name: `dark_blue`
     DarkBlue,
-    /// Hex digit: `2`, name: `dark_green`
     DarkGreen,
-    /// Hex digit: `3`, name: `dark_aqua`
     DarkAqua,
-    /// Hex digit: `4`, name: `dark_red`
     DarkRed,
-    /// Hex digit: `5`, name: `dark_purple`
     DarkPurple,
-    /// Hex digit: `6`, name: `gold`
     Gold,
-    /// Hex digit: `7`, name: `gray`
     Gray,
-    /// Hex digit: `8`, name: `dark_gray`
     DarkGray,
-    /// Hex digit: `9`, name: `blue`
     Blue,
-    /// Hex digit: `a`, name: `green`
     Green,
-    /// Hex digit: `b`, name: `aqua`
     Aqua,
-    /// Hex digit: `c`, name: `red`
     Red,
-    /// Hex digit: `d`, name: `light_purple`
     LightPurple,
-    /// Hex digit: `e`, name: `yellow`
     Yellow,
-    /// Hex digit: `f`, name: `white`
     White,
 }
 
-/// Color parsing error
 #[derive(Debug, Error, PartialEq, PartialOrd, Clone, Copy, Hash, Eq, Ord)]
 #[error("invalid color name or hex code")]
 pub struct ColorError;
@@ -87,20 +61,16 @@ impl Color {
     pub const WHITE: Self = Self::Named(NamedColor::White);
     pub const YELLOW: Self = Self::Named(NamedColor::Yellow);
 
-    /// Constructs a new RGB color
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
         Self::Rgb(RgbColor::new(r, g, b))
     }
 }
 
 impl RgbColor {
-    /// Constructs a new color from red, green, and blue components.
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
-    /// Converts the RGB color to the closest [`NamedColor`] equivalent (lossy).
     pub fn to_named_lossy(self) -> NamedColor {
-        // calculates the squared distance between 2 colors
         fn squared_distance(c1: RgbColor, c2: RgbColor) -> i32 {
             (c1.r as i32 - c2.r as i32).pow(2)
                 + (c1.g as i32 - c2.g as i32).pow(2)
@@ -139,11 +109,30 @@ impl RgbColor {
 }
 
 impl NamedColor {
-    /// Returns the corresponding hex digit of the color.
+    pub const fn from_hex_digit(digit: char) -> Option<Self> {
+        Some(match digit.to_ascii_lowercase() {
+            '0' => Self::Black,
+            '1' => Self::DarkBlue,
+            '2' => Self::DarkGreen,
+            '3' => Self::DarkAqua,
+            '4' => Self::DarkRed,
+            '5' => Self::DarkPurple,
+            '6' => Self::Gold,
+            '7' => Self::Gray,
+            '8' => Self::DarkGray,
+            '9' => Self::Blue,
+            'a' => Self::Green,
+            'b' => Self::Aqua,
+            'c' => Self::Red,
+            'd' => Self::LightPurple,
+            'e' => Self::Yellow,
+            'f' => Self::White,
+            _ => return None,
+        })
+    }
     pub const fn hex_digit(self) -> char {
         self.code().0
     }
-    /// Returns the identifier of the color.
     pub const fn name(self) -> &'static str {
         self.code().1
     }
@@ -179,6 +168,22 @@ impl PartialEq for Color {
                 rgb == RgbColor::from(normal)
             }
         }
+    }
+}
+
+impl PartialOrd for Color {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Color {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let rgb = |color: &Self| match color {
+            Self::Rgb(rgb) => *rgb,
+            Self::Named(named) => RgbColor::from(*named),
+        };
+        rgb(self).cmp(&rgb(other))
     }
 }
 
@@ -264,8 +269,6 @@ impl TryFrom<&str> for NamedColor {
     }
 }
 
-/// `TextColor.parseColor`: `#` followed by whatever `Integer.parseInt(s, 16)`
-/// takes, in `0..=0xFFFFFF`.
 impl TryFrom<&str> for RgbColor {
     type Error = ColorError;
 
@@ -339,6 +342,21 @@ impl fmt::Display for NamedColor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn equal_named_and_rgb_colors_share_an_ordered_set_entry() {
+        use std::collections::BTreeSet;
+
+        for named in [NamedColor::Black, NamedColor::Red, NamedColor::White] {
+            let rgb = Color::Rgb(named.into());
+            let named = Color::Named(named);
+            assert_eq!(named, rgb);
+            assert_eq!(named.cmp(&rgb), std::cmp::Ordering::Equal);
+            assert_eq!(named.partial_cmp(&rgb), Some(std::cmp::Ordering::Equal));
+            let colors = BTreeSet::from([named, rgb]);
+            assert_eq!(colors.len(), 1);
+        }
+    }
 
     #[test]
     fn colors() {

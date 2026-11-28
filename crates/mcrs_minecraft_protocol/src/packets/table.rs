@@ -39,13 +39,10 @@ pub enum Decoded<P> {
     Unknown(i32),
 }
 
-/// A typed row of a table. The row is named by its packet type at the `'static` lifetime, so it
-/// can be the parameter of an event, and decodes to the type at the lifetime of a frame.
 pub trait Row: 'static {
     type Packet<'a>: Packet + Decode<'a>;
 }
 
-/// Receives the type of the row that a frame decodes as.
 pub trait Visit {
     type Output;
 
@@ -72,7 +69,7 @@ macro_rules! for_each_packet_table {
                 "key" => ClientboundHello<'a>,
                 "login_finished" => ClientboundLoginFinished<'a>,
                 "setup_compression" => LoginCompression,
-                "custom_query",
+                "custom_query" => CustomQuery<'a>,
                 "cookie_request",
                 "apply_options",
             }
@@ -434,8 +431,6 @@ macro_rules! tables {
                     })
                 }
 
-                /// Decodes the frame as [`decode`] does, and hands the type of its row to the
-                /// visitor in place of the packet.
                 pub fn visit<V: $crate::packets::table::Visit>(
                     id: i32,
                     r: &mut &[u8],
@@ -485,8 +480,6 @@ macro_rules! __impl_table_row {
     };
 }
 
-/// Types more rows of a table of this crate in another crate. The table keeps its names, and
-/// the rows this crate types decode as they do here.
 #[macro_export]
 macro_rules! extend_packet_table {
     ($($table:ident: $enum:ident<'a> extends $($base:ident)::+ in ($($module:tt)*) {
@@ -578,8 +571,6 @@ macro_rules! extend_packet_table {
                     })
                 }
 
-                /// Decodes the frame as [`decode`] does, and hands the type of its row to the
-                /// visitor in place of the packet.
                 pub fn visit<V: $crate::packets::table::Visit>(
                     id: i32,
                     r: &mut &[u8],

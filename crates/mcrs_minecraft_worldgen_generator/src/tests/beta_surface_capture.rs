@@ -16,8 +16,6 @@ use crate::ColumnBlocks;
 use crate::task::CancellationToken;
 use crate::{apply_beta_surface, generate_column};
 
-// ── Corpus deserialization ────────────────────────────────────────────────────
-
 #[derive(serde::Deserialize)]
 pub(super) struct BetaSurfaceCorpus {
     pub(super) columns: Vec<ColumnFixture>,
@@ -51,22 +49,6 @@ pub(super) fn load_corpus() -> BetaSurfaceCorpus {
         .expect("valid corpus JSON")
 }
 
-// ── Block ID reverse map ──────────────────────────────────────────────────────
-
-/// Map a modern BlockStateId produced by the Beta surface pass → Beta 1.7.3 block ID.
-///
-/// This is the inverse of the forward mapping that the surface pass uses.  Modern IDs
-/// are resolved from the block consts' `default_state_id` so that no magic numbers
-/// appear here — if a block registration changes, this map changes with it.
-///
-/// Water and lava: the surface pass places the "source" (level 0) state.  back2beta
-/// stores stationary-water (ID 9) and stationary-lava (ID 10) for those positions,
-/// which functionally represent the same thing.  Both water (8) and stationary-water
-/// (9) decode to the same Beta ID here; same for lava.
-///
-/// Any state not in the surface pass's output (e.g. stone from the density pass, air
-/// from above the surface) passes through with a fallback:
-///   stone (ID 1) → 1, air (ID 0) → 0.
 fn beta_id_for(modern: BlockStateId) -> u8 {
     let air = super::corpus().default_state("minecraft:air").unwrap();
     let stone = super::corpus().default_state("minecraft:stone").unwrap();
@@ -81,9 +63,7 @@ fn beta_id_for(modern: BlockStateId) -> u8 {
         .unwrap();
     let gravel = super::corpus().default_state("minecraft:gravel").unwrap();
 
-    // Water: default_state_id = level 0 (base_state_id 86).
     let water_source = super::corpus().default_state("minecraft:water").unwrap();
-    // Lava: default_state_id = level 0 (base_state_id 102).
     let lava_source = super::corpus().default_state("minecraft:lava").unwrap();
 
     if modern == air {
@@ -101,11 +81,9 @@ fn beta_id_for(modern: BlockStateId) -> u8 {
     if modern == bedrock {
         return 7;
     }
-    // back2beta stores stationary-water (9) at sea-level fill positions.
     if modern == water_source {
         return 9;
     }
-    // back2beta stores stationary-lava (10); registered for future cave gate.
     if modern == lava_source {
         return 10;
     }
@@ -123,22 +101,9 @@ fn beta_id_for(modern: BlockStateId) -> u8 {
         return 79;
     }
 
-    // Unknown state: treat as air for comparison purposes.
     0
 }
 
-// ── Biome ID mapping ──────────────────────────────────────────────────────────
-
-/// Map our `BetaLandBiome` variant to the back2beta integer biome ID.
-///
-/// back2beta's BiomeBase assigns integer IDs in the following order (from
-/// BiomeBase.java static initialisers and getBiome()):
-///   0=Rainforest, 1=Swampland, 2=Seasonal Forest, 3=Forest, 4=Savanna,
-///   5=Shrubland, 6=Taiga, 7=Desert, 8=Plains, 9=Ice Desert, 10=Tundra.
-///
-/// Our BetaLandBiome discriminants follow a different order (inherited from the
-/// the biome-source design).  This function bridges the two numbering schemes
-/// so that biome-parity failures are correctly attributed.
 fn beta_land_biome_to_back2beta_id(b: BetaLandBiome) -> u8 {
     match b {
         BetaLandBiome::Rainforest => 0,
@@ -155,20 +120,8 @@ fn beta_land_biome_to_back2beta_id(b: BetaLandBiome) -> u8 {
     }
 }
 
-// ── Match semantics ───────────────────────────────────────────────────────────
-
-/// Half-width of the surface zone band checked per column.
-///
-/// The dominant f32 divergence between our surface pass and the back2beta reference
-/// concentrates at the density zero-crossing — the boundary where the terrain flips
-/// from solid to air.  A ±8-block band around the per-column surface Y (topmost
-/// non-air block after the surface pass) ensures the zero-crossing and the
-/// immediately surrounding surface blocks (top block + filler depth + 1–2 margin)
-/// are all within scope.  Widening beyond ±8 would include deep stone that back2beta
-/// doesn't change, adding noise without signal.
 const SURFACE_BAND_HALF: i32 = 8;
 
-/// Result of comparing one column's generated output against a fixture.
 #[derive(Debug)]
 enum ColumnMatchResult {
     Match,
@@ -179,9 +132,7 @@ enum ColumnMatchResult {
 struct ColumnMismatch {
     wx: i32,
     wz: i32,
-    /// (world_y, generated_beta_id, fixture_beta_id, band)
     block_mismatches: Vec<(i32, u8, u8, MismatchBand)>,
-    /// (generated_back2beta_id, fixture_biome_id)
     biome_mismatch: Option<(u8, u8)>,
 }
 
@@ -200,10 +151,6 @@ impl std::fmt::Display for MismatchBand {
     }
 }
 
-/// Check one column: surface band, bedrock band, and biome ID.
-///
-/// `generated_col` is a flat 128-element slice where index Y is the BlockStateId
-/// at world height Y (same layout as the fixture's pre_cave array).
 fn column_matches(
     generated_col: &[BlockStateId; 128],
     fixture: &ColumnFixture,
@@ -212,7 +159,6 @@ fn column_matches(
 ) -> ColumnMatchResult {
     let pre_cave = &fixture.pre_cave;
 
-    // Find the topmost non-air Y in the generated column (surface height).
     let surface_y: i32 = (0..128i32)
         .rev()
         .find(|&y| {
@@ -223,14 +169,11 @@ fn column_matches(
     let surface_lo = (surface_y - SURFACE_BAND_HALF).max(0);
     let surface_hi = (surface_y + SURFACE_BAND_HALF).min(127);
 
-    // Also include sea-level fill zone (Y 60..=64) so that stationary-water
-    // placed by the surface pass at the waterline is within scope.
     let sea_lo = 60i32;
     let sea_hi = 64i32;
 
     let mut block_mismatches: Vec<(i32, u8, u8, MismatchBand)> = Vec::new();
 
-    // Surface band
     for y in surface_lo..=surface_hi {
         let gen_id = beta_id_for(generated_col[y as usize]);
         let fix_id = pre_cave[y as usize];
@@ -239,22 +182,19 @@ fn column_matches(
         }
     }
 
-    // Sea-level fill zone (only if it doesn't fully overlap the surface band)
     if sea_lo < surface_lo || sea_hi > surface_hi {
         for y in sea_lo..=sea_hi {
             if y >= surface_lo && y <= surface_hi {
-                continue; // already checked in surface band
+                continue;
             }
             let gen_id = beta_id_for(generated_col[y as usize]);
             let fix_id = pre_cave[y as usize];
-            // Only flag if the fixture says sea-fill and we differ, or vice versa.
             if gen_id != fix_id {
                 block_mismatches.push((y, gen_id, fix_id, MismatchBand::Surface));
             }
         }
     }
 
-    // Bedrock band Y 0-4: per-chunk RNG replication
     for y in 0i32..=4 {
         let gen_id = beta_id_for(generated_col[y as usize]);
         let fix_id = pre_cave[y as usize];
@@ -263,8 +203,6 @@ fn column_matches(
         }
     }
 
-    // Biome check: sample climate at the geographic position and resolve via the
-    // quantized 64x64 table, matching back2beta's getBiomeFromLookup.
     let (temp, humidity) =
         router.sample_beta_climate(&mut Workspace::new(), fixture.wx, fixture.wz);
     let gen_biome = beta_biome_from_climate(table, temp, humidity);
@@ -287,31 +225,17 @@ fn column_matches(
     }
 }
 
-// ── Gate test ─────────────────────────────────────────────────────────────────
-
-// ── Per-column climate oracle test ───────────────────────────────────────────
-
 mod exhaustive {
     use super::*;
 
-    /// Blocking surface-parity regression gate at seed 12345.
-    ///
-    /// Loads the committed back2beta golden-fixture corpus (pre-cave stage), runs the
-    /// Beta generator for each fixture chunk, applies the surface pass, and compares
-    /// the surface band (topmost non-air ± SURFACE_BAND_HALF + sea-level fill Y 60-64),
-    /// the bedrock band (Y 0-4), and the biome ID per column.
-    ///
-    /// Threshold: at most 1 mismatched column per 1280 (≈99.9%).  On failure the test
-    /// emits a band-grouped, cause-classified mismatch report rather than any silent
-    /// path change — per the gate-failure protocol, the phase halts for user review.
     #[test]
     #[expect(
         clippy::too_many_lines,
-        reason = "one parity gate over every captured column: compares the surface, the bedrock band and the biome of each and classifies each mismatch by cause"
+        reason = "one parity gate classifies each mismatch by cause"
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "flattens the sections of each captured column into one array by height before comparing it, so a parity miss names the column and the height"
+        reason = "a parity miss names the column and the height"
     )]
     fn beta_surface_parity_gate() {
         let corpus = load_corpus();
@@ -320,9 +244,8 @@ mod exhaustive {
         let cancel = CancellationToken::new();
         let biome_table = build_beta_lookup_table();
 
-        let y_sections: Vec<i32> = (0..8).collect(); // Y 0-127 (sections 0-7)
+        let y_sections: Vec<i32> = (0..8).collect();
 
-        // Group fixture columns by chunk (cx, cz).
         let mut chunks: BTreeMap<(i32, i32), Vec<&ColumnFixture>> = BTreeMap::new();
         for col in &corpus.columns {
             let cx = col.wx >> 4;
@@ -337,17 +260,15 @@ mod exhaustive {
             let block_x = cx * 16;
             let block_z = cz * 16;
 
-            // Generate the column with the Beta biome source.
             let mut sections = generate_column(
                 *cx,
                 *cz,
                 &y_sections,
                 &router,
-                &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
+                &ColumnBiomes::new(Some(&biome_source), None, None).unwrap(),
                 &cancel,
             );
 
-            // Apply the surface pass (also places bedrock).
             let mut rng = crate::beta_surface_rng(*cx, *cz);
             let column = ColumnBlocks::from_sections(&sections, &y_sections);
             apply_beta_surface(
@@ -361,14 +282,12 @@ mod exhaustive {
             );
             column.write_back(&mut sections);
 
-            // For each fixture column in this chunk, build a flat [BlockStateId; 128] view.
             for fix_col in fixture_cols {
                 total_columns += 1;
 
                 let local_x = fix_col.wx - block_x;
                 let local_z = fix_col.wz - block_z;
 
-                // Assemble a flat Y-indexed array from the 8 sections.
                 let mut generated: [BlockStateId; 128] = [BlockStateId::AIR; 128];
                 for (si, sy) in y_sections.iter().enumerate() {
                     if let Some(Some((blocks, _))) = sections.get(si) {
@@ -394,24 +313,7 @@ mod exhaustive {
 
         let mismatched = all_mismatches.len() as u64;
 
-        // Gate: at most 1 mismatched column per 1280 (≈99.9% parity at seed 12345).
         if mismatched * 1280 > total_columns {
-            // ── Classification report ────────────────────────────────────────────
-            // Classify by band to distinguish surface/RNG bugs from genuine f32 drift.
-            //
-            //   Bedrock-band mismatches   → RNG-order / surface bug:
-            //     The bedrock band is filled by the same per-chunk RNG stream as the
-            //     surface; mismatches here mean the RNG draw order is wrong.
-            //
-            //   Biome mismatches          → Climate-sampling / biome-algorithm bug:
-            //     Our BiomeSource::Beta uses the same getBiome() thresholds as back2beta;
-            //     mismatches indicate a divergence in climate-noise sampling.
-            //
-            //   Surface-band only         → Likely genuine f32 zero-crossing drift:
-            //     If mismatches are sparse and cluster at the surface boundary they are
-            //     expected f32 accumulation error.  If they are systematic (e.g. whole
-            //     biome regions wrong) they indicate a surface-pass logic bug.
-
             let bedrock_count = all_mismatches
                 .iter()
                 .filter(|m| {
@@ -434,7 +336,6 @@ mod exhaustive {
                 })
                 .count();
 
-            // Worst offenders: columns with the most mismatched Y positions.
             let mut sorted = all_mismatches.iter().collect::<Vec<_>>();
             sorted.sort_by_key(|m| std::cmp::Reverse(m.block_mismatches.len()));
             let worst: Vec<String> = sorted
@@ -519,7 +420,6 @@ mod exhaustive {
             );
         }
 
-        // Gate green: at most 1 mismatch per 1280.
         assert!(
             mismatched * 1280 <= total_columns,
             "parity gate: {} mismatches / {} columns exceeds 1-per-1280 threshold",
@@ -528,27 +428,11 @@ mod exhaustive {
         );
     }
 
-    /// Per-column climate oracle test: pins geographic climate sampling with the
-    /// quantized 64x64 biome lookup for a small set of columns (seed 12345).
-    ///
-    /// The corpus is geographic: column (wx, wz) holds Java's data for geographic
-    /// world position (wx, wz). Rust samples climate at (wx, wz) directly.
-    ///
-    /// Oracle columns (wx, wz, corpus_biome_id):
-    ///   (+31, -9)  → Desert(7)   — geographic temp ≥ 0.95 threshold
-    ///   (+30, -11) → Desert(7)   — geographic temp ≥ 0.95 threshold
-    ///   (  0,  0)  → Desert(7)   — lx=lz=0, trivially geographic
-    ///   (+16,+16)  → Savanna(4)  — lx=lz=0, trivially geographic
     #[test]
     fn beta_climate_matches_back2beta_oracle() {
         let router = build_beta_router();
 
-        let oracle_cols: &[(i32, i32, u8)] = &[
-            (31, -9, 7),  // Desert
-            (30, -11, 7), // Desert
-            (0, 0, 7),    // Desert
-            (16, 16, 4),  // Savanna
-        ];
+        let oracle_cols: &[(i32, i32, u8)] = &[(31, -9, 7), (30, -11, 7), (0, 0, 7), (16, 16, 4)];
 
         let table = build_beta_lookup_table();
 

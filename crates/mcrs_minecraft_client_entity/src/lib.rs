@@ -1,38 +1,31 @@
-//! The client state of the entities that the server adds: their movement and interpolation,
-//! head and body yaw, walk, hurt and death, and the values that a renderer reads in a frame.
-// std: bevy_ecs
-
-pub mod angle;
-mod body_turn;
-mod client_entity;
+mod add_entity_data;
+mod client_tables;
 pub mod delta;
-mod equipment;
-mod head_turn;
-mod interpolation;
-mod living;
-mod motion;
-mod path;
-mod placement;
+mod entity_damaged;
+mod entity_light;
+mod fuse;
+mod item_entity_stack;
+mod motion_tick;
+mod moved_entity;
+mod network_entities;
+mod orb_interpolation;
 mod plugin;
+mod project_simulated_positions;
 mod receive;
-mod render_inputs;
-mod server_ticking;
-mod synced_data;
-mod tick;
-pub mod walk;
+mod receive_movement;
+mod remove_spent_entities;
+mod simulated_motion;
+mod simulated_step;
+mod sleeping_beds;
+mod ticked;
+mod tracked_velocity;
 
-pub use body_turn::*;
-pub use client_entity::*;
-pub use equipment::*;
-pub use head_turn::*;
-pub use interpolation::*;
-pub use living::*;
-pub use motion::*;
-pub use path::*;
-pub use placement::*;
+pub use add_entity_data::*;
+pub use entity_damaged::EntityDamaged;
+pub use fuse::Fuse;
+pub use item_entity_stack::ItemEntityStack;
+pub use network_entities::*;
+pub use orb_interpolation::OrbInterpolation;
 pub use plugin::*;
-pub use receive::{DEATH_EVENT, SNAP_DISTANCE, WORLD_LIMIT};
-pub use render_inputs::*;
-pub use server_ticking::*;
-pub use synced_data::*;
-pub use tick::{ClientEntityTick, in_ticking_area, tick_entity};
+pub use receive::{DEATH_EVENT, WORLD_LIMIT};
+pub use tracked_velocity::TrackedVelocity;

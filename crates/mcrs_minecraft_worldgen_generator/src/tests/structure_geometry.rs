@@ -38,8 +38,6 @@ use mcrs_minecraft_worldgen_feature_place::terrain_skin::{RAIN_TEMPERATURE, temp
 
 const MAGIC: &[u8; 8] = b"MCSTRGE0";
 
-/// The oracle's packed entity data follows the tag and is skipped: the server
-/// derives that packet from the components delivery builds out of these fields.
 struct DumpEntity {
     type_id: String,
     nbt: NbtCompound,
@@ -124,8 +122,6 @@ fn read_dump() -> Dump {
                             .map(|_| {
                                 let type_id = dump_string(&mut r);
                                 let nbt = read_nbt(&mut r, &format!("{structure} {type_id}"));
-                                // The packed entity data is the pairing packet's payload,
-                                // which the server's tracker derives from components.
                                 let len = r.get_u32_le() as usize;
                                 r.advance(len);
                                 DumpEntity { type_id, nbt }
@@ -178,8 +174,6 @@ fn predicates() -> &'static HeightmapPredicates {
     &PREDICATES
 }
 
-/// The oracle's dimensions: the height range every accessor spans and the
-/// noise settings' sea level, which the flat generator answers with.
 fn dimension(id: &str) -> (i32, i32, i32) {
     match id {
         "minecraft:overworld" => (-64, 384, 63),
@@ -189,8 +183,6 @@ fn dimension(id: &str) -> (i32, i32, i32) {
     }
 }
 
-/// The oracle's flat bases: the layers from the dimension floor up to y 63,
-/// `None` being air.
 fn layers(base: u8, min_y: i32) -> Vec<Option<VoxelId>> {
     let state = |block: &str| VoxelId::from(corpus().default_state(block).unwrap().number());
     let stone = state("minecraft:stone");
@@ -213,8 +205,6 @@ fn layers(base: u8, min_y: i32) -> Vec<Option<VoxelId>> {
         .collect()
 }
 
-/// `FlatLevelSource` as a site world: one biome, the layers as the base
-/// column, and heights walked over the layers by the heightmap's predicate.
 struct FlatSiteWorld<'a> {
     min_y: i32,
     max_y: i32,
@@ -309,8 +299,6 @@ fn flat_start(frozen: &FrozenStructures, case: &DumpCase) -> Option<Start> {
     Start::new(frozen, id, pieces)
 }
 
-/// The oracle's stub level around the start: the base layers, heights answered
-/// from the layers alone, and every write logged.
 fn region(case: &DumpCase, bounds: BoundingBox) -> BoxRegion {
     let (min_y, height, sea_level) = dimension(&case.dimension);
     let world = WorldStates::clone(&program().world);
@@ -357,10 +345,6 @@ fn palette_index() -> &'static HashMap<VoxelId, u32> {
     &INDEX
 }
 
-/// The stub level creates a position's block entity once and reloads it from
-/// every later template block there, so one entry per position stands with
-/// the last data; a later write of a block that holds none leaves it in place,
-/// which the column merge, unlike the stub, drops.
 fn by_position(entities: &[GeneratedBlockEntity]) -> Vec<GeneratedBlockEntity> {
     let mut settled: Vec<GeneratedBlockEntity> = Vec::new();
     for entity in entities {
@@ -375,9 +359,6 @@ fn by_position(entities: &[GeneratedBlockEntity]) -> Vec<GeneratedBlockEntity> {
     settled
 }
 
-/// The oracle records each spawn as it reached `addFreshEntity`: a vehicle,
-/// then each of its passengers. The shulker's yaw is the one heading a mob
-/// keeps from its own random, so the oracle masks it and so does this.
 fn arrivals(entity: &GeneratedEntity, out: &mut Vec<NbtCompound>) {
     let mut compound = to_nbt_compound(entity).expect("an entity serialises");
     let shulker = compound.get_string("id") == Some("minecraft:shulker");
@@ -390,9 +371,6 @@ fn arrivals(entity: &GeneratedEntity, out: &mut Vec<NbtCompound>) {
     }
 }
 
-/// The oracle's tag is the entity's whole save and ours holds what generation
-/// decided, so the comparison is over the keys ours carries; an entity's own
-/// random values are masked on both sides.
 fn projected(expected: &NbtCompound, ours: &NbtCompound) -> NbtCompound {
     let mut out = NbtCompound::new();
     for (key, _) in &ours.child_tags {
@@ -405,7 +383,7 @@ fn projected(expected: &NbtCompound, ours: &NbtCompound) -> NbtCompound {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "compares one chunk's blocks, block entities, spawns and random state with the oracle's and reports every difference as a line, so each check sits beside the field it covers"
+    reason = "reports every difference as a line beside the field it covers"
 )]
 fn compare_chunk(
     label: &str,

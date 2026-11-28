@@ -23,7 +23,6 @@ pub(crate) fn check(label: &str, path: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// The jar's `version.json`, byte for byte.
 pub fn version_from_jar(jar: &[u8]) -> Result<Vec<u8>, String> {
     Directory::of(jar)?
         .read(jar, |name| name == VERSION_FILE)?

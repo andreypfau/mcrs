@@ -1,6 +1,3 @@
-//! The ingredient and the keys of the recipe registries.
-// std: mcrs_minecraft_wire
-
 #[rustfmt::skip]
 pub mod recipe_book_category_keys;
 #[rustfmt::skip]

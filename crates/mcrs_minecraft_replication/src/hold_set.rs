@@ -2,12 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use mcrs_engine_muxer::{EntityId, ViewerId};
 
-/// The subjects that the client of each viewer holds, players and mobs alike, and the reverse
-/// map. Both maps hold no empty entry.
 #[derive(Debug, Default)]
 pub(crate) struct HoldSet {
     by_viewer: BTreeMap<ViewerId, BTreeSet<EntityId>>,
-    /// Sorted, so the updates of a subject go to its viewers in one order.
     by_subject: BTreeMap<EntityId, Vec<ViewerId>>,
 }
 
@@ -31,7 +28,6 @@ impl HoldSet {
         remove_holder(&mut self.by_subject, subject, viewer);
     }
 
-    /// The viewers whose client holds `subject`, in order.
     pub(crate) fn holders(&self, subject: EntityId) -> &[ViewerId] {
         self.by_subject.get(&subject).map_or(&[], Vec::as_slice)
     }
@@ -42,14 +38,12 @@ impl HoldSet {
             .is_some_and(|subjects| subjects.contains(&subject))
     }
 
-    /// Each subject that some client holds, in the order of the ids, with its holders.
     pub(crate) fn held(&self) -> impl Iterator<Item = (EntityId, &[ViewerId])> {
         self.by_subject
             .iter()
             .map(|(&subject, holders)| (subject, holders.as_slice()))
     }
 
-    /// Takes `subject` out of every client, and gives the viewers that held it.
     pub(crate) fn remove_subject(&mut self, subject: EntityId) -> Vec<ViewerId> {
         let holders = self.by_subject.remove(&subject).unwrap_or_default();
         for viewer in &holders {
@@ -63,7 +57,6 @@ impl HoldSet {
         holders
     }
 
-    /// Takes out of the client of `viewer` each subject for which `release` is true.
     pub(crate) fn release_where(
         &mut self,
         viewer: ViewerId,

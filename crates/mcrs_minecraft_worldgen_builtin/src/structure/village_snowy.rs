@@ -34,15 +34,12 @@ kit! {
     hanging_lantern: block("minecraft:lantern[hanging=true,waterlogged=false]"),
 }
 
-/// The four walls of a rectangle without its corners.
 fn rounded_walls(c: &mut Canvas, wall: &Cell, min: [i32; 3], max: [i32; 3]) {
     let ys = min[1]..=max[1];
     c.fill(wall, min[0] + 1..=max[0] - 1, ys.clone(), [min[2], max[2]]);
     c.fill(wall, [min[0], max[0]], ys, min[2] + 1..=max[2] - 1);
 }
 
-/// Planks stepping up from both eaves of `gable`, too steep to climb: the
-/// two lowest steps are two blocks high.
 fn steep_roof(c: &mut Canvas, gable: Gable) {
     let [first, last] = gable.length;
     for step in 0..gable.levels {
@@ -61,8 +58,6 @@ fn steep_roof(c: &mut Canvas, gable: Gable) {
     }
 }
 
-/// A plank roof stepping up over z 0 to 6 from height `y`, six long from
-/// `x`, with a slab under the eaves and on every step but for two gaps.
 fn slabbed_roof(c: &mut Canvas, x: i32, y: i32) {
     let slabs = [x, x + 2, x + 3, x + 5];
     let gable = Gable::new(X, [0, 6], [x, x + 5], y, 4);
@@ -73,7 +68,6 @@ fn slabbed_roof(c: &mut Canvas, x: i32, y: i32) {
     }
 }
 
-/// Spruce stairs round the block of a chimney where it leaves the roof.
 fn chimney_collar(c: &mut Canvas, [x, y, z]: [i32; 3]) {
     c.fill(&stairs(SPRUCE_STAIRS, East), x - 1, y, [z - 1, z + 1]);
     c.fill(&stairs(SPRUCE_STAIRS, West), x + 1, y, [z - 1, z + 1]);
@@ -85,14 +79,12 @@ fn snow(layers: i32) -> Cell {
     block(&format!("minecraft:snow[layers={layers}]"))
 }
 
-/// Snow lying deeper than the thin cover: `[x, y, z, layers]` for each pile.
 fn drifts(c: &mut Canvas, piles: &[[i32; 4]]) {
     for [x, y, z, layers] in piles {
         c.place(&snow(*layers), *x, *y, *z);
     }
 }
 
-/// A fence joined to `sides` whatever stands next to it.
 fn fence(sides: &[Direction]) -> Cell {
     fence_joined(Block::SpruceFence.as_static_str(), sides)
 }
@@ -101,14 +93,10 @@ fn farmland(moisture: i32) -> Cell {
     block(&format!("minecraft:farmland[moisture={moisture}]"))
 }
 
-/// A spruce step whose corner turns towards a neighbour that is not there
-/// yet.
 fn corner_step(facing: Direction, shape: &str) -> Cell {
     corner_stairs(SPRUCE_STAIRS, facing, shape)
 }
 
-/// The steps either side of an entrance, their corners turned towards the
-/// step the entrance becomes.
 fn stoop(c: &mut Canvas, [x, y, z]: [i32; 3]) {
     c.place(&corner_step(South, "outer_left"), x, y, z - 1);
     c.place(&corner_step(North, "outer_right"), x, y, z + 1);
@@ -228,8 +216,6 @@ fn small_house_1(c: &mut Canvas, v: Village) {
     c.snow_on(&["soil"]);
 }
 
-/// A wooden room under a steep roof, its door on the north, and `oven` in the
-/// far corner under a cobblestone flue.
 fn steep_cottage(c: &mut Canvas, oven: Furnace) {
     c.walls(&K.wood, &K.wood, [1, 0, 1], [5, 2, 5]);
     c.fill(&K.wood_x, [1, 5], 2, 2..=4);
@@ -260,8 +246,6 @@ fn steep_cottage(c: &mut Canvas, oven: Furnace) {
     c.no_snow([5, 5, 4], [5, 5, 4]);
 }
 
-/// The lanterns hanging along the ridge of a shop, under the fences that
-/// hold them.
 fn ridge_lanterns(c: &mut Canvas) {
     c.place(&K.slab_double, 3, 5, 0);
     c.fill(&S.spruce_fence, 3, 5, [2, 4]);
@@ -441,8 +425,6 @@ fn small_house_5(c: &mut Canvas, v: Village) {
     c.snow_on(&["soil"]);
 }
 
-/// The log floor and end walls of a room five deep from x 1 to `east`, under
-/// a steep roof whose ridge runs along x.
 fn cabin(c: &mut Canvas, east: i32) {
     c.solid(&K.log, [1, 0, 1], [east, 0, 5]);
     c.fill(&K.log, [1, east], 1..=2, 1..=5);
@@ -507,8 +489,6 @@ fn small_house_7(c: &mut Canvas, v: Village) {
     c.fill(&K.snow, 5, 0, 1..=5);
 }
 
-/// The abandoned one has sunk a layer: it stands on its walls, without the
-/// floor.
 fn small_house_8(c: &mut Canvas, v: Village) {
     let y = if v.zombie { 0 } else { 1 };
     rounded_walls(c, &K.snow_block, [0, y, 0], [4, y + 1, 4]);
@@ -564,7 +544,7 @@ fn medium_house_1(c: &mut Canvas, v: Village) {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "lays the house's blocks as one run of canvas calls in the order of the reference's template, so it reads against it"
+    reason = "one run of canvas calls in the template's order"
 )]
 fn medium_house_2(c: &mut Canvas, v: Village) {
     c.walls(&K.wood, &K.wood, [3, 0, 1], [11, 6, 4]);
@@ -1510,8 +1490,6 @@ fn meeting_point_3(c: &mut Canvas, v: Village) {
     }
 }
 
-/// A fence post three high on a spot at `[x, z]`, with a fence arm at the top
-/// and a lantern hanging from it on each of `sides`.
 fn lamp_post(c: &mut Canvas, [x, z]: [i32; 2], sides: &[Direction]) {
     c.socket_facing([x, 0, z], "down_south", BOTTOM, EMPTY, FENCE);
     c.solid(&S.spruce_fence, [x, 1, z], [x, 3, z]);

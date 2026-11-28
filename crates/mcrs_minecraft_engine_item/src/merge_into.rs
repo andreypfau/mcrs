@@ -1,9 +1,14 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
 use bevy_ecs::system::In;
 use bevy_ecs::system::ParamSet;
 use bevy_ecs::system::Query;
+use bevy_ecs::system::ResMut;
 use mcrs_minecraft_item_stack::Count;
 
+use crate::InSlot;
+use crate::SlotChanged;
 use crate::Slots;
 use crate::Stacks;
 use crate::capacity::capacity;
@@ -14,17 +19,15 @@ pub(crate) struct Offer {
 }
 
 pub(crate) struct Merged {
-    /// The items of the offered stack that no stack of the holder took.
     pub(crate) rest: u8,
     pub(crate) first: Option<Entity>,
 }
 
-/// Moves items of the offered stack into the mergeable stacks of the holder, in the order of their
-/// slots, up to the capacity of each. The offered stack keeps its count.
 pub(crate) fn merge_into(
     In(offer): In<Offer>,
     holders: Query<&Slots>,
-    mut stacks: ParamSet<(Stacks, Query<&mut Count>)>,
+    mut stacks: ParamSet<(Stacks, Query<(&mut Count, Option<&InSlot>)>)>,
+    mut changes: Option<ResMut<Messages<SlotChanged>>>,
 ) -> Option<Merged> {
     let slots = holders.get(offer.holder).ok()?;
     let mut reader = stacks.p0();
@@ -51,10 +54,15 @@ pub(crate) fn merge_into(
             continue;
         };
         let mut counts = stacks.p1();
-        let Ok(mut count) = counts.get_mut(target) else {
+        let Ok((mut count, slot)) = counts.get_mut(target) else {
             continue;
         };
-        *count = next;
+        count.set_if_neq(next);
+        if let (Some(changes), Some(slot)) = (changes.as_mut(), slot) {
+            changes.write(SlotChanged {
+                slot: slot.slot_ref(),
+            });
+        }
         rest = rest.saturating_sub(moved);
         first.get_or_insert(target);
     }

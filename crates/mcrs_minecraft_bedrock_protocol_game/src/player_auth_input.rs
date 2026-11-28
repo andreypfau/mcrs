@@ -10,107 +10,62 @@ use crate::input_flags::InputFlags;
 use crate::item_stack_request::ItemStackRequest;
 use crate::item_use_transaction::ItemUseTransaction;
 
-/// The input of the client for one client tick.
-///
-/// Each optional part sets its input flag on the wire: the flags that the packet writes always
-/// agree with the parts that follow them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlayerAuthInput<'a> {
-    /// The pitch in degrees.
     pub pitch: f32,
-    /// The yaw in degrees.
     pub yaw: f32,
-    /// The eye position.
     pub position: Vec3,
-    /// The side input as x and the forward input as y, each from -1 to 1.
     pub move_vector: Vec2,
-    /// The head yaw in degrees.
     pub head_yaw: f32,
-    /// The input flags that add no field.
     pub input_flags: InputFlags,
-    /// The input device.
     pub input_mode: InputMode,
-    /// The play mode, with the gaze direction in virtual reality.
     pub play_mode: PlayMode,
-    /// The interaction model.
     pub interaction_model: InteractionModel,
-    /// The client tick.
     pub client_tick: VarU64,
-    /// The velocity of the client.
     pub position_delta: Vec3,
-    /// Input flag 34: the use of the held item.
     pub item_use_transaction: Option<ItemUseTransaction<'a>>,
-    /// Input flag 36: an item stack request.
     pub item_stack_request: Option<ItemStackRequest<'a>>,
-    /// Input flag 35: the block actions, behind a `varint32` count.
     pub block_actions: Option<Vec<BlockAction>>,
-    /// Input flag 45: the vehicle that the client predicts.
     pub client_predicted_vehicle: Option<ClientPredictedVehicle>,
-    /// The analog move vector.
     pub analog_move_vector: Vec2,
 }
 
-/// The input device of [`PlayerAuthInput`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BedrockEncode, BedrockDecode)]
 #[bedrock(tag = VarU32)]
 #[non_exhaustive]
 pub enum InputMode {
-    /// A mouse and a keyboard.
     Mouse = 1,
-    /// A touch screen.
     Touch = 2,
-    /// A gamepad.
     Gamepad = 3,
-    /// A motion controller.
     MotionController = 4,
 }
 
-/// The interaction model of [`PlayerAuthInput`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BedrockEncode, BedrockDecode)]
 #[bedrock(tag = VarU32)]
 #[non_exhaustive]
 pub enum InteractionModel {
-    /// Touch.
     Touch = 0,
-    /// A crosshair.
     Crosshair = 1,
-    /// Classic.
     Classic = 2,
 }
 
-/// The play mode of [`PlayerAuthInput`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum PlayMode {
-    /// Mode 0.
     Normal,
-    /// Mode 1.
     Teaser,
-    /// Mode 2.
     Screen,
-    /// Mode 3.
     Viewer,
-    /// Mode 4: virtual reality.
-    Reality {
-        /// The gaze direction.
-        gaze_direction: Vec3,
-    },
-    /// Mode 5.
+    Reality { gaze_direction: Vec3 },
     Placement,
-    /// Mode 6.
     LivingRoom,
-    /// Mode 7.
     ExitLevel,
-    /// Mode 8.
     ExitLevelLivingRoom,
 }
 
-/// The vehicle that the client predicts, the part of input flag 45.
 #[derive(Clone, Copy, Debug, PartialEq, BedrockEncode, BedrockDecode)]
 pub struct ClientPredictedVehicle {
-    /// The rotation of the vehicle.
     pub rotation: Vec2,
-    /// The unique id of the vehicle.
     pub unique_id: VarI64,
 }
 

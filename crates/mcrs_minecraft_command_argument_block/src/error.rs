@@ -7,39 +7,31 @@ use mcrs_minecraft_command::{
 use mcrs_minecraft_snbt::SnbtError;
 use mcrs_minecraft_text::{IntoText, Text};
 
-/// The errors of a block predicate.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum BlockError {
-    /// The identifier at the span names no block.
     BlockIdInvalid(Span),
-    /// The identifier at the span names no block tag.
     BlockTagUnknown(Span),
-    /// A block state names a tag.
     TagDisallowed,
-    /// The block at `block` has no property `name`.
-    PropertyUnknown { block: Span, name: StringSpan },
-    /// The property `name` appears twice in the list of `subject`.
+    PropertyUnknown {
+        block: Span,
+        name: StringSpan,
+    },
     PropertyDuplicate {
         name: StringSpan,
         subject: BlockSubject,
     },
-    /// The property `name` in the list of `subject` has no `=` and value.
     PropertyNoValue {
         name: StringSpan,
         subject: BlockSubject,
     },
-    /// The property `name` of the block at `block` has no value `value`.
     PropertyInvalid {
         block: Span,
         value: StringSpan,
         name: StringSpan,
     },
-    /// The property list has no closing `]`.
     PropertyUnclosed,
-    /// An error of the SNBT read; its spans are positions in the command line.
     Nbt(SnbtError),
-    /// An error of the identifier of the block or the tag.
     Resource(ResourceError),
 }
 
@@ -62,12 +54,9 @@ impl fmt::Display for BlockError {
 
 impl core::error::Error for BlockError {}
 
-/// The block identifier or the tag that an error of a property list names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockSubject {
-    /// The span of a block identifier.
     Block(Span),
-    /// The span of a tag identifier, after its `#`.
     Tag(Span),
 }
 

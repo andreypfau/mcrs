@@ -28,7 +28,6 @@ use mcrs_minecraft_registries::WireId;
 use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt, ensure};
 use std::io::Write;
 
-/// An id string, one raw VarInt on the wire, never inline.
 macro_rules! registry_key_component {
     ($($ty:ident($registry:ty) [$($sample:literal),+]),* $(,)?) => {$(
         #[registry_value]
@@ -57,7 +56,6 @@ registry_key_component! {
     BlockTransformerRef(BlockTransformer) ["axe", "shovel"],
 }
 
-/// JSON's `null` reads as an absent field.
 macro_rules! null_as_default {
     ($($name:ident: $ty:ty = $default:expr;)*) => {$(
         fn $name<'de, D: serde::Deserializer<'de>>(d: D) -> Result<$ty, D::Error> {
@@ -69,8 +67,6 @@ pub(crate) use null_as_default;
 
 pub type EnchantmentId<M> = <M as Refs>::Id<Enchantment>;
 
-/// Enchantment id to level in 1..=255, kept in read order because vanilla's
-/// own order is hash order.
 #[derive(Clone, Debug)]
 pub struct Enchantments<M: Refs = Resolved>(pub Vec<(EnchantmentId<M>, i32)>);
 
@@ -81,7 +77,6 @@ impl<M: Refs> Default for Enchantments<M> {
 }
 
 impl Enchantments {
-    /// Zero when absent.
     pub fn level(&self, enchantment: Id<Enchantment>) -> i32 {
         self.0
             .iter()
@@ -585,8 +580,6 @@ fn is_default_stew_duration(duration: &i32) -> bool {
     *duration == DEFAULT_STEW_DURATION
 }
 
-/// Anything that is not a number reads as the default. Sequences and maps are
-/// drained so a streaming input is left at the next field.
 fn lenient_duration<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
     struct LenientDuration {
         human_readable: bool,

@@ -8,9 +8,9 @@ use crate::enchantment::Enchantment;
 use mcrs_minecraft_block::block_keys::Block;
 pub use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_core::codec::unique_entries;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_entity::villager_type_keys::VillagerType;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_potion::potion_keys::Potion;
 use mcrs_minecraft_registries::{
@@ -21,7 +21,6 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
     CompactList, EquipmentSlotGroup, MinMaxBounds, NbtPredicate, ValueMatcher, deserialize_unit,
     map_only, serialize_entries, serialize_unit,
@@ -33,6 +32,7 @@ use crate::data_component_type_keys::DataComponentType;
 use crate::harness::Sample;
 use crate::harness::{entry, list_set, one_set, tag_set};
 use crate::patch::ComponentMap;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
@@ -71,7 +71,6 @@ predicate_newtype!(
 mcrs_minecraft_registries::wire_as_named!(ItemPredicate);
 mcrs_minecraft_registries::wire_as_named!(ComponentPredicates);
 
-/// Every field absent: the derive would also demand a default of each reference type.
 macro_rules! empty_default {
     ($($ty:ident { $($field:ident: $value:expr),* $(,)? }),* $(,)?) => {$(
         impl<M: Refs> Default for $ty<M> {
@@ -82,8 +81,6 @@ macro_rules! empty_default {
     )*};
 }
 
-/// One predicate bare, otherwise a non-empty list; the wire allows an empty
-/// list.
 #[registry_value]
 #[derive(
     mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Encode, Decode,
@@ -146,7 +143,6 @@ impl Serialize for BlockPredicate<Named> {
 impl<'de> Deserialize<'de> for BlockPredicate<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Repr {
             #[serde(default)]
             blocks: Option<<Named as Refs>::Set<Block>>,
@@ -173,7 +169,6 @@ impl<'de> Deserialize<'de> for BlockPredicate<Named> {
     }
 }
 
-/// The wire form of `lock` is this as one NBT tag.
 #[derive(Clone, Debug, PartialEq, mcrs_minecraft_registries::Resolve)]
 pub struct ItemPredicate<M: Refs = Resolved> {
     pub items: Option<M::Set<Item>>,
@@ -206,7 +201,6 @@ impl Serialize for ItemPredicate<Named> {
 impl<'de> Deserialize<'de> for ItemPredicate<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Repr {
             #[serde(default)]
             items: Option<<Named as Refs>::Set<Item>>,
@@ -230,8 +224,6 @@ impl<'de> Deserialize<'de> for ItemPredicate<Named> {
     }
 }
 
-/// Exact values a component must equal and partial predicates it must
-/// satisfy, both flattened into the owning predicate.
 #[derive(
     Clone, Debug, PartialEq, mcrs_minecraft_registries::Resolve, mcrs_minecraft_registries::FromWire,
 )]
@@ -265,8 +257,6 @@ impl DataComponentMatchers<Named> {
     }
 }
 
-/// A map whose key names a predicate type, or a component type that must
-/// merely be present.
 #[derive(Clone, Debug, mcrs_minecraft_registries::Resolve)]
 pub struct ComponentPredicates<M: Refs = Resolved>(pub Vec<ComponentPredicateEntry<M>>);
 
@@ -363,7 +353,6 @@ impl<'de> Deserialize<'de> for ComponentPredicates<Named> {
     }
 }
 
-/// `{}` written, any map read.
 pub struct UnitMap;
 
 impl Serialize for UnitMap {
@@ -380,7 +369,6 @@ impl<'de> Deserialize<'de> for UnitMap {
 
 macro_rules! predicate_types {
     ($($variant:ident($ty:ty)),* $(,)?) => {
-        /// A predicate as its type's codec reads it.
         #[derive(Clone, Debug, PartialEq, mcrs_minecraft_registries::Resolve)]
         pub enum ComponentPredicate<M: Refs = Resolved> {
             $($variant($ty)),*
@@ -467,7 +455,7 @@ named_record_codec! {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct DamagePredicate {
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub durability: MinMaxBounds<i32>,
@@ -482,7 +470,7 @@ pub struct EnchantmentsPredicate<M: Refs = Resolved>(pub Vec<EnchantmentPredicat
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct EnchantmentPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enchantments: Option<M::Set<Enchantment>>,
@@ -492,7 +480,7 @@ pub struct EnchantmentPredicate<M: Refs = Resolved> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct PotionsPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub potions: Option<M::Set<Potion>>,
@@ -500,7 +488,6 @@ pub struct PotionsPredicate<M: Refs = Resolved> {
     pub effects: Option<CollectionPredicate<MobEffectsPredicate<M>>>,
 }
 
-/// Effect to instance predicate, in the order read.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MobEffectsPredicate<M: Refs = Resolved>(
     pub Vec<(M::Id<MobEffect>, MobEffectInstancePredicate)>,
@@ -546,7 +533,7 @@ impl<'de> Deserialize<'de> for MobEffectsPredicate<Named> {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct MobEffectInstancePredicate {
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub amplifier: MinMaxBounds<i32>,
@@ -558,14 +545,9 @@ pub struct MobEffectInstancePredicate {
     pub visible: Option<bool>,
 }
 
-/// Elements that must each appear, per-element occurrence counts, and the
-/// collection's size. The bounds are spelled out
-/// because a defaulted field makes the derive infer `P: Default`, and an
-/// inherent `deserialize` whose bounds fail silently yields to the trait's.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(
     remote = "Self",
-    deny_unknown_fields,
     bound(serialize = "P: Serialize", deserialize = "P: Deserialize<'de>")
 )]
 pub struct CollectionPredicate<P> {
@@ -610,7 +592,6 @@ impl<P: Resolve> Resolve for CollectionPredicate<P> {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(
     remote = "Self",
-    deny_unknown_fields,
     bound(serialize = "P: Serialize", deserialize = "P: Deserialize<'de>")
 )]
 pub struct CountedPredicate<P> {
@@ -638,14 +619,14 @@ impl<P: Resolve> Resolve for CountedPredicate<P> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct ContainerPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub items: Option<CollectionPredicate<ItemPredicate<M>>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct FireworkPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shape: Option<FireworkShape>,
@@ -656,7 +637,7 @@ pub struct FireworkPredicate {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct FireworksPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub explosions: Option<CollectionPredicate<FireworkPredicate>>,
@@ -665,7 +646,7 @@ pub struct FireworksPredicate {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct WritableBookPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pages: Option<CollectionPredicate<String>>,
@@ -673,7 +654,7 @@ pub struct WritableBookPredicate {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct WrittenBookPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pages: Option<CollectionPredicate<Text<M>>>,
@@ -689,7 +670,7 @@ pub struct WrittenBookPredicate<M: Refs = Resolved> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct AttributeModifiersPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modifiers: Option<CollectionPredicate<AttributeModifierPredicate<M>>>,
@@ -697,7 +678,7 @@ pub struct AttributeModifiersPredicate<M: Refs = Resolved> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct AttributeModifierPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attribute: Option<M::Set<Attribute>>,
@@ -706,14 +687,14 @@ pub struct AttributeModifierPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub amount: MinMaxBounds<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub operation: Option<AttributeOperation>,
+    pub operation: Option<ModifierOperation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slot: Option<EquipmentSlotGroup>,
 }
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct TrimPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material: Option<M::Set<TrimMaterial>>,
@@ -723,7 +704,7 @@ pub struct TrimPredicate<M: Refs = Resolved> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct JukeboxPlayablePredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub song: Option<M::Set<JukeboxSong>>,
@@ -1110,7 +1091,7 @@ fn sample_matchers() -> DataComponentMatchers {
                                     min: Some(1.5),
                                     max: None,
                                 },
-                                operation: Some(AttributeOperation::AddValue),
+                                operation: Some(ModifierOperation::AddValue),
                                 slot: Some(EquipmentSlotGroup::Mainhand),
                             },
                             AttributeModifierPredicate {
@@ -1152,7 +1133,6 @@ impl Encode for BlockPredicate<Wire> {
     }
 }
 
-/// A matcher map holds components that hold block predicates again.
 impl Decode<'_> for BlockPredicate<Wire> {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         nested(|| {
@@ -1166,10 +1146,6 @@ impl Decode<'_> for BlockPredicate<Wire> {
     }
 }
 
-/// The writer is erased before recursing into the component dispatch, as
-/// `ComponentPatch` does: a generic `impl Write` would otherwise gain one
-/// `&mut` per level of a value that contains a value of its own kind and
-/// never reach a fixed type.
 impl Encode for DataComponentMatchers<Wire> {
     fn encode(&self, mut w: impl Write) -> Result<()> {
         let w: &mut dyn Write = &mut w;
@@ -1233,8 +1209,6 @@ impl Decode<'_> for DataComponentMatchers<Wire> {
     }
 }
 
-/// One network NBT tag of whatever root type the predicate's codec writes,
-/// read back through that codec.
 fn decode_predicate_wire(
     kind: DataComponentPredicateType,
     r: &mut &[u8],

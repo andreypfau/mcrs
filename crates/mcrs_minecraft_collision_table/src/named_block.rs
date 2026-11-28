@@ -2,7 +2,6 @@ use mcrs_minecraft_physics::BlockFlags;
 use mcrs_minecraft_physics::BlockMotion;
 use mcrs_minecraft_physics::InsideEffect;
 
-/// What the physics model states for a block by its name, apart from its tags and the corpus.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct NamedBlock {
     pub(crate) flags: BlockFlags,
@@ -13,7 +12,6 @@ pub(crate) struct NamedBlock {
 }
 
 impl NamedBlock {
-    /// The values of a block by its name without the namespace.
     pub(crate) fn of(path: &str) -> Self {
         let mut named = Self {
             flags: BlockFlags::empty(),
@@ -37,7 +35,8 @@ impl NamedBlock {
             "cobweb" => named.inside = InsideEffect::Cobweb,
             "sweet_berry_bush" => named.inside = InsideEffect::SweetBerryBush,
             "powder_snow" => named.inside = InsideEffect::PowderSnow,
-            "water" => named.flags |= BlockFlags::OWN_SPEED_FACTOR,
+            "water" => named.flags |= BlockFlags::OWN_SPEED_FACTOR | BlockFlags::LIQUID_BLOCK,
+            "lava" => named.flags |= BlockFlags::LIQUID_BLOCK,
             "bubble_column" => {
                 named.flags |= BlockFlags::OWN_SPEED_FACTOR | BlockFlags::COARSE_BUBBLE_COLUMN;
             }
@@ -73,8 +72,6 @@ const STEP_ACTIONS: [&str; 9] = [
     "slime_block",
 ];
 
-/// The blocks with an inside action that are not in a tag of [`crate::collision_table`] and have
-/// no [`InsideEffect`].
 const INSIDE_ACTIONS: [&str; 25] = [
     "tripwire",
     "detector_rail",

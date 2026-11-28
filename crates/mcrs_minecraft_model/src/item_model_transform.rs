@@ -1,7 +1,6 @@
 use bevy::math::{Mat4, Quat, Vec3};
 use serde::{Deserialize, Serialize};
 
-/// `T · Rl · S · Rr` as a record, or sixteen row-major floats.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Transformation {
@@ -51,7 +50,6 @@ impl Transformation {
     }
 }
 
-/// `parent · child`, an absent child being the identity.
 pub fn compose(parent: Mat4, child: Option<&Transformation>) -> Mat4 {
     match child {
         Some(child) => parent * child.matrix(),

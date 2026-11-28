@@ -1,16 +1,3 @@
-//! Random ticks of one step over a real save, on 1, 4, 8 and 16 threads.
-//!
-//! `MCRS_BENCH_WORLD` names a world directory of the current save format; without it the bench
-//! prints why and measures nothing. Every full column of the overworld is loaded into the section
-//! index of a dimension, with an entity for each section, and random-ticked through the volume of
-//! a cell, as the engine does: the step draws the random picks of the sections of the random
-//! tick index, then runs the precipitation picks and the hits. The states of the block types of
-//! SIM-MODEL-009 Table 1 tick randomly. One handler reads one block, the other the footprint of
-//! its row; neither writes. The bench prints the handler runs of a step, and asserts that no pick
-//! runs again. `MCRS_BENCH_AREA=<dimension> <x> <z> <radius>` loads only the full columns of that
-//! dimension within `radius` columns of the column of block `x z`. For each thread count the
-//! bench also prints the wall time of the walk and of each colour phase, and the idle time of
-//! each: the wall time of a call less its busy time over the threads.
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -40,15 +27,14 @@ use mcrs_minecraft_engine_world::world::storage::random_ticks::{RandomListing, R
 use mcrs_minecraft_engine_world::world::storage::section::{SectionBundle, SectionIndex};
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_region_disk::CorpusBlockStates;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, Cx, Env, Footprints, GameTick, KernelConfig, Kinds,
     PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, ShardId,
     SimulationVolume, Spread, StepOutput, StreamSeed, random_step,
 };
-use mcrs_minecraft_worldgen_generator::saved::CorpusBlockStates;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
-/// The default of the game rule `random_tick_speed`.
 const SPEED: u32 = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,15 +45,12 @@ impl Kinds for Bench {
     type Fluid = u16;
 }
 
-/// The box that a random tick of a state reads (Table 1): `±dx` on both horizontal axes,
-/// `low..=high` on the vertical axis, and, for the rows with `n`, the run of the same block below.
 #[derive(Clone, Copy)]
 struct Footprint {
     dx: i32,
     low: i32,
     high: i32,
     run_below: bool,
-    /// Lava takes two fluid random ticks for each pick (SIM-RND-002).
     calls: u8,
 }
 
@@ -112,7 +95,6 @@ fn ages(definitions: &BlockDefinitions, name: &str) -> bool {
         .is_some()
 }
 
-/// The Table 1 row of `state`, or `None` when the state does not tick randomly.
 fn footprint(
     definitions: &BlockDefinitions,
     block: &BlockEntry,
@@ -217,7 +199,6 @@ impl BlockFacts<Bench> for Facts {
     }
 }
 
-/// What a handler reads: the floor of a handler, or the whole footprint of its row.
 #[derive(Clone, Copy, Debug)]
 enum Handler {
     OneRead,
@@ -284,7 +265,6 @@ impl PaletteLookup<u8> for AnyBiome {
     }
 }
 
-/// The columns within `radius` of the column `centre` of one dimension.
 struct Area {
     dimension: String,
     centre: ColumnPos,
@@ -292,8 +272,6 @@ struct Area {
 }
 
 impl Area {
-    /// `MCRS_BENCH_AREA` as `<dimension> <x> <z> <radius>`, with `x z` a block position, or the
-    /// whole overworld.
     fn from_env() -> Self {
         #[expect(
             clippy::disallowed_methods,
@@ -339,8 +317,6 @@ fn region_dir(world: &Path, dimension: &str) -> PathBuf {
     }
 }
 
-/// A full column, or one that an upgrade marked to run only its biome steps again on the way
-/// back to full: its blocks are those of a full column.
 fn blocks_complete(chunk: &Chunk) -> bool {
     chunk.status == ChunkStatus::Full
         || chunk.retrogen.as_ref().is_some_and(|retrogen| {
@@ -353,8 +329,6 @@ fn blocks_complete(chunk: &Chunk) -> bool {
         })
 }
 
-/// The full columns of one dimension of a save, as the engine holds them: the blocks and the
-/// entity of each section in the section index of the dimension.
 struct Loaded {
     world: World,
     dimension: Entity,
@@ -433,13 +407,11 @@ fn load(
 
 const STEPS: u32 = 50;
 
-/// One call of a spread: its wall time and the sum of the run times of its items.
 struct Call {
     wall: Duration,
     busy: Duration,
 }
 
-/// The threads of `pool`, and with `calls` the timing of each call.
 struct Timed<'p> {
     pool: &'p TaskPool,
     calls: Option<RefCell<Vec<Call>>>,
@@ -465,8 +437,6 @@ impl Spread for Timed<'_> {
     }
 }
 
-/// Prints the mean wall time of a step and of each call of `calls`: the walk, then the colour
-/// phases, with the idle time of each.
 fn print_calls(threads: usize, step: Duration, calls: &[Call]) {
     let per_step = calls.len() / STEPS as usize;
     let mut text = format!("{threads} threads: step {:.3} ms", ms(step / STEPS));
@@ -497,7 +467,6 @@ fn print_calls(threads: usize, step: Duration, calls: &[Call]) {
     );
 }
 
-/// Measures `step` on 1, 4, 8 and 16 threads, then prints where the time of a step goes.
 fn on_threads(c: &mut Criterion, handler: Handler, mut step: impl FnMut(&Timed)) {
     for threads in [1, 4, 8, 16] {
         let pool = TaskPoolBuilder::new().num_threads(threads).build();
@@ -533,7 +502,6 @@ fn reach(rows: &[Option<Footprint>], state: BlockStateId) -> u8 {
         .map_or(Footprints::DEFAULT, |row| row.dx as u8)
 }
 
-/// The Table 1 row of each state.
 fn rows(definitions: &BlockDefinitions) -> Vec<Option<Footprint>> {
     let mut rows = vec![None; definitions.state_count()];
     for block in definitions.blocks() {

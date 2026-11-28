@@ -10,11 +10,8 @@ use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
-/// The blocks of a volume as the sight ray reads them: each section without masks, since the ray
-/// reads each block that it crosses, and a section of another task as one that is not loaded.
 pub(crate) struct SightBlocks<'a, V>(pub(crate) &'a V);
 
-/// A loaded section of [`SightBlocks`].
 pub(crate) struct SightSection<S>(S);
 
 impl<V: BlockVolume> CollisionWorld for SightBlocks<'_, V> {

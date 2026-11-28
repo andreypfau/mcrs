@@ -10,27 +10,35 @@ doctest = false
 [lints]
 workspace = true
 
-# std: Vec and Box for the shape table and the scratch buffers
 [dependencies]
+mcrs_minecraft_pose.workspace = true
 mcrs_minecraft_entity_key.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_voxel.workspace = true
 mcrs_minecraft_numeric.workspace = true
 bitflags = "2"
 rustc-hash.workspace = true
+bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_client_ticks = { workspace = true, optional = true }
+mcrs_minecraft_entity = { workspace = true, optional = true }
+mcrs_minecraft_entity_attribute = { workspace = true, optional = true }
+mcrs_minecraft_resource = { workspace = true, optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.7", default-features = false }
+criterion = { workspace = true }
 mcrs_minecraft_client_ticks.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
 
 [features]
 default = []
-# A block world in a hash map, a small block table and the reading of recorded client ticks, for
-# tests and benches of this and other crates.
-testing = ["dep:mcrs_minecraft_client_ticks"]
+bevy = ["dep:bevy_ecs"]
+testing = [
+    "dep:mcrs_minecraft_client_ticks",
+    "dep:mcrs_minecraft_entity",
+    "dep:mcrs_minecraft_entity_attribute",
+    "dep:mcrs_minecraft_resource",
+]
 
 [[bench]]
 name = "kernel"

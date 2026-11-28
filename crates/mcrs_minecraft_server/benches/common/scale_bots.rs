@@ -1,22 +1,3 @@
-//! In-process scale-bot harness.
-//!
-//! Boots a minimal ECS world that exercises the bridge_outbound pipeline
-//! with N synthetic "bot" entities instead of real TCP connections. Bots
-//! inject outbound activity so the per-connection outbound queues run under
-//! producer load. A configurable fraction of bots perform cross-dim
-//! transfers (reassign their session's placement) halfway through the
-//! run to exercise the session mutation + teardown path.
-//!
-//! The runner is tick-bounded (`run_profile_ticks`) so it is deterministic: a
-//! fixed number of ticks covers every code path (injection, cross-dim
-//! reassignment, queue routing, teardown) without spinning on the wall clock.
-//!
-//! Every injected packet carries the originating bot's real `PlayerSession`,
-//! so `bridge_outbound` resolves it against the sessions and routes it to
-//! that bot's `OutboundQueue`. The harness can then assert, with no
-//! dependency on process-global metric atomics, that routing landed every
-//! packet and that teardown leaves no session behind.
-
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -25,13 +6,12 @@ use mcrs_minecraft_protocol_game::clientbound::{
 use std::time::Instant;
 
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_math::DVec3;
-use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
@@ -41,18 +21,12 @@ use mcrs_minecraft_engine_world::session::{
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 
-/// Where the bots stand, which decides what they send.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Layout {
-    /// Every second tick, each bot gets a block update addressed to it alone.
     Apart,
-    /// Every tick, each bot moves and the move goes to every bot of its dimension, itself
-    /// included, as in a crowd where all see all.
     Together,
 }
 
-/// Per-run report: the functional invariants the bench asserts on, all local
-/// to this run's `World`, alongside soft observational telemetry.
 #[derive(Debug)]
 #[expect(
     dead_code,
@@ -64,35 +38,21 @@ pub struct ScaleReport {
     pub bots_total: usize,
     pub snapshot_start: BridgeTelemetry,
     pub snapshot_end: BridgeTelemetry,
-    /// entity count at T=0
     pub entity_count_start: u64,
-    /// entity count at T=end
     pub entity_count_end: u64,
-    /// monotone consumed count at T=0
     pub consumed_start: u64,
-    /// monotone consumed count at T=end
     pub consumed_end: u64,
-    /// wall-clock of the shortest tick observed (µs)
     pub tick_min_us: u64,
-    /// wall-clock of the longest tick observed (µs)
     pub tick_max_us: u64,
-    /// mean tick wall-clock (µs), total elapsed / tick_count
     pub tick_mean_us: u64,
-    /// total ticks executed
     pub tick_count: u64,
-    /// number of packets the harness wrote into the bus over the run
     pub packets_injected: u64,
-    /// total packets resident across all per-bot `OutboundQueue`s at T=end,
-    /// i.e. how many injected packets `bridge_outbound` actually routed
     pub total_queued: u64,
-    /// number of session cross-dim reassignments performed
     pub cross_dim_transfers: u64,
-    /// bot sessions still present after teardown (expect 0)
     pub sessions_remaining_after_teardown: u64,
 }
 
 impl ScaleReport {
-    /// Entity-count delta: negative = cleaned up, zero = stable, positive = leak.
     pub fn entity_delta(&self) -> i64 {
         self.entity_count_end as i64 - self.entity_count_start as i64
     }
@@ -111,21 +71,14 @@ pub fn run_profile_ticks(
     layout: Layout,
 ) -> ScaleReport {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<BridgeTelemetry>();
     world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     world.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
 
-    // Synthetic dimension entities — plain entity handles used as dim keys
-    // in session placements. No dim sub-app is spawned; the harness exercises
-    // the bridge_outbound queue-routing path only (no sub-app extract closure).
     let dim_entities: Vec<Entity> = (0..dims.max(1)).map(|_| world.spawn_empty().id()).collect();
 
-    // One OutboundQueue entity per bot (no real socket or ServerSideConnection;
-    // dispatch_encode requires ServerSideConnection to send bytes, so the
-    // harness targets bridge_outbound queue-fill under bot load). Entity-count
-    // delta across the run asserts the session teardown is clean.
     let bot_entities: Vec<(Entity, Entity, PlayerSession)> = (0..bots_total)
         .map(|i| {
             let dim = dim_entities[i % dim_entities.len()];
@@ -141,11 +94,9 @@ pub fn run_profile_ticks(
         })
         .collect();
 
-    // Initialise systems once before the tick loop.
     let mut sys_outbound = IntoSystem::into_system(bridge_outbound);
     sys_outbound.initialize(&mut world);
 
-    // T=0 snapshot.
     let snapshot_start = *world.resource::<BridgeTelemetry>();
     let consumed_start = snapshot_start.outbound_messages_consumed_total;
     let entity_count_start = world.entities().len() as u64;
@@ -163,15 +114,10 @@ pub fn run_profile_ticks(
         if tick_count >= ticks {
             break;
         }
-        // Drives the one-shot cross-dim transfer at the halfway mark.
         let elapsed_frac = tick_count as f32 / ticks as f32;
 
         let tick_start = Instant::now();
 
-        // Every 2 ticks, inject one BlockUpdate outbound packet per bot,
-        // stamped with that bot's real session so bridge_outbound resolves it
-        // and routes it to the bot's OutboundQueue. BlockUpdate is a MAPPED
-        // variant so it exercises the real fill path.
         if layout == Layout::Together {
             for (index, (_player, _socket, session)) in bot_entities.iter().enumerate() {
                 let Some(dim) = dim_entities.get(index % dim_entities.len()) else {
@@ -181,7 +127,6 @@ pub fn run_profile_ticks(
                     .resource_mut::<Messages<OutboundPlayerPacket>>()
                     .write(OutboundPlayerPacket {
                         target: PacketTarget::AllInDim(*dim),
-                        priority: PacketPriority::Normal,
                         data: PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
                             entity_id: VarInt(index as i32),
                             position: PositionPath::Linear(DVec3::new(
@@ -206,7 +151,6 @@ pub fn run_profile_ticks(
                     .resource_mut::<Messages<OutboundPlayerPacket>>()
                     .write(OutboundPlayerPacket {
                         target: PacketTarget::SinglePlayer(*session),
-                        priority: PacketPriority::Normal,
                         data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
                             block_pos: mcrs_voxel::BlockPos::new(0, 64, 0),
                             block_state_id: BlockStateNumber(1),
@@ -218,8 +162,6 @@ pub fn run_profile_ticks(
             }
         }
 
-        // Halfway through: reassign a fraction of bots to a different dim to
-        // exercise the session cross-dim mutation path.
         if elapsed_frac >= 0.5 && !cross_dim_triggered && dim_entities.len() > 1 {
             cross_dim_triggered = true;
             let transfer_count = (bots_total as f32 * cross_dim_rate.clamp(0.0, 1.0)) as usize;
@@ -229,14 +171,12 @@ pub fn run_profile_ticks(
                 {
                     let idx = dim_entities.iter().position(|&d| d == old_dim).unwrap_or(0);
                     let new_dim = dim_entities[(idx + 1) % dim_entities.len()];
-                    // Keeps the epoch: every injected packet is stamped with epoch 0.
                     *placement = SessionPlacement::new(Place::InDim(new_dim), placement.epoch());
                     cross_dim_transfers += 1;
                 }
             }
         }
 
-        // Drain the outbound message bus into per-bot queues.
         let _ = sys_outbound.run((), &mut world);
         sys_outbound.apply_deferred(&mut world);
 
@@ -254,7 +194,6 @@ pub fn run_profile_ticks(
         tick_min_us = 0;
     }
 
-    // Count packets that bridge_outbound actually routed into per-bot queues.
     let total_queued: u64 = bot_entities
         .iter()
         .map(|(_player, socket, _session)| {
@@ -265,7 +204,6 @@ pub fn run_profile_ticks(
         })
         .sum();
 
-    // Tear down all bot sessions to validate the cleanup path.
     for (player, _socket, _session) in &bot_entities {
         world.entity_mut(*player).remove::<SessionBundle>();
     }
@@ -274,7 +212,6 @@ pub fn run_profile_ticks(
         .filter(|(player, _s, _session)| world.get::<Session>(*player).is_some())
         .count() as u64;
 
-    // T=end snapshot.
     let snapshot_end = *world.resource::<BridgeTelemetry>();
     let consumed_end = snapshot_end.outbound_messages_consumed_total;
     let entity_count_end = world.entities().len() as u64;

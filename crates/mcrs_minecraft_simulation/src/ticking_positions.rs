@@ -2,15 +2,12 @@ use crate::random_tick::RandomTickTable;
 use mcrs_minecraft_volume::{Palette, PaletteBuffer, SectionBlocks, SectionBlocksMut};
 use mcrs_voxel::{BlockStateId, LocalPos};
 
-/// The local indices of the positions of one section whose state takes random ticks, in
-/// ascending order: the list depends only on the states, so undoing a write restores it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TickingPositions {
     positions: Vec<u16>,
 }
 
 impl TickingPositions {
-    /// Lists the positions of `section` whose state takes random ticks under `table`.
     pub fn rebuild<S: SectionBlocks + ?Sized>(
         &mut self,
         section: &S,
@@ -28,7 +25,6 @@ impl TickingPositions {
         });
     }
 
-    /// Follows a write at `at` that replaced `old` with `new`.
     pub fn record(
         &mut self,
         at: LocalPos,
@@ -53,11 +49,9 @@ impl TickingPositions {
 }
 
 pub(crate) fn local_index(at: LocalPos) -> u16 {
-    // A section holds 4096 positions, so every local index fits.
     at.index() as u16
 }
 
-/// A section handle whose writes keep the [`TickingPositions`] of the section.
 #[derive(Debug)]
 pub struct TickingSectionMut<'a, S> {
     section: S,
@@ -71,7 +65,6 @@ struct Tracker<'a> {
 }
 
 impl<'a, S: SectionBlocksMut> TickingSectionMut<'a, S> {
-    /// Keeps `ticking` with each write to `section`.
     pub fn new(section: S, ticking: &'a mut TickingPositions, table: &'a RandomTickTable) -> Self {
         Self {
             section,
@@ -79,7 +72,6 @@ impl<'a, S: SectionBlocksMut> TickingSectionMut<'a, S> {
         }
     }
 
-    /// Writes to `section` without a list to keep: a host that lists no random ticks.
     pub fn untracked(section: S) -> Self {
         Self {
             section,

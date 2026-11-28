@@ -3,8 +3,7 @@
 This note describes how mcrs draws mobs in the deferred renderer of `mcrs_minecraft_render`.
 The target is 100,000 mobs and more in one world, with no frame drop. The behaviour of a mob
 (pose, overlay, shading) is stated in `docs/spec/`. The Molang side is in `docs/molang.md`.
-The survey behind this design is `.research/entity-render-perf.md`. The workload model, the
-measurements and the numbers behind each size and threshold of this note are in
+The workload model, the measurements and the numbers behind each size and threshold of this note are in
 `docs/entity-render-budget.md` (the budget note).
 
 ## 1. Principles
@@ -179,11 +178,13 @@ The entity cull reads only this record for a slot that it rejects.
 |---|---|---|
 | 0 | 12 | block position of the current tick, `vec3<i32>` |
 | 12 | 2 | cull radius, `f16`, in blocks, rounded up (section 5.1) |
-| 14 | 2 | flags, `u16`: valid, full rig only |
+| 14 | 2 | flags, `u16`: valid and full rig only in the low byte, the set of views in the high byte |
 
-The CPU writes the cull record when the block position, the radius or a flag changes. The flag
-`full rig only` is set while the entity dies or is upside down
-(`docs/spec/client-entity-render.md`, CEREN-VIS-003, item 7). The cull needs no fraction, no
+The CPU writes the cull record when the block position, the radius, a flag or the set of views
+changes. The flag `full rig only` is set while the entity dies or is upside down
+(`docs/spec/client-entity-render.md`, CEREN-VIS-003, item 7). The set of views holds one bit for
+each view: bit 0 is the world view, bit 1 is the figure view. An entity with no `EntityViews` has
+only the world bit. The cull of a view drops a slot whose set does not hold the bit of the view. The cull needs no fraction, no
 previous position and no partial tick. For 300,000 slots on the web tier, the cull reads 4.8 MB
 in 0.19 ms with this record, against 29 MB in 1.15 ms with the full tick record (budget note,
 section 4.11). A mob that walks crosses a block boundary every 5 to 10 ticks, so the cull
@@ -251,7 +252,8 @@ the pixel, the same as for terrain.
 ### 4.7 Upload
 
 The render world receives only the dirty pages and their bytes. It does not extract a component
-of each mob. The upload uses the `Upload` and `Uploads` path of the render crate:
+of each mob. The upload uses the `Upload` and `Uploads` path of the render crate. The queue predates the rule
+of the section "Crossing a boundary" of `AGENTS.md`; new code moves a buffer in an extract system.
 
 - The tick records always go through a scatter compute pass, because the pass rotates the
   previous record (section 4.1). The render world writes the dirty tick records and their slot
@@ -432,7 +434,7 @@ costs 0.11 ms of vertex time in S1, against 0.20 ms for six vertices of a triang
 ### 5.5 Shading of entities
 
 The channels `light.x` (emissive) and `light.w` (roughness) of the light target are reserved
-(`crates/mcrs_minecraft_render/src/gbuffer.rs`). The entity pass does not use them for shading
+(`gbuffer.rs` of `mcrs_minecraft_render`). The entity pass does not use them for shading
 data. Thus the fragment shader of the entity draw computes, in the order of CEREN-SURF-006:
 
 1. `c` = the texel times the tint of the layer;
@@ -551,7 +553,7 @@ the layers, the clock and the shading of sections 4 and 5 are the same on all pa
 
 | Path | Full-rig cap | Main cost | Limit that binds |
 |---|---|---|---|
-| Full | 75,000 native, 20,000 web | GPU passes, section 8 | 128 MiB per storage binding: `bone_matrices` at the native cap holds `75,000 · 16 · 48 B = 58 MB` of frog bones |
+| Full | 75,000 native, 20,000 web | GPU passes, budget note section 5 | 128 MiB per storage binding: `bone_matrices` at the native cap holds `75,000 · 16 · 48 B = 58 MB` of frog bones |
 | Compatibility | 20,000 | one more texture write per bone; the face records go through the vertex input instead of a storage read | `max_texture_dimension_2d`, 4096 in WebGPU compatibility mode: a bone texture of 4096 × 4096 `rgba32float` texels holds 5.6 M bones at 3 texels per bone, but uses 256 MiB. The texture has the size of the full-rig cap of `docs/entity-render-budget.md`, section 4.2: 1024 × 1024 texels (16 MiB) hold 20,000 frogs |
 | Minimal | 2,000 | CPU pose: the batch VM evaluates every channel of every visible mob in each frame, and the CPU uploads the bones | upload per frame: 2,000 mobs × 10 bones × 48 B = 0.96 MB |
 
@@ -559,13 +561,14 @@ Impostors have no cap. The caps are the frog counts at which the draw of each ti
 share of the frame, rounded down (budget note, sections 3 and 4.2).
 
 In the Minimal path, the CPU limits the work with the visible set and with the frame budget of
-section 8. In this path only, a full rig that is far from the camera can use a lower pose rate.
+the budget note, section 5. In this path only, a full rig that is far from the camera can use a lower pose rate.
 
 ### 6.2 Limits of the web
 
 | Limit | Value | Consequence |
 |---|---|---|
-| storage buffers per stage | 8 in WebGPU core | the Full vertex stage binds `faces`, `cuboids`, `bone_matrices`, `slots`, `variants`; the model tables share one buffer |
+| storage buffers per stage | 8 in WebGPU core | each pass binds only the buffers its entry point reads, at most 8 (pose, expand, impostor prepare); the current and the previous tick records share `ticks`, and the impostor views and covers share one buffer |
+| uniform binding size | 64 KiB in WebGPU core | `models`, `bones` and `variants` are uniform arrays: at most 1,024 models, 1,365 bones and 4,096 variants. A larger pack draws no entity and logs a warning |
 | storage binding size | 128 MiB | a larger `bone_matrices` splits by page range |
 | texture array layers | 256 in WebGL2 | several entity texture arrays, one draw per array (section 3) |
 | buffer size | 256 MiB | |
@@ -574,60 +577,6 @@ section 8. In this path only, a full rig that is far from the camera can use a l
 | push constants | not in all browsers | uniforms with dynamic offsets |
 | storage buffers in the vertex stage | none in WebGPU compatibility mode | the Compatibility path |
 | compute shaders | none in WebGL2 | the Minimal path |
-
-## 7. Exports from `mcrs_minecraft_render`
-
-The entity crate (`mcrs_minecraft_entity_render`) needs these items, which are private today:
-
-| Item | Today | Need |
-|---|---|---|
-| `DeferredFrame` and its `targets` | `pub(crate)`, `gbuffer.rs:42` | the gbuffer targets for the entity draw |
-| `gbuffer_pass` | `pub(crate)`, `pass.rs:454` | a pass on the targets with `LoadOp::Load` |
-| `GBUFFER_FORMATS` | `pub(crate)`, `gbuffer.rs:17` | the formats of the entity pipeline |
-| the depth pyramid view and its sampler | inside `Terrain.hiz` | the occlusion test of the entity cull |
-| the frame bitset of `cave_visible` | inside `Terrain` | the section test of the entity cull |
-| `WorldPass::Entities` | does not exist | the slot of the entity passes |
-
-The render crate exports a small read-only view of these items. It does not export the
-`Terrain` internals.
-
-## 8. Stress scenes and gates
-
-The stress scenes S1 to S4 and their gates are in the budget note, section 5. A debug spawner
-creates the client entities from a seed, so a scene needs no server. Each gate becomes a CI gate
-when its scene and the entity passes exist. Only the gates of the reference machine run locally;
-the other tiers need such an adapter in CI or a forced path.
-
-Measure each compute pass with `PassTimestamps`: entity cull, pose and expand. Also record the
-bytes uploaded per tick and the counts of slots, visible mobs, full rigs, impostors and emitted
-faces. Write the results to `docs/perf/`.
-
-- On Metal, the timestamps at the bounds of a render pass do not bracket the work of the pass.
-  The draw time is the difference of two runs, with and without the entity draw, under
-  `MCRS_GPU_HOT` (budget note, section 4.14).
-- In Chrome, a gate reads the timestamps only with the flag
-  `enable-webgpu-developer-features`, or it takes the mean of at least 64 frames, because
-  Chrome quantizes a timestamp to 100 µs.
-
-## 9. Order of work
-
-1. Static data, the bone palette, slots with layers, the tick and state records, the clock, and
-   one draw with poses at rest. Pigs stand in the benchmark scene, some with a saddle.
-2. The cull record and the entity cull with sections, the frustum, the depth pyramid and the
-   tier selection, with the height threshold and its feedback from the full-rig count.
-3. The pose pass with `Curve` and `Pure` channels. Pigs walk and look around.
-4. The expand pass and the compaction.
-5. The impostor pipeline of CEREN-VIS-003: the image sets, the quad draw and the impostor list
-   of the cull (section 5.6).
-6. The input records, the CPU batch VM in each frame with the skip of CENT-SCR-006, and the
-   controller clip slots. The frog uses them; the pig does not.
-7. The Compatibility path: the bone texture, the fetch interface and the draw of face records
-   as an instance-rate vertex buffer. CI forces this path on a native adapter.
-8. The Minimal path: the CPU cull and the CPU pose with the batch VM. It is ready before the
-   WebGL2 backend of the client, and CI forces it on a native adapter.
-
-The shading of section 5.5, with the face factor and the overlay in the entity fragment shader,
-is part of step 1.
 
 ## 10. Deferred
 

@@ -1,40 +1,45 @@
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{
-    OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
+    Rotation, Transform as PhysicsTransform, Velocity,
+};
+use mcrs_minecraft_entity::SPRINT_MODIFIER;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{
+    AttributeInstances, InstanceChange, InstanceEdit, InstanceModifier,
 };
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::ClientConnection;
+use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundRespawn};
 use mcrs_minecraft_protocol_game::serverbound::{
-    ServerboundAcceptTeleportation, ServerboundClientTickEnd, ServerboundMovePlayerPos,
-    ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
+    PlayerInputFlags, ServerboundAcceptTeleportation, ServerboundClientTickEnd,
+    ServerboundMovePlayerPos, ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
+    ServerboundPlayerInput,
 };
 
+use crate::attribute_packets;
+use crate::collision_tables::ClientPhysicsTables;
+use crate::columns::ColumnStore;
+use crate::health_packets;
+use crate::hotbar_sync::SendSelectedSlot;
+use crate::local_motion::{self, LocalMotion};
 use crate::movement_input::MovementInput;
 use crate::player::Player;
+use crate::player_killed::{self, PlayerKilled};
+use crate::player_load::{self, PlayerLoad};
 use crate::player_view::{PendingTeleports, PlayerViewPlugin, ServerTeleport};
+use crate::previous_position::capture_previous_position;
+use crate::request_respawn::{self, RequestRespawn};
+use crate::respawn_screen;
+use crate::scripted_input::ScriptedInput;
+use crate::walk::walk;
 
 pub const TICKS_PER_SECOND: f64 = 20.0;
 
-const SPRINT_SPEED_MULTIPLIER: f64 = 2.0;
-
-#[derive(Component, Debug, Clone, Copy, Default)]
-pub struct Flying;
-
-/// Blocks per tick.
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
-pub struct FlyingSpeed(pub f64);
-
-impl Default for FlyingSpeed {
-    fn default() -> Self {
-        Self(0.5)
-    }
-}
-
-#[derive(Component, Debug, Clone, Copy, Default)]
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Sprint {
     pub active: bool,
 }
@@ -46,11 +51,11 @@ enum MovePacket {
     Rot,
 }
 
-/// What the server was last told, which is what this tick's position and look
-/// are judged against. Empty until the first teleport is accepted: a vanilla
-/// server disconnects a client that moves before the server has placed it.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct LastSentMovement(Option<SentMovement>);
+
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LastSentInput(Option<MovementInput>);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct SentMovement {
@@ -77,18 +82,15 @@ impl LastSentMovement {
     }
 }
 
-/// The look a run asked for, kept through the teleports the server answers a join with.
 #[derive(Resource, Clone, Copy)]
 pub struct LookOverride {
     pub yaw: f32,
     pub pitch: f32,
 }
 
-/// The position a run asked for, in place of the first absolute teleport the server sends.
 #[derive(Resource, Clone, Copy)]
 pub struct PositionOverride(pub DVec3);
 
-/// One tick of local-player movement.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LocalPlayerTick;
 
@@ -99,24 +101,65 @@ impl Plugin for LocalPlayerPlugin {
         if !app.is_plugin_added::<PlayerViewPlugin>() {
             app.add_plugins(PlayerViewPlugin);
         }
-        app.init_resource::<MovementInput>().add_systems(
-            FixedUpdate,
-            (
-                accept_teleports.before(LocalPlayerTick),
-                (capture_old_transform, fly).chain().in_set(LocalPlayerTick),
-                send_movement.after(LocalPlayerTick),
-            ),
-        );
+        app.init_resource::<MovementInput>()
+            .init_resource::<ScriptedInput>()
+            .add_message::<PlayerKilled>()
+            .add_message::<RequestRespawn>()
+            .add_observer(attribute_packets::on_login)
+            .add_observer(attribute_packets::on_respawn)
+            .add_observer(attribute_packets::on_update_attributes)
+            .add_observer(health_packets::on_set_health)
+            .add_observer(player_killed::on_player_combat_kill)
+            .add_observer(health_packets::on_set_entity_data)
+            .add_observer(health_packets::on_respawn)
+            .add_observer(respawn_screen::on_game_event)
+            .add_observer(local_motion::on_login)
+            .add_observer(local_motion::on_respawn)
+            .add_observer(local_motion::on_set_entity_data)
+            .add_observer(player_load::start_load::<ClientboundLogin>)
+            .add_observer(player_load::start_load::<ClientboundRespawn>)
+            .add_observer(player_load::on_game_event)
+            .add_systems(
+                FixedUpdate,
+                (
+                    accept_teleports.before(LocalPlayerTick),
+                    player_load::end_player_load
+                        .run_if(player_load::player_loading)
+                        .after(accept_teleports)
+                        .before(SendSelectedSlot)
+                        .before(LocalPlayerTick),
+                    (
+                        capture_previous_position,
+                        (
+                            local_motion::write_motion_inputs,
+                            walk.run_if(resource_exists::<ColumnStore>)
+                                .run_if(resource_exists::<ClientPhysicsTables>),
+                            give_sprint_modifier,
+                        )
+                            .chain()
+                            .run_if(not(player_load::player_loading)),
+                    )
+                        .chain()
+                        .in_set(LocalPlayerTick),
+                    send_movement.after(LocalPlayerTick),
+                ),
+            )
+            .add_systems(
+                Update,
+                request_respawn::send_respawn_requests
+                    .run_if(on_message::<request_respawn::RequestRespawn>)
+                    .after(ClientNetworkSystems::Receive)
+                    .before(ClientNetworkSystems::Flush),
+            );
     }
 }
 
 fn apply_server_teleport(
+    state: &mut PlayerState,
     transform: &mut PhysicsTransform,
     velocity: &mut Velocity,
     teleport: &ServerTeleport,
 ) {
-    let mut state = PlayerState::new(transform.translation);
-    state.body.velocity = velocity.0;
     let mut rotation = Orientation::facing(transform.rotation.yaw(), transform.rotation.pitch());
     let packet = Teleport {
         position: teleport.position,
@@ -125,17 +168,30 @@ fn apply_server_teleport(
         pitch: teleport.look.pitch,
         relative: Relative::from_bits_truncate(teleport.flags.bits()),
     };
-    apply_teleport(&mut state, &mut rotation, &packet);
+    apply_teleport(state, &mut rotation, &packet);
     transform.translation = state.body.position;
     transform.rotation = Rotation::new(rotation.yaw, rotation.pitch);
     velocity.0 = state.body.velocity;
 }
 
-/// Moves to where the server says, then confirms with the position that move
-/// landed on.
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "`apply_server_teleport` has already marked the motion and the transform changed, so a comparison saves nothing"
+    )
+)]
 fn accept_teleports(
     mut commands: Commands,
-    player: Single<(&mut PhysicsTransform, &mut Velocity, &mut LastSentMovement), With<Player>>,
+    player: Single<
+        (
+            &mut PhysicsTransform,
+            &mut Velocity,
+            &mut LastSentMovement,
+            &mut LocalMotion,
+        ),
+        With<Player>,
+    >,
     connection: Option<Single<(&mut ClientConnection, &mut PendingTeleports)>>,
     look: Option<Res<LookOverride>>,
     position: Option<Res<PositionOverride>>,
@@ -145,15 +201,14 @@ fn accept_teleports(
     if pending.0.is_empty() {
         return;
     }
-    let (mut transform, mut velocity, mut last_sent) = player.into_inner();
+    let (mut transform, mut velocity, mut last_sent, mut motion) = player.into_inner();
     let mut position = position.map(|position| position.0);
     for teleport in pending.0.drain(..) {
-        apply_server_teleport(&mut transform, &mut velocity, &teleport);
+        apply_server_teleport(&mut motion.0, &mut transform, &mut velocity, &teleport);
         if teleport.flags.is_empty() {
             if let Some(position) = position.take() {
+                motion.0.body.position = position;
                 transform.translation = position;
-                // The server answers the mismatch with its own destination,
-                // which the client has to accept instead of overriding again.
                 commands.remove_resource::<PositionOverride>();
             }
             if let Some(look) = look.as_deref() {
@@ -169,10 +224,19 @@ fn accept_teleports(
     }
 }
 
-/// Without it the server's view of the player never moves, so it never streams
-/// the columns the player is flying towards.
 fn send_movement(
-    player: Single<(&PhysicsTransform, &mut LastSentMovement), With<Player>>,
+    input: Res<MovementInput>,
+    scripted: Res<ScriptedInput>,
+    player: Single<
+        (
+            &PhysicsTransform,
+            &LocalMotion,
+            &mut LastSentMovement,
+            &mut LastSentInput,
+            &mut PlayerLoad,
+        ),
+        With<Player>,
+    >,
     connection: Option<Single<(&mut ClientConnection, &ConnectionState)>>,
 ) {
     let Some(connection) = connection else { return };
@@ -181,10 +245,18 @@ fn send_movement(
         return;
     }
 
-    let (transform, mut last_sent) = player.into_inner();
-    // Flying never touches the ground and never collides, so both flags stay
-    // clear until the client grows a collision step.
-    let flags = MoveFlags::new();
+    let (transform, motion, mut last_sent, mut last_input, mut load) = player.into_inner();
+    let input = input.or(scripted.movement);
+    if *load == PlayerLoad::Loaded && last_input.0 != Some(input) {
+        last_input.0 = Some(input);
+        connection.write_packet(&ServerboundPlayerInput {
+            input: input_flags(input),
+        });
+    }
+    let body_flags = motion.0.body.flags;
+    let flags = MoveFlags::new()
+        .with_on_ground(body_flags.on_ground)
+        .with_horizontal_collision(body_flags.horizontal_collision);
     if let Some(packet) = last_sent.tick(transform.translation, transform.rotation) {
         let position = transform.translation.into();
         let look = transform.rotation.into();
@@ -201,51 +273,49 @@ fn send_movement(
         }
     }
     connection.write_packet(&ServerboundClientTickEnd);
+    if let PlayerLoad::Loading(progress) = &mut *load {
+        progress.tick_ends_sent = progress.tick_ends_sent.saturating_add(1);
+    }
 }
 
-fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), With<Player>>) {
-    let (transform, mut old_transform) = player.into_inner();
-    old_transform.0 = *transform;
+fn input_flags(input: MovementInput) -> PlayerInputFlags {
+    PlayerInputFlags::new()
+        .with_forward(input.forward)
+        .with_backward(input.backward)
+        .with_left(input.left)
+        .with_right(input.right)
+        .with_jump(input.jump)
+        .with_shift(input.shift)
+        .with_sprint(input.sprint)
 }
 
-fn fly(
-    input: Res<MovementInput>,
-    player: Single<
-        (&mut Sprint, &mut PhysicsTransform, &FlyingSpeed),
-        (With<Player>, With<Flying>),
-    >,
+fn give_sprint_modifier(
+    mut players: Populated<(&Sprint, &mut AttributeInstances), (With<Player>, Changed<Sprint>)>,
 ) {
-    let (mut sprint, mut transform, flying_speed) = player.into_inner();
-    let yaw = transform.rotation.yaw();
-    transform.translation += tick(&mut sprint, *flying_speed, yaw, *input);
-}
-
-/// The displacement of one tick: the pressed direction turned by the yaw, with
-/// no inertia and no friction.
-fn tick(sprint: &mut Sprint, flying_speed: FlyingSpeed, yaw: f32, input: MovementInput) -> DVec3 {
-    let move_vector = input.move_vector();
-    sprint.active = input.sprint && move_vector.y > 0.0;
-    let speed = if sprint.active {
-        flying_speed.0 * SPRINT_SPEED_MULTIPLIER
-    } else {
-        flying_speed.0
-    };
-    let (sin, cos) = f64::from(yaw.to_radians()).sin_cos();
-    let horizontal = DVec3::new(
-        move_vector.x * cos - move_vector.y * sin,
-        0.0,
-        move_vector.y * cos + move_vector.x * sin,
-    );
-    let vertical = f64::from(i8::from(input.jump) - i8::from(input.shift));
-    (horizontal + DVec3::Y * vertical) * speed
+    for (sprint, mut instances) in &mut players {
+        let edit = if sprint.active {
+            InstanceEdit::Put(InstanceModifier::transient(&SPRINT_MODIFIER))
+        } else {
+            InstanceEdit::Remove(SPRINT_MODIFIER.id.to_buf())
+        };
+        let change = instances
+            .bypass_change_detection()
+            .apply(Attribute::MovementSpeed, &edit);
+        if change == InstanceChange::Changed {
+            instances.set_changed();
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::player::look_direction;
+    use crate::test_session::{FLOOR_TOP, TestSession, login, spawn_info};
     use mcrs_minecraft_core::Look;
+    use mcrs_minecraft_entity::entity_type_keys::EntityType;
+    use mcrs_minecraft_game_mode::GameMode;
     use mcrs_minecraft_protocol_game::PositionFlag;
+    use mcrs_minecraft_protocol_game::clientbound::{AttributeSnapshot, ClientboundRespawn};
 
     #[test]
     fn no_move_is_sent_before_the_first_accepted_teleport() {
@@ -270,19 +340,91 @@ mod tests {
     }
 
     #[test]
-    fn forward_moves_along_the_horizontal_look_direction() {
-        let forward = MovementInput {
+    fn the_sprint_state_puts_and_removes_the_sprint_modifier() {
+        let base = 0.1_f32 as f64;
+        let sprinting = base * (1.0 + 0.3_f32 as f64);
+        let mut app = App::new();
+        app.add_systems(Update, give_sprint_modifier);
+        let bases = mcrs_minecraft_entity::attribute_bases(EntityType::Player)
+            .expect("a player has attributes");
+        let player = app
+            .world_mut()
+            .spawn((Player, Sprint::default(), AttributeInstances::new(bases)))
+            .id();
+        let speed = |app: &App| {
+            app.world()
+                .get::<AttributeInstances>(player)
+                .and_then(|instances| instances.value(Attribute::MovementSpeed))
+                .map(f64::to_bits)
+        };
+        let set_sprint = |app: &mut App, active: bool| {
+            app.world_mut()
+                .get_mut::<Sprint>(player)
+                .expect("the player sprints")
+                .map_unchanged(|sprint| &mut sprint.active)
+                .set_if_neq(active);
+            app.update();
+        };
+
+        set_sprint(&mut app, true);
+        assert_eq!(speed(&app), Some(sprinting.to_bits()));
+
+        let _change = app
+            .world_mut()
+            .get_mut::<AttributeInstances>(player)
+            .expect("the player has instances")
+            .receive(&AttributeSnapshot {
+                attribute: Attribute::MovementSpeed.into(),
+                base,
+                modifiers: Vec::new(),
+            })
+            .expect("movement_speed is in the registry");
+        app.update();
+        assert_eq!(
+            speed(&app),
+            Some(base.to_bits()),
+            "an entry drops the modifier"
+        );
+
+        set_sprint(&mut app, false);
+        assert_eq!(speed(&app), Some(base.to_bits()));
+    }
+
+    #[test]
+    fn a_held_sprint_key_sprints_again_after_a_respawn_and_a_login() {
+        let sprinting = (0.1_f32 as f64 * (1.0 + 0.3_f32 as f64)).to_bits();
+        let held = MovementInput {
             forward: true,
+            sprint: true,
             ..MovementInput::EMPTY
         };
-        for yaw in [0.0, 90.0, -139.9493, 180.0] {
-            let moved = tick(&mut Sprint::default(), FlyingSpeed(1.0), yaw, forward);
-            let look = look_direction(yaw, 0.0).as_dvec3();
-            assert!(
-                moved.abs_diff_eq(look, 1e-6),
-                "yaw {yaw}: {moved:?} != {look:?}"
-            );
-        }
+        let mut session = TestSession::new(DVec3::new(8.5, FLOOR_TOP, 2.5));
+        let speed = |session: &TestSession| {
+            session
+                .app
+                .world()
+                .get::<AttributeInstances>(session.player)
+                .and_then(|instances| instances.value(Attribute::MovementSpeed))
+                .map(f64::to_bits)
+        };
+
+        session.receive(login(GameMode::Survival));
+        session.end_load();
+        session.ticks(held, 1);
+        assert_eq!(speed(&session), Some(sprinting));
+
+        session.receive(ClientboundRespawn {
+            player_spawn_info: spawn_info(GameMode::Survival),
+            data_to_keep: 0,
+        });
+        session.end_load();
+        session.ticks(held, 1);
+        assert_eq!(speed(&session), Some(sprinting), "after the respawn");
+
+        session.receive(login(GameMode::Survival));
+        session.end_load();
+        session.ticks(held, 1);
+        assert_eq!(speed(&session), Some(sprinting), "after the second login");
     }
 
     fn teleport(flags: &[PositionFlag], look: Look, velocity: DVec3) -> ServerTeleport {
@@ -297,11 +439,13 @@ mod tests {
 
     fn landing(teleport: &ServerTeleport) -> (PhysicsTransform, Velocity) {
         let mut transform = PhysicsTransform {
-            translation: DVec3::new(10.0, 64.0, -5.0),
+            translation: DVec3::ZERO,
             rotation: Rotation::new(45.0, 10.0),
         };
-        let mut velocity = Velocity(DVec3::new(1.0, 0.0, -1.0));
-        apply_server_teleport(&mut transform, &mut velocity, teleport);
+        let mut state = PlayerState::new(DVec3::new(10.0, 64.0, -5.0));
+        state.body.velocity = DVec3::new(1.0, 0.0, -1.0);
+        let mut velocity = Velocity(DVec3::ZERO);
+        apply_server_teleport(&mut state, &mut transform, &mut velocity, teleport);
         (transform, velocity)
     }
 

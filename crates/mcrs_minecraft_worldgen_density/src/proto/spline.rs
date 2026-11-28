@@ -5,16 +5,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-/// `Codec.either(Codec.FLOAT, Multipoint)`: a spline is a bare number or an
-/// object, at the root and at every point's `value`.
 #[derive(Clone, Debug)]
 pub enum ProtoSpline {
     Constant(f32),
     Multipoint(Box<ProtoMultipoint>),
 }
 
-/// `location`, `derivative` and a constant leaf are plain `Codec.FLOAT`, not
-/// `NOISE_VALUE_CODEC`: the ±1e6 bound would reject splines vanilla accepts.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(try_from = "PointsForm", into = "PointsForm")]
 pub struct ProtoMultipoint {
@@ -25,9 +21,6 @@ pub struct ProtoMultipoint {
 }
 
 impl ProtoSpline {
-    /// Pre-order over every coordinate density function: the multipoint's own
-    /// first, then each point's sub-spline in list order. The axes walk and the
-    /// compiler's coordinate deduplication both depend on this order.
     pub fn visit_coordinates(&self, f: &mut impl FnMut(&DensityFunctionHolder)) {
         if let ProtoSpline::Multipoint(m) = self {
             f(&m.coordinate);
@@ -48,7 +41,6 @@ impl ProtoSpline {
         }
     }
 
-    /// The same spline with every constant it bottoms out in passed through `f`.
     pub fn map_values(self, f: impl Fn(f32) -> f32 + Copy) -> Self {
         match self {
             ProtoSpline::Constant(value) => ProtoSpline::Constant(f(value)),
@@ -65,7 +57,6 @@ impl ProtoSpline {
     }
 }
 
-/// The points of one multipoint spline, added in ascending location order.
 pub struct SplinePoints {
     coordinate: DensityFunctionHolder,
     locations: Vec<f32>,
@@ -285,8 +276,6 @@ mod tests {
         serde_json::from_str::<ProtoSpline>(r#"{"coordinate":0.0,"points":[]}"#).unwrap_err();
     }
 
-    /// The compiler deduplicates coordinates on structural equality, so a
-    /// derivative that differs only in the sign of zero must stay distinct.
     #[test]
     fn signed_zero_survives_structural_equality() {
         let positive: ProtoSpline = serde_json::from_str(

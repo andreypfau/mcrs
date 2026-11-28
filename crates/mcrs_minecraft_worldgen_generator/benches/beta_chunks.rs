@@ -1,9 +1,3 @@
-//! Beta 1.7.3 chunk-generation benchmark.
-//!
-//! usage: cargo bench --bench beta_chunks -- [chunks_per_side] [threads] [seed]
-//!
-//! Mirrors the server's Beta `Filled` stage: terrain, surface, caves. Ores run
-//! in the `Run` stage over a region; `the_ladder_costs` in the tests times that.
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -13,6 +7,7 @@
 )]
 
 mod common;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::sync::{Arc, Barrier};
 use std::time::Instant;
@@ -33,7 +28,6 @@ use mcrs_minecraft_worldgen_generator::{
 
 use common::support::{build_settings_router, corpus};
 
-/// The eleven land biomes numbered in name order, as a registry of only them numbers them.
 fn build_beta_biome_source() -> BiomeSource {
     let mut names: Vec<String> = (0..11)
         .map(|i| format!("minecraft:land_biome_{i}"))
@@ -52,7 +46,6 @@ fn build_beta_biome_source() -> BiomeSource {
     }
 }
 
-/// Beta's carver in every land biome, as the shipped Beta biomes carry it.
 fn beta_carvers(source: &BiomeSource) -> CarverBiomeTable {
     CarverBiomeTable::beta(source, |_| Arc::from([CarverConfig::BetaCave])).expect("a Beta source")
 }
@@ -74,8 +67,6 @@ impl Stages {
     }
 }
 
-/// One chunk through the full Beta pipeline. Returns its wall time in ms and
-/// the per-stage split.
 fn generate_chunk(
     column: &mut ColumnBlocks,
     y_sections: &[i32],
@@ -90,13 +81,16 @@ fn generate_chunk(
     let started = Instant::now();
 
     let t = Instant::now();
+    let mut cells = AquiferCells::default();
     let biome_palette = fill_column_dense_any(
         column,
         chunk_x,
         chunk_z,
         y_sections,
         router,
-        &ColumnBiomes::new(Some(biome_source), None).unwrap(),
+        &mut cells,
+        &ColumnBiomes::new(Some(biome_source), None, None).unwrap(),
+        None,
         None,
         cancel,
     )
@@ -154,8 +148,6 @@ fn generate_range(
     let mut times = Vec::with_capacity((to - from).max(0) as usize * side.max(0) as usize);
     let mut stages = Stages::default();
     let mut column = ColumnBlocks::new(y_sections);
-    // Building the router parses the whole density-function registry off disk.
-    // That is harness cost, not generation, so it stays outside the wall clock.
     if let Some(start) = start {
         start.wait();
     }
@@ -178,19 +170,21 @@ fn generate_range(
     (times, stages, loop_start.elapsed().as_secs_f64() * 1000.0)
 }
 
-/// Non-air blocks in one column, to confirm a section span actually carries terrain.
 fn report_content(y_sections: &[i32], seed: u64) {
     let router = build_settings_router("beta", seed);
     let biome_source = build_beta_biome_source();
     let cancel = CancellationToken::new();
     let mut column = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     let _ = fill_column_dense_any(
         &mut column,
         0,
         0,
         y_sections,
         &router,
-        &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
+        &mut cells,
+        &ColumnBiomes::new(Some(&biome_source), None, None).unwrap(),
+        None,
         None,
         &cancel,
     )
@@ -256,14 +250,10 @@ fn main() {
         return;
     }
 
-    // Section span: Beta's own world is 8 sections; the preset currently runs in
-    // the vanilla overworld dimension, which is 24.
     let min_section: i32 = args.get(3).and_then(|a| a.parse().ok()).unwrap_or(0);
     let section_count: i32 = args.get(4).and_then(|a| a.parse().ok()).unwrap_or(8);
     let y_sections: Vec<i32> = (min_section..min_section + section_count).collect();
 
-    // Warm-up: the block corpus, the router tables and first-touch page faults
-    // shouldn't land in the measurement.
     let _ = generate_range(seed, 4, -4, 0, &y_sections, None);
 
     let mut times: Vec<f64> = Vec::new();
@@ -287,7 +277,6 @@ fn main() {
             thread_walls.push(thread_wall);
         }
     });
-    // Every worker leaves the barrier together, so the slowest one is the wall.
     let wall = thread_walls.iter().copied().fold(0.0, f64::max);
     let mean_thread_wall = thread_walls.iter().sum::<f64>() / thread_walls.len() as f64;
 

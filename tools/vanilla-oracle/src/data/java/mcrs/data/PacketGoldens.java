@@ -795,7 +795,6 @@ public final class PacketGoldens {
         );
     }
 
-    // an obtained time can only be set through the wire form: the field is private and grant() reads the clock
     private static AdvancementProgress progress(final Map<String, CriterionProgress> criteria) {
         ByteBuf buffer = Unpooled.buffer();
         ByteBufCodecs.<ByteBuf, String, CriterionProgress, Map<String, CriterionProgress>>map(
@@ -975,7 +974,6 @@ public final class PacketGoldens {
         return List.of(first, second);
     }
 
-    // vanilla builds this map as an identity hash map, so its entry order differs between runs; it is written in registry id order
     private static ServerboundContainerClickPacket containerClick(final Session session) {
         ItemStack sword = sword(session);
         DataComponentPatch.SplitResult split = sword.getComponentsPatch().split();

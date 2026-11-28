@@ -1,0 +1,205 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment pose_e7_1
+step riptide_mob
+instruction After Go, hold the right mouse button for 1 second, then release it toward the golem.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+13358485 < abilities none 0.05
+13358485 < attribute minecraft:attack_speed 4 minecraft:base_attack_speed -2.9000000953674316 0
+13358485 < attribute minecraft:block_interaction_range 4.5
+13358485 < attribute minecraft:entity_interaction_range 3
+13358485 < attribute minecraft:movement_speed 0.10000000149011612
+13358485 < data self 8 byte:0x00
+13358485 < data self 9 float:20
+13358485 < data self 16 byte:0x7f
+13358485 < teleport 5 0.5 100 0.5 0 0 0 -90 0 0
+13413894 > move - - none
+13413895 > tick
+13413895 > move - - on_ground
+13415057 > tick
+13415058 > move 0.5,100,0.5 - on_ground
+13419404 > tick
+13514627 > tick
+13515877 > tick
+13616721 > tick
+13617885 > tick
+13713805 > tick
+13715408 > tick
+13823807 > tick
+13823807 > tick
+13917950 > tick
+13919165 > tick
+14021476 > tick
+14025754 > tick
+14171621 > tick
+14175994 > tick
+14178344 > tick
+14223532 > tick
+14325069 > tick
+14326316 > tick
+14425409 > tick
+14425412 > move 0.5,100,0.5 - on_ground
+14425412 > tick
+14525242 > tick
+14526461 > tick
+14625299 > tick
+14626470 > tick
+14730981 > tick
+14730982 > tick
+14834156 > tick
+14834158 > tick
+14932637 > tick
+14932639 > tick
+15041158 > tick
+15042330 > tick
+15156629 > tick
+15158818 > tick
+15238804 > tick
+15240091 > tick
+15342004 > tick
+15343171 > tick
+15443874 > tick
+15443876 > move 0.5,100,0.5 - on_ground
+15445087 > tick
+15541952 > tick
+15543123 > tick
+15645137 > tick
+15646487 > tick
+15746518 > tick
+15747875 > tick
+15851691 > tick
+15853108 > tick
+15949085 > tick
+15950262 > tick
+16050843 > tick
+16052305 > tick
+16150186 > tick
+16151342 > tick
+16253599 > tick
+16253601 > tick
+16358631 > tick
+16358632 > tick
+16457471 > interact false
+16457473 > use_item
+16458647 > tick
+16458648 > move 0.5,100,0.5 - on_ground
+16458649 > tick
+16463249 < data self 8 byte:0x01
+16557927 > tick
+16559532 > tick
+16658888 > tick
+16658889 > tick
+16760791 > tick
+16761968 > tick
+16761969 > tick
+16871979 > tick
+16871981 > tick
+16967361 > tick
+16975966 > tick
+17070739 > tick
+17074756 > tick
+17176040 > tick
+17176041 > tick
+17274854 > tick
+17276467 > tick
+17377175 > tick
+17378353 > release_use_item
+17379912 > move 3.5,101.12159992694855,0.5 - none
+17379913 > tick
+17418219 < data self 8 byte:0x04
+17464121 < data 2 9 float:92
+17464126 < data self 8 byte:0x00
+17464132 < attribute minecraft:attack_speed 4 minecraft:base_attack_speed -2.9000000953674316 0
+17480451 > move 2.9539999842643736,101.15264632785187,0.5 - none
+17483807 > tick
+17483808 > move 2.4201940481387867,101.10467179980341,0.5 - none
+17483808 > tick
+17513760 < attribute minecraft:attack_speed 4 minecraft:base_attack_speed -2.9000000953674316 0
+17582009 > move 1.9344306322648848,100.979256759875,0.5 - none
+17583178 > tick
+17583178 > move 1.4923859110799815,100.77795001682718,0.5 - none
+17584392 > tick
+17682273 > move 1.0901252032086355,100.50226940327481,0.5 - none
+17682274 > tick
+17682275 > move 0.7240679484960036,100.15370239520942,0.5 - none
+17683440 > tick
+17784374 > move 0.3909558371072751,100,0.5 - on_ground
+17786675 > tick
+17786676 > move 0.08782380700731934,100,0.5 - on_ground
+17787842 > tick
+17811934 < block 0 99 0 minecraft:stone
+17881526 > move -0.07768630065169041,100,0.5 - on_ground
+17882872 > tick
+17882873 > move -0.16805482993005186,100,0.5 - on_ground
+17882873 > tick
+17911602 < forget 5 -7
+17911604 < forget 5 7
+17911606 < forget 6 -6
+17911606 < forget 6 6
+17911607 < forget 7 -5
+17911608 < forget 7 -4
+17911608 < forget 7 -3
+17913011 < forget 7 -2
+17913014 < forget 7 -1
+17913014 < forget 7 0
+17913015 < forget 7 1
+17913015 < forget 7 2
+17913016 < forget 7 3
+17913016 < forget 7 4
+17913016 < forget 7 5
+17986945 > move -0.21739605264714987,100,0.5 - on_ground
+17986947 > tick
+17986947 > move -0.24433636337987327,100,0.5 - on_ground
+17986947 > tick
+18088454 > move -0.259045774748477,100,0.5 - on_ground
+18088456 > tick
+18088456 > move -0.2670771142885959,100,0.5 - on_ground
+18088456 > tick
+18188114 > move -0.271462226186843,100,0.5 - on_ground
+18189288 > tick
+18190559 > tick
+18293310 > tick
+18294477 > tick
+18392959 > tick
+18394138 > tick
+18497222 > tick
+18497224 > tick
+18597506 > tick
+18598867 > tick
+18699613 > tick
+18700759 > tick
+18802292 > tick
+18802294 > tick
+18904205 > tick
+18904207 > tick
+19004362 > tick
+19006192 > tick
+19105007 > tick
+19107493 > tick
+19206221 > move -0.271462226186843,100,0.5 - on_ground
+19207382 > tick
+19207383 > tick
+19310085 > tick
+19313037 > tick
+19313038 > tick
+19412890 > tick
+19414041 > tick
+19516783 > tick
+19517957 > tick
+19614947 > tick
+19616131 > tick
+19715157 > tick
+19716357 > tick
+19816368 > tick
+19817560 > tick
+19918222 > tick
+19918223 > tick
+20022678 > tick
+20022680 > tick
+20122623 > tick
+20123785 > move -0.271462226186843,100,0.5 - on_ground
+20124947 > tick
+20221240 > tick
+20222402 > tick
+20321904 > tick

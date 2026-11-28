@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_voxel"
-description = "Block, section, column and local positions and the block state id of a voxel world"
+description = "Owns the block, section, local and column positions and the block state id of a voxel world; the chunk position type is ColumnPos"
 version.workspace = true
 edition.workspace = true
 
@@ -8,8 +8,7 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-# The workspace entry enables std, which the wasm32v1-none build of this crate does not have.
-glam = { version = "0.33.12", default-features = false, features = ["nostd-libm", "all-types"] }
+glam = { workspace = true, features = ["nostd-libm"] }
 bevy_ecs = { workspace = true, optional = true }
 
 [features]

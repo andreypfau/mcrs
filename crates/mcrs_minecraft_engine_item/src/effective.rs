@@ -8,7 +8,6 @@ use mcrs_minecraft_item_table::ItemTable;
 use crate::ComponentState;
 use crate::Removed;
 
-/// The effective component of type `T` of a stack. It reads only `T`, [`Removed`] and [`Kind`].
 #[derive(QueryData)]
 pub struct Effective<T: ItemComponent + Component> {
     stored: Option<&'static T>,
@@ -36,8 +35,6 @@ impl<'w, T: ItemComponent + Component> EffectiveItem<'w, '_, T> {
     }
 }
 
-/// The effective value from the stored component and the removals of a stack: the stored value,
-/// else the neutral value of `T` when `removed` has no removal of `T`.
 #[must_use]
 pub fn effective<'a, T: ItemComponent + 'static>(
     stored: Option<&'a T>,

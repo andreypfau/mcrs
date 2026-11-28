@@ -28,11 +28,6 @@ pub use modifier::{Modifier, biome_info_noise};
 pub use predicate::{Predicate, Rule, mask_of, single_state};
 pub use states::{BlockLayout, PropertyLayout, StateCount, WorldStates, with_digit};
 
-/// What a placement modifier or a generator may ask of the volume it runs in,
-/// beyond the blocks themselves.
-///
-/// World-absolute coordinates throughout.
-/// What generation schedules a tick for: a block, named by the state it placed, and a fluid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GenerationKinds;
 
@@ -50,20 +45,17 @@ pub trait WorldGenVolume:
 {
     fn world(&self) -> &WorldStates;
 
-    /// Generation reads a block it cannot reach as air.
     fn get(&self, p: BlockPos) -> VoxelId {
         self.block(p)
             .map_or(VoxelId::default(), |state| VoxelId(state.number()))
     }
 
-    /// Generation drops a write it cannot make.
     fn set(&mut self, p: BlockPos, state: VoxelId) {
         if let Some(state) = BlockStateId::checked(state.0, self.world().state_count.0) {
             let _ = self.set_block(p, state);
         }
     }
 
-    /// Generation drops a block entity it cannot write, like a block.
     fn add_block_entity(&mut self, entity: GeneratedBlockEntity) {
         let at = entity.position();
         let _ = self.set_block_entity(at, entity);
@@ -77,8 +69,6 @@ pub trait WorldGenVolume:
         mask.contains(self.get(p).0 as usize)
     }
 
-    /// `Feature.safeSetBlock`: the write happens unless the block there is in
-    /// `unless`, and the answer is whether it did.
     fn set_unless(&mut self, unless: &FixedBitSet, p: BlockPos, state: VoxelId) -> bool {
         if self.holds(unless, p) {
             return false;
@@ -87,52 +77,37 @@ pub trait WorldGenVolume:
         true
     }
 
-    /// Generation reads a height it cannot reach as the floor of the world.
     fn height(&self, kind: HeightmapName, x: i32, z: i32) -> i32 {
         self.heightmap(kind, x, z).unwrap_or(self.extent().min_y)
     }
 
-    /// Generation reads a biome it cannot reach as the first one.
     fn biome(&self, p: BlockPos) -> u16 {
         self.biome_at(p).unwrap_or(0)
     }
 
     fn extent(&self) -> HeightContext;
 
-    /// `BlockState.canSurvive`, which is block behaviour rather than a property
-    /// of the state, so only the volume can answer it.
     fn would_survive(&self, state: VoxelId, p: BlockPos) -> bool;
 }
 
-/// A set of block states as a bit per state id.
 pub type StateMask = Arc<FixedBitSet>;
 
-/// A set of biomes as a bit per the index [`WorldGenVolume::biome`] answers with.
 pub type BiomeMask = Arc<FixedBitSet>;
 
-/// The stack of positions with the modifier each is waiting on, plus the
-/// output buffer, one set per worker. Cleared between objects, never
-/// reallocated once warm.
 #[derive(Debug, Default)]
 pub struct PlacerScratch {
     pending: Vec<(BlockPos, usize)>,
     outputs: Vec<BlockPos>,
 }
 
-/// One object: run its modifier chain over `origin` and hand every surviving
-/// position to `generate`.
-///
-/// The stack machine is the reference's, reverse push included — the random
-/// source is shared by every modifier and by the generator, so the traversal
-/// order is what fixes the draw order.
 pub fn place<W: WorldGenVolume, R: Random>(
     modifiers: &[Modifier],
     volume: &mut W,
     scratch: &mut PlacerScratch,
     origin: BlockPos,
     rng: &mut R,
-    carries: &dyn Fn(u16) -> bool,
-    generate: &mut dyn FnMut(&mut W, &mut R, BlockPos) -> bool,
+    carries: &impl Fn(u16) -> bool,
+    mut generate: impl FnMut(&mut W, &mut R, BlockPos) -> bool,
 ) -> bool {
     if modifiers.is_empty() {
         return generate(volume, rng, origin);
@@ -162,42 +137,23 @@ pub fn place<W: WorldGenVolume, R: Random>(
     placed_any
 }
 
-/// One object's generator: the object's `(step, index)`, the volume, the shared
-/// source, the position, and whether a biome carries the object being placed —
-/// which a feature holding a nested placed feature passes down unchanged.
-pub type Generate<'a, W> = &'a mut dyn FnMut(
-    (usize, usize),
-    &mut W,
-    &mut WorldgenRandom,
-    BlockPos,
-    &dyn Fn(u16) -> bool,
-) -> bool;
-
-/// `steps` of a volume's decoration program: each step in order, every feature
-/// of a step that the volume's biomes carry, ascending by global index, each on
-/// its own source seeded from the column's decoration seed.
-///
-/// A feature's seed is a function of its own `(step, index)` alone, so a caller
-/// that walks the program a few steps at a time draws exactly what one call
-/// over the whole range would.
-///
-/// `present[step]` is the union over the volume's biomes; `carries` answers
-/// whether one biome carries the feature at `(step, index)`, which is what the
-/// `biome` filter tests.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the biome presence, step range, modifier chain, biome predicate, volume, scratch, origin, seed and generator of one decoration pass"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one decoration pass"
+    )
 )]
 pub fn decorate<'a, W: WorldGenVolume>(
     present: &[FixedBitSet],
     steps: Range<usize>,
-    chain: &dyn Fn(usize, usize) -> &'a [Modifier],
-    carries: &dyn Fn(u16, usize, usize) -> bool,
+    chain: impl Fn(usize, usize) -> &'a [Modifier],
+    carries: impl Fn(u16, usize, usize) -> bool,
     volume: &mut W,
     scratch: &mut PlacerScratch,
     origin: BlockPos,
     decoration_seed: i64,
-    generate: Generate<'_, W>,
+    mut generate: impl FnMut((usize, usize), &mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) {
     for step in steps {
         let Some(bits) = present.get(step) else {
@@ -216,13 +172,12 @@ pub fn decorate<'a, W: WorldGenVolume>(
                 origin,
                 &mut rng,
                 &carry,
-                &mut |volume, rng, at| generate((step, index), volume, rng, at, &carry),
+                |volume, rng, at| generate((step, index), volume, rng, at),
             );
         }
     }
 }
 
-/// Writes `entity` over the one held at `at`, keeping its place, or after every other.
 pub fn set_held(
     held: &mut Vec<GeneratedBlockEntity>,
     at: BlockPos,
@@ -249,7 +204,6 @@ mod tests {
     const AIR: VoxelId = VoxelId(0);
     const STONE: VoxelId = VoxelId(1);
 
-    /// Stone to y=64, air above, one heightmap value, one biome.
     fn stub() -> BoxRegion {
         let mut volume = BoxRegion::new(
             BlockPos::new(-16, -64, -16),
@@ -267,8 +221,6 @@ mod tests {
         true
     }
 
-    /// Runs a chain from `origin` and reports where the generator fired and what
-    /// the shared source looked like afterwards.
     fn run(modifiers: &[Modifier], origin: BlockPos, seed: u64) -> (Vec<BlockPos>, WorldgenRandom) {
         let mut volume = stub();
         let mut scratch = PlacerScratch::default();
@@ -281,7 +233,7 @@ mod tests {
             origin,
             &mut rng,
             &always,
-            &mut |_, _, at| {
+            |_, _, at| {
                 hits.push(at);
                 true
             },
@@ -291,10 +243,6 @@ mod tests {
 
     const ORIGIN: BlockPos = BlockPos::new(16, 0, 32);
 
-    /// `count` emits three copies and `offset` consumes them one at a time. A
-    /// placer that pushed its outputs in emission order would run the three
-    /// offsets in the reverse order and place a different world, so pin both the
-    /// draw sequence and where each copy landed.
     #[test]
     fn outputs_are_consumed_depth_first_in_emission_order() {
         let modifiers = vec![
@@ -323,8 +271,6 @@ mod tests {
         assert_eq!(hits, expected);
     }
 
-    /// The whole first branch reaches the generator before the second branch's
-    /// filter is rolled at all.
     #[test]
     fn a_filter_after_a_count_interleaves_one_branch_at_a_time() {
         let modifiers = vec![
@@ -490,7 +436,7 @@ mod tests {
             BlockPos::new(0, 0, 0),
             &mut rng,
             &refuse,
-            &mut |_, _, _| {
+            |_, _, _| {
                 hits += 1;
                 true
             },
@@ -499,8 +445,6 @@ mod tests {
         assert_eq!(rng, WorldgenRandom::new(0));
     }
 
-    /// The count provider is sampled once per loop test, so the pass that finds
-    /// nothing still spends the sample that ends it.
     #[test]
     fn count_on_every_layer_descends_and_stops_when_a_pass_finds_nothing() {
         let modifiers = vec![Modifier::CountOnEveryLayer {
@@ -554,7 +498,7 @@ mod tests {
                 BlockPos::new(0, 0, 0),
                 &mut rng,
                 &always,
-                &mut |_, _, _| true,
+                |_, _, _| true,
             );
         }
         assert!(scratch.pending.is_empty());
@@ -562,11 +506,6 @@ mod tests {
         assert!(scratch.pending.capacity() <= 8, "no unbounded growth");
     }
 
-    /// Seed 2345 with no world seed in it, so this field is the same in every
-    /// world. The two off-origin values are the reference's own noise, recorded
-    /// so a change to the seed, the permutation stream or the sampler is caught;
-    /// the origin is zero for any permutation table and pins the discarded
-    /// lattice offset instead.
     #[test]
     fn the_count_noise_is_the_fixed_field() {
         assert_eq!(biome_info_noise(0.0, 0.0), 0.0);
@@ -593,13 +532,13 @@ mod tests {
                 decorate(
                     &present,
                     range.clone(),
-                    &|step, index| &steps[step][index],
-                    &|_, _, _| true,
+                    |step, index| &steps[step][index],
+                    |_, _, _| true,
                     &mut volume,
                     &mut scratch,
                     ORIGIN,
                     777,
-                    &mut |_, _, _, at, _| {
+                    |_, _, _, at| {
                         hits.push(at);
                         true
                     },

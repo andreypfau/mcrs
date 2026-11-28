@@ -29,5 +29,5 @@ bevy = ["dep:bevy_ecs"]
 bevy_app.workspace = true
 bevy_asset.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }

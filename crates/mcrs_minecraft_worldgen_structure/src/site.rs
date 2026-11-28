@@ -25,8 +25,6 @@ use super::frozen::{
 
 pub trait SiteWorld {
     fn biome_at(&mut self, block: IVec3) -> Option<u16>;
-    /// `couldStructureExistInColumn`: some biome sampled at quart resolution
-    /// in the column between the two block heights, inclusive, is in `biomes`.
     fn column_admits(
         &mut self,
         x: i32,
@@ -35,20 +33,14 @@ pub trait SiteWorld {
         max_block_y: i32,
         biomes: &BiomeMask,
     ) -> bool;
-    /// `getBiomesWithin`: every biome sampled at quart resolution in the cube
-    /// of `radius` around `centre` is in `biomes`.
     fn all_biomes_within(&mut self, centre: IVec3, radius: i32, biomes: &BiomeMask) -> bool;
     fn free_height(&mut self, x: i32, z: i32, heightmap: HeightmapName) -> i32;
-    /// `getBaseColumn`: the unfilled terrain column, bottom up.
     fn base_column(&mut self, x: i32, z: i32) -> BaseColumn<'_>;
-    /// `Heightmap.Types.isOpaque` of `heightmap` on one state.
     fn opaque(&self, state: VoxelId, heightmap: HeightmapName) -> bool;
     fn states(&self) -> &WorldStates;
-    /// `Biome.coldEnoughToSnow` at `pos` for the biome sampled there.
     fn cold_enough_to_snow(&mut self, pos: IVec3, sea_level: i32) -> bool;
 }
 
-/// `NoiseColumn`: states from `min_y` up, air outside.
 #[derive(Debug, Clone, Copy)]
 pub struct BaseColumn<'a> {
     pub min_y: i32,
@@ -66,8 +58,7 @@ impl BaseColumn<'_> {
     }
 }
 
-/// `Structure.GenerationContext`: what a site or layout may read.
-pub struct Context<'a> {
+pub struct Context<'a, W> {
     pub frozen: &'a FrozenStructures,
     pub structure: &'a FrozenStructure,
     pub chunk: ColumnPos,
@@ -75,7 +66,7 @@ pub struct Context<'a> {
     pub height: HeightContext,
     pub accessor_min_y: i32,
     pub accessor_height: i32,
-    pub world: &'a mut dyn SiteWorld,
+    pub world: &'a mut W,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -87,8 +78,6 @@ pub struct CentrePiece {
     pub ground_level_delta: i32,
 }
 
-/// What a type's site step decides before the biome test and hands to its
-/// layout: the reference's deferred piece builder, as data.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stub {
     Jigsaw {
@@ -125,7 +114,6 @@ pub struct PlacedJigsaw<'a> {
 }
 
 impl PlacedJigsaw<'_> {
-    /// `None` for the feature element's synthetic jigsaw, which any target matches.
     pub fn name(&self) -> Option<&ResourceLocationBuf> {
         (!std::ptr::eq(self.block, &*FEATURE_JIGSAW)).then_some(&self.block.name)
     }
@@ -149,9 +137,7 @@ static FEATURE_JIGSAW: LazyLock<JigsawBlock> = LazyLock::new(|| {
     }
 });
 
-/// `Structure.findValidGenerationPoint`: the type's site step on the chunk's
-/// large-feature stream, then the biome of the chosen position.
-pub fn site(ctx: &mut Context<'_>) -> Option<Site> {
+pub fn site(ctx: &mut Context<'_, impl SiteWorld>) -> Option<Site> {
     let mut rng = LegacyRandom::large_feature(ctx.seed, ctx.chunk.x, ctx.chunk.z);
     let structure = ctx.structure;
     let (position, stub) = match &structure.kind {
@@ -198,8 +184,7 @@ pub fn site(ctx: &mut Context<'_>) -> Option<Site> {
     })
 }
 
-/// The type's deferred piece builder run on a site that passed.
-pub fn layout(ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, site: Site) -> Vec<Piece> {
     let structure = ctx.structure;
     match &structure.kind {
         StructureKind::Jigsaw { config, .. } => crate::jigsaw::layout(ctx, config, site)
@@ -234,7 +219,7 @@ pub fn layout(ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
 }
 
 fn jigsaw_site(
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     start_pool: PoolId,
     config: &crate::JigsawConfig,
     rng: &mut LegacyRandom,
@@ -347,8 +332,6 @@ fn resolve_aliases(
     }
 }
 
-/// The element's jigsaw blocks at `position` under `rotation`, shuffled by the
-/// stream and then stably ordered by selection priority, highest first.
 pub fn shuffled_jigsaws<'a>(
     frozen: &'a FrozenStructures,
     element: ElementId,
@@ -385,7 +368,6 @@ pub fn shuffled_jigsaws<'a>(
                 })
                 .collect()
         }
-        // A datapack may hand in a list with no elements, which has no jigsaws.
         Some(FrozenElement::List { elements, .. }) => {
             return match elements.first() {
                 Some(&first) => shuffled_jigsaws(frozen, first, position, rotation, rng),
@@ -407,8 +389,6 @@ pub fn shuffled_jigsaws<'a>(
     jigsaws
 }
 
-/// The element's box at `position` under `rotation`; `None` for an empty
-/// element, whose box the reference refuses to compute.
 pub fn element_bounds(
     frozen: &FrozenStructures,
     element: ElementId,

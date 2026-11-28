@@ -18,20 +18,13 @@ pub(crate) enum Order {
     Random,
 }
 
-/// The kind of a selector that starts with `@`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SelectorKind {
-    /// `@p`: the nearest player.
     NearestPlayer,
-    /// `@a`: every player.
     AllPlayers,
-    /// `@r`: one random player.
     RandomPlayer,
-    /// `@s`: the entity that runs the command.
     SelfEntity,
-    /// `@e`: every entity.
     AllEntities,
-    /// `@n`: the nearest entity.
     NearestEntity,
 }
 
@@ -44,19 +37,13 @@ impl SelectorKind {
     }
 }
 
-/// What an entity argument names.
 #[derive(Clone, Copy, Debug)]
 pub enum Target<'a> {
-    /// A player by name.
     Name(StringValue<'a>),
-    /// An entity by UUID.
     Uuid(Uuid),
-    /// The entities a selector that starts with `@` finds.
     Kind(SelectorKind),
 }
 
-/// The selector an entity argument read. The options that hold several values are read again
-/// from the command line when the search tests an entity.
 #[derive(Clone, Copy, Debug)]
 pub struct Selector<'a> {
     pub target: Target<'a>,
@@ -78,7 +65,6 @@ pub struct Selector<'a> {
 }
 
 impl Selector<'_> {
-    /// Whether the selector can find an entity that is not a player.
     #[must_use]
     pub fn includes_entities(&self) -> bool {
         self.includes_entities
@@ -145,7 +131,6 @@ pub(crate) const SORTS: [(&str, Order); 4] = [
     ("arbitrary", Order::Arbitrary),
 ];
 
-/// Where the read stopped, and so what can follow there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Next {
     NameOrSelector,
@@ -160,7 +145,6 @@ pub(crate) enum Next {
     Nothing,
 }
 
-/// The point where the read stopped and what can follow there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Stop {
     pub(crate) next: Next,
@@ -263,16 +247,12 @@ pub(crate) fn rewind<T>(
     error(kind, start)
 }
 
-/// What a name of an entity argument is as a UUID.
 enum UuidForm {
-    /// The text has no four `-`, so it is a name.
     NotUuid,
-    /// Four `-` that do not split hexadecimal groups.
     Malformed,
     Valid(Uuid),
 }
 
-/// The length of the hyphenated form, the only form `Uuid::try_parse` reads with four `-`.
 const UUID_LENGTH: usize = 36;
 
 fn parse_uuid(text: &str) -> UuidForm {
@@ -292,7 +272,6 @@ fn uuid_form(value: &StringValue<'_>) -> UuidForm {
     if value.chars().filter(|&c| c == '-').count() != 4 {
         return UuidForm::NotUuid;
     }
-    // An escape yields only `\` or a quote, so the text cannot be a UUID.
     UuidForm::Malformed
 }
 

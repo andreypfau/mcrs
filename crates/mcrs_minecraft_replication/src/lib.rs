@@ -1,7 +1,4 @@
-//! The Minecraft side of entity replication: the codec of the muxer for players and mobs, and the pure
-//! functions and plain state under it that turn the state of a subject into packets. Each packet
-//! is a record: its length, then its id and its body, not framed.
-
+mod attribute_state;
 mod delivery;
 mod delta_base;
 mod encode;
@@ -19,12 +16,16 @@ mod motion;
 mod move_choice;
 mod nearest;
 mod player_data;
+mod player_entries;
 mod player_input;
 mod player_list;
 mod player_spawn;
 mod replication_data;
+mod spawn_look;
+mod subject_attributes;
 mod wire_id;
 
+pub use attribute_state::AttributeState;
 pub use delta_base::Pose;
 pub use encode::record;
 pub use entity_codec::EntityCodec;
@@ -33,8 +34,10 @@ pub use mob_signal::MobSignal;
 pub use mob_spawn::MobSpawn;
 pub use mob_state::MobState;
 pub use player_data::PlayerData;
+pub use player_entries::PlayerEntries;
 pub use player_input::{Backlog, PlayerInput};
 pub use player_list::{LIST_INTERVAL_TICKS, LISTED_CAP};
 pub use player_spawn::PlayerSpawn;
 pub use replication_data::ReplicationData;
+pub use spawn_look::SpawnLook;
 pub use wire_id::wire_id;

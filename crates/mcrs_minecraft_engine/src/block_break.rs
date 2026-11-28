@@ -1,30 +1,44 @@
-use crate::ability::PlayerGameMode;
+use crate::advance_digs::{advance_digs, any_digger};
 use crate::block_action_ack::BlockActionAck;
-use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, to};
+use crate::break_session::{ActiveDig, BreakSession, Crack, DelayedBreak};
+use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
+use crate::client_on_ground::ClientOnGround;
 use crate::column_change::ColumnChange;
+use crate::dig_rate::{dig_rate, harvests};
+use crate::diggers::Diggers;
 use crate::movement::process_movement;
 use crate::network_id::player_network_id;
+use crate::player_dimensions::PlayerBody;
+use crate::use_item_on_request::{UseItemOnRequest, handle_use_item_on};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::{Local, Query, Res};
+use bevy_ecs::schedule::common_conditions::on_message;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition, SystemSet};
+use bevy_ecs::system::{Local, Query, Res, ResMut};
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
-use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, FluidState};
+use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks, FluidState};
 use mcrs_minecraft_block::fluid_keys::Fluid;
+use mcrs_minecraft_block_break::{Dig, Finish};
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_engine_world::block_drops::BlockBroken;
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_pose::Dimensions;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -40,52 +54,76 @@ use smallvec::SmallVec;
 
 pub struct BlockBreakPlugin;
 
-const STANDING_EYE_HEIGHT: f64 = 1.62;
-const REACH: f64 = 6.0;
 const BREAK_EVENT: i32 = 2001;
 const EXTINGUISH_EVENT: i32 = 1009;
 const HIGHEST_STAYING_LEVEL: i32 = 8;
-// 255 on the wire: the byte reads as -1 in this signed field.
-const DESTRUCTION_NONE: i8 = -1;
+pub(crate) const DESTRUCTION_NONE: i8 = -1;
 
 #[derive(Message)]
 pub struct BlockActionRequest {
     pub action: PlayerAction,
     pub block_pos: BlockPos,
+    pub face: Direction,
     pub entity: Entity,
     pub sequence: VarInt,
 }
 
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BlockBreakSet;
+
 impl Plugin for BlockBreakPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<BlockActionRequest>();
+        app.add_message::<UseItemOnRequest>();
         app.add_message::<BlockActionAck>();
+        app.add_message::<BlockBroken>();
         app.add_observer(handle_player_action);
+        app.add_observer(handle_use_item_on);
+        app.init_resource::<Diggers>();
+        if let Err(error) = app.try_register_required_components::<Player, BreakSession>() {
+            tracing::error!("a player does not require its dig session: {error}");
+        }
         app.add_systems(
             FixedUpdate,
-            break_blocks
+            (
+                break_blocks
+                    .after(process_movement)
+                    .run_if(on_message::<BlockActionRequest>),
+                advance_digs.run_if(any_digger),
+            )
+                .chain()
                 .in_set(TickSet::ClientInput)
-                .after(process_movement),
+                .in_set(BlockBreakSet),
         );
         app.add_systems(
             FixedPostUpdate,
-            send_acks.after(VoxelUpdateSet::NetworkSync),
+            send_acks
+                .after(VoxelUpdateSet::NetworkSync)
+                .run_if(on_message::<BlockActionRequest>.or_eager(on_message::<UseItemOnRequest>)),
         );
     }
 }
 
 fn send_acks(
     mut requests: MessageReader<BlockActionRequest>,
+    mut uses: MessageReader<UseItemOnRequest>,
     owners: Query<&Owner>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut acks: MessageWriter<BlockActionAck>,
     mut highest: Local<FxHashMap<PlayerSession, i32>>,
 ) {
-    for request in requests.read() {
-        let Ok(&Owner(session)) = owners.get(request.entity) else {
+    let sequences = (requests
+        .read()
+        .map(|request| (request.entity, request.sequence)))
+    .chain(
+        uses.read()
+            .map(|request| (request.entity, request.sequence)),
+    );
+    for (entity, sequence) in sequences {
+        let Ok(&Owner(session)) = owners.get(entity) else {
             continue;
         };
-        let value = request.sequence.0;
+        let value = sequence.0;
         if value < 0 {
             packets.write(to(
                 session,
@@ -105,27 +143,65 @@ fn send_acks(
     );
 }
 
-fn in_reach(eye: DVec3, block: BlockPos) -> bool {
+#[must_use]
+pub fn reach(attributes: Option<&AttributeInstances>) -> Option<f64> {
+    let range = match attributes {
+        Some(attributes) => attributes.value(Attribute::BlockInteractionRange)?,
+        None => {
+            AttributeInstances::new(mcrs_minecraft_entity::attribute_bases(EntityType::Player)?)
+                .value(Attribute::BlockInteractionRange)?
+        }
+    };
+    Some(range + 1.0)
+}
+
+pub fn in_reach(eye: DVec3, block: BlockPos, limit: f64) -> bool {
     let min = block.as_dvec3();
     let max = min + DVec3::ONE;
     let nearest = eye.clamp(min, max);
 
-    eye.distance_squared(nearest) < REACH * REACH
+    eye.distance_squared(nearest) < limit * limit
 }
 
-fn eye_position(player: DVec3) -> DVec3 {
-    player + DVec3::new(0.0, STANDING_EYE_HEIGHT, 0.0)
+#[must_use]
+pub fn eye_position(player: DVec3, dimensions: Dimensions) -> DVec3 {
+    player + DVec3::new(0.0, f64::from(dimensions.eye_height), 0.0)
 }
 
-/// An event at `pos` for the clients that hold its column, but `except`. The muxer picks them,
-/// because the players of the other cells of the world are not in this one.
-fn observed(pos: BlockPos, payload: PacketPayload, except: Option<PlayerSession>) -> ColumnChange {
+pub(crate) fn observed(
+    pos: BlockPos,
+    payload: PacketPayload,
+    except: Option<PlayerSession>,
+) -> ColumnChange {
     ColumnChange {
         column: ColumnPos::from(pos),
-        priority: PacketPriority::Normal,
         payload,
         except,
     }
+}
+
+pub(crate) fn destruction(breaker: PlayerSession, pos: BlockPos, progress: i8) -> ColumnChange {
+    observed(
+        pos,
+        PacketPayload::BlockDestruction(ClientboundBlockDestruction {
+            id: VarInt(player_network_id(breaker)),
+            pos,
+            progress,
+        }),
+        Some(breaker),
+    )
+}
+
+fn remove_cracks(
+    changes: &mut MessageWriter<ColumnChange>,
+    breaker: PlayerSession,
+    dig: Option<ActiveDig>,
+    pos: BlockPos,
+) {
+    if let Some(dig) = dig.filter(|dig| dig.crack.pos != pos) {
+        changes.write(destruction(breaker, dig.crack.pos, DESTRUCTION_NONE));
+    }
+    changes.write(destruction(breaker, pos, DESTRUCTION_NONE));
 }
 
 fn block_state(pos: BlockPos, state: BlockStateId) -> PacketPayload {
@@ -175,7 +251,7 @@ fn paired_part(
     (answers && same).then_some((other, state))
 }
 
-fn level_event(effect: i32, pos: BlockPos, effect_data: i32) -> PacketPayload {
+pub(crate) fn level_event(effect: i32, pos: BlockPos, effect_data: i32) -> PacketPayload {
     PacketPayload::LevelEvent(ClientboundLevelEvent {
         effect,
         pos,
@@ -209,24 +285,113 @@ fn state_after_break(blocks: &BlockDefinitions, old: BlockStateId) -> Option<Blo
     })
 }
 
-/// Breaks the blocks of the start actions of the tick. A block in a column of another cell
-/// changes one tick later, when its owner applies the write.
+pub(crate) struct Hit {
+    pub(crate) pos: BlockPos,
+    pub(crate) state: BlockStateId,
+    pub(crate) breaker: PlayerSession,
+    pub(crate) dimension: Entity,
+}
+
+pub(crate) fn break_block(
+    definitions: &BlockDefinitions,
+    block_at: impl Fn(BlockPos) -> Option<BlockStateId>,
+    hit: &Hit,
+    packets: &mut MessageWriter<OutboundPlayerPacket>,
+    changes: &mut MessageWriter<ColumnChange>,
+    blocks: &mut MessageWriter<BlockSetRequest>,
+) -> SmallVec<[(BlockPos, BlockStateId); 2]> {
+    let mut new_states = SmallVec::new();
+    let owner = definitions.block_index(hit.state);
+    if owner == Some(Block::Fire.id()) || owner == Some(Block::SoulFire.id()) {
+        changes.write(observed(
+            hit.pos,
+            level_event(EXTINGUISH_EVENT, hit.pos, 0),
+            None,
+        ));
+        blocks.write(remove_block(hit.dimension, hit.pos));
+        new_states.push((hit.pos, BlockStateId::AIR));
+        return new_states;
+    }
+    let hit_part = (hit.pos, hit.state);
+    let mut events: SmallVec<[(BlockPos, BlockStateId); 3]> = SmallVec::new();
+    events.push(hit_part);
+    let mut changed: SmallVec<[(BlockPos, BlockStateId); 2]> = SmallVec::new();
+    changed.push(hit_part);
+
+    if let Some((other, other_state)) = paired_part(block_at, definitions, hit.state, hit.pos) {
+        events.push((other.pos, other_state));
+        let at = usize::from(!other.hit_is_main);
+        changed.insert(at, (other.pos, other_state));
+        if other.hit_is_main {
+            events.push(hit_part);
+        }
+        let main = if other.hit_is_main {
+            hit_part
+        } else {
+            (other.pos, other_state)
+        };
+        packets.write(to(hit.breaker, break_event(main.0, main.1)));
+    }
+
+    for (pos, state) in events {
+        changes.write(observed(pos, break_event(pos, state), Some(hit.breaker)));
+    }
+    for (pos, state) in changed {
+        if let Some(new_state) = state_after_break(definitions, state) {
+            new_states.push((pos, new_state));
+            blocks.write(BlockSetRequest {
+                new_state,
+                ..remove_block(hit.dimension, pos)
+            });
+        }
+    }
+    new_states
+}
+
+pub(crate) fn harvest(
+    definitions: &BlockDefinitions,
+    hit: &Hit,
+    new_states: &[(BlockPos, BlockStateId)],
+    block_at: impl Fn(BlockPos) -> Option<BlockStateId>,
+    player: Entity,
+) -> Option<BlockBroken> {
+    let &(_, left) = new_states.iter().find(|(at, _)| *at == hit.pos)?;
+    let other = new_states
+        .iter()
+        .find(|(at, _)| *at != hit.pos)
+        .and_then(|&(at, _)| Some((at, block_at(at)?)));
+    Some(BlockBroken {
+        at: hit.pos,
+        state: hit.state,
+        left,
+        other,
+        harvests: harvests(definitions, hit.state),
+        breaker: player,
+    })
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "the checks of one request run in the order that the specification states"
 )]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each query, writer and resource is its own parameter"
-)]
 fn break_blocks(
     mut requests: MessageReader<BlockActionRequest>,
-    players: Query<(&Owner, &PlayerGameMode, &InDimension, &Transform)>,
+    mut players: Query<(
+        &Owner,
+        &PlayerGameMode,
+        PlayerBody,
+        &InDimension,
+        &Transform,
+        &ClientOnGround,
+        &mut BreakSession,
+    )>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut changes: MessageWriter<ColumnChange>,
     world: WorldView,
     definitions: Option<Res<Blocks>>,
     mut blocks: MessageWriter<BlockSetRequest>,
+    mut broken_blocks: MessageWriter<BlockBroken>,
+    mut diggers: ResMut<Diggers>,
     mut broken: Local<FxHashMap<BlockPos, BlockStateId>>,
 ) {
     let Some(definitions) = definitions else {
@@ -235,41 +400,50 @@ fn break_blocks(
     };
     broken.clear();
     for request in requests.read() {
-        let Ok((&Owner(session), mode, dimension, transform)) = players.get(request.entity) else {
+        let Ok((&Owner(session), mode, body, dimension, transform, &on_ground, mut digging)) =
+            players.get_mut(request.entity)
+        else {
             continue;
         };
-        if !in_reach(eye_position(transform.translation), request.block_pos) {
+        let pos = request.block_pos;
+        let eye = eye_position(transform.translation, body.dimensions());
+        let limit = reach(body.attributes);
+        if !limit.is_some_and(|limit| in_reach(eye, pos, limit)) {
+            let aborts = request.action == PlayerAction::AbortDestroyBlock;
+            if mode.0 == GameMode::Survival && aborts && digging.dig.is_some() {
+                remove_cracks(&mut changes, session, digging.dig.take(), pos);
+            }
             continue;
         }
         let Some(view) = world.get(dimension.0) else {
             continue;
         };
-        // A block that an earlier request of the tick broke reads as its new state.
         let block_at = |pos: BlockPos| match broken.get(&pos) {
             Some(&state) => Ok(state),
             None => view.block(pos),
         };
         let void_air = definitions.default_state_of(Block::VoidAir.id());
-        if request.block_pos.y > view.bounds().max.y {
-            packets.write(to(session, block_state(request.block_pos, void_air)));
+        if pos.y > view.bounds().max.y {
+            packets.write(to(session, block_state(pos, void_air)));
             continue;
         }
-        if request.action != PlayerAction::StartDestroyBlock {
-            if request.action == PlayerAction::AbortDestroyBlock && mode.0 == GameMode::Creative {
-                changes.write(observed(
-                    request.block_pos,
-                    PacketPayload::BlockDestruction(ClientboundBlockDestruction {
-                        id: VarInt(player_network_id(session)),
-                        pos: request.block_pos,
-                        progress: DESTRUCTION_NONE,
-                    }),
-                    Some(session),
-                ));
+        match (mode.0, request.action) {
+            (_, PlayerAction::StartDestroyBlock)
+            | (GameMode::Survival, PlayerAction::StopDestroyBlock) => {}
+            (GameMode::Creative | GameMode::Survival, PlayerAction::AbortDestroyBlock) => {
+                remove_cracks(&mut changes, session, digging.dig.take(), pos);
+                continue;
             }
-            continue;
+            (GameMode::Survival, PlayerAction::ChangeDestroyDirection) => {
+                if let Some(dig) = digging.dig.as_mut() {
+                    dig.face = request.face;
+                }
+                continue;
+            }
+            _ => continue,
         }
 
-        let (old_state, inside) = match block_at(request.block_pos) {
+        let (old_state, inside) = match block_at(pos) {
             Ok(state) => (state, true),
             Err(Unavailable::Outside) => (void_air, false),
             Err(_) => continue,
@@ -277,63 +451,88 @@ fn break_blocks(
         match mode.0 {
             GameMode::Creative => {}
             GameMode::Adventure | GameMode::Spectator => {
-                packets.write(to(session, block_state(request.block_pos, old_state)));
+                packets.write(to(session, block_state(pos, old_state)));
                 continue;
             }
-            GameMode::Survival => continue,
-        }
-        let owner = definitions.block_index(old_state);
-        if owner == Some(Block::Fire.id()) || owner == Some(Block::SoulFire.id()) {
-            changes.write(observed(
-                request.block_pos,
-                level_event(EXTINGUISH_EVENT, request.block_pos, 0),
-                None,
-            ));
-            broken.insert(request.block_pos, BlockStateId::AIR);
-            blocks.write(remove_block(dimension.0, request.block_pos));
-            continue;
-        }
-        let hit = (request.block_pos, old_state);
-        let mut events: SmallVec<[(BlockPos, BlockStateId); 3]> = SmallVec::new();
-        events.push(hit);
-        let mut changed: SmallVec<[(BlockPos, BlockStateId); 2]> = SmallVec::new();
-        changed.push(hit);
-
-        if let Some((other, other_state)) = paired_part(
-            |pos| block_at(pos).ok(),
-            &definitions,
-            old_state,
-            request.block_pos,
-        ) {
-            events.push((other.pos, other_state));
-            changed.push((other.pos, other_state));
-            if other.hit_is_main {
-                events.push(hit);
+            GameMode::Survival => {
+                let air = definitions
+                    .state(old_state)
+                    .flags
+                    .contains(BlockStateFlags::IS_AIR);
+                let rate = dig_rate(&definitions, &view, old_state, eye, on_ground);
+                if request.action == PlayerAction::StartDestroyBlock {
+                    if air || rate < 1.0 {
+                        if let Some(replaced) = digging.dig
+                            && let Ok(state) = block_at(replaced.crack.pos)
+                        {
+                            packets.write(to(session, block_state(replaced.crack.pos, state)));
+                        }
+                        let dig = Dig::start(rate);
+                        let sent_stage = dig.stage();
+                        digging.dig = Some(ActiveDig {
+                            crack: Crack {
+                                pos,
+                                dig,
+                                sent_stage,
+                            },
+                            face: request.face,
+                        });
+                        changes.write(destruction(session, pos, sent_stage.cast_signed()));
+                        if !diggers.0.contains(&request.entity) {
+                            diggers.0.push(request.entity);
+                        }
+                        continue;
+                    }
+                } else {
+                    let Some(dig) = digging.dig.filter(|dig| dig.crack.pos == pos && !air) else {
+                        continue;
+                    };
+                    match dig.crack.dig.finish(rate) {
+                        Finish::Break => {
+                            digging.dig = None;
+                            changes.write(destruction(session, pos, DESTRUCTION_NONE));
+                        }
+                        Finish::DelayedBreak if digging.delayed.is_none() => {
+                            digging.dig = None;
+                            digging.delayed = Some(DelayedBreak {
+                                crack: dig.crack,
+                                state: old_state,
+                            });
+                            continue;
+                        }
+                        Finish::DelayedBreak | Finish::Stay => continue,
+                    }
+                }
             }
-            let main = if other.hit_is_main {
-                hit
-            } else {
-                (other.pos, other_state)
-            };
-            packets.write(to(session, break_event(main.0, main.1)));
         }
-
-        for (pos, state) in events {
-            changes.write(observed(pos, break_event(pos, state), Some(session)));
-        }
-
         if !inside {
+            changes.write(observed(pos, break_event(pos, old_state), Some(session)));
             continue;
         }
-        for (pos, state) in changed {
-            if let Some(new_state) = state_after_break(&definitions, state) {
-                broken.insert(pos, new_state);
-                blocks.write(BlockSetRequest {
-                    new_state,
-                    ..remove_block(dimension.0, pos)
-                });
-            }
+        let hit = Hit {
+            pos,
+            state: old_state,
+            breaker: session,
+            dimension: dimension.0,
+        };
+        let new_states = break_block(
+            &definitions,
+            |pos| block_at(pos).ok(),
+            &hit,
+            &mut packets,
+            &mut changes,
+            &mut blocks,
+        );
+        if mode.0 == GameMode::Survival {
+            broken_blocks.write_batch(harvest(
+                &definitions,
+                &hit,
+                &new_states,
+                |pos| block_at(pos).ok(),
+                request.entity,
+            ));
         }
+        broken.extend(new_states);
     }
 }
 
@@ -354,6 +553,7 @@ fn handle_player_action(
         writer.write(BlockActionRequest {
             action: p.action,
             block_pos: p.pos,
+            face: p.direction,
             sequence: p.sequence,
             entity: on.entity,
         });
@@ -362,39 +562,81 @@ fn handle_player_action(
 
 #[cfg(test)]
 mod tests {
+    use mcrs_minecraft_pose::Pose;
+
     use super::*;
+    use crate::player_dimensions::player_dimensions;
 
-    #[test]
-    fn brk_rch_001_a_distance_of_six_is_out_of_reach() {
-        let block = BlockPos::new(10, 0, 0);
-        let eye = |gap: f64| DVec3::new(10.0 - gap, 0.5, 0.5);
+    const CREATIVE_LIMIT: f64 = 6.0;
 
-        assert!(in_reach(eye(5.99), block));
-        assert!(!in_reach(eye(6.0), block));
+    struct ReachCase {
+        name: &'static str,
+        block: BlockPos,
+        eye: DVec3,
+        in_reach: bool,
     }
 
     #[test]
-    fn brk_rch_001_from_above_the_distance_is_to_the_top_of_the_cube() {
-        let block = BlockPos::new(0, 0, 0);
-        let eye = |gap: f64| DVec3::new(0.5, 1.0 + gap, 0.5);
+    fn brk_rch_001_the_reach_is_measured_to_the_nearest_point_of_the_cube() {
+        let origin = BlockPos::new(0, 0, 0);
+        let east = BlockPos::new(10, 0, 0);
+        let cases = [
+            ReachCase {
+                name: "a gap of 5.99 to the side",
+                block: east,
+                eye: DVec3::new(10.0 - 5.99, 0.5, 0.5),
+                in_reach: true,
+            },
+            ReachCase {
+                name: "a gap of 6 to the side",
+                block: east,
+                eye: DVec3::new(10.0 - 6.0, 0.5, 0.5),
+                in_reach: false,
+            },
+            ReachCase {
+                name: "a gap of 5.95 above the top",
+                block: origin,
+                eye: DVec3::new(0.5, 1.0 + 5.95, 0.5),
+                in_reach: true,
+            },
+            ReachCase {
+                name: "a gap of 6.05 above the top",
+                block: origin,
+                eye: DVec3::new(0.5, 1.0 + 6.05, 0.5),
+                in_reach: false,
+            },
+            ReachCase {
+                name: "a diagonal of 4 to the corner",
+                block: origin,
+                eye: DVec3::new(-4.0, 0.5, -4.0),
+                in_reach: true,
+            },
+            ReachCase {
+                name: "a diagonal of 4.3 to the corner",
+                block: origin,
+                eye: DVec3::new(-4.3, 0.5, -4.3),
+                in_reach: false,
+            },
+        ];
 
-        assert!(in_reach(eye(5.95), block));
-        assert!(!in_reach(eye(6.05), block));
+        for case in cases {
+            assert_eq!(
+                in_reach(case.eye, case.block, CREATIVE_LIMIT),
+                case.in_reach,
+                "{}",
+                case.name
+            );
+        }
     }
 
     #[test]
-    fn brk_rch_001_on_a_diagonal_the_distance_is_to_the_corner_of_the_cube() {
-        let block = BlockPos::new(0, 0, 0);
-
-        assert!(in_reach(DVec3::new(-4.0, 0.5, -4.0), block));
-        assert!(!in_reach(DVec3::new(-4.3, 0.5, -4.3), block));
-    }
-
-    #[test]
-    fn a_standing_eye_is_above_the_position() {
+    fn the_eye_of_a_crouching_player_is_at_its_f32_eye_height() {
         assert_eq!(
-            eye_position(DVec3::new(1.0, 2.0, 3.0)),
-            DVec3::new(1.0, 2.0 + STANDING_EYE_HEIGHT, 3.0)
+            eye_position(
+                DVec3::new(1.0, 2.0, 3.0),
+                player_dimensions(Pose::Crouching, None)
+            ),
+            DVec3::new(1.0, 2.0 + f64::from(1.27_f32), 3.0)
         );
     }
 }

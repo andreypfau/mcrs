@@ -1,12 +1,7 @@
 # Movement checks: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
 This document states how a server validates the movement of a player. It has two parts. Section 2
-states what a vanilla server checks. Sections 3 to 10 state the model of this server.
+states what a vanilla server checks. Sections 3 to 10 state the model.
 
 In this model, the server predicts each client tick from the physics model. Then it compares the
 result with the position that the client reports. The model is our own design. Server-side
@@ -51,6 +46,8 @@ assigns each rule to one layer.
 - **Reported flags**: the on-ground bit and the horizontal collision bit of the last move packet.
 - **Reference position**: the reported position of the last position packet after the last
   respawn. The client measures a silent tick against this position (MVC-PKT-003).
+- **Load**: the client ticks after a `login` or `respawn` packet in which the client does not tick
+  its player (MVC-PKT-012).
 - **Candidate**: one possible player state of the client after a client tick.
 - **Candidate set**: the candidates that the server keeps after a client tick.
 - **Accepted state**: the candidate set after the last client tick that the server accepted.
@@ -96,6 +93,10 @@ assigns each rule to one layer.
   attaches an experiment.
 - `black_box_confirmed`: shown by a captured result. In this document, only rules of
   `teleport-confirmation.md` have this label, and this document cites them.
+- `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
+  with a recording that the rule cites by path.
+- `documentation`: stated by the public documentation of the protocol on the community wiki
+  (minecraft.wiki, the pages "Java Edition protocol/Packets" and "Java Edition protocol/FAQ").
 - `design`: a rule of this server's own design. It does not state vanilla behaviour, and a vanilla
   server can behave differently. A comparison with a vanilla server cannot confirm it. A conformance
   test in section 14 confirms that a legit client does not fail the rule. The rule states
@@ -123,7 +124,7 @@ Each rule has an ID with the prefix `MVC`. The second part names the section:
 | `MVC-VEH` | a vehicle that the client controls |
 | `MVC-CFG` | the configurable values |
 | `MVC-INV` | invariants |
-| `MVC-LAY` | the layers and the cost |
+| `MVC-LAY` | the layers |
 
 ### 0.4 Scope
 
@@ -169,15 +170,34 @@ selects the packet in this order:
 The rotation changed when the yaw or the pitch is not equal to the last sent value. See experiment
 E2.
 
-**MVC-PKT-003** (`source_suggested`, client agreement, confidence: medium). The position changed
-when one of these conditions is true:
+**MVC-PKT-003** (`source_suggested_black_box_confirmed`, client agreement, confidence: medium). The
+position changed when one of these conditions is true:
 
 - The squared distance from the reference position is more than `(2.0E-4)²`.
 - 20 client ticks have passed after the last position packet.
 
 The count of client ticks starts again at each position packet. Thus at most 19 silent ticks follow
-a position packet. A teleport does not change the reference position. A respawn sets the reference
-position to `(0, 0, 0)`. See experiment E3.
+a position packet. A respawn sets the reference position to `(0, 0, 0)`. See experiment E3.
+
+A teleport does not change the reference position, the last sent rotation, the reported flags or
+the count of client ticks. For a teleport, the client sends only the accept (MVC-PKT-020). Thus the
+first client tick after a teleport compares its position and its rotation with the values of the
+last move packet before the teleport. An accept is not a move packet.
+
+These recordings of the vanilla client agree with this rule:
+
+- In `crates/mcrs_minecraft_physics/tests/fixtures/player/e21_teleport_while_falling.txt`, a
+  teleport adds 10 degrees to the yaw. The client sends no move packet between the teleport and
+  the end of the next client tick. That tick sends `move_player_pos_rot` with the new yaw.
+- In `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a4_respawn.txt`, the player stands still
+  at the destination of the first teleport. The next position packet comes in the third client
+  tick after the teleport, and then each 20 client ticks.
+- In the same recording, the first player tick after the respawn sends a position packet at the
+  destination of the respawn teleport. The player did not move in that tick. Thus the reference
+  position after the respawn is not that destination.
+
+MVC-PKT-003 does not state the reference position and the count of client ticks after a `login`
+packet (U13).
 
 **MVC-PKT-004** (`source_suggested`, wire, confidence: high). `player_input` has one byte of flags:
 
@@ -238,13 +258,34 @@ The client applies clientbound packets only between two client ticks. Thus it se
 tick. See experiment E6.
 
 **MVC-PKT-011** (`source_suggested`, client agreement, confidence: medium). A legit client sends no
-move packet and no `player_input` before it has loaded the world. It sends `client_tick_end` at the
-end of each client tick, also before it has loaded the world.
+move packet and no `player_input` during a load (MVC-PKT-012). It sends `client_tick_end` at the
+end of each client tick, also during a load.
 
 After the load, a legit client sends `player_input` in each client tick in which the keys change.
 It also does this while it rides, and while its camera is another entity. While it rides, it sends
 one `move_player_rot` in each client tick, and no other move packet. While its camera is another
 entity, it sends no move packet. See experiment E7.
+
+**MVC-PKT-012** (`documentation`, client agreement, confidence: medium). A `login` packet and each
+`respawn` packet start a load. During a load, the client does not tick its player (PHY-GRV-020).
+The load ends in the first client tick in which one of these conditions is true:
+
+1. After the packet, the client received `game_event` with the event 13, and one of these is true:
+   - the chunk that contains the position of the player is loaded;
+   - the `y` of the position is below the minimum height or above the maximum height of the
+     dimension;
+   - `player_info_update` gave the player the game mode spectator;
+   - the player is dead: the health of `set_health` is 0 or less, or `player_combat_kill` came.
+2. The client sent 60 `client_tick_end` packets after the packet.
+
+When condition 1 ends the load, the client sends `player_loaded` in that client tick. The packet
+comes before the tick packets of MVC-PKT-010 that the player sends in that tick. That tick is the
+first tick of the player. When condition 2 ends the load, the client sends no `player_loaded`.
+
+The game mode field of the `login` packet does not count for the spectator condition. The
+recording `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a4_respawn.txt` agrees: after the
+respawn, one client tick has no move packet, and the next client tick sends the first move packet.
+That recording does not show `player_loaded`. Experiment E33 decides the rest of this rule.
 
 ### 1.2 Clientbound packets that change the prediction
 
@@ -802,12 +843,10 @@ For client tick N, a possible pusher is a living entity or a boat that meets the
 3. The team rule of PHY-PSH-003 lets the entity push the player. The rule uses each team state
    that the client can have (MVC-LAT-004). The `set_player_team` packets give the teams.
 
-The position hull is the smallest box that contains the box of the entity at each of these
-positions:
-
-- the newest position of the entity that is acknowledged for tick N or for tick N − 1;
-- the position before that one, because the client interpolates from it;
-- each position of the entity that is in a window for tick N or for tick N − 1.
+The position hull is the smallest box that contains the box of the entity (CK-ENT-005 of
+`client-knowledge.md`) at each position of the boxes `H(N − 1)` and `H(N)` of CK-ENT-003 of that
+document. These boxes contain the newest acknowledged position, the position before it, each
+position in a window and each end position of a path that the client has not finished.
 
 The player gets no push in tick N when one of these conditions is true for each candidate:
 
@@ -908,9 +947,10 @@ positions of the entities near the player. The server keeps them in this way:
   ticks, 2 seconds. It also keeps the two newest entries of each entity at any age, because an
   entity that does not move sends no position.
 
-A position hull needs entries from the position before the newest position that is acknowledged for
-tick N − 1. The server does not have this position when it is older than `max_hull_age` server ticks
-and is not one of the two newest entries. Then client tick N is coarse (MVC-MODE-003).
+A position hull needs the box `H(N − 1)` and the position packets of CK-ENT-003, step 2 (CK-ENT-007
+of `client-knowledge.md`). The server does not have such a packet when it is older than
+`max_hull_age` server ticks and is not one of the two newest entries. Then client tick N is coarse
+(MVC-MODE-003).
 
 This occurs only when the client has not acknowledged the positions of the last `max_hull_age`
 server ticks. Thus a legit client with a round trip of less than about 1.5 seconds never causes it.
@@ -1071,7 +1111,7 @@ external impulse (PHY-SRV-007). The window of MVC-LAT-004 covers each `set_entit
 `explode` with an impulse. Thus the prediction knows the ticks in which the client can apply the
 impulse.
 
-## 7. The checks of this server
+## 7. The checks of the model
 
 ### 7.1 Offset
 
@@ -1568,8 +1608,8 @@ These entries record where this server differs from a vanilla server.
 - **Rule**: MVC-LAT-008 and MVC-PRED-001.
 - **Reference**: the vanilla server sets the position of the player to the destination. Then it
   handles the position in the accept as a move, with the checks of section 2 (TP-CONFIRM-ACC-003).
-  In result R7 of `teleport-confirmation.md`, an accept 5 blocks away passes these checks and moves
-  the player. This is a valid choice of the reference, not a defect. This server is stricter, because
+  An accept 5 blocks away passes these checks and moves the player. This is a valid choice of the
+  reference, not a defect. This server is stricter, because
   a vanilla client sends the destination in its accept.
 - **Visible to the client**: no, for a legit client. A client that sends another position in the
   accept gets a correction.
@@ -1598,21 +1638,22 @@ These entries record where this server differs from a vanilla server.
 - **U3**: the duration of a client tick after `ticking_state` and during `ticking_step`. MVC-CHK-010
   and MVC-CHK-012 assume that the client ticks at the acknowledged tick rate. Experiment E19.
 
-- **U4**: closed. PHY-SHP-009 lists the entities that MVC-MODE-003 uses.
-- **U5**: the defaults of MVC-RSP-004 and MVC-CHK-011 come from the design. Experiments C1 to C6
-  must confirm that a legit client never reaches them.
+- **U5**: the defaults of MVC-RSP-004 and MVC-CHK-011 come from the design.
 - **U6**: a client that stays in a coarse state, for example near water, gets only the coarse
   checks. A stricter check for these states is not decided.
 - **U7**: MVC-PKT-010 states that the client never sends a `pong` inside a client tick. Experiment
   E6 must confirm this for low frame rates.
 - **U8**: a client that answers probes and sends no client ticks. A check for too few client ticks
   is not decided.
-- **U9**: closed. MVC-LAT-008 computes a destination from each candidate.
 - **U10**: whether the server keeps MVC-VAN-013 and MVC-VAN-014 in coarse mode as an extra limit.
 - **U11**: MVC-UNC-004 assumes that the push of each entity reaches one travel step of the player at
   most one time. A change in the order of the entity ticks on the client can break this assumption.
 - **U12**: a test that detects a client that ignores the push when the bound contains 0
-  (MVC-CHK-025). The defaults of `max_push_width` and `max_pushers` need experiment C15.
+  (MVC-CHK-025).
+- **U13**: the reference position and the count of client ticks of the new local player after a
+  `login` packet. MVC-PKT-003 states them only after a `respawn` packet. The question: does the
+  first player tick after the load of a join send a position packet when the player does not
+  move? Experiment E33.
 
 ## 14. Experiments
 
@@ -1662,38 +1703,9 @@ For a client agreement rule, use a vanilla client and record the serverbound pac
 | E30 | Ride a boat as the second passenger. Send `move_vehicle` 2 blocks away. | A clientbound `move_vehicle` at the position of the boat. |
 | E31 | Ride a boat. Run `ride <name> dismount`. Record the clientbound packets. | One `player_position` with the velocity bits and the rotation bits of `relative` set. |
 | E32 | With a vanilla client, steer a boat. Record the serverbound packets of one client tick. Send a clientbound `move_vehicle` from a modified server. | One `move_player_rot` and then one `move_vehicle` in each client tick. One extra `move_vehicle` after the clientbound packet, before the next tick packets. |
+| E33 | With a vanilla client, join with the player on the ground at `(10.5, 100, 10.5)`, with no key down. Record each serverbound packet from the `login` packet, with its client tick. Repeat with a proxy that holds the chunk of the player for 5 s. Repeat with a proxy that drops event 13 of `game_event`. Repeat each case with a respawn after a death. The client recorder needs a change for this: it records only from the teleport of a step (`attributes.md`, section 13, A6). | MVC-PKT-012: `player_loaded` in the first client tick after the chunk arrives, before the first move packet of that tick. With the held chunk and with the dropped event: no `player_loaded`, and the first move packet after 60 `client_tick_end` packets. U13: whether the first move packet after the join is a position packet. |
 
-### 14.2 Conformance tests for this server
-
-Run this server and connect a vanilla client through a proxy that delays each direction. A test
-passes when the server sends no setback and no disconnect.
-
-| Test | Steps |
-|------|-------|
-| C1 | Walk, sprint, sneak at an edge, jump, sprint-jump and fall 30 blocks. Use delays of 0, 150 and 500 ms, each with a jitter of ±100 ms. |
-| C2 | Do C1 at 5, 20 and 144 frames each second. |
-| C3 | Fly in creative mode. Land, and start and stop flight with a double jump. |
-| C4 | Take knockback from a mob and from a wind charge while the delay is 500 ms. |
-| C5 | Break and place blocks under the player while it walks. Use a plugin that refuses one block in two. |
-| C6 | Change the speed attribute and the jump boost effect with commands during a jump. |
-| C7 | Freeze the delay proxy for 3 seconds, then release all packets at the same time. |
-
-A scripted client tests the checks. Each test expects a setback, unless it states another result.
-
-| Test | Steps |
-|------|-------|
-| C8 | Report a position 0.2 blocks above the predicted position. Expect a setback immediately. |
-| C9 | Report a horizontal position 0.01 blocks ahead in each client tick. Expect a setback before the sum reaches 1.0 blocks. |
-| C10 | In the air, report the same position in each client tick. Expect a setback at the first silent tick. |
-| C11 | Report the on-ground bit while the player falls. Expect fall damage in the client tick in which the prediction lands, and no setback. |
-| C12 | Report a position inside a stone block. Expect a setback immediately. |
-| C13 | Send 30 client ticks in 1 second. Expect violations of the tick rate check, and a setback after the level passes 10. |
-| C14 | Do not answer one probe that brackets a `set_entity_motion`. Expect a disconnect after `max_ack_delay`. |
-| C15 | Stand in a pen with 8 to 24 mobs that walk. Use a vanilla client. Expect no setback. Record the width of the push bound in each tick. |
-| C16 | Steer a boat with a vanilla client at a delay of 500 ms, on water and on ice. Expect no vehicle setback. |
-| C17 | Steer a boat with a scripted client. Report the boat 11 blocks away in one tick. Expect a vehicle setback, and expect the server to ignore the next `move_vehicle` packets until one is at the setback position. |
-
-## 15. Layers and cost
+## 15. Layers
 
 **MVC-LAY-001** (`design`, semantic, confidence: high). The checks have three layers:
 
@@ -1749,164 +1761,158 @@ layer. When no higher layer runs, the configured response applies: disconnect, o
 does not change the state of the layer that makes it.
 
 **MVC-LAY-006** (`design`, semantic, confidence: medium). This table gives the layer of each rule.
-The cost class is one of these:
-
-- **constant**: work with a fixed limit for each packet;
-- **per candidate**: one physics step for each candidate that the server runs;
-- **per collider**: one query of the collision shapes near the box.
-
-One physics step contains queries of the colliders (PHY-COL-001). The column "Proxy" tells if a
+The column "Proxy" tells if a
 proxy can run the rule without the help of the server.
 
-| Rule | Layer | Inputs | Cost | Proxy |
-|------|-------|--------|------|-------|
-| MVC-PKT-001 | L0 | one serverbound packet | constant | yes |
-| MVC-PKT-004 | L0 | one serverbound packet | constant | yes |
-| MVC-PKT-005 | L0 | one serverbound packet | constant | yes |
-| MVC-PKT-006 | L0 | one serverbound packet | constant | yes |
-| MVC-PKT-007 | L0 | one serverbound packet | constant | yes |
-| MVC-PKT-008 | L0 | one serverbound packet | constant | yes |
-| MVC-PKT-009 | L0 | one serverbound packet | constant | yes |
-| MVC-PKT-002 | L1 | the move packets of the connection | constant | yes |
-| MVC-PKT-003 | L1 | the move packets of the connection | constant | yes |
-| MVC-PKT-010 | L1 | the order of the serverbound packets | constant | yes |
-| MVC-PKT-011 | L1 | the order of the serverbound packets | constant | yes |
-| MVC-PKT-020 | L0 | one clientbound packet | constant | yes |
-| MVC-PKT-021 | L0 | one clientbound packet | constant | yes |
-| MVC-PKT-022 | L0 | one clientbound packet | constant | yes |
-| MVC-PKT-023 | L0 | one clientbound packet | constant | yes |
-| MVC-PKT-024 | L0 | one clientbound packet | constant | yes |
-| MVC-PKT-025 | L0 | one clientbound packet | constant | yes |
-| MVC-PKT-026 | L0 | one clientbound packet | constant | yes |
-| MVC-PKT-027 | L0 | one clientbound packet | constant | yes |
-| MVC-PKT-028 | L0 | one clientbound packet | constant | yes |
-| MVC-PKT-029 | L0 | one clientbound packet | constant | yes |
-| MVC-PKT-030 | L1 | the clientbound packets | constant | yes |
-| MVC-VAN-001 | L0 | one move packet or accept | constant | yes |
-| MVC-VAN-002 | L0 | one move packet or accept | constant | yes |
-| MVC-VAN-003 | L1 | the move packets and `client_tick_end` | constant | yes |
-| MVC-VAN-004 | L1 | the load, teleport, ride and sleep state from the packets | constant | yes |
-| MVC-VAN-005 | L1 | the load, teleport, ride and sleep state from the packets | constant | yes |
-| MVC-VAN-006 | L1 | the load, teleport, ride and sleep state from the packets | constant | yes |
-| MVC-VAN-007 | L1 | the load, teleport, ride and sleep state from the packets | constant | yes |
-| MVC-VAN-008 | L2 | the velocity of the copy of the player, which reads blocks | per collider | no |
-| MVC-VAN-009 | L2 | the velocity of the copy of the player, which reads blocks | per collider | no |
-| MVC-VAN-010 | L2 | the world view, the move procedure | per collider | no |
-| MVC-VAN-011 | L2 | the world view, the move procedure | per collider | no |
-| MVC-VAN-012 | L2 | the world view, the move procedure | per collider | no |
-| MVC-VAN-013 | L2 | the world view | per collider | no |
-| MVC-VAN-014 | L2 | the world view | per collider | no |
-| MVC-VAN-015 | L2 | the world view | per collider | no |
-| MVC-VAN-016 | L2 | the world view | per collider | no |
-| MVC-VAN-017 | L1 | `player_command`, `player_abilities`, `player_input`, the clientbound abilities | constant | yes |
-| MVC-VAN-018 | L2 | the accept, the world view | per collider | no |
-| MVC-VAN-019 | L1 | the count of packets in each second | constant | yes |
-| MVC-TICK-001 | L1 | the tick packets and the answers | constant | yes |
-| MVC-TICK-002 | L1 | the tick packets and the answers | constant | yes |
-| MVC-TICK-003 | L1 | the tick packets and the answers | constant | yes |
-| MVC-TICK-004 | L1 | the tick packets and the answers | constant | yes |
-| MVC-TICK-005 | L1 | the tick packets and the answers | constant | yes |
-| MVC-PRED-001 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-002 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-003 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-004 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-005 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-006 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-007 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-008 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-009 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-010 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-011 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-012 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-013 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-014 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-015 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-016 | L2 | the accepted state, the inputs, the world view | per candidate | no |
-| MVC-PRED-017 | L2 | the record, the kept block changes | per collider | no |
-| MVC-PRED-018 | L2 | the block changes that the server sends | constant | no |
-| MVC-PRED-019 | L2 | the candidates, the possible pushers | per candidate | no |
-| MVC-UNC-001 | L2 | the candidates | per candidate | no |
-| MVC-UNC-002 | L2 | the candidates | per candidate | no |
-| MVC-UNC-003 | L2 | the candidates | per candidate | no |
-| MVC-UNC-004 | L2 | the entities that the server sent, their positions, the teams | per collider | no |
-| MVC-UNC-005 | L2 | the candidates, the possible pushers | per candidate | no |
-| MVC-UNC-006 | L2 | the entities in the near zone | per collider | no |
-| MVC-UNC-007 | L2 | the positions that the server sends, the probes | constant | no |
-| MVC-LAT-001 | L1 | the clientbound changes, the probes and the answers | constant | yes |
-| MVC-LAT-002 | L1 | the clientbound changes, the probes and the answers | constant | yes |
-| MVC-LAT-003 | L1 | the clientbound changes, the probes and the answers | constant | yes |
-| MVC-LAT-004 | L1 | the clientbound changes, the probes and the answers | constant | yes |
-| MVC-LAT-005 | L1 | the clientbound changes, the probes and the answers | constant | yes |
-| MVC-LAT-006 | L2 | the candidates, the world view | per candidate | no |
-| MVC-LAT-007 | L2 | the candidates, the world view | per candidate | no |
-| MVC-LAT-008 | L2 | the candidates, the world view | per candidate | no |
-| MVC-LAT-009 | L1 | the clientbound changes, the probes and the answers | constant | yes |
-| MVC-LAT-010 | L1 | the clientbound changes, the probes and the answers | constant | yes |
-| MVC-LAT-011 | L1 | the clientbound changes, the probes and the answers | constant | yes |
-| MVC-LAT-012 | L1 | the clientbound changes, the probes and the answers | constant | yes |
-| MVC-LAT-013 | L1 | the clientbound changes, the probes and the answers | constant | yes |
-| MVC-CHK-001 | L2 | the candidates | per candidate | no |
-| MVC-CHK-002 | L2 | the candidates | per candidate | no |
-| MVC-CHK-003 | L2 | the candidates | per candidate | no |
-| MVC-CHK-004 | L2 | the candidates | per candidate | no |
-| MVC-CHK-005 | L2 | the accepted boxes, the settled shapes | per collider | no |
-| MVC-CHK-010 | L1 | the `client_tick_end` packets, the answers, the clock, `ticking_state` | constant | yes |
-| MVC-CHK-011 | L1 | the `client_tick_end` packets, the answers, the clock, `ticking_state` | constant | yes |
-| MVC-CHK-012 | L1 | the `client_tick_end` packets, the answers, the clock, `ticking_state` | constant | yes |
-| MVC-CHK-020 | L1 | the tick packets, the reference position, the clientbound abilities | constant | yes |
-| MVC-CHK-021 | L2 | the candidates | per candidate | no |
-| MVC-CHK-022 | L2 | the candidates | per candidate | no |
-| MVC-CHK-023 | L0 | one serverbound packet | constant | yes |
-| MVC-CHK-024 | L1 | the reported positions, the clientbound velocity, abilities, effects and attributes | constant | yes |
-| MVC-CHK-025 | L2 | the value `u` of MVC-UNC-005 | constant | no |
-| MVC-MODE-001 | L2 | the world view, the entities near the player | per collider | no |
-| MVC-MODE-002 | L2 | the world view, the entities near the player | per collider | no |
-| MVC-MODE-003 | L2 | the world view, the entities near the player | per collider | no |
-| MVC-MODE-004 | L2 | the world view, the entities near the player | per collider | no |
-| MVC-MODE-005 | L2 | the world view, the entities near the player | per collider | no |
-| MVC-MODE-006 | L2 | the world view, the entities near the player | per collider | no |
-| MVC-MODE-007 | L2 | the world view, the entities near the player | per collider | no |
-| MVC-RSP-001 | L2 | the accepted state, the violations | constant | no |
-| MVC-RSP-002 | L2 | the accepted state, the violations | constant | no |
-| MVC-RSP-003 | L2 | the accepted state, the violations | constant | no |
-| MVC-RSP-004 | L2 | the accepted state, the violations | constant | no |
-| MVC-RSP-005 | L2 | the accepted state, the violations | constant | no |
-| MVC-RSP-006 | L2 | the accepted state, the violations | constant | no |
-| MVC-RSP-007 | L2 | the accepted state, the violations | constant | no |
-| MVC-RSP-008 | L2 | the accepted state, the violations | constant | no |
-| MVC-CFG-001 | L2 | the configuration | constant | no |
-| MVC-INV-001 | L2 | the candidates, the world view | per candidate | no |
-| MVC-INV-002 | L2 | the candidates, the world view | per candidate | no |
-| MVC-INV-003 | L2 | the candidates, the world view | per candidate | no |
-| MVC-INV-004 | L2 | the candidates, the world view | per candidate | no |
-| MVC-INV-005 | L2 | the candidates, the world view | per candidate | no |
-| MVC-INV-006 | L2 | the candidates, the world view | per candidate | no |
-| MVC-INV-007 | L1 | the packets of the connection | constant | yes |
-| MVC-INV-008 | L1 | the packets of the connection | constant | yes |
-| MVC-INV-009 | L1 | the packets of the connection | constant | yes |
-| MVC-LAY-001 | L2 | the layers | constant | no |
-| MVC-LAY-002 | L0 | the layers | constant | yes |
-| MVC-LAY-003 | L1 | the layers | constant | yes |
-| MVC-LAY-004 | L2 | the layers | constant | no |
-| MVC-LAY-005 | L2 | the layers | constant | no |
-| MVC-LAY-006 | L1 | the layers | constant | yes |
-| MVC-LAY-007 | L1 | the layers | constant | yes |
-| MVC-LAY-008 | L2 | the layers | constant | no |
-| MVC-LAY-009 | L1 | the handshake and the clientbound packets | constant | yes |
-| MVC-VEH-001 | L0 | one `move_vehicle` packet | constant | yes |
-| MVC-VEH-002 | L1 | the order of the serverbound packets | constant | yes |
-| MVC-VEH-003 | L0 | one serverbound `move_vehicle` | constant | yes |
-| MVC-VEH-004 | L1 | the ride state, the teleport state, the load state | constant | yes |
-| MVC-VEH-005 | L2 | the velocity of the vehicle on the server | constant | no |
-| MVC-VEH-006 | L2 | the world view, the move procedure | per collider | no |
-| MVC-VEH-007 | L2 | the world view | per collider | no |
-| MVC-VEH-008 | L2 | the position of the vehicle on the server | constant | no |
-| MVC-VEH-009 | L1 | the clientbound packets | constant | yes |
-| MVC-VEH-010 | L0 | one serverbound `move_vehicle` | constant | yes |
-| MVC-VEH-011 | L1 | the tick packets, the ride state, the clientbound velocity | constant | yes |
-| MVC-VEH-012 | L2 | the accepted position of the vehicle, the world view | per collider | no |
-| MVC-VEH-013 | L2 | the accepted position of the vehicle | constant | no |
-| MVC-VEH-014 | L2 | the teleport of the ride end | constant | no |
+| Rule | Layer | Inputs | Proxy |
+|------|-------|--------|-------|
+| MVC-PKT-001 | L0 | one serverbound packet | yes |
+| MVC-PKT-004 | L0 | one serverbound packet | yes |
+| MVC-PKT-005 | L0 | one serverbound packet | yes |
+| MVC-PKT-006 | L0 | one serverbound packet | yes |
+| MVC-PKT-007 | L0 | one serverbound packet | yes |
+| MVC-PKT-008 | L0 | one serverbound packet | yes |
+| MVC-PKT-009 | L0 | one serverbound packet | yes |
+| MVC-PKT-002 | L1 | the move packets of the connection | yes |
+| MVC-PKT-003 | L1 | the move packets of the connection | yes |
+| MVC-PKT-010 | L1 | the order of the serverbound packets | yes |
+| MVC-PKT-011 | L1 | the order of the serverbound packets | yes |
+| MVC-PKT-020 | L0 | one clientbound packet | yes |
+| MVC-PKT-021 | L0 | one clientbound packet | yes |
+| MVC-PKT-022 | L0 | one clientbound packet | yes |
+| MVC-PKT-023 | L0 | one clientbound packet | yes |
+| MVC-PKT-024 | L0 | one clientbound packet | yes |
+| MVC-PKT-025 | L0 | one clientbound packet | yes |
+| MVC-PKT-026 | L0 | one clientbound packet | yes |
+| MVC-PKT-027 | L0 | one clientbound packet | yes |
+| MVC-PKT-028 | L0 | one clientbound packet | yes |
+| MVC-PKT-029 | L0 | one clientbound packet | yes |
+| MVC-PKT-030 | L1 | the clientbound packets | yes |
+| MVC-VAN-001 | L0 | one move packet or accept | yes |
+| MVC-VAN-002 | L0 | one move packet or accept | yes |
+| MVC-VAN-003 | L1 | the move packets and `client_tick_end` | yes |
+| MVC-VAN-004 | L1 | the load, teleport, ride and sleep state from the packets | yes |
+| MVC-VAN-005 | L1 | the load, teleport, ride and sleep state from the packets | yes |
+| MVC-VAN-006 | L1 | the load, teleport, ride and sleep state from the packets | yes |
+| MVC-VAN-007 | L1 | the load, teleport, ride and sleep state from the packets | yes |
+| MVC-VAN-008 | L2 | the velocity of the copy of the player, which reads blocks | no |
+| MVC-VAN-009 | L2 | the velocity of the copy of the player, which reads blocks | no |
+| MVC-VAN-010 | L2 | the world view, the move procedure | no |
+| MVC-VAN-011 | L2 | the world view, the move procedure | no |
+| MVC-VAN-012 | L2 | the world view, the move procedure | no |
+| MVC-VAN-013 | L2 | the world view | no |
+| MVC-VAN-014 | L2 | the world view | no |
+| MVC-VAN-015 | L2 | the world view | no |
+| MVC-VAN-016 | L2 | the world view | no |
+| MVC-VAN-017 | L1 | `player_command`, `player_abilities`, `player_input`, the clientbound abilities | yes |
+| MVC-VAN-018 | L2 | the accept, the world view | no |
+| MVC-VAN-019 | L1 | the count of packets in each second | yes |
+| MVC-TICK-001 | L1 | the tick packets and the answers | yes |
+| MVC-TICK-002 | L1 | the tick packets and the answers | yes |
+| MVC-TICK-003 | L1 | the tick packets and the answers | yes |
+| MVC-TICK-004 | L1 | the tick packets and the answers | yes |
+| MVC-TICK-005 | L1 | the tick packets and the answers | yes |
+| MVC-PRED-001 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-002 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-003 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-004 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-005 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-006 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-007 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-008 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-009 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-010 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-011 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-012 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-013 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-014 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-015 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-016 | L2 | the accepted state, the inputs, the world view | no |
+| MVC-PRED-017 | L2 | the record, the kept block changes | no |
+| MVC-PRED-018 | L2 | the block changes that the server sends | no |
+| MVC-PRED-019 | L2 | the candidates, the possible pushers | no |
+| MVC-UNC-001 | L2 | the candidates | no |
+| MVC-UNC-002 | L2 | the candidates | no |
+| MVC-UNC-003 | L2 | the candidates | no |
+| MVC-UNC-004 | L2 | the entities that the server sent, their positions, the teams | no |
+| MVC-UNC-005 | L2 | the candidates, the possible pushers | no |
+| MVC-UNC-006 | L2 | the entities in the near zone | no |
+| MVC-UNC-007 | L2 | the positions that the server sends, the probes | no |
+| MVC-LAT-001 | L1 | the clientbound changes, the probes and the answers | yes |
+| MVC-LAT-002 | L1 | the clientbound changes, the probes and the answers | yes |
+| MVC-LAT-003 | L1 | the clientbound changes, the probes and the answers | yes |
+| MVC-LAT-004 | L1 | the clientbound changes, the probes and the answers | yes |
+| MVC-LAT-005 | L1 | the clientbound changes, the probes and the answers | yes |
+| MVC-LAT-006 | L2 | the candidates, the world view | no |
+| MVC-LAT-007 | L2 | the candidates, the world view | no |
+| MVC-LAT-008 | L2 | the candidates, the world view | no |
+| MVC-LAT-009 | L1 | the clientbound changes, the probes and the answers | yes |
+| MVC-LAT-010 | L1 | the clientbound changes, the probes and the answers | yes |
+| MVC-LAT-011 | L1 | the clientbound changes, the probes and the answers | yes |
+| MVC-LAT-012 | L1 | the clientbound changes, the probes and the answers | yes |
+| MVC-LAT-013 | L1 | the clientbound changes, the probes and the answers | yes |
+| MVC-CHK-001 | L2 | the candidates | no |
+| MVC-CHK-002 | L2 | the candidates | no |
+| MVC-CHK-003 | L2 | the candidates | no |
+| MVC-CHK-004 | L2 | the candidates | no |
+| MVC-CHK-005 | L2 | the accepted boxes, the settled shapes | no |
+| MVC-CHK-010 | L1 | the `client_tick_end` packets, the answers, the clock, `ticking_state` | yes |
+| MVC-CHK-011 | L1 | the `client_tick_end` packets, the answers, the clock, `ticking_state` | yes |
+| MVC-CHK-012 | L1 | the `client_tick_end` packets, the answers, the clock, `ticking_state` | yes |
+| MVC-CHK-020 | L1 | the tick packets, the reference position, the clientbound abilities | yes |
+| MVC-CHK-021 | L2 | the candidates | no |
+| MVC-CHK-022 | L2 | the candidates | no |
+| MVC-CHK-023 | L0 | one serverbound packet | yes |
+| MVC-CHK-024 | L1 | the reported positions, the clientbound velocity, abilities, effects and attributes | yes |
+| MVC-CHK-025 | L2 | the value `u` of MVC-UNC-005 | no |
+| MVC-MODE-001 | L2 | the world view, the entities near the player | no |
+| MVC-MODE-002 | L2 | the world view, the entities near the player | no |
+| MVC-MODE-003 | L2 | the world view, the entities near the player | no |
+| MVC-MODE-004 | L2 | the world view, the entities near the player | no |
+| MVC-MODE-005 | L2 | the world view, the entities near the player | no |
+| MVC-MODE-006 | L2 | the world view, the entities near the player | no |
+| MVC-MODE-007 | L2 | the world view, the entities near the player | no |
+| MVC-RSP-001 | L2 | the accepted state, the violations | no |
+| MVC-RSP-002 | L2 | the accepted state, the violations | no |
+| MVC-RSP-003 | L2 | the accepted state, the violations | no |
+| MVC-RSP-004 | L2 | the accepted state, the violations | no |
+| MVC-RSP-005 | L2 | the accepted state, the violations | no |
+| MVC-RSP-006 | L2 | the accepted state, the violations | no |
+| MVC-RSP-007 | L2 | the accepted state, the violations | no |
+| MVC-RSP-008 | L2 | the accepted state, the violations | no |
+| MVC-CFG-001 | L2 | the configuration | no |
+| MVC-INV-001 | L2 | the candidates, the world view | no |
+| MVC-INV-002 | L2 | the candidates, the world view | no |
+| MVC-INV-003 | L2 | the candidates, the world view | no |
+| MVC-INV-004 | L2 | the candidates, the world view | no |
+| MVC-INV-005 | L2 | the candidates, the world view | no |
+| MVC-INV-006 | L2 | the candidates, the world view | no |
+| MVC-INV-007 | L1 | the packets of the connection | yes |
+| MVC-INV-008 | L1 | the packets of the connection | yes |
+| MVC-INV-009 | L1 | the packets of the connection | yes |
+| MVC-LAY-001 | L2 | the layers | no |
+| MVC-LAY-002 | L0 | the layers | yes |
+| MVC-LAY-003 | L1 | the layers | yes |
+| MVC-LAY-004 | L2 | the layers | no |
+| MVC-LAY-005 | L2 | the layers | no |
+| MVC-LAY-006 | L1 | the layers | yes |
+| MVC-LAY-007 | L1 | the layers | yes |
+| MVC-LAY-008 | L2 | the layers | no |
+| MVC-LAY-009 | L1 | the handshake and the clientbound packets | yes |
+| MVC-VEH-001 | L0 | one `move_vehicle` packet | yes |
+| MVC-VEH-002 | L1 | the order of the serverbound packets | yes |
+| MVC-VEH-003 | L0 | one serverbound `move_vehicle` | yes |
+| MVC-VEH-004 | L1 | the ride state, the teleport state, the load state | yes |
+| MVC-VEH-005 | L2 | the velocity of the vehicle on the server | no |
+| MVC-VEH-006 | L2 | the world view, the move procedure | no |
+| MVC-VEH-007 | L2 | the world view | no |
+| MVC-VEH-008 | L2 | the position of the vehicle on the server | no |
+| MVC-VEH-009 | L1 | the clientbound packets | yes |
+| MVC-VEH-010 | L0 | one serverbound `move_vehicle` | yes |
+| MVC-VEH-011 | L1 | the tick packets, the ride state, the clientbound velocity | yes |
+| MVC-VEH-012 | L2 | the accepted position of the vehicle, the world view | no |
+| MVC-VEH-013 | L2 | the accepted position of the vehicle | no |
+| MVC-VEH-014 | L2 | the teleport of the ride end | no |
 
 **MVC-LAY-007** (`design`, semantic, confidence: medium). A proxy can run L0 and L1 without the help
 of the server. It obeys these rules:
@@ -1951,13 +1957,10 @@ The proxy parses these packets:
 | play | `set_passengers`, `set_camera` | the ride state and the camera of the player |
 | play | `start_configuration` | the end of the play state |
 
-The proxy computes the value of an attribute from its base value `b` and its modifiers:
-
-- `A` is the sum of the amounts of the modifiers with operation 0.
-- `B` is the sum of the amounts of the modifiers with operation 1.
-- `C` is the product of `1 + amount` for the modifiers with operation 2.
-
-The value is `(b + A) × (1 + B) × C`, clamped to the range of the attribute.
+The proxy computes the value of an attribute from the base value and the modifiers of the entry.
+The order of the modifiers in the entry is the sequence that ATR-VAL-002 takes. The value is the
+result of ATR-VAL-001 to ATR-VAL-003 of `attributes.md`, with the range of ATR-DEF-001. A closed form with sums and one product does not
+give the same f64 bits.
 
 When the proxy has no registry report for the protocol version, it does not run MVC-CHK-024. It runs
 the other rules of L0 and L1.
@@ -2053,7 +2056,7 @@ sends a teleport to the player (MVC-PKT-020). The position is absolute. The bits
 of the rotation in `relative` are set, with zero values. Thus the client keeps its velocity and its
 rotation. See experiment E31.
 
-### 16.3 The checks of this server
+### 16.3 The checks of the model
 
 **MVC-VEH-010** (`design`, semantic, confidence: high). L0 checks each serverbound `move_vehicle`:
 

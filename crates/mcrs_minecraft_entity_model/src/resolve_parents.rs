@@ -2,9 +2,6 @@ use crate::diagnostic::Diagnostic;
 use crate::geometry::Geometry;
 use crate::geometry_error::GeometryError;
 
-/// Merges each geometry of the legacy shape with its parent geometry. Call it after all
-/// geometry files of all pack roots are read. A geometry whose parent is missing, or whose
-/// chain of parents has a cycle, is rejected with a diagnostic.
 #[must_use]
 pub fn resolve_parents(
     geometries: Vec<Geometry>,

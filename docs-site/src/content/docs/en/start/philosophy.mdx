@@ -9,15 +9,17 @@ stability: stable
 sources:
   - README.md
   - docs/clean-room.md
-  - PERF.md
+  - crates/mcrs_minecraft_assets/Cargo.toml
+  - crates/mcrs_minecraft_network/Cargo.toml
+  - xtask/src/checks.rs
   - issue:566
   - issue:324
   - issue:190
   - issue:365
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -43,7 +45,7 @@ Redstone itself is not implemented yet, so the farm example is the design target
 
 ## Work is proportional to change
 
-The goal is that a resting entity and an untouched section add no work to a tick.[^365] Idle cost and frame times are measured in [`PERF.md`](https://github.com/andreypfau/mcrs/blob/main/PERF.md), and every exception to these rules cites a number there. Memory per section is not measured yet.[^324] See [Performance and how we measure](/docs/en/project/performance/).
+The goal is that a resting entity and an untouched section add no work to a tick.[^365] Memory per section is not measured yet.[^324]
 
 ## A specification comes before the code
 
@@ -59,7 +61,7 @@ The exact parts are compared with the output of the game, and world generation a
 
 Most Minecraft crates do one job, such as reading NBT, opening region files, parsing a schematic or drawing a map. There are many NBT crates alone, each with its own types, so gluing two of them together means converting between those types.
 
-You can take mcrs crates one at a time in the same way, but they share their types. A block state read from a save is the same value that the renderer meshes and the world generator places. Nothing below the engine needs Bevy, and only the network layer needs tokio. [Layers and crates](/docs/en/concepts/layers/) describes the layers, and the [Crate map](/docs/en/crates/overview/) lists the crates.
+You can take mcrs crates one at a time in the same way, but they share their types. A block state read from a save is the same value that the renderer meshes and the world generator places. The wire, data and rules crates are intended to work without Bevy; the existing `mcrs_minecraft_assets` loader still requires it. Network I/O uses tokio. [Layers and crates](/docs/en/concepts/layers/) describes the layers, and [Use the crates in your project](/docs/en/crates/use-as-library/) explains the checked no-Bevy list.
 
 ## Game content is read from data at run time
 

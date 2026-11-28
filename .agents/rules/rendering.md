@@ -22,5 +22,11 @@ Minimise GPU commands and per-frame CPU work, in that order, but measure before 
 - **Do not bake time-varying values.** `sky_color` changes every tick; baking it would mean
   rebuilding pipelines twenty times a second for no gain.
 - Field names are not looked up by string id during a frame.
-- Rendering depends on neither the network, the client nor the server. It never owns the
-  window, the camera or the render graph of its host.
+- **Frame budget ceilings.** Main world 0.15 ms, extract 0.10 ms, prepare and queue 0.15 ms,
+  encode and submit 0.10 ms, GPU cull 0.05 ms, GPU terrain 0.65 ms, GPU sky pass 0.10 ms.
+- **Sample the view depth through a nearest sampler, never load it.** GLSL ES holds a depth
+  texture incomplete unless its filters are nearest, and a load from it reads zero.
+- **Never evaluate a derivative such as `fwidth` behind a short-circuit.** WebGPU uniformity
+  analysis rejects it and the whole module fails to validate.
+- **The tint window wraps around the world.** A column lands at its position modulo the window
+  and the sampler repeats. The window must exceed the view width.

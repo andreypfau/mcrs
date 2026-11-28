@@ -1,9 +1,6 @@
 # Mob goals: the goal framework, the controls and the goals of passive animals
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
+Version: see `assets/minecraft/version.json`.
 
 This document states what the goals of a mob do, as behaviour that an observer can see. An
 observer is a player, a farm, a vanilla client or a test. The document states the goal framework,
@@ -11,9 +8,7 @@ the controls that turn and move a mob, and the goals of the pig, the cow, the sh
 chicken. It gives hooks for the goals of hostile mobs.
 
 The rules state results, not algorithms. Each rule states how much freedom an implementation has,
-with a fidelity class (section 0.3). A later design step selects the algorithms. The aim of that
-step is a parallel implementation that ticks 50,000 animals with a small cost in each tick. The
-rules must also permit a library that a Java mod of the vanilla game can call.
+with a fidelity class (section 0.3).
 
 `entity-ai-timing.md` (AIT) states when each part of the AI runs, and which parts can be late.
 This document does not restate the cadence. It assigns each part to a reflex or to a decision with
@@ -34,8 +29,9 @@ each animal type, for example its attributes, its food items, its love state and
   **follow range**, **reflex**, **decision**, **issue tick**, **snapshot**, **application**,
   **pair action**, **proposal**, **grant**, **player table**: as
   `entity-ai-timing.md`, section 0.1, defines them.
-- **Request**, **reach range**, **speed modifier**, **done**, **mob path type**, **malus**,
-  **legacy solid flag**: as `pathfinding.md`, section 0.1 and PATH-REQ-001, define them.
+- **Request**, **reach range**, **speed modifier**, **done**, **mob path type**, **malus**:
+  as `pathfinding.md`, section 0.1 and PATH-REQ-001, define them.
+- **Solid**: as `block-support.md`, SUP-SOLID-001, defines it.
 - **Order key**: the UUID of an entity, compared as PHY-CMP-013 states.
 - **Feet point**: the position of an entity.
 - **Eye point**: the point `(x, y + e, z)` of an entity at position `(x, y, z)`, where `e` is the
@@ -80,7 +76,7 @@ each animal type, for example its attributes, its food items, its love state and
 - **Damage record**: the damage type and the game time of the last hit on a living entity. Only a
   hit that the cooldown accepts and that a shield does not block fully sets it (GOAL-PNC-001).
 - **Fresh**: a damage record is fresh when the game time minus its game time is 40 or less.
-- **Visibility factor**: a number of a target entity toward one mob, from 0 to 1 (GOAL-QRY-002).
+- **Visibility factor**: a number of a target entity toward one mob, from 0 to 10 (GOAL-QRY-002).
 - **Qualified player**: a player that is not a spectator and is alive.
 - **Adult**, **baby**: a mob of age 0 or more, and a mob of age less than 0 (ANIM-AGE-001).
 - **In love**: the love state of an animal. It is true while the love time is more than 0
@@ -114,11 +110,11 @@ each animal type, for example its attributes, its food items, its love state and
 
 ### 0.2 Provenance
 
-- `black_box_confirmed`: shown by a captured result in section 11.
+- `black_box_confirmed`: shown by a result of an experiment.
 - `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
-  with a captured result in section 11.
-- `source_suggested`: taken from the reference implementation, with no captured result. The
-  confidence is at most medium. Section 10 attaches an experiment.
+  with a result of an experiment.
+- `source_suggested`: taken from the reference implementation, with no result. The
+  confidence is at most medium.
 - `documentation`: taken from the data pack or from public documentation.
 - `experiment`: shown by an experiment that did not use a vanilla server, for example a test of
   this server.
@@ -193,8 +189,6 @@ This document states:
 - the look control, the body rotation and the rotations that a client sees;
 - the requests that goals make to the navigation, and the random position searches;
 - the goals of the pig, the cow, the sheep and the chicken;
-- the place of each part as a reflex or a decision, and the reads, the writes and the world queries
-  of each goal (section 7).
 - the full evaluations that the AI stage can skip, and the events that wake a mob (section 4.10).
 
 These subjects are out of scope:
@@ -209,17 +203,17 @@ These subjects are out of scope:
 | Attributes, dimensions, variants, age and growth, love state and timers, offspring, food items, drops, milk, shear, wool regrowth, eggs, saddles and the rider state, sounds, summon data | `mob-animals.md` (ANIM) |
 | The slow fall and the wing flap of a chicken | ANIM. They are not a part of the AI |
 | The control of a ridden pig by its rider, and the boost of a carrot on a stick | ANIM, and a later specification of riders. GOAL-ANI-007 states only the AI side |
-| The leash, the mob that rides a mob (a chicken jockey), the mooshroom | hooks in section 6 |
-| The goals of hostile mobs | hooks in section 6 |
-| The AI of a mob with a brain, for example a villager, a goat or an axolotl | a later specification |
+| The leash, the mob that rides a mob (a chicken jockey), the mooshroom | a later specification |
+| The goals of hostile mobs | a later specification |
+| The AI of a mob with a brain, for example a villager, a goat or an axolotl | `mob-brain.md` (BRAIN) |
 
 ### 0.7 Artefacts cited
 
-- The data pack of `26.4-snapshot-7`: the damage type tags `panic_causes` and
+- The data pack: the damage type tags `panic_causes` and
   `panic_environmental_causes`; the fluid tags `entity_floatable` and `water`; the block tag
   `edible_for_sheep`; the item tags `pig_food`, `cow_food`, `sheep_food` and `chicken_food`; the
   game rule `mob_griefing`; the attribute `tempt_range`.
-- In `26.4-snapshot-7`, `edible_for_sheep` holds `short_grass`, `short_dry_grass`,
+- `edible_for_sheep` holds `short_grass`, `short_dry_grass`,
   `tall_dry_grass` and `fern`. `entity_floatable` holds `#water`.
 - The item component `mob_visibility` (GOAL-QRY-002).
 - The packets `entity_event`, `level_event`, `rotate_head`, `move_entity_rot` and
@@ -274,8 +268,7 @@ exact). A goal that holds no flag is examined in each full evaluation while it d
 does not block another goal, and no other goal interrupts it. It runs beside the holders of all flags.
 
 A goal with no flag can write the path of the mob. Such a write replaces the path that a holder of
-`move` requested (GOAL-NAV-005). E-G3 shows this: the follow goal of a baby pig replaces the path of
-its random stroll every 10 ticks.
+`move` requested (GOAL-NAV-005).
 
 **GOAL-FRM-004** (`source_suggested`, semantic, confidence: high, fidelity: exact). The stop action
 of a goal applies at once. When a goal stops in step 3 of GOAL-FRM-002, its stop action applies
@@ -365,8 +358,7 @@ same value (PATH-MOV-001).
 
 The walker tick multiplies the input by the mob speed (PHY-ORD-004). Thus the steady speed on a
 flat floor is proportional to `(m × v)²`. On grass, a mob with the speed `s = m × v` walks
-`s² × 2.2026` blocks in each tick. E-G2 measures 0.1377 for a pig with `m = 1` and 0.2150 with
-`m = 1.25`.
+`s² × 2.2026` blocks in each tick.
 
 ### 2.2 The look control
 
@@ -452,16 +444,31 @@ uses the box of the mob grown by the stated amounts on each side. An entity is i
 its own box intersects it.
 
 **GOAL-QRY-002** (`source_suggested`, semantic, confidence: medium, fidelity: exact). The
-visibility factor of a target entity toward a mob is the product of these factors:
+visibility factor of a target entity toward a mob is the product of these factors, clamped to the
+range from 0 to 10:
 
 - 0.8, when the target sneaks;
 - `0.7 × max(c, 0.1)`, when the target is invisible. `c` is the number of its armor slots for the
-  head, the chest, the legs and the feet that hold an item, divided by 4;
+  head, the chest, the legs and the feet that hold an item, divided by 4. Each item counts, also
+  an item that is not armor. `c` and the floor 0.1 are binary32 values;
 - for each equipped item with the component `mob_visibility`, in the slot of its `equippable`
   component, whose entity types contain the type of the mob: the visibility value of the component.
 
-A query with a range `R` and a visibility test accepts a target at a feet distance of at most
-`max(R × v, 2)`, where `v` is the visibility factor.
+The product uses binary64. Only the components of the item stacks give the item factors; no list
+of items or mob types adds a factor. These prototypes (STK-PRO-002) have the
+component. The table is the pinned data, not a rule: a component patch of a stack can add, change
+or remove the factor.
+
+| Item | `targeting_entity_types` | `visibility` | `equippable` slot |
+|------|--------------------------|--------------|-------------------|
+| `minecraft:skeleton_skull` | `minecraft:skeleton` | 0.5 | head |
+| `minecraft:zombie_head` | `minecraft:zombie` | 0.5 | head |
+| `minecraft:creeper_head` | `minecraft:creeper` | 0.5 | head |
+| `minecraft:piglin_head` | `minecraft:piglin`, `minecraft:piglin_brute` | 0.5 | head |
+
+A query with a range `R` > 0 and a visibility test accepts a target when its squared feet distance
+is at most `max(R × v, 2)²`, where `v` is the visibility factor. A range of 0 or less removes the
+distance test.
 
 **GOAL-QRY-003** (`source_suggested`, semantic, confidence: high, fidelity: exact). A line of sight
 check from a mob to a target is true when all these conditions are true:
@@ -489,10 +496,9 @@ look query read only these values:
 
 The visibility factor of GOAL-QRY-002 is 0.8 for a player whose shift key is down, and 1 for each
 other player. The rule is exact for a player that is not invisible and wears no item with `mob_visibility` for
-the type of the mob. The vanilla items give `mob_visibility` only for
-the skeleton, the zombie, the creeper, the piglin and the piglin brute. Thus the rule is exact for
-the four animals of section 5 and each vanilla item, while the player is not invisible. Section 9,
-U3, records the parts that are deferred.
+the type of the mob. No prototype in the table of GOAL-QRY-002 names an animal of section 5. Thus
+the rule is exact for these four animals and each item prototype, while the player is not
+invisible. Section 9, U3, records the parts that are deferred.
 
 A benchmark with a watcher player meets the conditions when the player has no effect
 `invisibility`. A watcher in the game mode `spectator` is not a qualified player. It does not
@@ -507,9 +513,7 @@ search gives no path, the mob has no path after the application.
 **GOAL-NAV-002** (`source_suggested_black_box_confirmed`, semantic, confidence: medium, fidelity:
 exact). A request to an entity goes to the block position of the feet point of that entity, with the
 reach range 1. When the search gives no path, the mob keeps its current path (PATH-REQ-004, step
-1). E-G3 shows this: a
-summoned baby is not on the ground in its first tick, so its first request gives no path
-(PATH-REQ-001, step 2).
+1).
 
 **GOAL-NAV-003** (`source_suggested`, semantic, confidence: high, fidelity: exact). A goal can clear
 the path. Then the mob has no path, and the move control stops the forward input in the next step
@@ -524,8 +528,7 @@ when it knows that the result is the current path.
 
 **GOAL-NAV-005** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity:
 exact). A mob has one path. Each goal reads and writes the same path. A continue condition that
-reads "the path is not done" reads that path, also when another goal wrote it. E-G3 shows a random
-stroll that continues on the path of the follow goal.
+reads "the path is not done" reads that path, also when another goal wrote it.
 
 **GOAL-NAV-006** (`design`, semantic, confidence: medium, fidelity: envelope). Each request is a
 decision (PATH-REQ-005). The envelope is the allowed delay of AIT-DEC-003 for a path search.
@@ -561,7 +564,7 @@ The result is the candidate with the largest walk value. Of two candidates with 
 value, the earlier try wins. The search gives the bottom centre of that block position. When each
 try fails, the search gives no result.
 
-E-G2 shows a consequence. On a flat floor with no blocks above it, only `b = 0` gives a stable
+On a flat floor with no blocks above it, only `b = 0` gives a stable
 floor that is not blocked. Each try succeeds with a chance of 1 in 9, so a search fails with a
 chance of `(8/9)^10`, about 0.31. Then the goal does not start in that full evaluation.
 
@@ -570,7 +573,7 @@ search `L(h, v)` makes 10 tries. Each try does steps 1 to 3 of GOAL-POS-002, and
 
 1. Reject the candidate when its `y` is outside the build height, when it fails the home test, or
    when it is not a stable floor.
-2. While the block at the candidate has the legacy solid flag, and the `y` is not more than the
+2. While the block at the candidate is solid, and the `y` is not more than the
    highest `y` of the dimension, move the candidate up by 1.
 3. Reject the candidate when its block has water, or when the malus of its mob path type for this
    mob is not 0.
@@ -612,8 +615,8 @@ both rules.
 
 On a superflat world with a grass surface and no roof, each accepted candidate on the floor of a pen
 is above `grass_block`. Only a candidate on top of a fence or a wall can have the
-value 0.5. The search also needs the solid render property and the legacy solid flag of each state
-of the world (PATH section 12.3). For the benchmark these are `air`, `bedrock`, `dirt`,
+value 0.5. The search also needs the solid render property and the solid value of each state
+of the world (SUP-SOLID-001). For the benchmark these are `air`, `bedrock`, `dirt`,
 `grass_block` and the block of the pen.
 
 ## 4. The goals
@@ -678,11 +681,9 @@ The start condition is false when the destination step gives no result.
 The continue condition does not read the damage record. Thus a panic that started runs to the end
 of its path. When the path ends while the record is still fresh, the goal starts again in the same
 or the next full evaluation, with a new destination. The mob runs until the first path that ends
-after the record is no longer fresh. E-G2 shows two paths after one hit: the second starts in the
-19th tick after the hit and ends in the 43rd tick.
+after the record is no longer fresh.
 
-On fire means that the fire ticks of the mob are more than 0 and the type is not immune to fire. In
-`26.4-snapshot-7`, `panic_causes` holds `panic_environmental_causes`, which holds `cactus`,
+On fire means that the fire ticks of the mob are more than 0 and the type is not immune to fire. `panic_causes` holds `panic_environmental_causes`, which holds `cactus`,
 `freeze`, `hot_floor`, `in_fire`, `lava`, `on_fire` and `lightning_bolt`, among others.
 
 **GOAL-PNC-003** (`source_suggested`, semantic, confidence: medium, fidelity: exact). `Q-WATER`:
@@ -720,7 +721,7 @@ modifier 1.0 for each animal of section 5. It keeps a partner and a love count.
 - Stop action: forget the partner. Set the love count to 0.
 
 Thus two animals in love that stand next to each other breed in the 30th full evaluation after the
-start, about 60 ticks. E-G1 shows the child 58 ticks after the summon of two cows in love. When the
+start, about 60 ticks. When the
 partner is not near after 60 evaluation units, the goal stops, and it can start again at once with a
 new count.
 
@@ -804,7 +805,7 @@ gives its speed modifier `m` (section 5). It keeps an adult and a path timer.
 
 Thus a baby asks for a path to the adult every 10 ticks. Its request replaces each other path of
 the mob. When the baby comes within 3 blocks, the goal stops, but the baby walks to the end of its
-last path. E-G3 shows a baby pig that stops 1.35 blocks from the adult. The adult is any adult of
+last path. The adult is any adult of
 the same type, not only a parent.
 
 **GOAL-FOL-002** (`source_suggested`, semantic, confidence: medium, fidelity: exact). `Q-ADULT`:
@@ -872,7 +873,7 @@ These states do not change the idle time and do not stop its increase:
 - each game rule.
 
 A persistent mob only skips the removal steps 3 and 4 of AIT-VAN-020. Thus no key of the `summon`
-compound keeps the stroll eligible (`entity-tracking.md`, TRK-SUM-007). E-G13 shows this.
+compound keeps the stroll eligible (`entity-tracking.md`, TRK-SUM-007).
 
 ### 4.7 Look at a player
 
@@ -1156,7 +1157,7 @@ the destination, exact for each other part). Random stroll (GOAL-STR-001):
 
 With no non-spectator player within 32 blocks, the idle time reaches 100 in the 100th AI step after
 the summon or the last hit. After that, the pig starts no stroll until a hit or a player resets the
-idle time. E-G9 shows this.
+idle time.
 
 **GOAL-WAKE-013** (`design`, semantic, confidence: medium, fidelity: distribution for the gate,
 exact for each other part). Look at a player (GOAL-LKP-001):
@@ -1281,7 +1282,7 @@ these effects on each pig:
 - Each run sends one success message (CMD-DMG-004). From the console, the message goes to the
   server log.
 
-With an interval of 80 ticks, each pig stays in phase 1 of GOAL-WAKE-019. E-G13 shows this.
+With an interval of 80 ticks, each pig stays in phase 1 of GOAL-WAKE-019.
 
 ## 5. The animals
 
@@ -1343,7 +1344,7 @@ the chicken, in this order:
 | 6 | look at a player | range 6 |
 | 7 | look around | |
 
-The target lists of the four types are empty. In `26.4-snapshot-7`, none of the four types uses a
+The target lists of the four types are empty. None of the four types uses a
 brain.
 
 These relations follow from the tables and GOAL-FRM-002. A player can see them:
@@ -1403,84 +1404,6 @@ ANIM-FOOD-003 also lists the priorities and the speed modifiers of section 5. Th
 give the same values. This document is the authority for the order of each goal list and for the
 flags of each goal.
 
-## 6. Hooks
-
-The headings of this section reserve the place of later rules. Each line states the scope. The
-framework of sections 1 to 3 applies to them.
-
-### 6.1 Target selection
-
-The goals of a target list: the nearest attackable target (AIT-VAN-011) and the revenge target. They
-hold the flag `target` and write the attack target.
-
-### 6.2 Melee attack
-
-The melee goal: its start check, its path timers and its hit (AIT-VAN-006, AIT-RFX-003).
-
-### 6.3 Anger and alerts
-
-The anger of a zombified piglin and the alert to other mobs of the same type (AIT-VAN-024,
-AIT-CPL-004, `gold-farm.md` mechanic 9).
-
-### 6.4 The turtle egg goal
-
-The goal that moves to a `turtle_egg` and breaks it (`gold-farm.md` mechanic 6, PATH-REQ-001).
-
-### 6.5 Strafe
-
-The move operation `strafe` of the move control (PATH-MOV-001), which ranged goals set.
-
-### 6.6 Door goals and the creeper swell
-
-The goal forms of the door interaction (AIT-VAN-008) and the creeper swell (AIT-VAN-007).
-
-### 6.7 Leash and riders
-
-The navigation of a leashed mob toward its holder, the home that a leash sets, and the controls of a
-mob that rides a mob.
-
-### 6.8 Mooshroom
-
-The mooshroom uses the goal list of the cow. Its walk value prefers `mycelium`.
-
-## 7. Parallelism notes
-
-This section lists, for each goal, its place, its reads, its writes and its world queries. It does
-not give algorithms. "Own" means the row and the guidance state of the mob itself. "Snapshot" means
-the state of AIT-LAG-001.
-
-| Goal | Place | Reads (own) | Reads (other entities and world) | Writes | World queries |
-|------|-------|-------------|----------------------------------|--------|---------------|
-| float | reflex | fluid height, lava flag, eye height, jump flag holder | none | jump request; flag `jump` | none |
-| panic | decision | damage record, fire ticks, block position, home, path state | blocks: collision shape at the own position, water, solid render, malus inputs, light | path request; flag `move`; in-panic state | `Q-WATER`; `D(5, 4)` |
-| breed | decision, with a pair action | love state, position, box, path state | same-type entities: position, box, love state, in-panic state, alive, spectator, invisibility, armor count, `mob_visibility` items | look target; path request; love count; flags `move`, `look`; breed proposal | `Q-PARTNER` |
-| tempt | decision | position, calm-down | player table: position, alive, spectator, held items in both hands, sneak, invisibility, armor count, `mob_visibility` items; the attribute `tempt_range` | look target; path request or path clear; calm-down; flags `move`, `look` | `Q-TEMPT` |
-| follow an adult | decision | age, position, box, path timer | same-type entities: position, box, age, alive | path request; path timer | `Q-ADULT` |
-| stroll | decision | idle time, the passenger that controls the mob, in-water flag, position, home, path state | blocks: solid render, legacy solid flag, water, malus inputs, light | path request or path clear; flag `move` | `L(15, 7)`, `L(10, 7)`, `D(10, 7)` |
-| look at a player | decision | position, eye height, look count | player table: position, eye height, alive, spectator, sneak, invisibility, armor count, `mob_visibility` items, vehicle chain; blocks for one ray to each candidate | look target; look count; flag `look` | `Q-LOOK` |
-| look around | start: decision; tick: reflex (guidance) | position, eye height, direction, look time | none | look target in each tick; flags `move`, `look` | none |
-| eat grass | start: decision; eat: reflex (due event) | age, block position, eat timer | blocks at the own position and below; the game rule `mob_griefing` | event 10; path clear; eat timer; block write at the eat; the eat of ANIM | none |
-| look control, body rotation | reflex (guidance) | rotations, look target, look hold, path state, position change, first passenger | none | pitch, head yaw, body yaw, stable values | none |
-
-These notes follow from the table:
-
-- Each goal writes only its own mob, except the breed proposal (AIT-CPL-004) and the block write of
-  the eat (GOAL-EAT-003). Thus the decisions of different mobs do not conflict.
-- The goals of one mob conflict only through the shared path, the look target and the flags. Their
-  order inside one mob is GOAL-FRM-005.
-- A decision reads other entities only through the snapshot. The entity reads are the in-love and
-  in-panic states, the age, the position, the box and the visibility inputs. The snapshot must
-  publish these values for each animal.
-- The player reads come from the player table. GOAL-QRY-005 states its values: the position, the
-  eye height, two flags, the shift key state, the two held items and the vehicle chain. The
-  invisibility inputs are deferred (section 9, U3).
-- Most evaluations of an adult animal that is not in love draw only random gates: `0.02` for each
-  look goal, `1/60` for the stroll and `1/500` for the eat. For such an animal, the tempt query is
-  the only query in each full evaluation. It reads only the player table. A baby adds `Q-ADULT`,
-  and an animal in love adds `Q-PARTNER`.
-- The block reads of a random position search are at most 10 candidates, each with a short column
-  for GOAL-POS-003, step 2. The light reads are one value for each candidate.
-
 ## 8. Intentional deviations
 
 ### GOAL-DEV-001: Ties in a nearest selection by the order key
@@ -1491,7 +1414,6 @@ These notes follow from the table:
   entity in that order. These orders depend on the join order and on the storage of the sections.
 - **Visible to the client:** rarely. Only two members at exactly the same distance give a
   difference. A different partner or player can win.
-- **Test:** a differential test accepts each member at the smallest distance.
 
 ### GOAL-DEV-002: The calm-down of the tempt counts ticks
 
@@ -1502,8 +1424,6 @@ These notes follow from the table:
 - **Visible to the client:** yes, rarely. In the reference, an animal that breeds or panics during
   the calm-down follows the player later than 100 ticks after the stop. This server lets it follow
   100 ticks after the stop.
-- **Test:** a differential test accepts a start at 100 ticks or more after the stop, in this case: a
-  goal with a smaller priority number held a flag of the tempt goal during the calm-down.
 
 ### GOAL-DEV-003: The stable head yaw compares wrapped angles
 
@@ -1513,8 +1433,6 @@ These notes follow from the table:
   turn. Then the reference resets the stable count.
 - **Visible to the client:** almost never. The body can start to follow the head up to 10 ticks
   later after such a turn.
-- **Test:** a differential test does not compare the body yaw after a turn of more than 180 degrees
-  in total.
 
 ### GOAL-DEV-004: Keyed random values for the goals
 
@@ -1523,107 +1441,22 @@ These notes follow from the table:
 - **Reference:** each goal draws from the random source of its mob, in the order of the goal list.
   AIT-DEV-002 records this.
 - **Visible to the client:** no, as a distribution.
-- **Test:** as AIT-DEV-002.
 
 ## 9. Unresolved
 
-- **U1**: resolved. PATH-REQ-004, step 1, keeps the current path after a failed request to an
-  entity, as GOAL-NAV-002 states.
 - **U2**: partly resolved. GOAL-POS-006 gives a walk value without light. It is exact on a world with
   full sky light at each candidate that is not above grass. Deferred: the block light, the sky light
   below a roof, the sky darkness of the time and the weather, and the ambient light. These need a light engine of the server side, which no specification states yet. The block
-  corpus must still give the solid render property and the legacy solid flag (PATH section 12.3).
+  corpus must still give the solid render property and the solid value (SUP-DATA-004).
 - **U3**: partly resolved. GOAL-QRY-005 states the player table. Deferred: the invisibility of a
   player, its armor count, the items with `mob_visibility`, and the clamp of the factor to
   `[0, 10]`. These need the effects and the equipment of a player.
 - **U4**: partly resolved. GOAL-FLT-003 sets the fluid height to 0 on a dry world. Deferred: the
   fluid height of water and lava at the box of a mob, the lava flag and the in-water flag. These
   need the fluid model that `entity-physics.md`, section 12, puts out of scope.
-- **U5**: the leash, the mob that rides a mob, and the home are hooks (section 6.7). The random
+- **U5**: the leash, the mob that rides a mob, and the home are hooks. The random
   position searches read the home now.
 - **U6**: ANIM-FOOD-003 repeats the priorities and the speed modifiers of section 5, and
   ANIM-TYPE-005 repeats the malus rows of GOAL-ANI-005. A change must update both documents.
   ANIM-TYPE-005 refers to `pathfinding.md` for the walk value from the light. GOAL-POS-004 states
   that value; `pathfinding.md` does not.
-- **U7**: the experiments with a client (E-G4 to E-G7, E-G10, E-G11) did not run. The tempt range,
-  the visibility factor and the rotations rest on the source.
-- **U8**: the goals of hostile mobs (section 6) wait for step G5 of `gold-farm.md`.
-
-## 10. Experiments
-
-### 10.1 Experiments with a vanilla server
-
-Start a vanilla server of the version in the table at the top. Use a flat world, the game rule
-`spawn_mobs` false, and `pause-when-empty-seconds=-1`. Force-load the chunks of the test. Use
-`/tick freeze` before each step, and `/tick step 1` for each tick. Read the positions with
-`/data get entity`. Read the rotations from the packets of a scripted client
-(`tools/vanilla-oracle/`). Repeat each experiment with a random part at least 200 times.
-
-| Experiment | Steps | Expected result | Rules |
-|------------|-------|-----------------|-------|
-| E-G1 | Summon two cows with `InLove:600`, 1 block apart. Step 1 tick at a time and count the cows. | A child appears 57 to 60 ticks after the summon. | GOAL-BRD-001, AIT-VAN-023 |
-| E-G2 | Summon a pig. After 10 ticks, run `damage` with 1 point of `cactus`. Record the position in each tick for 130 ticks. | The pig runs at 0.215 blocks in each tick on paths of up to about 6 blocks. It starts a new path while the record is fresh, and stops after the first path that ends more than 40 ticks after the hit. | GOAL-PNC-001, GOAL-PNC-002, GOAL-POS-002, GOAL-CTL-002 |
-| E-G3 | Summon an adult pig with `NoAI:1b`, and a baby pig with `Age:-24000` 8 blocks away. Record the position of the baby. | The first request fails. The baby walks at 0.1666 blocks in each tick, with requests every 10 ticks. It stops near the adult, within 3 blocks. | GOAL-FOL-001, GOAL-NAV-002, GOAL-FRM-003 |
-| E-G4 | Put a player with wheat at distances of 9.9, 10.1 and 2.4 blocks from a cow. Repeat while the player sneaks, and while the player is invisible with no armor. | The cow follows at 9.9, not at 10.1. It stops its path at 2.4. A player that sneaks tempts up to 8 blocks; an invisible player up to 2 blocks. | GOAL-TMP-001, GOAL-TMP-002, GOAL-QRY-002 |
-| E-G5 | Let a cow follow a player with wheat. Change the item to dirt, and record the tick of the stop. Change it back to wheat each tick. | The cow follows again 100 to 102 ticks after the stop. | GOAL-TMP-004, GOAL-DEV-002 |
-| E-G6 | Stand 4 blocks from a pig for 2000 ticks. Record the `rotate_head` and the pitch of each look. | Each look lasts 40 to 80 ticks. The pitch is clamped to 40. The head returns to the body at 10 degrees in each tick. | GOAL-LKP-001, GOAL-CTL-004 |
-| E-G7 | Put 100 sheep on grass in a closed pen. Record each `entity_event` 10 and each `block_update` of grass to dirt. | Each change to dirt comes 34 ticks after an event 10 of a sheep on it. The rate is about 1 in 1000 ticks for each adult sheep. | GOAL-EAT-001, GOAL-EAT-002 |
-| E-G8 | Put a pig in water 3 blocks deep. Record its `y` in each tick. | The pig stays at the surface and jumps in 80 % of the ticks. | GOAL-FLT-001 |
-| E-G9 | Summon 100 pigs with no player in the dimension. Record the ticks in which each pig starts to walk, for 400 ticks. | No pig starts a stroll after its tick 100. Before tick 100, the starts have a chance of about 1 in 120 ticks for each pig. | GOAL-STR-001, AIT-VAN-020 |
-| E-G10 | Record the head of a pig with no player near, for 2000 ticks. | Each look around lasts 22 to 40 ticks, at the height of the eye. | GOAL-LKR-001 |
-| E-G11 | Turn the head of a pig that stands with a look at a player, then let the look end. Record `rotate_head` and the body of the client view. | The body follows the head 10 to 20 ticks after the head stops. | GOAL-CTL-006 |
-| E-G12 | Set a pig on fire 3 blocks from water on stone. Record its path. | The pig walks into the nearest water block of GOAL-PNC-003. | GOAL-PNC-002, GOAL-PNC-003 |
-| E-G13 | With no player in the dimension, summon pigs 6 blocks apart with `PersistenceRequired:1b`, with `CustomName`, and with no key. Step 300 ticks and record the positions. Step 600 ticks and record them again. Then run the command of GOAL-WAKE-020 each 80 ticks, and record the positions. | No pig of a group moves in the 600 ticks. After the first run of the command, the pigs stroll again. | GOAL-STR-004, GOAL-WAKE-019, GOAL-WAKE-020 |
-
-### 10.2 Tests for this server
-
-| Test | Steps | Rules |
-|------|-------|-------|
-| C-G1 | Give a goal list with two goals of the same priority and the same flags. Make both start conditions true. Check that the first in the list runs. | GOAL-FRM-002 |
-| C-G2 | Run 50,000 pigs on a flat world with `AiDelay::Fixed(1)`, two times. Compare the world hash in each tick. | GOAL-DEV-004, AIT-INV-002 |
-| C-G3 | Compare the start rates of the stroll, the look goals and the eat over 10,000 animals with the chances of section 4. | GOAL-FRM-007, GOAL-STR-001, GOAL-LKP-001, GOAL-LKR-001, GOAL-EAT-001 |
-| C-G4 | Run the random position searches on fixed block scenes with fixed draws. Compare the result with the rules. | GOAL-POS-002, GOAL-POS-003, GOAL-POS-004 |
-| C-G5 | Run 50,000 pigs with `AiDelay::Fixed(1)` two times: one run evaluates each full evaluation, one run skips each quiet evaluation. Hit a group of pigs with `damage`, and let a player walk near them. Compare the world hash in each tick. | GOAL-WAKE-001 to GOAL-WAKE-014, AIT-INV-002 |
-| C-G6 | Count the evaluations in which each gate passes over 10,000 animals, with the waits of GOAL-WAKE-003. Compare the counts with a geometric law of the chance of each gate. | GOAL-WAKE-003 |
-
-## 11. Captured results
-
-The vanilla server of `26.4-snapshot-7` ran on a flat world with the settings of section 10.1. The
-records count the steps of `/tick step 1` after the summon.
-
-### E-G1
-
-Two cows with `InLove:600` at `(0.5, -60, 0.5)` and `(1.5, -60, 0.5)`. The count of cows is 2 after
-57 steps and 3 after 58 steps. The breed goal starts in the first AI step (tick count 1), and the
-30th full evaluation of one cow is at tick count 58. This agrees with GOAL-BRD-001 for a cow whose
-full evaluations are at the even tick counts.
-
-### E-G2
-
-A pig at `(0.5, -60, 0.5)`. The `damage` command ran after step 10. The pig did not move in steps 11
-and 12, and moved in step 13. This agrees with a failed search in the first full evaluation
-(GOAL-POS-002, a chance of about 0.31) and a start in the next one. The pig ran at a steady 0.2150
-blocks in each tick. The first path ended at step 27. A second path started at step 29 and ended at
-step 53. No panic path started after that. At step 61 the pig started a stroll at 0.1377 blocks in
-each tick. The speeds agree with GOAL-CTL-002 for `m = 1.25` and `m = 1.0`.
-
-### E-G3
-
-An adult pig with `NoAI:1b` at `(0.5, -60, 0.5)` and a baby at `(8.5, -60, 0.5)`. The baby did not
-move in steps 1 to 9, and moved from step 10 at 0.1666 blocks in each tick. Thus the first request in
-the first AI step gave no path, and the next request came 5 evaluation units later. From step 22 the
-speed fell to 0.137 (a stroll with `m = 1.0` that replaced the path). From step 30 the speed rose to
-0.1666 again (the next request of the follow goal). The baby passed within 3 blocks of the adult at
-step 47 and walked on to step 59. It stopped at `(1.822, -60, 0.783)`, 1.35 blocks from the adult.
-
-### E-G13
-
-No player was in the dimension. Each group had 16 pigs on a grid with 6 blocks between pigs:
-`{PersistenceRequired:1b}`, `{CustomName:"a"}` and a compound with only a tag. In the first 300
-ticks, 31 of the 48 pigs moved more than 0.5 blocks. From tick 300 to tick 900, no pig of a group
-moved: each position stayed equal, bit for bit.
-
-A second run summoned 48 pigs with `{}` and stepped 300 ticks. Then the command of GOAL-WAKE-020
-ran each 80 ticks. In the next 400 ticks, 43 of the 48 pigs moved more than 0.5 blocks. In the
-320 ticks after that, all 48 pigs moved. Each pig stayed at `y = -60`. No run of the command
-failed.

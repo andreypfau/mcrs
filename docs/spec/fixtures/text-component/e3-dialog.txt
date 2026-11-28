@@ -1,0 +1,17 @@
+# Experiment E3 of docs/spec/text-component.md, section 8.7: the text of a dialog and of an item name.
+# Source: two screenshots of the window of the vanilla client, e3-dialog.png and e3-hotbar.png.
+# The player is the offline test player Recorder. The vanilla client of the project version joined the vanilla server
+# on 127.0.0.1. The server ran in offline mode. The console of the server gave each command.
+# A dialog and an item name reach the client as text that the server did not resolve.
+# The key "key.jump" has the name "Space" in the settings of the client.
+#
+# case DLG-a
+> dialog show Recorder {type:"minecraft:notice",title:[{selector:"@e[ type = cow ]"},"|",{score:{name:"@s",objective:"o"}},"|",{nbt:"Health",entity:"@s"},"|",{keybind:"key.jump"},"|",{atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:"FB"},"|§cR§zX"],body:[{type:"minecraft:plain_message",contents:[{selector:"@e[ type = cow ]"},"|",{score:{name:"@s",objective:"o"}},"|",{nbt:"Health",entity:"@s"},"|",{keybind:"key.jump"},"|",{atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:"FB"},"|§cR§zX"]},{type:"minecraft:plain_message",contents:{translate:"%s-%s-%s",color:"red",bold:false,with:[{text:"a",color:"blue"},{text:"b",bold:true},"c"],extra:["!"]}}]}
+# observed title: "@e[ type = cow ]|||Space|", the image of the stone sprite, "|", then R and X in red
+# observed body 1: the same line as the title
+# observed body 2: "a-b-c!" with a in blue, b in red and bold, the other characters in red and not bold
+# case HOT-a
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name=[{selector:"@e[ type = cow ]"},"|",{score:{name:"@s",objective:"o"}},"|",{nbt:"Health",entity:"@s"},"|",{keybind:"key.jump"},"|",{atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:"FB"},"|§cR§zX"]]
+# observed above the hotbar: the same line as the title of DLG-a, in italic, shown while the player holds the item
+# The title and the body of DLG-a are not in italic.
+# observed in chat: the feedback of the command shows the name in square brackets, with the same line

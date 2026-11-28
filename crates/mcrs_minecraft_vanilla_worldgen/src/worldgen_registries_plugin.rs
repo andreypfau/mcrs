@@ -10,13 +10,11 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use crate::template_asset::{TemplateAsset, WorldgenAssetsPlugin, named_templates};
+use crate::template_asset::{TemplateAsset, WorldgenAssetsPlugin};
 use crate::template_handle::template_path;
 use mcrs_minecraft_worldgen::registries::add_vanilla_worldgen;
+use mcrs_minecraft_worldgen_generator::template_names::named_templates;
 
-/// The registries of vanilla world generation, the entries built by code and the structure
-/// templates the loaded registries name. The world plugin waits for the templates before the
-/// registries freeze.
 pub struct WorldgenRegistriesPlugin;
 
 impl Plugin for WorldgenRegistriesPlugin {
@@ -37,11 +35,6 @@ impl Plugin for WorldgenRegistriesPlugin {
 
 const TEMPLATE_FOLDER: &str = "minecraft/structure";
 
-/// The `<folder>/<file>.<extension>` paths the default `AssetSource` lists for a folder, with the
-/// templates the code builds added, since a listing names files only.
-// A source that cannot list directories yields only the built-in templates here, so
-// a template neither built nor named by a loaded value is not requested; listing the files
-// through the pack stack the registry loader read lifts this.
 fn list_registry_files(asset_server: &AssetServer, folder: &str, extension: &str) -> Vec<String> {
     let mut files: BTreeSet<String> = match asset_server.get_source(AssetSourceId::Default) {
         Ok(source) => {
@@ -86,8 +79,6 @@ fn request_templates(
     );
 }
 
-// A listing sees only the root while a read sees every pack layer, so a
-// template a datapack ships is found by reading the path a value names.
 async fn with_named_templates(
     reader: &dyn ErasedAssetReader,
     listed: Vec<String>,

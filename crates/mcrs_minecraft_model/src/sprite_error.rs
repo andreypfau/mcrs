@@ -3,43 +3,54 @@ use std::fmt;
 
 use mcrs_minecraft_model_file::pack_files::PackError;
 
-/// Why a sprite, an atlas file or a colormap could not be read from the pack.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SpriteError {
-    /// A file the sprite needs is not in the pack.
     Pack(PackError),
-    /// An atlas file is not JSON of the atlas shape.
-    Atlas { id: String, message: String },
-    /// An animation file is not JSON of the animation shape.
-    Animation { path: String, message: String },
-    /// A texture file is not a PNG image.
-    Decode { path: String, message: String },
-    /// A decoded texture holds no pixel data.
-    NoPixels { path: String },
-    /// Neither the pack nor an atlas permutation holds the texture.
-    NotInPack { path: String },
-    /// The registry holds as many sprites as a face can name.
-    TooManySprites { id: String, limit: usize },
-    /// A texture has frames that are not square.
+    Atlas {
+        id: String,
+        message: String,
+    },
+    Animation {
+        path: String,
+        message: String,
+    },
+    Decode {
+        path: String,
+        message: String,
+    },
+    NoPixels {
+        path: String,
+    },
+    NotInPack {
+        path: String,
+    },
+    TooManySprites {
+        id: String,
+        limit: usize,
+    },
     FrameNotSquare {
         path: String,
         width: u32,
         height: u32,
     },
-    /// An animation names a frame the texture lacks.
-    NoFrame { path: String, frame: u32 },
-    /// The sprite needs a texture array past the ones the shaders bind.
+    NoFrame {
+        path: String,
+        frame: u32,
+    },
     TooManyArrays {
         id: String,
         needed: usize,
         limit: usize,
     },
-    /// The sprite lands in a texture array the registry lacks.
-    NoArray { id: String, index: usize },
-    /// Two palettes of a permutation have different sizes.
-    PaletteSize { base: usize, target: usize },
-    /// A colormap is not 256 by 256 texels.
+    NoArray {
+        id: String,
+        index: usize,
+    },
+    PaletteSize {
+        base: usize,
+        target: usize,
+    },
     ColormapSize {
         path: String,
         width: u32,

@@ -7,181 +7,105 @@ use mcrs_minecraft_bedrock_wire::{
 use crate::item_descriptor::Ingredient;
 use crate::item_stack::{ItemStack, decode_item, encode_item};
 
-/// A request to change item stacks, the part of input flag 36 of
-/// [`PlayerAuthInput`](crate::PlayerAuthInput).
 #[derive(Clone, Debug, PartialEq, Eq, BedrockEncode, BedrockDecode)]
 pub struct ItemStackRequest<'a> {
-    /// The request id.
     pub request_id: VarI32,
-    /// The actions, in order.
     pub actions: Vec<ItemStackAction<'a>>,
-    /// The strings that the text filter checks, for example the new name of an item in an anvil.
     pub strings_to_filter: Vec<&'a str>,
-    /// The origin of the filtered strings.
     pub filter_origin: i32,
 }
 
-/// A slot reference of an [`ItemStackAction`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BedrockEncode, BedrockDecode)]
 pub struct StackSlot {
-    /// The container.
     pub container: u8,
-    /// The dynamic container id, when the container has one.
     pub dynamic_container_id: Option<u32>,
-    /// The slot.
     pub slot: u8,
-    /// The stack network id of the item in the slot.
     pub stack_network_id: VarI32,
 }
 
-/// One action of an [`ItemStackRequest`]; an unknown type is a decode error.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ItemStackAction<'a> {
-    /// Type 0: takes items.
     Take {
-        /// The number of items.
         count: u8,
-        /// The source slot.
         source: StackSlot,
-        /// The destination slot.
         destination: StackSlot,
     },
-    /// Type 1: places items.
     Place {
-        /// The number of items.
         count: u8,
-        /// The source slot.
         source: StackSlot,
-        /// The destination slot.
         destination: StackSlot,
     },
-    /// Type 2: swaps two stacks.
     Swap {
-        /// The source slot.
         source: StackSlot,
-        /// The destination slot.
         destination: StackSlot,
     },
-    /// Type 3: drops items.
     Drop {
-        /// The number of items.
         count: u8,
-        /// The source slot.
         source: StackSlot,
-        /// Whether the items drop in a random direction.
         randomly: bool,
     },
-    /// Type 4: destroys items.
     Destroy {
-        /// The number of items.
         count: u8,
-        /// The source slot.
         source: StackSlot,
     },
-    /// Type 5: consumes items.
     Consume {
-        /// The number of items.
         count: u8,
-        /// The source slot.
         source: StackSlot,
     },
-    /// Type 6: creates the result of a craft.
     Create {
-        /// The result slot.
         result_slot: u8,
     },
-    /// Type 7: places items in an item container.
     PlaceInItemContainer {
-        /// The number of items.
         count: u8,
-        /// The source slot.
         source: StackSlot,
-        /// The destination slot.
         destination: StackSlot,
     },
-    /// Type 8: takes items from an item container.
     TakeFromItemContainer {
-        /// The number of items.
         count: u8,
-        /// The source slot.
         source: StackSlot,
-        /// The destination slot.
         destination: StackSlot,
     },
-    /// Type 9: combines in a lab table.
     LabTableCombine,
-    /// Type 10: pays a beacon.
     BeaconPayment {
-        /// The primary effect.
         primary_effect: VarI32,
-        /// The secondary effect.
         secondary_effect: VarI32,
     },
-    /// Type 11: mines a block.
     MineBlock {
-        /// The hotbar slot.
         hotbar_slot: VarI32,
-        /// The predicted durability.
         predicted_durability: VarI32,
-        /// The stack network id.
         stack_network_id: VarI32,
     },
-    /// Type 12: crafts a recipe.
     CraftRecipe {
-        /// The recipe network id.
         recipe_network_id: VarU32,
-        /// The number of crafts.
         number_of_crafts: u8,
     },
-    /// Type 13: crafts a recipe from the recipe book.
     AutoCraftRecipe {
-        /// The recipe network id.
         recipe_network_id: VarU32,
-        /// The number of crafts.
         number_of_crafts: u8,
-        /// The times crafted.
         times_crafted: u8,
-        /// The ingredients, behind a `u8` count.
         ingredients: Vec<Ingredient<'a>>,
     },
-    /// Type 14: takes a creative item.
     CraftCreative {
-        /// The creative item network id.
         creative_item_network_id: VarU32,
-        /// The number of crafts.
         number_of_crafts: u8,
     },
-    /// Type 15: crafts a recipe with a filtered string, for example in an anvil.
     CraftRecipeOptional {
-        /// The recipe network id.
         recipe_network_id: VarU32,
-        /// The index in [`ItemStackRequest::strings_to_filter`].
         filter_string_index: i32,
     },
-    /// Type 16: crafts in a grindstone.
     CraftGrindstone {
-        /// The recipe network id.
         recipe_network_id: VarU32,
-        /// The number of crafts.
         number_of_crafts: u8,
-        /// The repair cost.
         repair_cost: VarI32,
     },
-    /// Type 17: crafts in a loom.
     CraftLoom {
-        /// The pattern id.
         pattern_id: &'a str,
-        /// The times crafted.
         times_crafted: u8,
     },
-    /// Type 18: a craft that the client does not implement.
     CraftNonImplemented,
-    /// Type 19, no longer used: the results of a craft.
     CraftResults {
-        /// The result items; `None` is the empty item.
         result_items: Vec<Option<ItemStack<'a>>>,
-        /// The times crafted.
         times_crafted: u8,
     },
 }

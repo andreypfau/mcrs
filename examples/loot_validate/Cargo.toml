@@ -1,0 +1,29 @@
+[package]
+name = "mcrs_minecraft_loot_validate"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "mcrs_minecraft_loot_validate"
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_game_registries.workspace = true
+mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_loot_table.workspace = true
+mcrs_minecraft_registries.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_fixtures.workspace = true
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"

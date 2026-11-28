@@ -1,8 +1,6 @@
 use crate::selector::SelectorResult;
 use mcrs_command::Reader;
 
-/// A map of `{key=value, ...}` whose values `value` reads (the `scores` and `advancements`
-/// options). Returns whether the map has no entry.
 pub(crate) fn read_map(
     reader: &mut Reader<'_>,
     key: fn(&mut Reader<'_>) -> SelectorResult<()>,

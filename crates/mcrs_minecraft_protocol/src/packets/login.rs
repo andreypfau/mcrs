@@ -26,9 +26,6 @@ pub mod clientbound {
         pub session_id: Uuid,
     }
 
-    /// `login_finished` of the protocol versions that switch layers on acknowledgement, which
-    /// adds the layers the client switches on when it reads it. The packet table holds the
-    /// form without the flags, so this one borrows its id.
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundLoginFinishedWithOptions<'a> {
         pub profile: GameProfile<'a>,

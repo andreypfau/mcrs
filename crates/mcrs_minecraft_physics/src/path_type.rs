@@ -1,5 +1,3 @@
-/// The path types of PATH-TYP-001 that the cells of a mob of width 1 can have, in the order of
-/// their numbers.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PathType {
     Blocked,
@@ -33,7 +31,6 @@ pub enum PathType {
 }
 
 impl PathType {
-    /// The default malus of PATH-TYP-001; -1 is blocked.
     #[must_use]
     pub const fn default_malus(self) -> f32 {
         match self {
@@ -66,8 +63,6 @@ impl PathType {
         }
     }
 
-    /// The block path type at a position whose state path type is open, from the state path type
-    /// of the block below it (PATH-TYP-003, step 2); `None` asks for the neighbour check.
     #[must_use]
     pub const fn over(below: Self) -> Option<Self> {
         match below {
@@ -82,8 +77,6 @@ impl PathType {
         }
     }
 
-    /// The result of the neighbour check for a neighbour of this state path type (PATH-TYP-003,
-    /// step 3); `None` when the neighbour does not decide it.
     #[must_use]
     pub const fn as_neighbour(self) -> Option<Self> {
         match self {

@@ -14,18 +14,13 @@ use crate::shape::covered;
 use crate::shape::overlaps;
 use crate::tolerance::COLLISION;
 
-/// A shape that can stop the box of an entity, in world coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Collider {
-    /// A shape of the table at a block position.
     Block { shape: ShapeId, at: BlockPos },
-    /// The box of an entity, as a shape of one box.
     Entity(Aabb),
-    /// All space outside the region of the world border, at all heights.
     Border(BorderRegion),
 }
 
-/// The region inside the world border on `x` and `z`, with its edges on whole blocks.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BorderRegion {
     pub min_x: f64,
@@ -35,7 +30,6 @@ pub struct BorderRegion {
 }
 
 impl Collider {
-    /// Clips the distance `t` that `mover` moves on `axis` against this collider.
     #[must_use]
     pub fn clip(&self, table: &CollisionTable, axis: Axis, mover: &Aabb, t: f64) -> f64 {
         match self {
@@ -51,7 +45,6 @@ impl Collider {
         }
     }
 
-    /// True when the collider and the box overlap with a volume that is more than zero.
     #[must_use]
     pub fn intersects(&self, table: &CollisionTable, query: &Aabb) -> bool {
         match self {
@@ -65,7 +58,6 @@ impl Collider {
         }
     }
 
-    /// Replaces the content of `out` with the `y` grid lines in ascending order.
     pub fn write_y_lines(&self, table: &CollisionTable, out: &mut Vec<f64>) {
         out.clear();
         match self {
@@ -88,7 +80,6 @@ fn extend_y_lines<G: CellGrid>(grid: &G, out: &mut Vec<f64>) {
     out.extend((0..grid.line_count(Axis::Y)).map(|index| grid.line(Axis::Y, index)));
 }
 
-/// The shape of one box in world coordinates.
 struct BoxGrid {
     lines: [[f64; MAX_BOX_LINES]; 3],
     counts: [usize; 3],
@@ -135,8 +126,6 @@ impl CellGrid for BoxGrid {
     }
 }
 
-/// The border region as a shape: three cells on `x` and `z`, one on `y`; every cell except the
-/// middle one is solid.
 struct BorderGrid {
     x: [f64; 4],
     z: [f64; 4],

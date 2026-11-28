@@ -1,0 +1,312 @@
+#!/usr/bin/env python3
+"""Land one pull request of this repository: approve, update, wait, merge.
+
+usage: pr-land <pr> [<reviewed head sha>]
+
+Steps, in order:
+  1. Approve each workflow run that waits for approval (the runs of a pull
+     request from a fork), but only when the head is the reviewed head given as
+     the second argument. Without it, no run is approved.
+  2. When the branch is behind its base, update it (`gh pr update-branch`).
+     The runs of the new head are approved only when its parents are the
+     reviewed head and the base tip and its tree is the clean merge of the two
+     (`git merge-tree`). Any other new head stops with exit 9.
+  3. Wait for the required checks of the base branch rules (`gh pr checks --watch`).
+  4. When `pr-review` is on PATH: `pr-review wait <pr>`, then require
+     `pr-review ready <pr>`.
+  5. Require zero unresolved review threads of any reviewer (GraphQL
+     `pullRequest.reviewThreads`); `pr-review` sees only CodeRabbit.
+  6. Squash merge with the subject "<title> (#<pr>)". The body repeats each
+     `Closes #N` and `Refs #N` line of the commits and of the pull request
+     body, because the squash drops the commit footers.
+
+pr-land never merges without green required checks.
+
+exit codes:
+  0  merged
+  1  usage error, or a gh command failed
+  2  the pull request is not open, or it is a draft
+  3  the branch conflicts with its base: rebase it by hand
+  4  a required check failed, or no required check reported
+  5  the review bot did not complete a review of the head commit
+  6  the review bot is rate limited: run again after the reset
+  7  a review thread is unresolved, or the review bot has no review of the head commit
+  8  the head moved or the branch fell behind while pr-land waited: run it again
+  9  the head is not the reviewed head: read the new commits first
+"""
+
+import json
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+ISSUE_LINE = re.compile(r"^\s*((?:Closes|Fixes|Resolves|Refs) #\d+)\s*$", re.IGNORECASE | re.MULTILINE)
+CHECKS_APPEAR_SECONDS = 300
+CHECKS_POLL_SECONDS = 15
+
+
+class Stop(Exception):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+def gh(*args, capture=True):
+    result = subprocess.run(["gh", *args], capture_output=capture, text=True)
+    if result.returncode != 0:
+        detail = (result.stderr or "").strip() if capture else ""
+        raise Stop(1, f"gh {' '.join(args)} failed: {detail}")
+    return result.stdout if capture else ""
+
+
+def pull_request(number):
+    fields = "number,title,body,state,isDraft,baseRefName,headRefOid,mergeStateStatus,commits"
+    return json.loads(gh("pr", "view", number, "--json", fields))
+
+
+def pull_request_with_merge_state(number):
+    deadline = time.monotonic() + CHECKS_APPEAR_SECONDS
+    pr = pull_request(number)
+    while pr["mergeStateStatus"] == "UNKNOWN" and time.monotonic() < deadline:
+        time.sleep(CHECKS_POLL_SECONDS)
+        pr = pull_request(number)
+    return pr
+
+
+def repository():
+    return gh("repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner").strip()
+
+
+def approve_waiting_runs(repo, head, reviewed):
+    if reviewed is None or head != reviewed.approvable:
+        return
+    runs = json.loads(
+        gh(
+            "api",
+            f"repos/{repo}/actions/runs?head_sha={head}&status=action_required",
+            "--jq",
+            "[.workflow_runs[].id]",
+        )
+    )
+    for run in runs:
+        print(f"pr-land: approving workflow run {run}")
+        gh("api", "--method", "POST", f"repos/{repo}/actions/runs/{run}/approve")
+
+
+class Reviewed:
+    """The head that a person read, and the head whose runs may be approved."""
+
+    def __init__(self, sha):
+        self.sha = sha
+        self.approvable = sha
+
+
+def bring_up_to_date(number, repo, reviewed):
+    pr = pull_request_with_merge_state(number)
+    if pr["state"] != "OPEN" or pr["isDraft"]:
+        raise Stop(2, f"#{number} is {'a draft' if pr['isDraft'] else pr['state'].lower()}")
+    if reviewed is not None and pr["headRefOid"] != reviewed.sha:
+        raise Stop(9, f"the head of #{number} is {pr['headRefOid']}, not {reviewed.sha}")
+    approve_waiting_runs(repo, pr["headRefOid"], reviewed)
+    if pr["mergeStateStatus"] == "DIRTY":
+        raise Stop(3, f"#{number} conflicts with its base; rebase it by hand")
+    if pr["mergeStateStatus"] == "BEHIND":
+        print(f"pr-land: #{number} is behind its base; updating the branch")
+        gh("pr", "update-branch", number, capture=False)
+        old_head = pr["headRefOid"]
+        pr = wait_for_new_head(number, old_head)
+        if reviewed is not None:
+            if not is_update_merge(repo, number, pr["headRefOid"], old_head, pr["baseRefName"]):
+                raise Stop(9, f"the new head of #{number} is not the update merge; review it")
+            reviewed.approvable = pr["headRefOid"]
+            approve_waiting_runs(repo, pr["headRefOid"], reviewed)
+    return pr
+
+
+def is_update_merge(repo, number, head, old_head, base):
+    parents = gh("api", f"repos/{repo}/commits/{head}", "--jq", "[.parents[].sha]")
+    base_tip = gh("api", f"repos/{repo}/commits/{base}", "--jq", ".sha").strip()
+    if json.loads(parents) != [old_head, base_tip]:
+        return False
+    fetch = subprocess.run(
+        ["git", "fetch", "--quiet", "origin", base_tip, f"pull/{number}/head"],
+        capture_output=True,
+    )
+    if fetch.returncode != 0:
+        return False
+    merged = subprocess.run(
+        ["git", "merge-tree", "--write-tree", old_head, base_tip],
+        capture_output=True,
+        text=True,
+    )
+    tree = subprocess.run(
+        ["git", "rev-parse", f"{head}^{{tree}}"], capture_output=True, text=True
+    )
+    return (
+        merged.returncode == 0
+        and tree.returncode == 0
+        and merged.stdout.split("\n", 1)[0].strip() == tree.stdout.strip()
+    )
+
+
+def wait_for_new_head(number, old_head):
+    deadline = time.monotonic() + CHECKS_APPEAR_SECONDS
+    while time.monotonic() < deadline:
+        pr = pull_request(number)
+        if pr["headRefOid"] != old_head:
+            return pr
+        time.sleep(CHECKS_POLL_SECONDS)
+    raise Stop(1, f"the head of #{number} did not move after the branch update")
+
+
+def required_check_names(repo, base):
+    names = json.loads(
+        gh(
+            "api",
+            f"repos/{repo}/rules/branches/{base}",
+            "--jq",
+            '[.[] | select(.type == "required_status_checks")'
+            " | .parameters.required_status_checks[].context]",
+        )
+    )
+    if not names:
+        raise Stop(4, f"no required check is configured for {base}")
+    return set(names)
+
+
+def check_states(number):
+    listed = subprocess.run(
+        ["gh", "pr", "checks", number, "--json", "name,bucket"],
+        capture_output=True,
+        text=True,
+    )
+    if listed.returncode != 0 or not listed.stdout.strip():
+        return {}
+    return {check["name"]: check["bucket"] for check in json.loads(listed.stdout)}
+
+
+def wait_for_required_checks(number, repo, pr, reviewed):
+    required = required_check_names(repo, pr["baseRefName"])
+    deadline = time.monotonic() + CHECKS_APPEAR_SECONDS
+    while not required <= check_states(number).keys():
+        if time.monotonic() >= deadline:
+            raise Stop(4, f"the required checks {sorted(required)} did not report on #{number}")
+        approve_waiting_runs(repo, pr["headRefOid"], reviewed)
+        time.sleep(CHECKS_POLL_SECONDS)
+    subprocess.run(["gh", "pr", "checks", number, "--watch"])
+    states = check_states(number)
+    failed = sorted(name for name in required if states.get(name) != "pass")
+    if failed:
+        raise Stop(4, f"the required checks {failed} of #{number} are not green")
+
+
+def wait_for_review_bot(number):
+    if shutil.which("pr-review") is None:
+        print("pr-land: pr-review is not on PATH; the review bot is not checked")
+        return
+    waited = subprocess.run(["pr-review", "wait", number]).returncode
+    if waited == 3:
+        raise Stop(6, "the review bot is rate limited")
+    if waited not in (0, 5):
+        raise Stop(5, f"pr-review wait {number} exited {waited}")
+    if subprocess.run(["pr-review", "ready", number]).returncode != 0:
+        raise Stop(7, f"pr-review ready {number}: open threads or no review of the head commit")
+
+
+def require_resolved_threads(repo, number):
+    owner, name = repo.split("/", 1)
+    query = (
+        "query($owner: String!, $name: String!, $number: Int!, $after: String) {"
+        " repository(owner: $owner, name: $name) { pullRequest(number: $number) {"
+        " reviewThreads(first: 100, after: $after) {"
+        " nodes { isResolved } pageInfo { hasNextPage endCursor } } } } }"
+    )
+    open_threads = 0
+    cursor = []
+    while True:
+        threads = json.loads(
+            gh(
+                "api", "graphql",
+                "-f", f"query={query}",
+                "-f", f"owner={owner}",
+                "-f", f"name={name}",
+                "-F", f"number={number}",
+                *cursor,
+                "--jq", ".data.repository.pullRequest.reviewThreads",
+            )
+        )
+        open_threads += sum(1 for thread in threads["nodes"] if not thread["isResolved"])
+        if not threads["pageInfo"]["hasNextPage"]:
+            break
+        cursor = ["-f", f"after={threads['pageInfo']['endCursor']}"]
+    if open_threads:
+        raise Stop(7, f"#{number} has {open_threads} unresolved review threads")
+
+
+def merge_body(pr):
+    texts = [pr.get("body") or ""]
+    for commit in pr["commits"]:
+        texts.append(commit.get("messageHeadline") or "")
+        texts.append(commit.get("messageBody") or "")
+    lines = []
+    for text in texts:
+        for match in ISSUE_LINE.finditer(text):
+            line = match.group(1)
+            line = line[0].upper() + line[1:].lower()
+            if line not in lines:
+                lines.append(line)
+    return "\n".join(lines)
+
+
+def land(number, reviewed):
+    repo = repository()
+    pr = bring_up_to_date(number, repo, reviewed)
+    wait_for_required_checks(number, repo, pr, reviewed)
+    wait_for_review_bot(number)
+    require_resolved_threads(repo, number)
+    final = pull_request_with_merge_state(number)
+    if final["headRefOid"] != pr["headRefOid"]:
+        raise Stop(8, f"the head of #{number} moved while pr-land waited")
+    if final["mergeStateStatus"] == "BEHIND":
+        raise Stop(8, f"#{number} fell behind its base while pr-land waited")
+    subject = f"{final['title']} (#{number})"
+    gh(
+        "pr",
+        "merge",
+        number,
+        "--squash",
+        "--subject",
+        subject,
+        "--body",
+        merge_body(final),
+        "--match-head-commit",
+        final["headRefOid"],
+        capture=False,
+    )
+    print(f"pr-land: merged #{number}")
+
+
+def main(argv):
+    if len(argv) not in (2, 3) or argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0 if len(argv) == 2 else 1
+    number = argv[1]
+    if not number.isdigit():
+        print(f"pr-land: expected a pull request number, not {number}", file=sys.stderr)
+        return 1
+    reviewed = Reviewed(argv[2]) if len(argv) == 3 else None
+    if reviewed is not None and not re.fullmatch(r"[0-9a-f]{40}", reviewed.sha):
+        print(f"pr-land: expected a full commit sha, not {reviewed.sha}", file=sys.stderr)
+        return 1
+    try:
+        land(number, reviewed)
+    except Stop as stop:
+        print(f"pr-land: {stop}", file=sys.stderr)
+        return stop.code
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

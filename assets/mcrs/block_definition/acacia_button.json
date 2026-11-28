@@ -259,6 +259,150 @@
             "power": 0
           }
         }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, 1],
+              "direction": "north"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, -1],
+              "direction": "south"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [1, 0, 0],
+              "direction": "west"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [-1, 0, 0],
+              "direction": "east"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 1, 0],
+              "direction": "down"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 1, 0],
+              "direction": "down"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 1, 0],
+              "direction": "down"
+            }
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 1, 0],
+              "direction": "down"
+            }
+          }
+        }
       }
     ]
   }

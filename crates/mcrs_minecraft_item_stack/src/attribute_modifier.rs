@@ -4,14 +4,14 @@ use core::hash::Hasher;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
+use mcrs_minecraft_entity_attribute::ModifierOperation;
+
 use crate::AttributeId;
 use crate::ModifierDisplay;
-use crate::ModifierOperation;
 use crate::SlotGroup;
 use crate::float_key;
 use crate::identifier::Identifier;
 
-/// One change that a stack makes to an attribute of the entity that has it equipped.
 #[derive(Clone, Debug)]
 pub struct AttributeModifier {
     pub attribute: AttributeId,
@@ -23,7 +23,6 @@ pub struct AttributeModifier {
 }
 
 impl AttributeModifier {
-    /// A modifier for each slot with the default display.
     #[must_use]
     pub const fn new(
         attribute: AttributeId,
@@ -41,7 +40,6 @@ impl AttributeModifier {
         }
     }
 
-    /// The name of the modifier. It is not an entry of a registry.
     #[must_use]
     pub fn id(&self) -> ResourceLocation<'_> {
         self.id.as_location()

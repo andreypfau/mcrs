@@ -9,7 +9,6 @@ pub const AXIS_Y: Axes = 2;
 pub const AXIS_Z: Axes = 4;
 pub const ALL_AXES: Axes = 7;
 
-/// `DensityFunction.axesFrom`.
 #[inline]
 pub const fn axis_bit(axis: Axis) -> Axes {
     match axis {
@@ -19,15 +18,11 @@ pub const fn axis_bit(axis: Axis) -> Axes {
     }
 }
 
-/// How many values a node of this stratum holds within one column: `sy` if it
-/// varies along Y, otherwise a single scalar broadcast over the column.
 #[inline]
 pub const fn run_len(axes: Axes, size_y: usize) -> usize {
     if axes & AXIS_Y != 0 { size_y } else { 1 }
 }
 
-/// The extent of a stratum over a whole volume, which is what one node's buffer
-/// costs.
 pub fn extent(axes: Axes, volume: &SampleGrid) -> usize {
     let s = volume.size();
     let x = if axes & AXIS_X != 0 { s.x as usize } else { 1 };
@@ -36,14 +31,6 @@ pub fn extent(axes: Axes, volume: &SampleGrid) -> usize {
     x * y * z
 }
 
-/// `volume` with every axis the stratum drops collapsed to one sample. The
-/// result indexes a stratum buffer exactly as [`SampleGrid::index_unchecked`] does,
-/// so an `ALL_AXES` buffer is already the fill's output.
-///
-/// A dropped axis still needs some coordinate. A dropped Y reads the volume's
-/// own first row; a dropped X or Z reads block zero, and that is pinned rather
-/// than arbitrary: a noise sheds X and Z by having `xz_scale` be zero, and
-/// `block * 0.0` still carries the sign of the block.
 pub fn stratum(axes: Axes, volume: &SampleGrid) -> SampleGrid {
     let (size, min) = (volume.size(), volume.min_block());
     let keep = |bit: Axes, n: i32| if axes & bit != 0 { n } else { 1 };

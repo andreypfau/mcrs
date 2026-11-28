@@ -42,6 +42,7 @@
       },
       "minecraft:block_entity": {},
       "minecraft:destructible_by_mining": false,
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,

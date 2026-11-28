@@ -1,15 +1,12 @@
-// The draw of the face records of one texture array into the gbuffer, and the bake of the
-// impostor images from the same face records.
-
 @group(0) @binding(0) var<uniform> frame: Frame;
 @group(0) @binding(5) var<storage, read> states: array<StateRecord>;
-@group(0) @binding(8) var<storage, read> models: array<ModelRecord>;
+@group(0) @binding(8) var<uniform> models: array<ModelRecord, #{MODELS}>;
 @group(0) @binding(10) var<storage, read> cuboids: array<CuboidRecord>;
 @group(0) @binding(11) var<storage, read> visible: array<vec2<u32>>;
 @group(0) @binding(12) var<storage, read> bone_matrices: array<vec4<f32>>;
 @group(0) @binding(13) var<storage, read> instances: array<Instance>;
 @group(0) @binding(14) var<storage, read> faces: array<vec2<u32>>;
-@group(0) @binding(19) var<storage, read> variants: array<Variant>;
+@group(0) @binding(19) var<uniform> variants: array<Variant, #{VARIANTS}>;
 @group(1) @binding(0) var entity_textures: texture_2d_array<f32>;
 @group(1) @binding(1) var entity_sampler: sampler;
 
@@ -25,31 +22,21 @@ struct VertexOutput {
     @location(5) @interpolate(flat) light: vec2<f32>,
 }
 
-/// The corners of the two triangles of a face, counter-clockwise from its outer side.
 const TRIANGLE_CORNERS = array<u32, 6>(0u, 2u, 1u, 1u, 2u, 3u);
 
-/// A corner of a face after the transform of its bone, in model units.
 struct FaceCorner {
     point: vec3<f32>,
     normal: vec3<f32>,
     uv: vec2<f32>,
     layer: u32,
-    /// The index of the visible entry and of its instance.
     index: u32,
-    /// The layer of the state record that draws the face.
     model_layer: u32,
 }
 
-/// The relative step of depth toward the camera for each later layer. Two layers can lie on one
-/// surface, as the saddle on the inflated fur of a cold pig, and a later layer draws over an
-/// earlier one there; the order of the face records in a draw is not the order of the layers.
-const LAYER_DEPTH_STEP: f32 = 1.0 / 65536.0;
+const LAYER_DEPTH_STEP: f32 = #{LAYER_DEPTH_STEP};
 
-/// The corners of a face in the order of a triangle strip, which makes the triangles of
-/// `TRIANGLE_CORNERS`.
 const STRIP_CORNERS = array<u32, 4>(0u, 2u, 1u, 3u);
 
-/// The corner `corner` of the face record `record_index`.
 fn face_corner_of(record_index: u32, corner: u32) -> FaceCorner {
     let record = faces[record_index];
     let index = record.x;
@@ -110,8 +97,6 @@ fn face_corner_of(record_index: u32, corner: u32) -> FaceCorner {
     return out;
 }
 
-/// One instance for each face, four vertices of a strip. The first vertex of the draw holds the
-/// first face record of the texture array, four vertices for each record.
 @vertex
 fn vertex(
     @builtin(vertex_index) vertex_index: u32,
@@ -142,7 +127,6 @@ fn fragment(in: VertexOutput) -> GBuffer {
     return shade_face(in, texel.rgb);
 }
 
-/// The fragment of a face whose texture rectangle has no cutout texel.
 @fragment
 fn fragment_opaque(in: VertexOutput) -> GBuffer {
     return shade_face(in, textureSample(entity_textures, entity_sampler, in.uv, in.layer).rgb);
@@ -159,12 +143,9 @@ struct BakeOutput {
     @location(0) normal: vec3<f32>,
     @location(1) uv: vec2<f32>,
     @location(2) @interpolate(flat) layer: u32,
-    /// The direction toward the camera of the view, in model space.
     @location(3) @interpolate(flat) toward: vec3<f32>,
 }
 
-/// A corner of the bake of an impostor image: the rows of the instance map model space to the
-/// clip space of the image.
 @vertex
 fn bake_vertex(@builtin(vertex_index) vertex_index: u32) -> BakeOutput {
     var corners = TRIANGLE_CORNERS;
@@ -181,7 +162,6 @@ fn bake_vertex(@builtin(vertex_index) vertex_index: u32) -> BakeOutput {
 
 struct BakeTargets {
     @location(0) colour: vec4<f32>,
-    /// The normal in model space as `n · 0.5 + 0.5`, and the depth toward the camera.
     @location(1) normal_depth: vec4<f32>,
 }
 

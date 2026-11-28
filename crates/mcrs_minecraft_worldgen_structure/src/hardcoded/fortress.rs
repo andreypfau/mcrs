@@ -5,7 +5,7 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 
 use crate::orient::{Orientation, find_collision, move_inside_heights, orient_box, orient_box_at};
 use crate::piece::{FortressKind, FortressPiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 use super::{PieceWeight, WeightTable};
 
@@ -14,7 +14,10 @@ const LOWEST_Y: i32 = 10;
 const START_Y: i32 = 64;
 const REACH: i32 = 112;
 
-pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    _rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     let chunk = ctx.chunk;
     Some((
         IVec3::new(chunk.min_block_x(), START_Y, chunk.min_block_z()),
@@ -72,7 +75,7 @@ struct Layout {
     start_min: IVec3,
 }
 
-pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, mut site: Site) -> Vec<Piece> {
     use FortressKind::*;
     let bridge_weights = [
         entry(BridgeStraight, 30, 0, true),
@@ -127,7 +130,6 @@ impl Layout {
         if castle { &self.castle } else { &self.bridge }
     }
 
-    /// Each type's `addChildren`.
     fn add_children(&mut self, index: usize, rng: &mut LegacyRandom) {
         use FortressKind::*;
         use Side::*;
@@ -175,9 +177,6 @@ impl Layout {
         }
     }
 
-    /// `generateChildForward`, `generateChildLeft` and `generateChildRight`:
-    /// `a` is the forward child's x offset or the side child's y offset, `b`
-    /// the forward child's y offset or the side child's z offset.
     fn child(
         &mut self,
         parent: usize,
@@ -226,8 +225,6 @@ impl Layout {
         self.generate_and_add(rng, foot, direction, depth, castle);
     }
 
-    /// `generateAndAddPiece`: past the reach an end filler is built and
-    /// dropped, spending its seed draw.
     fn generate_and_add(
         &mut self,
         rng: &mut LegacyRandom,
@@ -246,8 +243,6 @@ impl Layout {
         }
     }
 
-    /// `generatePiece`: five weighted draws, each walking the table from the
-    /// drawn entry on until one builds, then the end filler.
     fn generate_piece(
         &mut self,
         rng: &mut LegacyRandom,
@@ -305,8 +300,6 @@ impl Layout {
         )
     }
 
-    /// Each type's `createPiece`: the box, its floor above 10, no collision,
-    /// then the constructor's own draw.
     fn create(
         &self,
         rng: &mut LegacyRandom,

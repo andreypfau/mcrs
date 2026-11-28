@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_registries"
-description = "Registry tables, tags and the registry loader"
+description = "The Registries store: registry tables, tags, declarations, diagnostics, and the loader and wire forms of a registry snapshot"
 version.workspace = true
 edition.workspace = true
 
@@ -20,6 +20,7 @@ mcrs_minecraft_core.workspace = true
 mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_registries_derive.workspace = true
+mcrs_minecraft_static_registry = { workspace = true, features = ["std"] }
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_wire.workspace = true
 serde.workspace = true

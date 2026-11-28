@@ -4,7 +4,6 @@ use std::marker::PhantomData;
 
 use crate::{ConnectionState, Encode, Packet, PacketSide, Result};
 
-/// The body of a packet `P`, encoded ahead of time, written under the id of `P`.
 pub struct EncodedBody<'a, P>(&'a [u8], PhantomData<fn() -> P>);
 
 impl<'a, P: Packet> EncodedBody<'a, P> {

@@ -1,9 +1,6 @@
 pub trait Sample: Sized {
     fn samples() -> Vec<Self>;
 
-    /// The NBT tag id each dotted path below this sample's persistent form
-    /// must carry, `""` naming the root; a width vanilla would write
-    /// differently is a persistence bug the round trip alone cannot see.
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         Vec::new()
     }
@@ -111,8 +108,6 @@ struct SampleRegistry {
     tags: Vec<(ResourceLocationBuf, Vec<u16>)>,
 }
 
-/// Names and tags of a few entries of each registry the component samples name, keyed by the
-/// type a value names the registry with.
 #[derive(Default)]
 pub struct SampleRegistries(HashMap<TypeId, SampleRegistry>);
 
@@ -189,8 +184,6 @@ impl Namer for SampleRegistries {
     }
 }
 
-/// A static registry numbers its entries as the generated constants do, so a constant names the
-/// same entry in the samples as in the game; the listed names are what a peer numbers on the wire.
 macro_rules! sample_numbering {
     ($entries:path; $($name:literal),+) => {
         $entries.iter().map(|&name| name.into()).collect::<Vec<ResourceLocationBuf>>()
@@ -228,8 +221,8 @@ sample_registries_table! {
         [("skeletons" => ["skeleton"])];
     mcrs_minecraft_block::registry_keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
     mcrs_minecraft_potion::registry_keys::POTION => "potion" numbered mcrs_minecraft_potion::potion_keys::Potion::ENTRIES ["water", "swiftness", "healing"] [];
-    mcrs_minecraft_entity::registry_keys::ATTRIBUTE => "attribute"
-        numbered mcrs_minecraft_entity::attribute_keys::Attribute::ENTRIES ["armor", "attack_damage"] [];
+    mcrs_minecraft_entity_attribute::registry_keys::ATTRIBUTE => "attribute"
+        numbered mcrs_minecraft_entity_attribute::attribute_keys::Attribute::ENTRIES ["armor", "attack_damage"] [];
     mcrs_minecraft_banner_pattern::registry_keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
         [("pattern_item/globe" => ["globe"])];
     mcrs_minecraft_block_transformer::registry_keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];

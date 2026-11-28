@@ -9,19 +9,14 @@ use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_server::MinecraftServerPlugins;
-use mcrs_minecraft_vanilla_worldgen::DimensionRouters;
+use mcrs_minecraft_vanilla_worldgen::DimensionPlans;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use std::time::Duration;
 
-/// The preset is loaded once, in the host, and every dimension's router is
-/// compiled from it there. A dimension that reached its sub-app without one
-/// generates nothing and says so only in a log line, so assert the handoff.
 #[test]
 fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     let mut app = App::new();
     app.add_plugins(MinecraftServerPlugins::embedded());
-    // The block corpus is loaded in `Plugin::finish`, which `App::run` would
-    // have called for us.
     app.finish();
     app.cleanup();
 
@@ -36,7 +31,7 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     }
     assert!(reached_playing, "the server never reached Playing");
 
-    let routers = app.world().resource::<DimensionRouters>();
+    let plans = &app.world().resource::<DimensionPlans>().0;
     for dimension in [
         "minecraft:overworld",
         "minecraft:the_nether",
@@ -44,20 +39,15 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     ] {
         let id = ResourceLocationBuf::read(dimension).unwrap();
         assert!(
-            routers.0.contains_key(&id),
+            plans.get(&id).is_some_and(|plan| plan.router().is_some()),
             "no router compiled for {dimension}; have {:?}",
-            routers.0.keys().collect::<Vec<_>>()
+            plans.keys().collect::<Vec<_>>()
         );
     }
-    // Each dimension's noise settings name their own terrain block, so a build
-    // that resolved them globally would hand every dimension the same pair.
     let block_of = |name: &str| {
         let id = ResourceLocationBuf::read(name).unwrap();
-        let router = &routers.0[&id];
-        (
-            router.router.default_block_state,
-            router.router.default_fluid_state,
-        )
+        let router = plans[&id].router().unwrap();
+        (router.default_block_state, router.default_fluid_state)
     };
     assert_ne!(
         block_of("minecraft:overworld"),
@@ -78,7 +68,10 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
             _ => None,
         })
         .collect();
-    let expected = routers.0.len();
+    let expected = plans
+        .values()
+        .filter(|plan| plan.router().is_some())
+        .count();
     drain_dim_spawn_queue(&mut app);
 
     let mut sub_apps: Vec<_> = app
@@ -99,9 +92,6 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
         sub_apps.len()
     );
 
-    // The biome source decides the biome a column reports, and with it the
-    // surface rules and the carvers. A single host-wide source would hand the
-    // nether the overworld's biomes while it samples the nether's router.
     let mut checked = 0;
     for sub_app in &mut sub_apps {
         let world = sub_app.world_mut();

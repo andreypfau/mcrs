@@ -38,19 +38,27 @@ mcrs_minecraft_command_argument_entity.workspace = true
 mcrs_minecraft_command_registry.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_damage.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine_damage.workspace = true
+mcrs_minecraft_engine_mob_attributes.workspace = true
 mcrs_minecraft_numeric.workspace = true
 mcrs_minecraft_engine.workspace = true
-mcrs_minecraft_engine_brain.workspace = true
+mcrs_minecraft_engine_server.workspace = true
+mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
-mcrs_minecraft_entity_rows.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy", "std"] }
+mcrs_minecraft_item_entity.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_vanilla_item_entity.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_nbt_path.workspace = true
 mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries.workspace = true
@@ -63,3 +71,6 @@ bevy_math.workspace = true
 rand.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_pose.workspace = true

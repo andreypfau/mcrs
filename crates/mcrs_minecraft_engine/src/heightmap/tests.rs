@@ -83,10 +83,6 @@ fn water_and_leaves_land_where_the_lattice_says() {
     );
 }
 
-// ─── The fused pass against a naive per-map scan ─────────────────────────────
-
-/// Scans each map on its own from the ceiling down, with no bounds and no
-/// shared state. Slow and obviously right, so it can referee the fused pass.
 fn naive_heightmaps(
     sections: &[Option<(BlockPalette, BiomePalette)>],
     y_sections: &[i32],
@@ -138,7 +134,6 @@ fn assert_same(built: &ColumnHeightmapSet, expected: &ColumnHeightmapSet, what: 
     }
 }
 
-/// Four sections of world, one column per interesting stack.
 fn sample_column() -> (Vec<Option<(BlockPalette, BiomePalette)>>, Vec<i32>) {
     let y_sections = vec![0, 1, 2, 3];
     let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> =
@@ -169,14 +164,12 @@ fn sample_column() -> (Vec<Option<(BlockPalette, BiomePalette)>>, Vec<i32>) {
         }
     }
 
-    // (0, z): water over sand — SOLID at the floor, NO_LEAVES at the surface.
     for z in 0..16usize {
         put(&mut sections, 0, 20, z, sand);
         for y in 21..40 {
             put(&mut sections, 0, y, z, water);
         }
     }
-    // (1, z): a canopy over a trunk — the other way round.
     for z in 0..16usize {
         for y in 20..28 {
             put(&mut sections, 1, y, z, log);
@@ -185,22 +178,18 @@ fn sample_column() -> (Vec<Option<(BlockPalette, BiomePalette)>>, Vec<i32>) {
             put(&mut sections, 1, y, z, leaves);
         }
     }
-    // (2, z): glass, which blocks motion but passes light.
     for z in 0..16usize {
         put(&mut sections, 2, 20, z, glass);
     }
-    // (3, z): a plant on top — non-air, satisfying nothing else.
     for z in 0..16usize {
         put(&mut sections, 3, 20, z, grass);
     }
-    // (4, z): open to the top of the world.
     for z in 0..16usize {
         for y in 0..20 {
             put(&mut sections, 4, y, z, stone);
         }
         put(&mut sections, 4, 63, z, stone);
     }
-    // (5, z): nothing at all.
     for z in 0..16usize {
         for y in 0..20 {
             put(&mut sections, 5, y, z, VoxelId::default());
@@ -217,7 +206,6 @@ fn the_fused_pass_matches_the_naive_scan() {
     let expected = naive_heightmaps(&sections, &y_sections, table);
     assert_same(&built, &expected, "sample column");
 
-    // Spot-check the two cases where SOLID and NO_LEAVES are incomparable.
     assert_eq!(built.surface.0.get(0, 0), 40);
     assert_eq!(built.solid.0.get(0, 0), 21);
     assert_eq!(built.no_leaves.0.get(0, 0), 40);
@@ -246,8 +234,6 @@ fn an_empty_column_reports_its_floor() {
     assert_eq!(built.motion.0.get(7, 9), -64);
 }
 
-// ─── Incremental maintenance against a rebuild ───────────────────────────────
-
 fn spawn_column(
     sections: &[Option<(BlockPalette, BiomePalette)>],
     y_sections: &[i32],
@@ -260,7 +246,10 @@ fn spawn_column(
     let mut app = App::new();
     app.add_message::<BlockPlaced>();
     app.insert_resource(BlockHeightmapPredicates(predicates().clone()));
-    app.add_systems(bevy_app::Update, update_column_heightmaps);
+    app.add_systems(
+        bevy_app::Update,
+        update_column_heightmaps.run_if(resource_exists::<BlockHeightmapPredicates>),
+    );
 
     let first = *y_sections.first().unwrap();
     let height = ((*y_sections.last().unwrap() - first + 1) * 16) as u32;
@@ -270,8 +259,6 @@ fn spawn_column(
         section_count: y_sections.len() as u32,
     };
 
-    // Spawned first, so an update that ignores which dimension an edit landed in
-    // finds this dimension's column at the same position.
     let other_column = app
         .world_mut()
         .spawn(ColumnHeightmapSet::new(height, min_y))
@@ -349,25 +336,16 @@ fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
 
     let air = VoxelId::default();
     let edits = [
-        // Remove the very top of the water column: the expensive descent.
         (0usize, 39i32, 0usize, air),
         (0, 38, 0, air),
-        // Remove the canopy top, then the trunk under it.
         (1, 32, 0, air),
         (1, 31, 0, air),
-        // Take out the glass that was the whole column.
         (2, 20, 0, air),
-        // Raise a column that had nothing.
         (5, 41, 0, state_of("minecraft:stone")),
-        // Add a plant on top: SURFACE only.
         (3, 21, 0, state_of("minecraft:short_grass")),
-        // Deep below the top: must change nothing.
         (4, 5, 0, air),
-        // Waterlog the sand floor under the ocean.
         (0, 20, 0, state_of("minecraft:water")),
-        // Swap the pillar's top for leaves: SOLID holds, NO_LEAVES falls far.
         (4, 63, 0, state_of("minecraft:oak_leaves")),
-        // Then take the leaves away, dropping SOLID and MOTION together.
         (4, 63, 0, air),
     ];
 
@@ -412,13 +390,16 @@ fn priming_merges_partial_ranges_with_max() {
 
     let mut app = App::new();
     app.init_resource::<PendingColumnHeightmaps>();
-    app.add_systems(bevy_app::Update, prime_column_heightmaps);
+    app.add_systems(
+        bevy_app::Update,
+        prime_column_heightmaps
+            .run_if(|pending: Res<PendingColumnHeightmaps>| !pending.0.is_empty()),
+    );
 
     let slot = |entity| ColumnSlot {
         entity,
         section_count: 1,
     };
-    // Spawned first, so priming that ignores the dimension finds this column.
     let other_column = app.world_mut().spawn_empty().id();
     let mut other_index = ColumnIndex::default();
     other_index.insert(ColumnPos::new(2, -3), slot(other_column));
@@ -442,8 +423,6 @@ fn priming_merges_partial_ranges_with_max() {
 
     let mut upper = ColumnHeightmapSet::new(64, 64);
     upper.surface.0.set(1, 1, 90);
-    // The upper range holds no solid block: its floor must not outrank the
-    // lower range's real answer.
     upper.solid.0.set(1, 1, 64);
     let mut lower = ColumnHeightmapSet::new(64, 0);
     lower.surface.0.set(1, 1, 30);
@@ -463,12 +442,10 @@ fn priming_merges_partial_ranges_with_max() {
         .get::<SurfaceHeightmap>()
         .expect("priming attached it");
     let solid = entity.get::<SolidHeightmap>().expect("priming attached it");
-    // Sized to the dimension, not to either range.
     assert_eq!(surface.0.height(), 384);
     assert_eq!(surface.0.min_y(), -64);
     assert_eq!(surface.0.get(1, 1), 90);
     assert_eq!(solid.0.get(1, 1), 12);
-    // Untouched columns keep the dimension floor.
     assert_eq!(surface.0.get(0, 0), -64);
     assert!(
         app.world()
@@ -495,8 +472,6 @@ fn the_chunk_packet_carries_the_three_client_heightmaps() {
         vec![1, 4, 5],
         "WORLD_SURFACE, MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES"
     );
-    // The length a client's SimpleBitStorage(ceillog2(384 + 1), 256) holds:
-    // 9 bits per entry, 7 entries per long, 256 entries.
     for (_, data) in &maps {
         assert_eq!(data.len(), 37);
     }
@@ -520,8 +495,6 @@ fn the_chunk_packet_carries_the_three_client_heightmaps() {
     assert_eq!(surface.0.get(3, 5), 70);
 }
 
-// ─── Packed storage ──────────────────────────────────────────────────────────
-
 fn heightmap_set_get_round_trip() {
     let mut h = ColumnHeights::new(384, -64);
     for z in 0..SectionPos::SIZE {
@@ -539,9 +512,7 @@ fn heightmap_set_get_round_trip() {
 }
 
 fn heightmap_packs_entries_lowest_index_in_lowest_bits() {
-    // 9 bits per entry, lowest entry in lowest bits of long 0.
     let mut h = ColumnHeights::new(384, 0);
-    // Index 0 = (x=0, z=0); index 1 = (x=1, z=0); index 2 = (x=2, z=0).
     h.set(0, 0, 5);
     h.set(1, 0, 10);
     h.set(2, 0, 15);
@@ -577,8 +548,6 @@ mod exhaustive {
         let table = predicates();
         for block in blocks.blocks() {
             let solid = table.get(VoxelId(block.base_state_id.number())) & HeightmapKinds::SOLID;
-            // `NO_LEAVES` also answers to the state's own fluid, so its tag half is
-            // only comparable among the states that carry none.
             let dry = |state: BlockStateId| blocks.state(state).fluid.is_none();
             let no_leaves = (0..block.state_count)
                 .filter_map(|offset| block.state_at(offset))

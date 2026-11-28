@@ -1,11 +1,6 @@
 # The `kill` command: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`.
+Version: see `assets/minecraft/version.json`.
 
 This document states the tree of `kill`, the victims, the result of a kill for each kind of victim,
 and the messages. It does not prescribe an architecture.
@@ -19,8 +14,7 @@ and the messages. It does not prescribe an architecture.
 - **Hit**, **amount**, **dying state**, **death time**: as `entity-damage.md`, section 0.1, defines
   them.
 - **Victim**: an entity that the command kills.
-- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-KILL`. None of the experiments
-  has been run.
+- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-KILL`.
 
 ## 1. Scope
 
@@ -140,15 +134,3 @@ Confidence: high. Experiment: summon three pigs, and run `kill @e[type=pig]`. Th
   its own victim.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
-
----
-
-## 2. Use in a benchmark
-
-A benchmark that clears its mobs with `kill @e[type=pig]` must account for these effects:
-
-- The pigs stay in the world for 20 ticks in the dying state, and push other entities.
-- With `mob_drops` true, each adult pig drops 1 to 3 `porkchop` items. Set `gamerule mob_drops
-  false` before the kill, or run `kill @e[type=item]` 20 ticks after it.
-- Each kill of a mob sends a `damage_event`, an entity event, a sound and an entity data update
-  to each viewer.

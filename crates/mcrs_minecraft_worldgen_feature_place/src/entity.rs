@@ -18,8 +18,6 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_nbt::nbt_flag;
 
-/// An entity a generator spawned, in the compound the save writes; a
-/// projection of the seed until delivery makes it real.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GeneratedEntity {
     #[serde(rename = "Pos")]
@@ -118,7 +116,6 @@ pub enum GeneratedKind {
 
 use mcrs_minecraft_item_key::item_keys::Item;
 
-/// `ItemStack.CODEC`, whose `count` is optional to read and always written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemStack {
     pub id: Item,
@@ -132,7 +129,6 @@ impl ItemStack {
     }
 }
 
-/// `Direction.LEGACY_ID_CODEC`: the face's 3D id as a byte.
 fn facing_id<S: serde::Serializer>(facing: &Direction, serializer: S) -> Result<S::Ok, S::Error> {
     serializer.serialize_i8(facing.id() as i8)
 }
@@ -147,7 +143,6 @@ fn facing_from_id<'de, D: serde::Deserializer<'de>>(
         .ok_or_else(|| serde::de::Error::custom(format!("no direction has the id {id}")))
 }
 
-/// The slots a spawned mob can hold something in.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Equipment {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -175,8 +170,6 @@ impl GeneratedEntity {
         mcrs_minecraft_nbt::from_bytes_unnamed(Cursor::new(bytes))
     }
 
-    /// A template entity the piece places without finalizing: the two
-    /// villager kinds, since no hardcoded structure spawns another.
     pub fn from_template(
         entity: &FrozenEntity,
         mirror: Mirror,
@@ -213,9 +206,6 @@ impl GeneratedEntity {
     }
 }
 
-/// The values an entity draws from its own random, which the reference seeds
-/// from the clock: a fork of the placement stream by kind and position, so a
-/// regenerated column spawns the same entity without moving the stream.
 fn own_random(rng: &WorldgenRandom, id: &str, pos: DVec3) -> XoroshiroRandom {
     rng.source().clone().fork_hash(id).fork_at(IVec3::new(
         pos.x.floor() as i32,
@@ -224,7 +214,6 @@ fn own_random(rng: &WorldgenRandom, id: &str, pos: DVec3) -> XoroshiroRandom {
     ))
 }
 
-/// `Mth.createInsecureUUID`.
 fn uuid(own: &mut XoroshiroRandom) -> [i32; 4] {
     let most = own.next_i64() & -61441 | 16384;
     let least = own.next_i64() & 4611686018427387903 | i64::MIN;
@@ -252,7 +241,6 @@ fn placed(
     }
 }
 
-/// `Entity.snapTo(pos, 0, 0)` at a block's bottom centre.
 fn bottom_centre(at: BlockPos) -> DVec3 {
     DVec3::new(
         f64::from(at.x) + 0.5,
@@ -261,16 +249,12 @@ fn bottom_centre(at: BlockPos) -> DVec3 {
     )
 }
 
-/// `Mob.finalizeSpawn`: the follow-range bonus, which nothing static reads,
-/// and the left hand.
 fn mob(rng: &mut WorldgenRandom) -> bool {
     rng.next_f64();
     rng.next_f64();
     rng.next_f32() < 0.05
 }
 
-/// `enchantSpawnedEquipment` on a held item: one draw that never passes at
-/// special multiplier zero.
 fn enchant_held(rng: &mut WorldgenRandom) {
     rng.next_f32();
 }
@@ -323,8 +307,6 @@ pub fn vindicator(at: BlockPos, rng: &mut WorldgenRandom) -> GeneratedEntity {
     )
 }
 
-/// The mansion's "Group of Allays" marker: one to three, counted on the
-/// placement stream.
 pub fn allays(at: BlockPos, rng: &mut WorldgenRandom) -> Vec<GeneratedEntity> {
     let count = rng.next_i32_bound(3) + 1;
     (0..count)
@@ -340,8 +322,6 @@ pub fn allays(at: BlockPos, rng: &mut WorldgenRandom) -> Vec<GeneratedEntity> {
         .collect()
 }
 
-/// An end city sentry: nothing is drawn, and the yaw is the one every living
-/// entity rolls at construction, which no heading overrides here.
 pub fn shulker(at: BlockPos, rng: &WorldgenRandom) -> GeneratedEntity {
     let pos = bottom_centre(at);
     let kind = GeneratedKind::Shulker { left_handed: false };
@@ -357,8 +337,6 @@ pub fn shulker(at: BlockPos, rng: &WorldgenRandom) -> GeneratedEntity {
     }
 }
 
-/// `new ItemFrame(level, pos, facing)` holding an elytra: the frame hangs at
-/// the block's centre pulled back to the wall behind it.
 pub fn elytra_frame(at: BlockPos, facing: Direction, rng: &WorldgenRandom) -> GeneratedEntity {
     const SHIFT_TO_BLOCK_WALL: f64 = 0.46875;
     let pos = DVec3::new(
@@ -385,7 +363,6 @@ pub fn elytra_frame(at: BlockPos, facing: Direction, rng: &WorldgenRandom) -> Ge
     )
 }
 
-/// A mineshaft's chest minecart at the block centre, seeded off the stream.
 pub fn chest_minecart(
     at: BlockPos,
     loot_table: String,
@@ -408,8 +385,6 @@ pub fn chest_minecart(
     )
 }
 
-/// `Registry.getRandom` over a registry in its order, `fallback` when the
-/// registry is empty.
 fn pick_sound(
     sounds: &[ResourceLocationBuf],
     fallback: impl FnOnce() -> ResourceLocationBuf,
@@ -503,7 +478,6 @@ fn zombie_nautilus(
                 .location()
                 .to_buf()
         });
-    // `NautilusAi.initMemories`: the attack cooldown, `UniformInt.of(2400, 3600)`.
     rng.next_i32_bound(1201);
     let left_handed = mob(rng);
     placed(
@@ -517,11 +491,6 @@ fn zombie_nautilus(
     )
 }
 
-/// `Drowned.finalizeSpawn` from a ruin's marker. A drowned that mounts a
-/// chicken or a zombie nautilus comes back as the mount with the drowned
-/// riding it, as the save carries the pair. `frequent_drowned` is the
-/// biome's `#more_frequent_drowned_spawns` membership, which forbids the
-/// nautilus.
 pub fn drowned(
     at: BlockPos,
     ctx: &SpawnContext,
@@ -535,8 +504,6 @@ pub fn drowned(
     let baby = rng.next_f32() < 0.05;
     let mut mount = None;
     if baby {
-        // A chicken already standing within five blocks would be ridden
-        // instead; a generated column has none.
         let ridden_nearby = f64::from(rng.next_f32()) < 0.05;
         if !ridden_nearby && f64::from(rng.next_f32()) < 0.05 {
             mount = Some(chicken_jockey(pos, ctx, tables, rng));
@@ -668,8 +635,8 @@ mod tests {
         assert_eq!(cats.len(), 11);
         let cats = VariantTable::freeze(
             cats.iter().map(|(id, s)| (id.clone(), s.as_slice())),
-            &tagged("cats_spawn_as_black", &[7]),
-            &tagged("", &[]),
+            tagged("cats_spawn_as_black", &[7]),
+            tagged("", &[]),
         )
         .unwrap();
         let in_tag = |tag: &str| SpawnSelector {
@@ -693,8 +660,8 @@ mod tests {
                     std::slice::from_ref(&plain),
                 ),
             ],
-            &tagged("", &[]),
-            &tagged("spawns_cold_variant_farm_animals", &[5]),
+            tagged("", &[]),
+            tagged("spawns_cold_variant_farm_animals", &[5]),
         )
         .unwrap();
         let zombie_nautiluses = VariantTable::freeze(
@@ -708,8 +675,8 @@ mod tests {
                     std::slice::from_ref(&in_tag("spawns_coral_variant_zombie_nautilus")),
                 ),
             ],
-            &tagged("", &[]),
-            &tagged("spawns_coral_variant_zombie_nautilus", &[3]),
+            tagged("", &[]),
+            tagged("spawns_coral_variant_zombie_nautilus", &[3]),
         )
         .unwrap();
         VariantTables {

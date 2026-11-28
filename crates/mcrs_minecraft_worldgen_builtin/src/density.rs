@@ -27,7 +27,6 @@ const SPAGHETTI_2D_THICKNESS_MODULATOR: ResourceLocation<'static> =
     rl!("minecraft:overworld/caves/spaghetti_2d_thickness_modulator");
 const SPAGHETTI_2D: ResourceLocation<'static> = rl!("minecraft:overworld/caves/spaghetti_2d");
 
-/// The density functions one overworld preset defines for its terrain.
 pub(crate) struct Terrain {
     pub(crate) offset: ResourceLocation<'static>,
     pub(crate) factor: ResourceLocation<'static>,

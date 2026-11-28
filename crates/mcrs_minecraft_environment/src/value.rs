@@ -8,8 +8,6 @@ use mcrs_minecraft_sound::Sound;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-// The sound, text and particle attributes keep the names a pack wrote, unresolved: no
-// system reads them yet. Resolving them at load gives an unknown name its error there.
 type NamedSound = Sound<Named>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -41,7 +39,6 @@ impl MoonPhase {
         self as usize
     }
 
-    /// The serialized name, which is also the name of the phase's texture.
     pub const fn name(self) -> &'static str {
         match self {
             MoonPhase::FullMoon => "full_moon",

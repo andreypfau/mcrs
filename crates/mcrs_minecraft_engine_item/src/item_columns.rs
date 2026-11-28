@@ -23,11 +23,8 @@ use crate::cells::Cells;
 use crate::column::Column;
 use crate::item_components::ItemComponents;
 use crate::row::Row;
-use crate::row::bit;
+use crate::row::row_mask;
 
-/// Reads the cells of the item components of any stack.
-///
-/// It reads each item component type that the world had when the system was built.
 pub(crate) struct ItemColumns<'w, 's> {
     entities: &'w Entities,
     tables: &'w Tables,
@@ -35,7 +32,6 @@ pub(crate) struct ItemColumns<'w, 's> {
     state: &'s mut ColumnsState,
 }
 
-/// The rows that the system declared its reads of, and the item mask of each table.
 pub(crate) struct ColumnsState {
     registry: ComponentId,
     rows: Vec<Row>,
@@ -48,7 +44,6 @@ impl<'w> ItemColumns<'w, '_> {
         &self.state.rows
     }
 
-    /// The column of `T` when `T` is the type of a row.
     pub(crate) fn column<T: Component>(&self) -> Option<Column<T>> {
         Column::<T>::of(self.components)
             .filter(|column| self.state.rows.iter().any(|row| row.id() == column.id()))
@@ -68,9 +63,7 @@ impl<'w> ItemColumns<'w, '_> {
         if let Some(Some(mask)) = self.state.masks.get(index) {
             return *mask;
         }
-        let mask = (self.state.rows.iter().enumerate())
-            .filter(|(_, row)| has(row.id()))
-            .fold(0, |mask, (index, _)| mask | bit(index));
+        let mask = row_mask(&self.state.rows, has);
         if self.state.masks.len() <= index {
             self.state.masks.resize(index + 1, None);
         }

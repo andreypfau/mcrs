@@ -1,0 +1,143 @@
+---
+title: Hook into block placing, breaking and drops
+description: Where a plugin changes or replaces block placing, block breaking, the drops of a block and falling blocks.
+sidebar:
+  order: 10
+kind: how-to
+audience: [jvm, rust]
+stability: changing
+tracking: [283, 785]
+sources:
+  - crates/mcrs_minecraft_engine/src/use_item_on_request.rs
+  - crates/mcrs_minecraft_engine/src/block_break.rs
+  - crates/mcrs_minecraft_engine/src/player_dimensions.rs
+  - crates/mcrs_minecraft_engine/src/block_simulation.rs
+  - crates/mcrs_minecraft_engine_world/src/block_drops.rs
+  - crates/mcrs_minecraft_vanilla_block_place/src/block_place_plugin.rs
+  - crates/mcrs_minecraft_server/src/lib.rs
+  - crates/mcrs_minecraft_server/src/vanilla_blocks.rs
+  - crates/mcrs_minecraft_server/src/falling_blocks.rs
+  - crates/mcrs_minecraft_vanilla_falling_block/src/falling_block_plugin.rs
+  - crates/mcrs_minecraft_vanilla_falling_block/src/fall_request.rs
+  - crates/mcrs_minecraft_falling_block/src/settings.rs
+  - crates/mcrs_minecraft_falling_block/src/after_move.rs
+  - crates/mcrs_minecraft_vanilla_falling_block/tests/it/cancel.rs
+  - crates/mcrs_minecraft_vanilla_falling_block/tests/it/fall.rs
+  - crates/mcrs_minecraft_server/tests/it/block_place.rs
+  - crates/mcrs_minecraft_server/tests/it/block_break.rs
+  - crates/mcrs_minecraft_server/tests/it/block_support.rs
+  - docs/physics-architecture.md
+  - issue:283
+  - issue:316
+  - issue:785
+  - pr:770
+  - pr:970
+  - pr:768
+  - pr:774
+  - pr:775
+  - pr:850
+  - pr:862
+  - pr:797
+  - pr:798
+  - crates/mcrs_minecraft_engine/src/swing.rs
+  - crates/mcrs_minecraft_server/tests/it/swing.rs
+  - pr:1064
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 9eac02a81
+  date: 2026-11-23
+---
+
+import Status from '~/components/Status.astro';
+import Example from '~/components/Example.astro';
+
+This page shows where a plugin changes or replaces what happens to blocks: placing, breaking, the drops of a broken block and falling blocks. Each of them is a public message, a public system set or a vanilla plugin that you can disable. The last section names what does not exist yet.
+
+All the systems on this page run in the dimension worlds. A plugin gets there through `add_dimension_plugin`, as [Dimensions are separate worlds](/docs/en/plugins/dimensions/) explains.
+
+## A placement is the message UseItemOnRequest
+
+When a client right-clicks a block face, the engine turns the packet into the public message `UseItemOnRequest`. It names the player entity, the hand, the clicked block, the face, the point of the click on the face and the sequence number of the client.[^pr770]
+
+<Example file="crates/mcrs_minecraft_engine/src/use_item_on_request.rs" from="pub struct UseItemOnRequest {" title="The placement request" />
+
+The message is a request and changes nothing by itself. `VanillaBlockPlacePlugin` reads it and checks the reach, the click point, the height limits, an open teleport, the held item, the game mode, the target cell, operator blocks, support and the players in the way. Only a request that passes every check writes a block. For a request within reach and the height limits, the plugin then sends the player the states of the clicked and the adjacent cell, placed or not, so the client does not keep a block that the server does not have.
+
+An accepted placement also emits `SwingPlayer`, using the held item's `InteractAnimation` or the default animation. Tracking observers receive the swing before the block update of the same tick. A replacement placement system can write the same public swing message.[^pr1064]
+
+The vanilla plugin only adds the placement plugin to every dimension world:
+
+<Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl Plugin for VanillaBlockPlacePlugin" title="VanillaBlockPlacePlugin" />
+
+To place by your own rules, leave it out of the group with `disable::<VanillaBlockPlacePlugin>()`, as [Remove and replace vanilla parts](/docs/en/plugins/customize-server/) shows, and add your own system that reads `MessageReader<UseItemOnRequest>`. The engine acknowledges the sequence of every request, placed or not, so your system does not send the acknowledgement. A request with a negative sequence disconnects the player.
+
+### Reach follows the pose of the player
+
+The reach check is public, so your placement can use the same one as the vanilla placement and the break. `mcrs_minecraft_engine` exports its parts:
+
+| Item | What it gives |
+|---|---|
+| `PlayerBody` | A query part with the `Pose` and the attributes of a player. The `dimensions()` of its item give the box and the eye height of the pose, scaled by the attribute `minecraft:scale`. |
+| `eye_position` | The position of the player plus the eye height, so a crouching player has a lower eye. |
+| `reach` | The attribute `minecraft:block_interaction_range` plus 1. A player without attributes gets the base value of the player type. |
+| `in_reach` | Whether the distance from the eye to the nearest point of the block cube is below the limit. |
+
+The vanilla placement also uses the box of the pose. A block cannot be placed where it would overlap the placer or another player who is not a spectator.[^pr970]
+
+## Order your system after BlockBreakSet
+
+The break systems of the engine form the public system set `BlockBreakSet`. The break request, the message that the engine builds from the player action packet, is internal, so a plugin cannot read or refuse it. A plugin can order its own system after the set, in the `FixedUpdate` schedule. The vanilla placement does that, so a break and a placement in the same tick run in that order:
+
+<Example file="crates/mcrs_minecraft_vanilla_block_place/src/block_place_plugin.rs" from="impl Plugin for BlockPlacePlugin" title="The placement runs after the breaks" />
+
+After the set, the breaks of the tick are decided. For each block that a survival player breaks, the engine writes the public message `BlockBroken` from `mcrs_minecraft_engine_world::block_drops`, with the position, the old and the new state and the player. A system after the set reads it in the same tick. A creative break writes no `BlockBroken`.[^pr770]
+
+## Drops come from the loot tables of the data pack
+
+`VanillaBlocksPlugin` gives the block simulation of each dimension world its block rules. When a survival player breaks a block, the rules roll the loot table of that block, and the items appear as item entities.[^pr768] When a block loses its support, for example a flower whose ground is removed, the rules turn it into air and its items drop the same way.[^pr774] A creative break drops nothing, and the game rule `minecraft:block_drops` turned off stops all drops.
+
+The drops are data. A data pack that changes the loot table of a block changes what the block drops, without a code change. The tables are read when the dimension world is built, so a change to a data pack needs a restart of the server.[^316] The specifications of loot tables, conditions and functions are in the row "Loot and predicates" of the [Specification index](/docs/en/reference/specs/#files-by-domain).
+
+The rules reach the dimension worlds through the resource `DimensionBlockRules`, which holds one function:
+
+<Example file="crates/mcrs_minecraft_server/src/vanilla_blocks.rs" from="impl Plugin for VanillaBlocksPlugin" title="VanillaBlocksPlugin" />
+
+That function adds `BlockSimulationPlugin` with one rules value, a type that implements `BlockBehaviour` and `BlockDrops`. To drop something else, disable `VanillaBlocksPlugin` and insert your own `DimensionBlockRules`. Your rules then replace the vanilla rules whole, support included, because a dimension world runs one set of block rules. Without any rules, a dimension world runs inert blocks, which drop nothing and keep a block that loses its support. The dropped stacks travel as the public message `ItemDropped`, which the item entity plugin turns into item entities and your system can read as well.
+
+## Falling blocks: a request and two review sets
+
+`VanillaFallingBlockPlugin` adds `FallingBlockPlugin` from `mcrs_minecraft_vanilla_falling_block` to every dimension world. A fall starts with the public message `FallRequest`, which names a block position and its state. The plugin turns each request into an entity with `PendingFall`, and a block that several requests name gives one falling block. Next it takes the block out of the world and makes the entity a falling block. When the falling block lands, it gets `Landed` before the plugin places the block.[^pr798]
+
+Two public sets of the `FixedUpdate` schedule sit between these steps. A system in a set changes or cancels a start or a landing:
+
+| Set | When it runs | How to cancel |
+|---|---|---|
+| `FallingBlockSet::StartReview` | after the requests become `PendingFall`, before the block leaves the world | despawn the entity with `PendingFall`, and the block stays |
+| `FallingBlockSet::LandingReview` | after the falling blocks move, before the landings apply | remove `Landed`, and no block is placed and no item drops |
+
+A test of the plugin cancels both:
+
+<Example file="crates/mcrs_minecraft_vanilla_falling_block/tests/it/cancel.rs" from="fn cancel_starts(" to="cancel_starts.in_set(FallingBlockSet::StartReview)," title="Cancel a start and a landing" />
+
+The maximum age is a field of the plugin. `FallingBlockPlugin` takes `Settings` from `mcrs_minecraft_falling_block` in its field `settings`, and `Settings::new(max_age)` takes the age in ticks. A falling block older than that stops and can drop its block as an item. The default is 600 ticks, and `None` turns the limit off. The server's `VanillaFallingBlockPlugin` has no field and uses the default, so a host that needs another age adds `FallingBlockPlugin` itself in place of it and fills its field `concrete_pairs` as well.
+
+A falling block is a moving entity. It has the components `MotionState` and `MotionKind`, and one motion pass moves it together with the other entities that are not living, such as items.[^pr797] The falling block plugin adds this kind with the steps that any plugin follows for its own kind of moving entity, and section 6.9 of [docs/physics-architecture.md](https://github.com/andreypfau/mcrs/blob/main/docs/physics-architecture.md) lists those steps.
+
+## Not there yet
+
+A plugin cannot refuse a break, and it can refuse a placement only by replacing the whole vanilla placement plugin. Public block break and block place events that a plugin can cancel are planned. After a cancel, the engine would send the client what it needs to undo its prediction, for example the block back. The plan sets a direction without a promise.[^283]
+
+A plugin cannot give one kind of block its own behaviour either. A dimension world runs one set of block rules, the one that `DimensionBlockRules` installs, so a second set replaces the vanilla rules instead of joining them. A rule can set blocks and schedule ticks, but it cannot start anything outside the blocks, such as a new entity. For that reason no code in the server sends `FallRequest`, and sand that a player places over air does not fall by itself. The plan is a way to combine the rules of several plugins and an effect that a rule can emit, which the falling block plugin would turn into its request.[^785]
+
+Next: [Read player data](/docs/en/plugins/players/).
+
+[^pr770]: <Status pr={770} state="works" /> Adds block placing, the public message `UseItemOnRequest`, the public reach functions and the set `BlockBreakSet`.
+[^pr970]: <Status pr={970} state="works" /> Tracks the pose of each player on the server, and the box and the eye height follow it.
+[^pr768]: <Status pr={768} state="works" /> Drops the items of the block loot tables when a block breaks.
+[^pr774]: <Status pr={774} state="works" /> Removes a block that loses its support, with its drops.
+[^316]: <Status issue={316} /> Reload data packs while the server runs.
+[^pr798]: <Status pr={798} state="works" /> Adds the falling block rules, the message `FallRequest`, the review sets and the maximum age as a plugin setting.
+[^pr797]: <Status pr={797} state="works" /> Steps the moving entities that are not living as components.
+[^283]: <Status issue={283} /> Public, cancellable events for join, leave, chat, commands, block break, block place and movement.
+[^785]: <Status issue={785} /> Block behaviours from plugins: compose them and let a rule emit an effect.
+[^pr1064]: <Status pr={1064} state="works" /> Sends placement swings to current observers before the block update.

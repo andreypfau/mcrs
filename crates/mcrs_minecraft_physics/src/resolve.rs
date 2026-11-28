@@ -17,36 +17,27 @@ use crate::collide::collide;
 use crate::query;
 use crate::tolerance::CLIP;
 
-/// One displacement to resolve for a box, with the values of the step-up.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Probe {
     pub entity: QueryEntity,
     pub bounds: Aabb,
     pub displacement: DVec3,
     pub step_height: f32,
-    /// The on-ground flag from before the move.
     pub on_ground: bool,
 }
 
-/// The displacement that the colliders allow.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Resolved {
     pub displacement: DVec3,
-    /// Set when a step-up gave the displacement.
     pub step: Option<StepUp>,
 }
 
-/// The values of a step-up.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StepUp {
-    /// The displacement without the step-up.
     pub plain: DVec3,
-    /// `base.ymin - box.ymin`: the lift of the base box before the step.
     pub base_lift: f64,
 }
 
-/// Resolves a displacement against the blocks, the entity colliders and the world border, with
-/// step-up. It changes no state, so a checker can call it for a candidate move.
 #[must_use]
 pub fn resolve<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
@@ -129,7 +120,6 @@ pub fn resolve<W: CollisionWorld, B: BodyView>(
     }
 }
 
-/// Appends the world border and the block colliders of the query.
 fn gather_static<W: CollisionWorld>(
     world: &W,
     table: &CollisionTable,
@@ -151,7 +141,6 @@ fn gather_static<W: CollisionWorld>(
     });
 }
 
-/// The step heights to try, from the `y` grid lines of the step colliders, lowest first.
 fn candidates(
     table: &CollisionTable,
     scratch: &mut Scratch,

@@ -11,7 +11,6 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
-/// The folders of the entity pack whose JSON files a client entity reads.
 const FOLDERS: [&str; 4] = ["entity", "animations", "geometry", "render_controllers"];
 
 fn main() {
@@ -38,8 +37,7 @@ fn main() {
     }
     files.sort();
     let mut source = format!(
-        "/// The files of the entity pack of the repository, by their path below `assets/mcrs/entity`.\n\
-         pub const REPOSITORY_PACK: [(&str, &str); {}] = [\n",
+        "pub const REPOSITORY_PACK: [(&str, &str); {}] = [\n",
         files.len()
     );
     for (name, path) in &files {

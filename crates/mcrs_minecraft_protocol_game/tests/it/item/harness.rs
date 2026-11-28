@@ -22,8 +22,6 @@ use mcrs_minecraft_resource::{Id, Registered, ResourceKeyBuf, ResourceLocationBu
 
 pub use crate::common::{hex, nbt_tree};
 
-/// A value checked against the lookup and written in its wire form, or read in its wire form
-/// and checked.
 pub trait WireCodec: FromWire<Wire: Encode> {
     fn encode_checked(
         &self,
@@ -48,7 +46,6 @@ pub fn wire_form<T: FromWire>(value: &T) -> T::Wire {
     value.to_wire(&block_lookup()).unwrap()
 }
 
-/// The kind of the codec error behind `error`, without the fields that led to it.
 pub fn wire_kind(error: &anyhow::Error) -> &mcrs_minecraft_protocol::ErrorKind {
     match error.downcast_ref::<mcrs_minecraft_protocol::Error>() {
         Some(error) => error.kind(),
@@ -89,8 +86,6 @@ pub fn resolved<T: Resolve>(value: T::Named) -> Result<T, String> {
     T::resolve(value, registries()).map_err(|e| e.to_string())
 }
 
-/// The samples are numbered against their own few entries; the wire numbers them as the loaded
-/// registries do.
 pub fn samples<T: Sample + Into<ItemComponentValue>>() -> Vec<ItemComponentValue> {
     T::samples()
         .into_iter()

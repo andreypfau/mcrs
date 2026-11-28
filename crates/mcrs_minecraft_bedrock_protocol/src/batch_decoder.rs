@@ -5,7 +5,6 @@ use crate::batch_encoder::{BATCH_BYTE, DEFLATE_MARKER, SNAPPY_MARKER, UNCOMPRESS
 use crate::packet_list::PacketList;
 use crate::protocol_error::ProtocolError;
 
-/// The default inflate limit: 10 MiB.
 pub const DEFAULT_INFLATE_LIMIT: usize = 10 * 1024 * 1024;
 
 const MIN_INFLATE_GROWTH: usize = 4096;
@@ -16,7 +15,6 @@ enum Phase {
     AfterSwitch,
 }
 
-/// Reads batches into a buffer that it keeps between batches.
 pub struct BatchDecoder {
     inflated: Vec<u8>,
     inflate: Decompress,
@@ -26,14 +24,11 @@ pub struct BatchDecoder {
 }
 
 impl BatchDecoder {
-    /// A decoder before the switch, with [`DEFAULT_INFLATE_LIMIT`].
     #[must_use]
     pub fn new() -> Self {
         Self::new_with_inflate_limit(DEFAULT_INFLATE_LIMIT)
     }
 
-    /// A decoder before the switch that rejects a compressed packet list larger than
-    /// `inflate_limit` bytes.
     #[must_use]
     pub fn new_with_inflate_limit(inflate_limit: usize) -> Self {
         Self {
@@ -45,13 +40,10 @@ impl BatchDecoder {
         }
     }
 
-    /// Makes the switch: from now on each batch body starts with a marker.
     pub fn switch(&mut self) {
         self.phase = Phase::AfterSwitch;
     }
 
-    /// Checks one transport message and returns its packets. An empty message gives no
-    /// packet: the receiver discards it.
     pub fn decode<'a>(&'a mut self, message: &'a [u8]) -> Result<PacketList<'a>, ProtocolError> {
         let Some((&first, body)) = message.split_first() else {
             return Ok(PacketList::EMPTY);
@@ -132,7 +124,6 @@ impl BatchDecoder {
         Ok(())
     }
 
-    // The output holds exactly the limit; the batch is valid only when no more output remains.
     fn check_stream_end(
         &mut self,
         compressed: &[u8],

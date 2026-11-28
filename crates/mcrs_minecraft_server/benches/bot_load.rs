@@ -1,10 +1,3 @@
-//! Bot-load benchmarks for the `bridge_outbound` routing path and the
-//! session cross-dim + teardown path.
-//!
-//! The functional invariants each profile must hold — every injected packet
-//! routed, the expected number of cross-dim transfers, no orphan entities, an
-//! no session left after teardown — are asserted on every measured iteration,
-//! so a regression fails the bench rather than showing up as a timing wobble.
 #![expect(
     clippy::indexing_slicing,
     reason = "a benchmark has no caller to return an error to"
@@ -18,9 +11,6 @@ mod scale_bots;
 
 use scale_bots::{Layout, ScaleReport, run_profile_ticks};
 
-/// Even, so exactly `TICKS / 2` injection ticks occur (one BlockUpdate per bot
-/// on every even tick), and well past the halfway mark where the cross-dim
-/// transfer fires.
 const TICKS: u64 = 24;
 
 fn check(report: &ScaleReport, bots: usize, cross_dim_rate: f32, layout: Layout) {

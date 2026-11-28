@@ -1,18 +1,13 @@
 # Molang queries of the client: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-| Language | `molang.md` |
+Version: see `assets/minecraft/version.json`.
 
-Source of these values: `assets/minecraft/version.json`.
+Language: `molang.md`.
 
 This document states the contract between Molang (`molang.md`) and the host, and the meaning
 of each query that the client supplies. A query gives a value of the subject of a run. The
 meaning of an entity query is stated with the state that the Java client keeps for an entity.
-`client-entities.md` states how the client updates that state. The document does not
-prescribe an architecture.
+`client-entities.md` states how the client updates that state.
 
 ## 0. Conventions
 
@@ -55,12 +50,7 @@ prescribe an architecture.
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". `documentation` refers to the public Bedrock documentation
 of the query: its name, its arguments and its one-line meaning. The value in terms of the Java
-client has the label `source_suggested` and an experiment.
-
-Each experiment that compares a pose uses a pose dump of `tools/vanilla-oracle`,
-`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json`. The dump gives the
-transform of each model part of an entity for a set of inputs. Each experiment that compares a
-pose uses the pose tolerance of `entity-animation.md`, EANIM-GPU-003.
+client has the label `source_suggested`.
 
 ### 0.3 ID prefixes
 
@@ -110,12 +100,11 @@ behaviour pack runs on the server.
 | context of use | `block`, `entity` or `any` |
 | default | the value when the subject has no such data; `missing` means that the result is missing |
 | pose input | MOLQ-HOST-006; only for the context of use `entity` |
-| milestone | `1`, `2` or `later` (`molang.md`, section 0.1) |
 
 - **Postconditions:** the compiler checks each query reference against its declaration at
   load.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### MOLQ-HOST-002: Unknown and invalid queries
 
@@ -141,7 +130,7 @@ Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
   missing and reads as `0.0`. `(q.is_spectator ?? 1) ? 0 : 1` gives `0.0`.
 
 Provenance: `documentation` (items 1, 4, 5); items 2, 3, 6 and 7: `design`. Kind: semantic.
-Confidence: medium. Milestone: 1.
+Confidence: medium.
 
 ### MOLQ-HOST-003: Arguments
 
@@ -156,7 +145,7 @@ Confidence: medium. Milestone: 1.
   states.
 
 Provenance: `documentation`; item 3: `design`. Kind: semantic. Confidence: medium.
-Milestone: 1.
+
 
 ### MOLQ-HOST-004: Rate classes
 
@@ -174,7 +163,7 @@ Milestone: 1.
   2. An expression that reads only queries of the class `load` and constants has one result
      for each subject. An implementation can compute it at load.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### MOLQ-HOST-005: Stable values in one frame
 
@@ -184,7 +173,7 @@ Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** the order in which the client runs expressions does not change a query
   value.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### MOLQ-HOST-006: Pose inputs
 
@@ -217,7 +206,7 @@ Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
   value within the pose tolerance (`entity-animation.md`, EANIM-GPU-003).
 
 Provenance: `design`. Kind: unspecified for the split between the CPU and the GPU; semantic for
-the value. Confidence: medium. Milestone: 1.
+the value. Confidence: medium.
 
 ---
 
@@ -233,7 +222,6 @@ the value. Confidence: medium. Milestone: 1.
 | rate class | `load` |
 | context of use | `block` |
 | default | none; see item 2 |
-| milestone | 1 |
 
 - **Inputs:** the subject block state and the property name `p`.
 - **Behavior:**
@@ -262,7 +250,7 @@ Provenance: `documentation` (the query and the comparison with `true`);
 `black_box_confirmed` for the forms of use, `assets/mcrs/block_definition/` (53431 uses,
 each a comparison with a string, a Boolean or an integer, joined with `&&`); items 2 to 4:
 `design`, the error kind of MOL-LOAD-004 for an operand that the declaration rejects. Kind:
-semantic. Confidence: high. Milestone: 1.
+semantic. Confidence: high.
 
 ---
 
@@ -283,16 +271,14 @@ semantic. Confidence: high. Milestone: 1.
      In the first frame of the subject it is `0.0`. Outside an entity it is the time from the
      start of the previous frame to the start of the current frame.
   3. `frame_alpha` is `pt`.
-  4. `time_of_day` is `frac(d / 24000 + 0.25)`, where `d` is the day time of the level in
+  4. `time_of_day` is `frac(d / 24000 + 0.25)`, where `d` is the day time of the dimension in
      ticks that the client knows, and `frac(x) = x − floor(x)`. `0.0` is midnight, `0.25` is
      sunrise, `0.5` is noon and `0.75` is sunset.
 - **Postconditions:** `life_time` increases by `1/20` in each tick of the subject, and it
   increases continuously between ticks. It does not increase while the subject does not tick.
 
 Provenance: `documentation` (meanings); `source_suggested` (the formula of `life_time` and the
-offset of `time_of_day`). Kind: semantic. Confidence: medium. Milestone: 1. Experiment: spawn a
-cow on the vanilla server. Record the pose dump of its head bob for 40 ticks. The phase of
-`math.cos(q.life_time * K)` in the corresponding animation matches the dump.
+offset of `time_of_day`). Kind: semantic. Confidence: medium.
 
 ---
 
@@ -319,9 +305,7 @@ cow on the vanilla server. Record the pose dump of its head bob for 40 ticks. Th
      `0.6662` radians, and `80.2141` degrees is `1.4` radians, each to four decimal places.
 
 Provenance: `documentation` (meanings); `source_suggested` (the formulas). Kind: client
-agreement. Confidence: medium. Milestone: 1. Experiment: walk a pig on the vanilla server for
-100 ticks. Record the pose dump of its legs. Compute the leg angle from the two queries with
-the expression of postcondition 2. The angles agree within the pose tolerance (section 0.2).
+agreement. Confidence: medium.
 
 ---
 
@@ -351,9 +335,7 @@ the expression of postcondition 2. The angles agree within the pose tolerance (s
      (`client-entities.md`).
 
 Provenance: `documentation` (meanings); `source_suggested` (the use of the flags of the Java
-client). Kind: semantic. Confidence: medium. Milestone: 2. Experiment: push a frog into water
-on the vanilla server. The frog plays its swim animation in the tick in which the in-water
-flag of `client-entities.md` becomes set.
+client). Kind: semantic. Confidence: medium.
 
 ---
 
@@ -389,10 +371,7 @@ flag of `client-entities.md` becomes set.
 Provenance: `documentation` (names); `source_suggested` (the meanings). The documentation
 states that `target_x_rotation` aims at a target. The vanilla Bedrock pack uses both target
 queries for the head of each mob, also with no target. Kind: client agreement. Confidence:
-medium. Milestone: 1; a head index other than `0`: later. Experiment: stand
-near a pig on the vanilla server and move the player, so that the pig looks at the player.
-Record the pose dump of the head. The head angles agree with items 3 and 4 within the pose
-tolerance (section 0.2).
+medium.
 
 ---
 
@@ -454,9 +433,7 @@ number in the Bedrock packs, which do arithmetic on it); `design` for `variant_i
 because the Java registries identify a variant by a resource location, and for the numeric
 value of `variant`, which is the only number that the server sends; `source_suggested` (the source of each
 value in the Java client). `pose` is an mcrs addition with no Bedrock counterpart
-(MOLQ-DEV-001). Kind: semantic. Confidence: medium. Milestone: 1. Experiment: make a frog
-croak on the vanilla server. Capture the set entity data packet. The pose field changes to
-the croaking pose, and `q.pose == 'croaking'` is `1.0` in the same tick.
+(MOLQ-DEV-001). Kind: semantic. Confidence: medium.
 
 ### MOLQ-STATE-002: Assets from registry data
 
@@ -502,10 +479,7 @@ the croaking pose, and `q.pose == 'croaking'` is `1.0` in the same tick.
 Provenance: `design` (names and the string form; Bedrock has no such queries);
 `source_suggested` for the fields of the variant entry and of the equippable component.
 Only the first layer entry is read. A layer entry with a dye colour or a second layer entry is
-a later extension. Kind: semantic. Confidence: medium. Milestone: 1. Experiment: add a pig
-variant with the asset identifier `example:entity/pig/blue` in a data pack on the vanilla server. Spawn a pig with
-this variant. The variant entry in the synced registry carries the asset identifier, and
-`q.variant_asset == 'example:entity/pig/blue'` is `1.0`.
+a later extension. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -525,7 +499,7 @@ this variant. The variant entry in the synced registry carries the asset identif
 - **Postconditions:** these queries have a value only while a consumer runs an expression for
   one animation or one controller state.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -549,8 +523,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
 - **Postconditions:** these queries do not read the subject. A compiler can treat them as
   functions.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 2; the queries are
-pure and the compiler treats them as functions.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -567,13 +540,12 @@ pure and the compiler treats them as functions.
 | rate class | `entity_frame` |
 | context of use | entity |
 | default | `0.0` |
-| milestone | later |
 
 - **Behavior:** the result is the distance from the camera position of the frame to the
   interpolated position of the subject (`client-entities.md`).
 - **Postconditions:** the result is never negative.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: later.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -592,7 +564,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: late
   3. The compiler does not report the load error `arity` for a query of this section. A
      later revision that supports the query states its arguments.
   4. The table lists the queries that the vanilla Bedrock pack uses most, and each query with
-     a `struct` result. Each other query name of `docs/molang-corpus.md`, section 4.1, is
+     a `struct` result. Each other query name of the Bedrock vanilla packs is
      also known and not supported. Items 1 to 3 apply to it.
 
 | Name | Arguments (documentation) | Result | Meaning (documentation) |
@@ -618,10 +590,8 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: late
   1. A vanilla Bedrock resource pack loads with no load error from its queries.
   2. The pig and the frog (milestones 1 and 2) use no query of this section.
 
-Provenance: `documentation` (bedrock.dev, `/docs/stable/Molang`, the query list; the names
-and the frequency: `docs/molang-corpus.md`, section 4); items 1 to 3: `design`. Kind:
-semantic. Confidence: medium. Milestone: 1 for the behaviour of items 1 to 3; later for the
-value of each query.
+Provenance: `documentation` (bedrock.dev, `/docs/stable/Molang`, the query list); items 1 to 3: `design`. Kind:
+semantic. Confidence: medium.
 
 ---
 
@@ -633,7 +603,6 @@ value of each query.
 - **Reference:** Bedrock has no `query.pose`. Bedrock packs read state through other queries
   and through entity properties.
 - **Visible to the client:** no. Only mcrs packs use the query.
-- **Test:** a differential test against Bedrock does not use `query.pose`.
 
 ### MOLQ-DEV-002: The value of `variant` for a registry variant
 
@@ -644,11 +613,10 @@ value of each query.
   between servers. `variant_identifier` is an mcrs addition with no Bedrock counterpart.
 - **Visible to the client:** no, when a pack selects a registry variant with
   `variant_identifier`, `variant_asset` or `variant_model`.
-- **Test:** the pig and frog packs of mcrs do not read `query.variant`.
 
 ---
 
-## 13. Open questions
+## 13. Unresolved
 
 - `head_y_rotation(n)`: the documentation does not state if the value is relative to the
   body. MOLQ-ROT-001 states the absolute head yaw.

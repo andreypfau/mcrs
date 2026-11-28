@@ -4,8 +4,6 @@ use mcrs_minecraft_resource::{
     Id, Registered, ResourceKeyBuf, ResourceLocationBuf, TagId, TagKeyBuf,
 };
 
-/// What a wire value is checked against. Both ends of a connection number a registry alike: a
-/// client holds the registries its server sent, in the order sent.
 #[derive(Clone, Copy)]
 pub struct WireLookup<'a> {
     registries: &'a Registries,
@@ -20,7 +18,6 @@ impl<'a> WireLookup<'a> {
         }
     }
 
-    /// Block states cross the wire by state id, which only the block definitions number.
     pub fn with_blocks(mut self, blocks: &'a BlockDefinitions) -> Self {
         self.blocks = Some(blocks);
         self

@@ -5,23 +5,24 @@ use std::rc::Rc;
 
 use js_sys::{Array, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::{JsFuture, spawn_local};
+use wasm_bindgen_futures::{JsFuture, future_to_promise, spawn_local};
 use web_sys::{
     Cache, CacheStorage, Headers, ReadableStreamDefaultReader, Request, RequestInit, Response,
 };
 
 use crate::schedule::{self, Queue, Source};
-use crate::{Files, Progress, RELEASE};
+use crate::{AssetObject, Files, INDEX_OBJECTS, IndexLayer, Progress, RELEASE};
 
 const WORKERS: usize = 4;
 const CACHE: &str = "mcrs-client-jar";
 const STALL_MS: i32 = 30_000;
+const OBJECT_BODY_MS: i32 = 60_000;
 const IDLE_MS: i32 = 50;
 const MIN_BACKOFF_MS: i32 = 1_000;
 const MAX_BACKOFF_MS: i32 = 30_000;
+const OBJECT_ATTEMPTS: u32 = 4;
+const FONT_DEADLINE_MS: i32 = 120_000;
 
-/// The picked `assets/` files of the pinned client jar, fetched in priority order by Range
-/// requests and kept per chunk in Cache Storage. The rest of the jar is never fetched.
 pub async fn fetch(
     progress: &Progress,
     pick: impl FnMut(&str) -> bool,
@@ -41,6 +42,97 @@ pub async fn fetch(
     let files = schedule::assets(&*source, &RELEASE, progress, pick, fonts).await;
     source.stop.set(true);
     files
+}
+
+pub async fn index_assets(objects: &str) -> IndexLayer {
+    let promises = Array::new();
+    for object in INDEX_OBJECTS {
+        let url = object.url(objects);
+        let fetched = future_to_promise(async move {
+            fetch_object(object, &url)
+                .await
+                .map(|bytes| Uint8Array::from(bytes.as_slice()).into())
+                .map_err(JsValue::from)
+        });
+        promises.push(&future_to_promise(async move {
+            within(fetched, FONT_DEADLINE_MS)
+                .await
+                .map_err(JsValue::from)
+        }));
+    }
+    let settled = JsFuture::from(Promise::all_settled(&promises))
+        .await
+        .map(|settled| Array::from(&settled))
+        .map_err(describe);
+    IndexLayer::gather(INDEX_OBJECTS.iter().enumerate().map(|(index, object)| {
+        let body = match &settled {
+            Ok(settled) => settled_body(&settled.get(index as u32)),
+            Err(error) => Err(error.clone()),
+        };
+        (object, body)
+    }))
+}
+
+fn settled_body(outcome: &JsValue) -> Result<Vec<u8>, String> {
+    let field = |name: &str| Reflect::get(outcome, &name.into()).map_err(describe);
+    if field("status")?.as_string().as_deref() == Some("fulfilled") {
+        Ok(Uint8Array::new(&field("value")?).to_vec())
+    } else {
+        Err(describe(field("reason")?))
+    }
+}
+
+enum Miss {
+    Refused(String),
+    Failed(String),
+}
+
+async fn fetch_object(object: &AssetObject<'_>, url: &str) -> Result<Vec<u8>, String> {
+    let mut backoff = MIN_BACKOFF_MS;
+    let mut failure = String::new();
+    for attempt in 0..OBJECT_ATTEMPTS {
+        if attempt > 0 {
+            sleep(backoff).await;
+            backoff = (backoff * 2).min(MAX_BACKOFF_MS);
+        }
+        match object_body(url).await {
+            Ok(bytes) if object.holds(&bytes) => return Ok(bytes),
+            Ok(_) => failure = "it is not the pinned object".to_owned(),
+            Err(Miss::Refused(error)) => return Err(format!("{url}: {error}")),
+            Err(Miss::Failed(error)) => failure = error,
+        }
+    }
+    Err(format!("{url}: {failure}"))
+}
+
+async fn object_body(url: &str) -> Result<Vec<u8>, Miss> {
+    let window = web_sys::window().ok_or_else(|| Miss::Refused("no window".to_owned()))?;
+    let fetched = Promise::race(&Array::of2(&window.fetch_with_str(url), &timeout(STALL_MS)));
+    let response = JsFuture::from(fetched)
+        .await
+        .map_err(|error| Miss::Refused(describe(error)))?;
+    if response.is_undefined() {
+        return Err(Miss::Failed("the download stalled".to_owned()));
+    }
+    let response: Response = response.unchecked_into();
+    if !response.ok() {
+        return Err(Miss::Failed(format!("HTTP {}", response.status())));
+    }
+    let body = response
+        .array_buffer()
+        .map_err(|error| Miss::Failed(describe(error)))?;
+    let buffer = within(body, OBJECT_BODY_MS).await.map_err(Miss::Failed)?;
+    Ok(Uint8Array::new(&buffer).to_vec())
+}
+
+async fn within(promise: Promise, ms: i32) -> Result<JsValue, String> {
+    let settled = JsFuture::from(Promise::race(&Array::of2(&promise, &timeout(ms))))
+        .await
+        .map_err(describe)?;
+    if settled.is_undefined() {
+        return Err("the download stalled".to_owned());
+    }
+    Ok(settled)
 }
 
 struct WebSource {
@@ -120,8 +212,6 @@ impl WebSource {
 
     async fn fetch(&self, range: &Range<u64>, reached: &mut u64) -> Result<(), String> {
         let key = format!("{}?bytes={}-{}", RELEASE.jar.url, range.start, range.end);
-        // A chunk asked for twice in one session was dropped as corrupt, so its cached copy
-        // is not trusted again.
         let first = self.served.borrow_mut().insert(key.clone());
         if first
             && let Some(cache) = &self.cache
@@ -146,8 +236,6 @@ impl WebSource {
             .await
             .map_err(describe)?
             .unchecked_into();
-        // The CDN answers the If-Range Chrome sends for a partly cached jar with the whole jar;
-        // one worker keeps all of it while the others wait instead of fetching it again.
         let (mut position, end) = match response.status() {
             206 => (range.start, range.end),
             200 if self.whole.get() => {
@@ -277,7 +365,6 @@ async fn work(source: Rc<WebSource>, id: usize) {
     }
 }
 
-// Outside a secure context `caches` is absent, and touching it as if it were there would trap.
 async fn open_cache() -> Option<Cache> {
     let window = web_sys::window()?;
     let caches = Reflect::get(&window, &"caches".into())

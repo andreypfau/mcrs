@@ -1,8 +1,7 @@
 use crate::keys::{Owner, ValueType};
 
-/// The owners that list their own static registries: the catalog stays below world generation,
-/// so it cannot depend on them.
 pub const OWN_LISTS: &[&str] = &[
+    "mcrs_minecraft_anvil",
     "mcrs_minecraft_game_registries",
     "mcrs_minecraft_worldgen_carver",
     "mcrs_minecraft_worldgen_density",
@@ -359,7 +358,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:worldgen/structure_piece",
-        krate: "mcrs_minecraft_worldgen_structure",
+        krate: "mcrs_minecraft_anvil",
         value: ValueType::Enum("StructurePieceType"),
     },
     Owner {
@@ -429,8 +428,8 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:data_component_type",
-        krate: "mcrs_minecraft_item",
-        value: ValueType::Enum("DataComponentType"),
+        krate: "mcrs_minecraft_item_stack",
+        value: ValueType::NoStdEnum("DataComponentType"),
     },
     Owner {
         registry: "minecraft:data_component_predicate_type",
@@ -544,12 +543,12 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:attribute",
-        krate: "mcrs_minecraft_entity",
-        value: ValueType::Enum("Attribute"),
+        krate: "mcrs_minecraft_entity_attribute",
+        value: ValueType::NoStdEnum("Attribute"),
     },
     Owner {
         registry: "minecraft:menu",
-        krate: "mcrs_minecraft_menu",
+        krate: "mcrs_minecraft_menu_key",
         value: ValueType::Enum("MenuType"),
     },
     Owner {

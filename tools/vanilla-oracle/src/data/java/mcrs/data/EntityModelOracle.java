@@ -73,12 +73,6 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import org.joml.Vector3fc;
 
-/**
- * Builds the entity model layers and keyframe clips of the client, and poses selected models,
- * then writes them as JSON. Nothing is drawn, so no graphics context is needed.
- *
- * <p>Arguments: the output directory, then one of {@code models}, {@code animations}, {@code poses}, {@code types} or {@code block_entities}.
- */
 public final class EntityModelOracle {
     private static final int FORMAT = 1;
     private static final Gson LINE = new GsonBuilder().disableHtmlEscaping().serializeNulls().serializeSpecialFloatingPointValues().create();
@@ -98,6 +92,7 @@ public final class EntityModelOracle {
                 case "poses" -> write(out.resolve("entity_poses.json"), header("poses"), "cases", poses());
                 case "types" -> write(out.resolve("entity_types.json"), header("types"), "types", types());
                 case "block_entities" -> write(out.resolve("block_entity_poses.json"), header("block_entities"), "cases", blockEntities());
+                case "sign_text" -> write(out.resolve("sign_text.json"), header("sign_text"), "cases", SignTextOracle.rows());
                 default -> throw new IllegalArgumentException("unknown mode " + args[1]);
             }
             status = 0;
@@ -114,9 +109,11 @@ public final class EntityModelOracle {
         header.addProperty("kind", kind);
         header.addProperty("game_version", SharedConstants.getCurrentVersion().id());
         JsonObject units = new JsonObject();
-        units.addProperty("length", "1/16 block (pixel)");
-        units.addProperty("axes", "model space: +Y down, -Z is the front of the entity, -X is its right side");
-        units.addProperty("rotation", "radians; a part applies Z, then Y, then X to its parent frame (a vertex is turned about X first)");
+        if (!kind.equals("sign_text")) {
+            units.addProperty("length", "1/16 block (pixel)");
+            units.addProperty("axes", "model space: +Y down, -Z is the front of the entity, -X is its right side");
+            units.addProperty("rotation", "radians; a part applies Z, then Y, then X to its parent frame (a vertex is turned about X first)");
+        }
         switch (kind) {
             case "models" -> units.addProperty(
                 "uv",
@@ -143,6 +140,18 @@ public final class EntityModelOracle {
                     "4x4 matrix, rows of 4, that maps a point of the layer in model space, in blocks (pixels / 16), to block space (+Y up, the block from 0 to 1)"
                 );
             }
+            case "sign_text" -> {
+                units.addProperty("length", "block space in blocks; text space in text units, one text unit is one pixel of the font at the scale of the sign");
+                units.addProperty("axes", "block space: +X east, +Y up, +Z south, the block from 0 to 1; text plane: +X right, +Y down as a viewer of the side sees it");
+                units.addProperty(
+                    "matrix",
+                    "4x4 matrix, rows of 4, applied to the text of one side: maps a point of the text plane, in text units "
+                        + "(+X right, +Y down, one unit is one pixel of the text), to block space (+Y up, the block from 0 to 1)"
+                );
+                units.addProperty("x_y", "position of the first glyph of a line in text units, before the matrix");
+                units.addProperty("colors", "ARGB integers, signed 32 bit");
+                units.addProperty("font", "stub: every code point has the advance stub_advance, lines are not wrapped; the file records placement, colour and light only");
+            }
             default -> units.addProperty(
                 "pose",
                 "position in pixels of the parent frame; rotation in radians; scale as a factor; values after the pose setup"
@@ -166,8 +175,6 @@ public final class EntityModelOracle {
         Files.writeString(path, text.toString(), StandardCharsets.UTF_8);
         System.out.println("wrote " + path + " (" + rows.size() + " " + listKey + ")");
     }
-
-    // ---- models -------------------------------------------------------------------------------
 
     private static List<JsonObject> models() throws ReflectiveOperationException {
         Map<ModelLayerLocation, LayerDefinition> roots = LayerDefinitions.createRoots();
@@ -235,7 +242,6 @@ public final class EntityModelOracle {
         JsonArray faces = new JsonArray();
         for (ModelPart.Polygon polygon : definition.bake(width, height).polygons) {
             JsonObject face = new JsonObject();
-            // Artefact space turned 180 degrees about Z is the internal space of the entity pack.
             face.addProperty(
                 "internal_direction",
                 Direction.getApproximateNearest(-polygon.normal().x(), -polygon.normal().y(), polygon.normal().z()).getSerializedName()
@@ -257,8 +263,6 @@ public final class EntityModelOracle {
         cube.add("faces", faces);
         return cube;
     }
-
-    // ---- animations ---------------------------------------------------------------------------
 
     private static List<JsonObject> animations() throws Exception {
         List<JsonObject> rows = new ArrayList<>();
@@ -366,8 +370,6 @@ public final class EntityModelOracle {
         return camel.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase();
     }
 
-    // ---- types --------------------------------------------------------------------------------
-
     private static List<JsonObject> types() throws ReflectiveOperationException {
         Map<EntityType<?>, Class<?>> classes = typeClasses();
         List<JsonObject> rows = new ArrayList<>();
@@ -393,8 +395,6 @@ public final class EntityModelOracle {
         return rows;
     }
 
-    // The type argument of each registered type constant names the class whose static
-    // definitions assign the entity data indices.
     private static Map<EntityType<?>, Class<?>> typeClasses() throws ReflectiveOperationException {
         Map<EntityType<?>, Class<?>> classes = new java.util.HashMap<>();
         for (Field field : EntityTypes.class.getDeclaredFields()) {
@@ -432,8 +432,6 @@ public final class EntityModelOracle {
         }
         return data;
     }
-
-    // ---- poses --------------------------------------------------------------------------------
 
     private static final float[] WALK_POSITIONS = {0.0F, 0.5F, 1.7F, 10.3F};
     private static final float[] WALK_SPEEDS = {0.0F, 0.25F, 1.0F};
@@ -539,7 +537,6 @@ public final class EntityModelOracle {
         if (!state.isStarted()) {
             return JsonNull.INSTANCE;
         }
-        // The state keeps only its start; the time at age 0 gives that start back.
         return new JsonPrimitive(-state.getTimeInMillis(0.0F) / 50L);
     }
 
@@ -582,8 +579,6 @@ public final class EntityModelOracle {
             collect(parts, path + "/" + child.getKey(), child.getValue());
         }
     }
-
-    // ---- block entities ------------------------------------------------------------------------
 
     private static final Direction[] HORIZONTAL = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST};
 
@@ -657,8 +652,6 @@ public final class EntityModelOracle {
         out.add("matrix", rows);
         return out;
     }
-
-    // ---- helpers ------------------------------------------------------------------------------
 
     private static Object read(final Object owner, final String name) throws ReflectiveOperationException {
         Class<?> type = owner.getClass();

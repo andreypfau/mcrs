@@ -8,13 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::proto::{PlacedFeature, StructureProcessorList, WrappedProcessors};
 use crate::template::Projection;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum LiquidSettings {
-    IgnoreWaterlogging,
-    #[default]
-    ApplyWaterlogging,
-}
+pub use mcrs_minecraft_anvil::piece::LiquidSettings;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -52,7 +46,6 @@ pub enum PoolElement {
     Empty {},
 }
 
-// The newtype variants hand this the whole map, so it must refuse unknown keys itself.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SingleElement {
@@ -64,7 +57,6 @@ pub struct SingleElement {
 }
 
 impl SingleElement {
-    /// No processor list is an empty list written in place, not a reference.
     pub fn new(
         location: impl Into<ResourceLocationBuf>,
         processors: Option<Holder<StructureProcessorList>>,

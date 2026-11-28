@@ -1,0 +1,85 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment inventory_e17
+step drop
+instruction After Go, press Q once, open the inventory, and click the first hotbar slot.
+fill -4 99 -4 4 99 4 minecraft:stone
+events
+3662387 < abilities none 0.05
+3662387 < attribute minecraft:block_interaction_range 4.5
+3662387 < attribute minecraft:entity_interaction_range 3
+3662387 < attribute minecraft:movement_speed 0.10000000149011612
+3662387 < data self 9 float:20
+3662387 < data self 16 byte:0x7f
+3662387 < teleport 3 0.5 100 0.5 0 0 0 0 0 0
+3718676 > move - - none
+3719827 > tick
+3719827 > move - - on_ground
+3719828 > tick
+3772710 < slot 0 3 36 minecraft:stone*10
+3823489 > move 0.5,100,0.5 - on_ground
+3824685 > tick
+3824686 > tick
+3925481 > tick
+3925482 > tick
+4022330 > tick
+4023479 > tick
+4124904 > tick
+4126073 > tick
+4228862 > tick
+4230017 > tick
+4328516 > tick
+4328517 > tick
+4430273 > removed action drop_item
+4430274 > tick
+4431420 > tick
+4529585 > tick
+4530725 > tick
+4634662 > tick
+4635881 > tick
+4637071 > tick
+4735742 > tick
+4736931 > move 0.5,100,0.5 - on_ground
+4738116 > tick
+4837002 > tick
+4851516 > tick
+4937294 > tick
+4938458 > tick
+5044591 > tick
+5045788 > tick
+5139415 > tick
+5139416 > tick
+5241738 > tick
+5242810 > tick
+5343330 > tick
+5346766 > click 0 3 36 0 pickup minecraft:stone*9 36=-
+5346766 > tick
+5362896 < cursor minecraft:stone*10
+5442986 > tick
+5442986 > tick
+5552747 > tick
+5555212 > tick
+5648492 > tick
+5649673 > tick
+5747503 > tick
+5748666 > move 0.5,100,0.5 - on_ground
+5748667 > tick
+5847190 > tick
+5848357 > tick
+5859126 < slot 0 4 36 minecraft:stone*10
+5859130 < cursor -
+5948919 > tick
+5950067 > tick
+6051631 > tick
+6052788 > tick
+6151590 > tick
+6152737 > tick
+6255707 > tick
+6256852 > tick
+6355716 > tick
+6356862 > tick
+6459624 > tick
+6461520 > tick
+6562896 > tick
+6564058 > tick
+6666737 > tick

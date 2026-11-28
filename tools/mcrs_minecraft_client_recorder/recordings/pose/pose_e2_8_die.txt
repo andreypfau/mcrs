@@ -1,0 +1,144 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment pose_e2_8
+step die
+instruction Stand still; the console kills you. Do not respawn.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+21665224 < abilities none 0.05
+21665224 < attribute minecraft:block_interaction_range 4.5
+21665224 < attribute minecraft:entity_interaction_range 3
+21665224 < attribute minecraft:movement_speed 0.10000000149011612
+21665224 < data self 0 byte:0x00
+21665224 < data self 6 pose:standing
+21665224 < data self 9 float:20
+21665224 < data self 16 byte:0x7f
+21665224 < teleport 11 0.5 100 0.5 0 0 0 -90 0 0
+21742044 > move - - none
+21743942 > tick
+21743944 > move - - on_ground
+21745340 > tick
+21842387 > tick
+21843572 > tick
+21945990 > tick
+21947202 > tick
+22046550 > tick
+22047760 > tick
+22149656 > tick
+22151769 > tick
+22247148 > tick
+22247149 > tick
+22347830 > tick
+22347830 > tick
+22451401 > tick
+22452628 > tick
+22555849 > tick
+22555851 > tick
+22656841 > tick
+22658213 > move 0.5,100,0.5 - on_ground
+22659471 > tick
+22758205 > tick
+22759561 > tick
+22853756 > tick
+22854900 > tick
+22960549 > tick
+22964436 > tick
+23061094 > tick
+23062539 > tick
+23164989 > tick
+23166851 > tick
+23263658 > tick
+23264810 > tick
+23363637 > tick
+23364807 > tick
+23470297 > tick
+23471583 > tick
+23570140 > tick
+23571359 > tick
+23671351 > tick
+23672750 > move 0.5,100,0.5 - on_ground
+23672751 > tick
+23774375 > tick
+23774376 > tick
+23874427 > tick
+23875611 > tick
+23977472 > tick
+23978796 > tick
+24076776 > tick
+24078056 > tick
+24180024 > tick
+24183958 > tick
+24279152 > tick
+24279154 > tick
+24378630 > tick
+24379819 > tick
+24481409 > tick
+24482602 > tick
+24581763 > tick
+24581763 > tick
+24686931 > tick
+24686934 > move 0.5,100,0.5 - on_ground
+24686934 > tick
+24688173 > tick
+24790719 > tick
+24790721 > tick
+24893312 > tick
+24894585 > tick
+24991044 > tick
+24992389 > tick
+25092988 > tick
+25094255 > tick
+25193272 > tick
+25197220 > tick
+25264111 < data self 9 float:0
+25264114 < motion 0 -0.0783739241897089 0
+25297776 > tick
+25297776 > tick
+25396106 > tick
+25397363 > tick
+25498438 > tick
+25498440 > tick
+25598155 > tick
+25599413 > tick
+25694634 > move 0.5,100,0.5 - on_ground
+25695794 > tick
+25695795 > tick
+25798086 > tick
+25799618 > tick
+25894618 > tick
+25895765 > tick
+26002586 > tick
+26002590 > tick
+26100328 > tick
+26100331 > tick
+26202837 > tick
+26212984 > tick
+26297050 > tick
+26298201 > tick
+26396992 > tick
+26398144 > tick
+26500057 > tick
+26501197 > tick
+26602404 > tick
+26603548 > tick
+26708154 > tick
+26708158 > tick
+26807608 > tick
+26810542 > tick
+26907056 > tick
+26908402 > tick
+27007850 > tick
+27007853 > tick
+27109049 > tick
+27110327 > tick
+27210121 > tick
+27212542 > tick
+27312992 > tick
+27314239 > tick
+27412300 > tick
+27413740 > tick
+27515281 > tick
+27515284 > tick
+27612713 > tick
+27613948 > tick
+27714909 > tick

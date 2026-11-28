@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const BLOCK_SOUND_SET: RegistryKey<crate::BlockSoundSet> =

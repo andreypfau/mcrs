@@ -18,10 +18,6 @@ pub enum CorpusReadError {
     },
 }
 
-/// Every `.json` file directly under `directory`, in path order, read whole.
-///
-/// One block_on for the whole corpus: entering the executor per file cost
-/// far more than reading or parsing the 1289 block files put together.
 pub fn read_json_corpus(
     reader: &dyn ErasedAssetReader,
     directory: &str,
@@ -57,11 +53,6 @@ pub fn read_json_corpus(
     })
 }
 
-/// Reads one asset file whole.
-///
-/// Relies on piper 0.2.5 or later behind `async_fs::File`: 0.2.4 can report EOF
-/// while the last chunk of a file is still in its read-ahead pipe, which
-/// truncates the file anywhere, not only to zero bytes.
 pub async fn read_whole(
     reader: &dyn ErasedAssetReader,
     path: &Path,

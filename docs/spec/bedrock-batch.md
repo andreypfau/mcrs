@@ -272,7 +272,7 @@ specification states the cipher layer.
 - **Prediction risk**: none.
 - **Parity list**: none.
 
-## 7. Open questions
+## 7. Unresolved
 
 - **Q1.** The inflate limit of BDS and of the vanilla client is not known. Experiment: send BDS a
   raw deflate batch that inflates to 16 MiB of valid entries. Record whether BDS closes the

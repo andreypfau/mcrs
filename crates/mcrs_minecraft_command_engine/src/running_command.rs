@@ -2,7 +2,6 @@ use crate::registrar::Handler;
 use bevy_ecs::resource::Resource;
 use mcrs_command::Chain;
 
-/// The command line that runs in this world, and its chain.
 #[derive(Resource, Default)]
 pub(crate) struct RunningCommand {
     pub(crate) line: String,

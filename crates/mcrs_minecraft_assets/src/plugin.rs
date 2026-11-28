@@ -8,6 +8,13 @@ use bevy_state::prelude::{NextState, StateTransition};
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct PendingStateTransition;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "runs the state transition schedule, which needs the whole world"
+    )
+)]
 fn run_pending_transition(world: &mut World) {
     if matches!(
         *world.resource::<NextState<AppState>>(),
@@ -25,9 +32,6 @@ impl Plugin for MinecraftCorePlugin {
             app.add_plugins(StatesPlugin);
         }
         app.init_state::<AppState>();
-        // The transition schedule costs its sixteen systems every frame whether or not a
-        // transition is pending. The check runs in a schedule of its own because an exclusive
-        // system inside `PreUpdate` would have no order against the engine's systems there.
         let transition = StateTransition.intern();
         let mut order = app.world_mut().resource_mut::<MainScheduleOrder>();
         order.labels.retain(|label| *label != transition);

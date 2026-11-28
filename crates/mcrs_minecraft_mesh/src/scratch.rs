@@ -13,8 +13,6 @@ pub(super) const BORDER: usize = SECTION_SIZE + 2;
 pub(super) const BORDER_VOLUME: usize = BORDER * BORDER * BORDER;
 pub(super) const COLUMNS: usize = BORDER * BORDER;
 
-/// Smooth light asks whether the cell past a face's neighbour is open, so it reaches one block
-/// further out than anything else the mesher reads.
 const APRON: usize = SECTION_SIZE + 4;
 const APRON_VOLUME: usize = APRON * APRON * APRON;
 
@@ -27,14 +25,12 @@ const GRID: usize = SECTION_SIZE * SECTION_SIZE;
 
 pub struct Scratch {
     pub(super) states: Box<[u16; BORDER_VOLUME]>,
-    /// The variant choice of each cell, as `BlockInfo::choice_at` gives it.
     pub(super) choices: Box<[u32; BORDER_VOLUME]>,
     pub(super) occludes: Box<[bool; BORDER_VOLUME]>,
     light_states: Box<[LightState; APRON_VOLUME]>,
     pub(super) light: Box<[u8; BORDER_VOLUME]>,
     pub(super) cube_columns: Box<[[u32; COLUMNS]; 3]>,
     pub(super) occlude_columns: Box<[[u32; COLUMNS]; 3]>,
-    /// Lowered boxes along each vertical column, whose top shows whatever lies above them.
     lowered_columns: Box<[u32; COLUMNS]>,
     pub(super) fluid: Box<[u8; BORDER_VOLUME]>,
     pub(super) cover: Box<[u8; BORDER_VOLUME]>,
@@ -47,9 +43,9 @@ pub struct Scratch {
     pub(super) passes: Box<[u8; GRID]>,
     pub(super) attrs: Box<[[u32; FACE_WORDS]; GRID]>,
     pub(super) used: Box<[bool; GRID]>,
-    pub(super) simple_by_pass: [Vec<[u32; QUAD_WORDS]>; Pass::COUNT],
+    pub(super) greedy_by_pass: [Vec<[u32; QUAD_WORDS]>; Pass::COUNT],
     pub(super) section_faces: Vec<[u32; FACE_WORDS]>,
-    pub(super) complex_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
+    pub(super) models_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
     pub(super) smooth_light: SmoothLight,
     pub(super) shade: CardinalLight,
 }
@@ -82,23 +78,19 @@ impl Scratch {
             passes: Box::new([0; GRID]),
             attrs: Box::new([[0; FACE_WORDS]; GRID]),
             used: Box::new([false; GRID]),
-            simple_by_pass: Default::default(),
+            greedy_by_pass: Default::default(),
             section_faces: Vec::new(),
-            complex_by_pass: Default::default(),
+            models_by_pass: Default::default(),
             smooth_light: SmoothLight::default(),
             shade: CardinalLight::default(),
         }
     }
 
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "loads the section and its apron cell by cell, filling the light, fluid and cube column bits in the same pass so each cell is read once"
-    )]
+    #[expect(clippy::excessive_nesting, reason = "one pass reads each cell once")]
     pub(super) fn load<W>(&mut self, world: &W, catalog: &[BlockInfo], base: [i32; 3])
     where
         W: BlockVolume + LightVolume,
     {
-        // The section and its apron fall in the 3³ sections around it, each looked up once.
         let origin = SectionPos::from(BlockPos::new(base[0], base[1], base[2]));
         let around: [_; 27] = std::array::from_fn(|i| {
             let (dx, dy, dz) = (i as i32 % 3 - 1, i as i32 / 9 - 1, i as i32 / 3 % 3 - 1);
@@ -129,9 +121,6 @@ impl Scratch {
                     let index = border_index(x, y, z);
                     let pos = BlockPos::new(base[0] + x, base[1] + y, base[2] + z);
                     let state = block(pos);
-                    // A server whose block corpus differs from ours can name a state
-                    // this catalog has no row for; it is drawn as air rather than
-                    // taking the frame down.
                     let (state, info) = match catalog.get(state as usize) {
                         Some(info) => (state, info),
                         None => (0, block_info(catalog, 0)),
@@ -142,7 +131,6 @@ impl Scratch {
                     let (cube, drop) = info.cube_of(choice);
                     put(&mut *self.occludes, index, info.occludes);
                     put(&mut *self.light_states, apron_index(x, y, z), info.light);
-                    // Light a store cannot give is open sky, as outside every loaded column.
                     let light = world.light(pos).unwrap_or(0x0f);
                     put(&mut *self.light, index, light);
                     let fluid = info.fluid.map_or(0, |fluid| {
@@ -204,8 +192,6 @@ impl Scratch {
         }
     }
 
-    /// What the light of a face reads of the cell at a section-local position. The light of a
-    /// cell past the border is dark, and no face reads it.
     pub(super) fn sample(&self, x: i32, y: i32, z: i32) -> Sample {
         let state = cell(&*self.light_states, apron_index(x, y, z));
         let light = if border(x) && border(y) && border(z) {
@@ -247,7 +233,6 @@ impl Scratch {
         own & shown
     }
 
-    /// The pass key of a grid slot that holds a face no quad has taken yet.
     #[inline]
     pub(super) fn open(&self, slot: usize) -> Option<u8> {
         match (self.used.get(slot), self.passes.get(slot)) {
@@ -263,13 +248,11 @@ impl Default for Scratch {
     }
 }
 
-/// The catalog row of a state, where a state the catalog has no row for is air.
 #[inline]
 pub(super) fn block_info(catalog: &[BlockInfo], state: u16) -> &BlockInfo {
     catalog.get(state as usize).unwrap_or(&AIR)
 }
 
-/// A cell past the end of its array reads as the zero value, as an empty cell does.
 #[inline]
 pub(super) fn cell<T: Copy + Default>(cells: &[T], index: usize) -> T {
     cells.get(index).copied().unwrap_or_default()

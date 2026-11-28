@@ -53,7 +53,7 @@ after an update, port the difference into the code.
 cargo run -p mcrs_minecraft_update -- <version id> [--allow-dirty] [--diff-out <directory>]
 ```
 
-The version id is the only argument, for example `26.4-snapshot-4`. The
+The version id is the only argument, for example `26.4-snapshot-7`. The
 options are:
 
 - `--allow-dirty` lets the update run when the version file, the reports, the
@@ -72,8 +72,10 @@ The steps, in order:
 2. Read `version.json` from the jar and stop if its id is not the requested one.
 3. Write `version.json` of the jar to `assets/minecraft/version.json`.
 4. Write `crates/mcrs_minecraft_client_jar/src/release.json`, the descriptor of
-   the jar, its central directory and the package descriptor, and
-   `crates/mcrs_minecraft_client_jar/src/font_hint.json`.
+   the jar, its central directory and the package descriptor,
+   `crates/mcrs_minecraft_client_jar/src/font_hint.json` and
+   `crates/mcrs_minecraft_client_jar/src/index_objects.json`, the font and
+   title background folders of the asset index the package descriptor names.
 5. Run the game's data generator through the `dumpReports` task of
    `tools/vanilla-oracle` and the `dumpDefinitions` task, both into temporary
    directories.
@@ -85,10 +87,14 @@ The steps, in order:
 7. Store `registries.json`, `packets.json` and `datapack.json` in
    `assets/mcrs/reports`, and replace `assets/mcrs/block_definition`,
    `assets/mcrs/item_definition` and `assets/mcrs/registry_definition` (the game
-   rules) with what the dump wrote, including the README of the block
-   definitions.
+   rules, the effects of each potion and the colour of each effect) with what
+   the dump wrote, including the README of the block definitions.
 8. Write `assets/mcrs/reports/names.json` from the jar (see below), then
-   regenerate the registry key sources from the three reports.
+   regenerate the registry key sources from the three reports and the
+   definitions `game_rule.json`, `potion.json` and `mob_effect.json` of
+   `assets/mcrs/registry_definition`.
+9. Write `assets/mcrs/reports/creative_tabs.json` from a run of the game (see
+   below).
 
 Three diffs are printed, and each is computed before the files it describes are
 replaced:
@@ -125,6 +131,28 @@ the descriptor, prints the names diff and writes the report. It touches neither
 task. A second run over the same jar prints `names diff: 0 rows` and leaves the
 file unchanged.
 
+## The creative report
+
+```sh
+cargo run -p mcrs_minecraft_update -- creative-tabs
+```
+
+`assets/mcrs/reports/creative_tabs.json` holds the stacks of each items tab of the
+creative screen and the feature flags of each item that needs a flag other than
+`minecraft:vanilla`. The data pack does not contain the tab lists, so the task
+`dumpCreativeTabs` of `tools/vanilla-oracle` takes them from a run of the game on
+the vanilla data pack with each feature flag on. `docs/spec/client-creative-inventory.md`,
+CCI-CNT-001, states the shape.
+
+The command runs that task, reads its output with `mcrs_minecraft_creative_report`
+and stops if the reader rejects it. Then it replaces the stored report. The tabs are
+in the order of the registry, and the items and the keys of each stack are in
+sorted order, so a second run gives the same bytes. A full
+update writes this report after the names report. The reader knows the tabs from
+the registry key sources that the binary was built with. When a version adds or
+renames a tab, the full update stops at this step with an unknown tab. Run
+`creative-tabs` again: the rebuild takes the new key sources.
+
 ## The registry key sources
 
 ```sh
@@ -132,8 +160,10 @@ cargo run -p mcrs_minecraft_update -- keys
 ```
 
 The update and the `names` command end by writing the registry key sources
-from `registries.json`, `datapack.json` and `names.json`; `keys` writes them
-from the stored reports alone. A source file the generator no longer produces
+from `registries.json`, `datapack.json` and `names.json`, and from
+`game_rule.json`, `potion.json` and `mob_effect.json` of
+`assets/mcrs/registry_definition`; `keys` writes them from the stored reports
+and definitions alone. A source file the generator no longer produces
 is deleted. Never edit a generated source by hand.
 
 `OWNERS` in `src/owners.rs` names, per registry, the crate that owns it and its
@@ -146,7 +176,12 @@ implementation, and each registry gets `src/<registry>_keys.rs` and, with tags,
 modules are:
 
 - a static registry with entries is a `mcrs_minecraft_registries::static_registry!` enum of its
-  entries, numbered by protocol id, with their locations in `ENTRIES`;
+  entries, numbered by protocol id, with their locations in `ENTRIES`. In a
+  `no_std` owner the enum has only the items of `static_registry_core!`, and
+  the items of `static_registry!` when the owner's feature `std` is on. An
+  owner that `OWNERS` marks as `NoStdEnum` depends on
+  `mcrs_minecraft_static_registry` and declares the feature
+  `std = ["mcrs_minecraft_static_registry/std"]`;
 - a data registry with entries in `names.json` is a module of `ResourceKey`
   constants, except `minecraft:recipe` and `minecraft:advancement`.
 
@@ -213,34 +248,6 @@ recorded from this project's own output, and the two light update fixtures of
 the protocol crate, which are built by hand.
 
 ## After an update
-
-The tool does not read the reference checkout. What a new version changes in
-the protocol and the serialization formats is found by reading the reference
-sources, and this list says where to look: the five protocol table files
-(handshake, status, login, configuration and game), the directories
-`network/` and `core/registries/`, and the files `RegistryDataLoader.java`,
-`DataComponents.java`, `EntityDataSerializers.java`,
-`SerializableChunkData.java`, `Strategy.java`, `DataFixers.java` and
-`SharedConstants.java`. In the reference checkout, with the tags of the old and
-the new version:
-
-```sh
-N=src/main/java/net/minecraft
-git diff --stat <old tag> <new tag> -- \
-    $N/network/protocol/handshake/HandshakeProtocols.java \
-    $N/network/protocol/status/StatusProtocols.java \
-    $N/network/protocol/login/LoginProtocols.java \
-    $N/network/protocol/configuration/ConfigurationProtocols.java \
-    $N/network/protocol/game/GameProtocols.java \
-    $N/network $N/core/registries \
-    $N/resources/RegistryDataLoader.java \
-    $N/core/component/DataComponents.java \
-    $N/network/syncher/EntityDataSerializers.java \
-    $N/world/level/chunk/storage/SerializableChunkData.java \
-    $N/world/level/chunk/Strategy.java \
-    $N/util/datafix/DataFixers.java \
-    $N/SharedConstants.java
-```
 
 A new snapshot may also need a few compile fixes in the worldgen oracles of
 `tools/vanilla-oracle` before the fixtures can be recaptured; see its README.

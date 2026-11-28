@@ -60,10 +60,7 @@ this repository. mcrs starts with the engine.
   Work that really interacts stays together and runs in order, and the result
   is the same on any number of threads.
 - **Work is proportional to change.** A resting entity and an untouched section
-  cost nothing. Idle cost and frame times are measured in
-  [`PERF.md`](PERF.md), and every exception to these rules cites a number
-  there. Memory per section is not measured yet (WIP,
-  [#324](https://github.com/andreypfau/mcrs/issues/324)).
+  cost nothing.
 - **Specified before it is built.** Each domain is written from a
   specification in [`docs/spec/`](docs/spec) under
   [clean-room rules](docs/clean-room.md).
@@ -92,20 +89,7 @@ this repository. mcrs starts with the engine.
 
 ## Layers
 
-Each layer is meant to depend only on the layers below it, so a user takes
-any prefix and pays for nothing above it. A few crates do not follow this yet:
-the protocol and network crates still reach into game data. Below layer 4,
-Bevy is an optional feature; below layer 2, so is tokio.
-
-| # | Layer | What it holds |
-|---|---|---|
-| 1 | Protocol | ids, positions, NBT, text, keys; the codec traits; framing, compression, encryption; handshake, status, login and configuration packets |
-| 2 | Network | the connection state machine, login on both sides, authentication, proxy forwarding, frames encoded once per broadcast; tokio, Bevy optional |
-| 3 | Game data and rules | registries baked from the data pack, blocks, items, entities, chunks, Anvil saves and their packets; kernels without Bevy for lighting, world generation and block simulation |
-| 4 | Engine | Bevy plugins for worlds, dimensions, chunk sources, players, events and commands, and the drivers of the kernels; no vanilla behaviour by default |
-| 5 | Vanilla | what blocks, items and mobs do, world generation and lighting, as removable plugins |
-| 6 | Rendering | meshing and pipelines over layer 3 data; no network, client or server |
-| 7 | Applications | the server binary, the client and tools |
+See [AGENTS.md](AGENTS.md#layers).
 
 Every crate is named `mcrs_minecraft_<name>` under [`crates/`](crates).
 
@@ -115,8 +99,8 @@ Every crate is named `mcrs_minecraft_<name>` under [`crates/`](crates).
 |---|---|
 | World generation (noise, surface, carvers, features, structures) | Matches vanilla in parity tests |
 | Lighting (sky, block and coloured light) | Working |
-| Client rendering (terrain, sky, clouds, light) | Working; numbers in [`PERF.md`](PERF.md) |
-| Anvil saves | Loading; the server does not save yet ([#78](https://github.com/andreypfau/mcrs/issues/78)) |
+| Client rendering (terrain, sky, clouds, light) | Working |
+| Anvil saves | Loading and saving; changed chunks go back to the region files, and a clean shutdown saves the world |
 | Protocol | Status, login, configuration and play; about half the packets typed |
 | Gameplay | Joining, chat, game modes and a plain flight stub; the rest returns from specifications |
 | Online mode, encryption, proxy forwarding | Not yet ([#82](https://github.com/andreypfau/mcrs/issues/82), [#296](https://github.com/andreypfau/mcrs/issues/296)) |
@@ -148,7 +132,7 @@ join the server in offline mode.
 Look at block models without a world:
 
 ```bash
-cargo run --release -p mcrs_minecraft_client --example block_viewer
+cargo run --release -p mcrs_minecraft_client --example block_viewer --features pbr
 ```
 
 ## Development

@@ -3,13 +3,11 @@ use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
 
 use crate::access::{Denied, Unavailable, Volume};
 
-/// A volume whose block states can be read, a section at a time.
 pub trait BlockVolume: Volume {
     type Section<'a>: SectionBlocks
     where
         Self: 'a;
 
-    /// Fails for a section that [`Volume::access`] does not let read, with the same reason.
     fn section(&self, at: SectionPos) -> Result<Self::Section<'_>, Unavailable>;
 
     #[inline]
@@ -22,8 +20,6 @@ pub trait BlockVolume: Volume {
     }
 }
 
-/// A volume whose block states can be written in place. A write is storage only: no
-/// neighbour updates, light or heightmaps.
 pub trait BlockVolumeMut: BlockVolume {
     type SectionMut<'a>: SectionBlocksMut
     where
@@ -31,7 +27,6 @@ pub trait BlockVolumeMut: BlockVolume {
 
     fn section_mut(&mut self, at: SectionPos) -> Result<Self::SectionMut<'_>, Denied>;
 
-    /// Answers the state the write replaced.
     #[inline]
     fn set_block(&mut self, at: BlockPos, state: BlockStateId) -> Result<BlockStateId, Denied> {
         if !self.contains(at) {
@@ -42,7 +37,6 @@ pub trait BlockVolumeMut: BlockVolume {
     }
 }
 
-/// One 16³ section of block states.
 pub trait SectionBlocks {
     fn get(&self, at: LocalPos) -> BlockStateId;
 
@@ -53,13 +47,10 @@ pub trait SectionBlocks {
             .then_some(first)
     }
 
-    /// The distinct states with their counts. A handle over paletted storage borrows its
-    /// own palette and leaves `buffer` alone; any other handle builds it in `buffer`.
     fn palette<'s>(&'s self, buffer: &'s mut PaletteBuffer) -> Palette<'s> {
         buffer.collect(self)
     }
 
-    /// Every cell in `y`, `z`, `x` order, `x` fastest.
     fn for_each<F>(&self, mut f: F)
     where
         F: FnMut(LocalPos, BlockStateId),
@@ -69,7 +60,6 @@ pub trait SectionBlocks {
         }
     }
 
-    /// Cells indexed by [`LocalPos::index`].
     fn copy_to(&self, out: &mut [BlockStateId; SectionPos::VOLUME]) {
         self.for_each(|at, state| {
             if let Some(cell) = out.get_mut(at.index()) {
@@ -80,7 +70,6 @@ pub trait SectionBlocks {
 }
 
 pub trait SectionBlocksMut: SectionBlocks {
-    /// Answers the state the write replaced.
     fn set(&mut self, at: LocalPos, state: BlockStateId) -> BlockStateId;
 
     fn fill(&mut self, state: BlockStateId) {
@@ -89,7 +78,6 @@ pub trait SectionBlocksMut: SectionBlocks {
         }
     }
 
-    /// Fills `min..=max` on every axis; nothing when `min` exceeds `max` on one.
     fn fill_box(&mut self, min: LocalPos, max: LocalPos, state: BlockStateId) {
         for y in min.y()..=max.y() {
             for z in min.z()..=max.z() {
@@ -101,7 +89,6 @@ pub trait SectionBlocksMut: SectionBlocks {
     }
 }
 
-/// The distinct states of a section, each with the number of cells holding it.
 #[derive(Clone, Copy, Debug)]
 pub struct Palette<'a>(Entries<'a>);
 
@@ -157,7 +144,6 @@ impl<'a> Palette<'a> {
         self.iter().any(|(state, _)| f(state))
     }
 
-    /// The number of cells whose state passes `f`.
     pub fn count<F>(&self, mut f: F) -> u16
     where
         F: FnMut(BlockStateId) -> bool,
@@ -168,8 +154,6 @@ impl<'a> Palette<'a> {
     }
 }
 
-/// Scratch for the palette of a section that does not keep one. Reused across calls, it
-/// stops allocating once it has held the largest palette asked of it.
 #[derive(Clone, Debug, Default)]
 pub struct PaletteBuffer {
     values: Vec<BlockStateId>,
@@ -177,7 +161,6 @@ pub struct PaletteBuffer {
 }
 
 impl PaletteBuffer {
-    /// The palette of `section`, built in this buffer.
     pub fn collect<S: SectionBlocks + ?Sized>(&mut self, section: &S) -> Palette<'_> {
         self.values.clear();
         self.counts.clear();

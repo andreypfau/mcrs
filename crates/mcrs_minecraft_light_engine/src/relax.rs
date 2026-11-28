@@ -1,9 +1,3 @@
-//! Light is the least fixed point of a monotone map, so a purely rising
-//! relaxation reaches the same answer whatever order the updates happen in.
-//! That is why there is no domain decomposition here, no halo, no ownership and
-//! no barrier: threads write wherever they like through `fetch_max`, and the
-//! unit of parallelism is a cell of the frontier rather than a section.
-
 use rayon::prelude::*;
 
 use mcrs_minecraft_core::Direction;
@@ -11,16 +5,8 @@ use mcrs_minecraft_core::Direction;
 use crate::block::LightRegistry;
 use crate::field::{BlockSnapshot, CellIndex, LightField};
 
-/// Below this many cells a round is run on one thread.
-///
-/// Handing work to a thread pool costs tens of microseconds, which is more than
-/// a small frontier costs to walk. A single torch spends most of its fifteen
-/// rounds well under this, so the whole edit stays on one thread.
 const SEQUENTIAL_ROUND_LIMIT: usize = 4096;
 
-/// Raises the neighbours of one cell, reporting those that rose.
-///
-/// Returns at most six, so the caller needs no allocation.
 #[inline]
 fn spread(
     from: CellIndex,
@@ -39,9 +25,6 @@ fn spread(
             continue;
         };
 
-        // Bail out before reading any block. Every step costs at least one
-        // level, so a neighbour already this bright can never be improved — and
-        // this is what keeps block reads down to roughly one per cell written.
         let Some(current) = field.get(to) else {
             continue;
         };
@@ -68,7 +51,6 @@ fn spread(
     (raised, count)
 }
 
-/// Raises light until nothing changes. Returns the number of rounds taken.
 pub fn relax(
     field: &LightField,
     blocks: &BlockSnapshot,

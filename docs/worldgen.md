@@ -6,13 +6,6 @@ obliged to hold, how the order of computation and the limits of parallelism foll
 from those invariants, and what the whole thing costs.
 
 The document deliberately does not describe the structure of Minecraft's classes.
-References to the reference implementation are collected in the appendix — for
-checking against, not for copying.
-
-The numbers in §17 come from counting operations and reading sources. Not one of
-them was measured on a running server. The exception is §15, whose one paragraph
-of measured figures is marked as such — and it contradicts what that section had
-predicted.
 
 Heightmaps are specified separately in `heightmap.md`, which this document defers
 to rather than restates: the lattice of predicates, the merged descent,
@@ -589,7 +582,7 @@ and it is what puts gravel and open air at the bottom of a pit. **The biome is
 read at block resolution through the zoom of §12**, not from the coarse lattice
 cell directly; the zoom's corners reach outside the column, so they must be
 answered by re-evaluating climate rather than by reading a neighbour's stored
-palette, which is what keeps this stage's read footprint at zero (§13).
+palette, which is what keeps this stage's read footprint at zero (`scattering.md` §3).
 
 ### Memoisation as a consequence of the definition
 
@@ -746,8 +739,7 @@ columns that are not within the source radius of the source never enter the set.
 
 With such pruning the real redundancy of the trajectory walk is tens of times, not
 hundreds. A region removes the redundancy of the walk and not that of the rasterisation:
-each ellipsoid is still rasterised once for every column it touches. Measured (`PERF.md`),
-a 2 × 2 region cuts the mask time per column by 44% and 4 × 4 and 8 × 8 regions by 57%.
+each ellipsoid is still rasterised once for every column it touches.
 
 Hence a planning conclusion: **caching trajectories per source buys little.** The win comes
 from enlarging the region (K1, K6), and it is bounded by what the rasterisation costs.
@@ -954,132 +946,6 @@ the most common mistake in this stage.
 
 ---
 
-## 13. Footprints and order: where the pipeline comes from
-
-Sections 6–12 defined the stages. Now each one's footprints can be computed and
-C1–C3 applied.
-
-| Stage | R | W | Class | Where the radius comes from |
-| --- | --- | --- | --- | --- |
-| Climate and biomes | 0 | 0 | field | Pointwise function of coordinates |
-| Density → blocks | 0 | 0 | field | The field's stencil is absorbed by the tile |
-| Surface | 0 | 0 | field | Gradient over own strips, edges clamped |
-| Carving | r_c | 0 | field | Trajectory length; by K1 order is unobservable |
-| Structure placement | — | — | outside the pipeline | By G1 it does not read the world at all |
-| Structure materialisation | r_s | r_s | scattering | Structure extent |
-| Scattered objects | 1 | 1 | scattering | A tree at the edge reaches the neighbour with its canopy |
-| Light | 1 | 1 | scattering | Propagation distance over unit size |
-
-### Deriving the window
-
-By C2 radii accumulate down the chain. Were structure placement a stage with
-radius `r_s = 8`, the accumulated window would look like this:
-
-```
-layer                   radius   units
-empty                        9     361
-structure_starts             9     361
-structure_references         1       9
-biomes                       1       9
-terrain                      1       9
-features                     1       9
-light                        0       1
-```
-
-That table is the cost of a decision we **rejected** in §10. The widest dependency
-in the pipeline is produced not by the physics of structures but by placement
-having been made a stage that stores its result in a column. With an index instead
-of a stage the accumulated radius drops to the maximum of `r_c` and the scattering
-radii — single digits.
-
-### Deriving parallelism
-
-Field stages are unconditionally parallel by C3. Scattering stages need a test:
-
-```
-d = max(2·r_w, r_w + r_r)
-conflict(U₁, U₂) ⟺ |Δx| ≤ d  AND  |Δz| ≤ d
-```
-
-C3 asks for two disjointnesses, and each fixes its own separation: `W∩W = ∅`
-needs the units more than `2r_w` apart, `W∩R = ∅` more than `r_w + r_r`. The
-binding one is whichever is larger, so a single `d` covers both.
-
-A conjunction, not a disjunction: footprints are squares, and two squares miss
-each other if they separate far enough on *either* axis. Phrasing it with "or"
-gives an incorrect, needlessly conservative conflict set.
-
-Colouring by residue: `colour(U) = (x mod k, z mod k)` where `k = d + 1`. Within
-one colour any two distinct units differ by at least `k` on at least one axis,
-and `k > d`, so by the predicate they do not conflict.
-
-**N1.** Neither radius may be dropped from `d`. Taking `k = 2r_w + 1` forgets the
-read footprint whenever `r_r > r_w`; taking `k = r_w + r_r + 1` forgets that two
-writers overlap whenever `r_w > r_r`. Both bugs surface the same way, as rare and
-irreproducible seam artefacts. Where the two radii are equal — which is every
-scattering stage in the table above — the two formulas coincide, which is exactly
-why the error survives testing. **N2.** The colour order is fixed, so write order
-is reproducible, so W1 holds. This is how the
-nondeterminism gets fixed, not merely how throughput improves. **N3.** The wave
-barrier between colours is paid for at the maximum unit cost in the batch, not the
-mean. The variance is large: a unit containing a structure costs several times an
-empty one.
-
-**A hole created by parallelising.** Light reads neighbours at radius 1, and
-scattering writes at radius 1. So a unit at distance 2 may write into a unit at
-distance 1 that light is reading at that moment — even though the "light after
-scattering" dependency is declared only at radius 1. In a sequential
-implementation there is no race; it appears from the parallelisation itself and
-must be closed explicitly: either declare light's dependency on scattering at
-radius 2, or place a barrier on scattering for light's halo.
-
-### The form in force
-
-The colouring above is the schedule for an **in-place** scattering stage, one
-whose units write into shared storage as they run. It has a second cost beside
-N3 that this section did not derive: a unit may run only when every
-conflicting unit of lower colour has run, those units wait on theirs, and the
-chain is bounded only by the number of colours — with nine colours and `d = 2`
-it reaches sixteen columns. A batch executor absorbs that in its waves; a
-streaming dispatcher, which pops the nearest wanted column and has no batch,
-would have to generate columns nobody asked for up to that distance before
-delivering one at the edge of the view.
-
-The form in force for scattered objects is therefore form 1 of §14: a unit
-reads immutable filled snapshots of its window, writes its own column and
-emits its out-of-column writes as deltas, and a separate merge applies the
-writers of each position in a fixed rank. Every stage is then field-shaped and
-C3 holds with no barrier; the rank is the colour index of this section, so N2
-is kept as the merge order, and N1 becomes vacuous — no conflict predicate is
-ever evaluated. The hole above is closed by delivery rather than by a wider
-dependency: a column becomes visible only when every unit that can write into
-it has been merged. The specification is `scattering.md` §3.
-
-### Enlarging the region
-
-Three mechanisms benefit from the evaluation unit being larger than the storage
-unit:
-
-**L3.** Lattice edge redundancy falls as `(cW+1)²/(cW)²` — up to a third of the
-work on the most expensive layer. **K1.** Carving walks each source once per region:
-sources per unit area fall as `(W+2r)²/W²`. **C3.** Inside a region, scattering
-stages need neither colouring nor locks — conflicts are possible only at the seam.
-The seam fraction falls as `1 − ((W−2)/W)²`.
-
-The carving region is not the footprint of the staged pipeline. It is a fixed
-tiling, the region of a column found by floor division of its coordinates, built on the
-first request of any of its columns and kept in a bounded cache until another region
-replaces it. It is not a sliding 3 × 3 window around the column being generated. Carving
-happens inside the single-column fill, before the blocks of the column are decided, so a
-column reads the slot of its region and no neighbouring column's blocks. Production uses
-`W = 2`: an entry holds four column masks, 48,128 bytes in the overworld.
-
-Constraint: only lattice evaluation may be enlarged. A block-resolution buffer
-grows as `W²`, and for a 4 × 4 column region that is already megabytes,
-contradicting T2. The block-resolution part stays fine-grained and tiled.
-
----
-
 ## 14. Granularity in the ECS
 
 One rule: an entity is justified where things are **filtered** by it and where it
@@ -1146,9 +1012,8 @@ exists precisely so that seeding enqueues boundary cells rather than the whole l
 volume.
 
 1. Compute locally and push cross-border output into a delta queue applied in a
-   separate phase. This is the form scattered objects use (§13, "The form in
-   force"; `scattering.md` §3).
-2. The three-dimensional analogue of the §13 colouring: a one-section halo gives
+   separate phase. This is the form scattered objects use (`scattering.md` §3).
+2. The three-dimensional analogue of the `scattering.md` §3 colouring: a one-section halo gives
    27 classes.
 3. Give light a whole region and do not split it by section at all.
 4. **Change the unit of parallelism**: parallelise over propagation frontier cells
@@ -1280,9 +1145,7 @@ be clamped.
 
 ## 17. Cost and limits
 
-The stage shares in §8 have since been measured; everything below is still
-counted rather than taken, and three numbers the result depends on linearly
-remain unknown. Measuring them is step 0 in §19.
+Everything below is counted from operations, not taken from a running server.
 
 ### How much work a column requires
 
@@ -1324,7 +1187,7 @@ execute on a single sequential executor, light on a second, finalisation on the
 main thread. For scattering that is not a detail: by volume of work it is
 comparable to terrain. The reason is understandable — the write footprint leaves
 the unit, and sequencing is the simplest way to satisfy C3. But not the only way:
-the colouring of §13 satisfies the same condition and is parallel.
+the colouring of `scattering.md` §3 satisfies the same condition and is parallel.
 
 Hence: **the main factor comes not from code quality but from the definition
 admitting parallelism that the reference implementation does not use.**
@@ -1372,7 +1235,7 @@ squares; the predicate is a conjunction. **Derive the colouring step from one
 radius alone.** It is the larger of twice the write radius and the sum of the two,
 plus one (N1). Both apply to an in-place stage; scattered objects run in the
 delta form, where the predicate is never evaluated and the colour survives only
-as the merge rank (§13, "The form in force"). **Run an in-place scattering
+as the merge rank (`scattering.md` §3). **Run an in-place scattering
 stage from a streaming dispatcher.** The colour chain reaches sixteen columns
 past the view. **Put block-scale fields below the interpolation.** They will not
 blur, they will vanish
@@ -1407,35 +1270,7 @@ without a generation** for data whose keys outlive the entity (X5).
 
 ---
 
-## 19. Implementation order
-
-**Step 0 — measure before designing.** Costs a day. All of the arithmetic in §17
-rests on three unmeasured quantities.
-
-a. Run the reference implementation on 4, 8, 16 and 32 cores and check the
-prediction that throughput is flat above a small core count. If it is not flat,
-the parallel fraction is larger than estimated and half the expected ratio
-disappears.
-
-b. Take the stage shares. Nothing needs instrumenting: the reference
-implementation already emits per-stage events.
-
-c. Separately measure the scattering share, split into "objects" and "structure
-pieces". This is the largest uncertainty in the whole plan.
-
-| # | What | Reference to check against |
-| --- | --- | --- |
-| 1 | Noise and RNGs, bit for bit. Everything else stands on them | Control values from the reference |
-| 2 | Field graph and a naive pointwise interpreter. Slow, but certainly correct | Heightmaps checked numerically |
-| 3 | Storage: sections, palette, flat representation, heightmaps (`heightmap.md`) | Isolated structural tests |
-| 4 | Fill, substance, surface rules, carving. The first real world | Bit-for-bit block comparison |
-| 5 | The footprint scheduler. On a single-threaded executor first | The same result as step 4 |
-| 6 | Structures and scattering. Prototype and measure *before* committing to the rest | Sort order against the reference |
-| 7 | Compiling the graph into a tape: strata, liveness, constant folding, tiles, exclusive cones, cell bounds | The naive interpreter of step 2, bit for bit |
-| 8 | Enlarging the evaluation region (§13) | The same result as with a one-column region |
-| 9 | The fast profile, light, I/O | Differential test against the strict profile |
-
-### What to keep in the tests forever
+## 19. What to keep in the tests forever
 
 1. **The naive graph interpreter** behind the same interface as the tape. It
    remains the oracle for the life of the project.
@@ -1445,63 +1280,3 @@ pieces". This is the largest uncertainty in the whole plan.
 4. **Reference dumps with a source version check** (R5).
 5. **The cell bound conservativeness test** (R6). The only optimisation in this
    document whose failure is invisible to every other test.
-
----
-
-## Appendix: correspondences in Minecraft
-
-For checking behaviour against, not for copying. Paths are relative to
-`src/main/java/net/minecraft/`, at the version named by `assets/minecraft/version.json`.
-
-| What | Where |
-| --- | --- |
-| Stages, dependencies, radii | `ChunkPyramid.GENERATION_PYRAMID`, `ChunkPyramid.LOADING_PYRAMID` |
-| Radius accumulation down the chain | `world/level/chunk/status/ChunkStep.java` |
-| Which stages go to the background pool | `ChunkStatusTasks.generateStructureStarts`, `ChunkStatusTasks.generateStructureReferences`, `ChunkStatusTasks.generateFeatures`, `ChunkStatusTasks.generateSpawn` |
-| The sequential executors | `ChunkMap` |
-| Write footprint and the read footprint check | `WorldGenRegion`, `WorldGenRegion.warnIfReadOutsideWriteZone`, `WorldGenRegion.isWithinWriteZone` |
-| Per-stage profiler instrumentation | `ChunkStep.apply` |
-| The field graph node interface | `world/level/levelgen/densityfunction/DensityFunction.java` |
-| Graph compilation and rewrite rules | `DensityFunctionCompiler.optimizerRule`, `DfRewriteRule.SLICE_UNIFORM_AXES` |
-| Interpolation and lattice geometry | `InterpolatedFunction.Sampler.sampleWithBlockStep`, `InterpolatedFunction.Sampler.fillCell` |
-| Range choice | `RangeChoiceFunction.Sampler.sampleVolume` |
-| Vertical surface search | `densityfunction/op/FindTopSurfaceFunction.java` |
-| The surface-world terrain graph | `world/level/levelgen/NoiseRouterData.java` |
-| The fluid level field | `Aquifer.NoiseBasedAquifer`, `Aquifer.NoiseBasedAquifer.calculatePressure` |
-| Fill and heightmaps during fill | `ChunkTerrainBuilder.fillChunk`, `ChunkTerrainBuilder.fillColumn` |
-| Surface rules and the context | `world/level/levelgen/material/MaterialSystem.java`, `MaterialRuleContext.java` |
-| The carving mask | `world/level/chunk/CarvingMask.java` |
-| Trajectory pruning by reachability | `WorldCarver.canReach` |
-| The carving source loop | `NoiseBasedChunkGenerator.generateCarvingMask` |
-| Structure placement on a lattice | `RandomSpreadStructurePlacement.getPotentialStructureChunk` |
-| Terrain adaptation to structures | `Beardifier.BEARD_KERNEL`, `Beardifier.computeBeardContribution` |
-| Topological sort of objects | `world/level/biome/FeatureSorter.java` |
-| The decoration loop and structure materialisation | `ChunkGenerator.applyBiomeDecoration` |
-| The placement modifier machine | `world/level/levelgen/placement/FeaturePlacer.java` |
-| Biome classification and quantisation | `world/level/biome/Climate.java` |
-| The block-resolution biome query and its perturbation | `world/level/biome/BiomeManager.java` |
-| Batched climate sampling | `MultiNoiseBiomeSource.createResolver`, `MultiNoiseBiomeSource.createResolverForChunk` |
-| Sections, palette, counters | `LevelChunkSection.setBlockState`, `PalettedContainer.java` |
-| Heightmaps | `world/level/levelgen/Heightmap.java` |
-| The unseeded draw during spawning | `NaturalSpawner.spawnMobsForChunkGeneration`, `Level.random` |
-| Storage container codecs | `RegionFileVersion` |
-
-### Deliberate divergences from the reference
-
-| Topic | Reference | Here | Reason |
-| --- | --- | --- | --- |
-| Structure placement | a pipeline stage, result stored in a column | a sparse index computed on demand | G1: a pure function of the lattice; removes radius 8 from four stages |
-| Piece parameters read at placement | the live world, the first decorating chunk wins | fixed at layout from the density heights | the reference's value was route-dependent (`structures.md` M3, SD3) |
-| Order of the starts of one structure in a column | a hash table's | ascending start chunk | decoration parity is unattainable anyway (`structures.md` M5, SD4) |
-| Scattering stages | sequential executor, order from the player's route; a unit sees whatever neighbours were decorated first | private writes merged in a fixed rank; a unit sees the filled window and its own writes only (`scattering.md` §3, Wn2) | C3 and W1 with no barrier and no chain; the reference's read order was never reproducible |
-| Block updates inside a feature | shape updates at a tree's faces, post-processing marks | none | live-world semantics; under the read rule above the affected set is empty (`scattering.md` D7) |
-| Section storage | fixed array per column | sparse index, absence = air | V2: two thirds of the volume is never allocated |
-| Range choice | both arms over the whole volume | exclusive cones and a jump in the schedule | D1 applied at run time, not only at compile time |
-| Cell bounds | none | an interval over eight corners settles a whole cell | The convex hull lemma (§4) |
-| Intermediate buffers | a full-volume buffer per node | tile-sized buffers in cache | T2: otherwise scaling degrades as cores are added |
-| Rank reduction | slice nodes | a stratum with zero stride | E4: no copying at all |
-| Carving region | mask per column | the mask of the modern carvers is built per region by one walk per source with a live set of columns; the Beta carver stays per column | K1, K6: each column's cells equal the mask of that column alone; why a Beta source cannot share a walk is in §9 |
-| Heightmaps | a separate pass from the chunk ceiling | the fused descent bounded by the ordering of predicates | `heightmap.md` §3–4. Only the `¬air` map is maintained during fill; the rest must wait for carving, which removes blocks |
-| Fluid skip threshold | one per column from the surface maximum | per strip | A4: one peak otherwise denies the cheap path to the whole volume |
-| Precision | one implementation | two profiles, strict as the oracle | §15: separates "computed differently" from "a different function" |
-| Spawn draw | unseeded level-wide source | seeded from coordinates | St1: otherwise generation is not reproducible at all |

@@ -17,8 +17,6 @@ const INPUT_FLAGS: u8 = 0x7f;
 const FLY_REQUEST: u8 = 0x02;
 const LAST_PLAYER_ACTION: i32 = 6;
 
-/// Layer 0: checks the play-state packet `id` with `body`, the bytes after its id, and no other
-/// state. A packet that these checks do not read passes as [`Serverbound::Other`].
 #[must_use]
 pub fn check_serverbound(id: i32, body: &[u8]) -> Verdict {
     let mut fields = Fields(body);
@@ -39,6 +37,7 @@ pub fn check_serverbound(id: i32, body: &[u8]) -> Verdict {
             }
         }
         Serverbound::ClientTickEnd
+        | Serverbound::PlayerInput
         | Serverbound::PlayerLoaded
         | Serverbound::Pong(_)
         | Serverbound::Other => Ok(()),
@@ -49,7 +48,6 @@ pub fn check_serverbound(id: i32, body: &[u8]) -> Verdict {
     }
 }
 
-/// A NaN or infinite value disconnects; a value that the server clamps is a finding.
 fn check_pose(
     position: Option<DVec3>,
     look: Option<Look>,
@@ -73,7 +71,6 @@ fn check_pose(
     Ok(())
 }
 
-/// Reads the fields of `id`; `None` when a field is missing or holds a value it cannot hold.
 fn decode(id: i32, fields: &mut Fields<'_>, reports: &mut Reports) -> Option<Serverbound> {
     let packet = match id {
         MOVE_PLAYER_POS => {
@@ -104,7 +101,7 @@ fn decode(id: i32, fields: &mut Fields<'_>, reports: &mut Reports) -> Option<Ser
             if fields.byte()? & !INPUT_FLAGS != 0 {
                 reports.add(Finding::UnknownInputFlag);
             }
-            Serverbound::Other
+            Serverbound::PlayerInput
         }
         PLAYER_ABILITIES => {
             if fields.byte()? & !FLY_REQUEST != 0 {
@@ -130,11 +127,8 @@ fn decode(id: i32, fields: &mut Fields<'_>, reports: &mut Reports) -> Option<Ser
     Some(packet)
 }
 
-/// The fields of a packet body that are not read yet.
 struct Fields<'a>(&'a [u8]);
 
-/// Reads the fixed-width fields without the wire `Decode`, which costs about three times as
-/// much on this per-packet path.
 impl Fields<'_> {
     fn bytes<const N: usize>(&mut self) -> Option<[u8; N]> {
         let (head, rest) = self.0.split_first_chunk::<N>()?;
@@ -220,7 +214,6 @@ mod tests {
         }
     }
 
-    /// MVC-CHK-023, MVC-VEH-010: the conditions and responses of the value table.
     #[test]
     fn each_row_of_the_value_table_gets_its_response() {
         let values = [
@@ -296,7 +289,6 @@ mod tests {
         );
     }
 
-    /// MVC-CHK-023: the sizes after the packet id; any other size disconnects.
     #[test]
     fn a_packet_of_another_size_disconnects() {
         let fixed = [

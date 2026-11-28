@@ -4,22 +4,17 @@ use core::str::FromStr;
 
 const PARTS: usize = 4;
 
-/// A `format_version` of a geometry file: numbers with dots, compared number by number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FormatVersion {
     parts: [u32; PARTS],
 }
 
-/// The shape of a geometry file that its format version selects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Shape {
-    /// `1.8.0` and `1.10.0`: geometries are keys of the root object.
     Legacy,
-    /// `1.12.0` and higher: the array `minecraft:geometry`.
     Current,
 }
 
-/// The text is not numbers with dots.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct InvalidFormatVersion;
 
@@ -32,7 +27,6 @@ impl fmt::Display for InvalidFormatVersion {
 impl core::error::Error for InvalidFormatVersion {}
 
 impl FormatVersion {
-    /// The highest version that the geometry rules know.
     pub const NEWEST_KNOWN: FormatVersion = FormatVersion::new(1, 26, 10);
     pub const V1_8_0: FormatVersion = FormatVersion::new(1, 8, 0);
     pub const V1_10_0: FormatVersion = FormatVersion::new(1, 10, 0);
@@ -45,7 +39,6 @@ impl FormatVersion {
         }
     }
 
-    /// The shape of a file with this version, or `None` when no shape has this version.
     #[must_use]
     pub fn shape(self) -> Option<Shape> {
         if self == Self::V1_8_0 || self == Self::V1_10_0 {

@@ -26,7 +26,6 @@ pub(crate) fn unloaded() -> CommandFailure {
     CommandFailure::translate("argument.pos.unloaded", vec![])
 }
 
-/// The blocks, the columns and the heightmaps of the dimension of this world.
 #[derive(SystemParam)]
 pub(crate) struct DimensionView<'w, 's> {
     dimension: Query<
@@ -77,9 +76,6 @@ impl DimensionView<'_, '_> {
         }
     }
 
-    /// The column holds every section of its height, each at the loaded stage.
-    // A loaded chunk and a ticking chunk are the same test: the dimension has no
-    // chunk levels for entity ticking yet. A ticking stage of the column lifts it.
     pub(crate) fn loaded(&self, x: i32, z: i32) -> bool {
         self.column(x, z).is_some_and(|column| {
             column.iter().all(|section| match section {
@@ -92,7 +88,6 @@ impl DimensionView<'_, '_> {
         })
     }
 
-    /// The position must be in a loaded chunk and inside the world.
     pub(crate) fn readable(&self, [x, y, z]: [i32; 3]) -> Result<(), CommandFailure> {
         if !self.loaded(x, z) {
             return Err(unloaded());

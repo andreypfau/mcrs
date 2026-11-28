@@ -19,11 +19,6 @@ pub struct CompiledLake {
     pub can_replace_with_air_or_fluid: Predicate,
     pub can_replace_with_barrier: Predicate,
     pub ice: VoxelId,
-    /// `Biome.shouldFreeze` reduced to the biome's own temperature,
-    /// dropping the height and noise adjustment it applies above sea level and
-    /// the block-light test that reads zero during generation. The ice pass
-    /// draws nothing, so the seed chain is unaffected either way. Upgrade when
-    /// the volume can answer a temperature at a position.
     pub freezing_biomes: BiomeMask,
 }
 
@@ -35,8 +30,6 @@ fn cell(grid: &[bool], x: usize, z: usize, y: usize) -> bool {
     grid.get(index(x, z, y)).copied().unwrap_or(false)
 }
 
-/// A cell outside the blob whose six neighbours inside the grid include one
-/// that is: the shell the barrier and the validation both walk.
 fn is_liquid<W: WorldGenVolume>(volume: &W, state: VoxelId) -> bool {
     let world = volume.world();
     holds(&world.water_states, state) || holds(&world.lava_states, state)
@@ -54,8 +47,6 @@ fn on_shell(grid: &[bool], x: usize, z: usize, y: usize) -> bool {
         || (y > 0 && cell(grid, x, z, y - 1))
 }
 
-/// `LakeFeature.place`: four to seven ellipsoids carved into a 16×8×16 grid,
-/// checked whole, then filled, walled and frozen.
 pub fn place_lake<W: WorldGenVolume>(
     config: &CompiledLake,
     volume: &mut W,
@@ -78,8 +69,6 @@ pub fn place_lake<W: WorldGenVolume>(
                 }
                 let pos = origin + IVec3::new(x as i32, y as i32, z as i32);
                 let state = volume.get(pos);
-                // `BlockState.liquid`: the water and lava blocks themselves, not
-                // everything that happens to hold their fluid.
                 if y >= 4 && is_liquid(volume, state) {
                     return false;
                 }
@@ -151,8 +140,6 @@ pub fn place_lake<W: WorldGenVolume>(
     true
 }
 
-/// Four to seven ellipsoids unioned into the 16×8×16 grid, each drawn as three
-/// sizes then three centres.
 fn carve_blobs(rng: &mut WorldgenRandom) -> Vec<bool> {
     let mut grid = vec![false; WIDTH * WIDTH * DEPTH];
     let spots = rng.next_i32_bound(4) + 4;
@@ -245,8 +232,6 @@ mod tests {
         assert_eq!(rng, before);
     }
 
-    /// One spot count, six doubles per spot, then one draw per shell cell
-    /// above the water line that the barrier pass reaches.
     #[test]
     fn lake_draw_count_anchor() {
         let mut volume = solid_rock();
@@ -275,8 +260,6 @@ mod tests {
         assert!(above, "the top half is cave air");
     }
 
-    /// The shell cells at or above the water line, which is where the barrier
-    /// pass spends its one draw each.
     fn upper_shell_cells(rng: &mut WorldgenRandom) -> usize {
         let grid = carve_blobs(rng);
         let mut count = 0;
@@ -292,8 +275,6 @@ mod tests {
         count
     }
 
-    /// A shell cell that already holds a liquid above the water line rejects
-    /// the whole lake — after the fluid provider has been asked for its state.
     #[test]
     fn a_liquid_on_the_upper_shell_rejects_the_lake() {
         let mut volume = solid_rock();
@@ -309,10 +290,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// The freeze pass runs over the layer one above the fluid, which the blob
-    /// itself leaves as cave air. Only a cell the blob never reached — a corner
-    /// of the grid, outside even the shell — keeps its water, and only a
-    /// source there freezes.
     #[test]
     fn only_source_water_the_blob_never_reached_freezes() {
         for (water, frozen) in [

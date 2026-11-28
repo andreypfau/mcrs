@@ -13,8 +13,6 @@ use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 use mcrs_minecraft_model_file::property_table::PropertyTable;
 use mcrs_voxel::BlockStateId;
 
-/// A block state as the resource pack names it: the block's identifier and
-/// every property it declares, rendered the way a blockstates file spells them.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct BlockStateKey {
     pub name: String,
@@ -42,7 +40,6 @@ impl BlockStateKey {
     }
 }
 
-/// The state the server's global block state id stands for.
 pub fn state_key(definitions: &BlockDefinitions, state: BlockStateId) -> Option<BlockStateKey> {
     let block = definitions.owner(state)?;
     let props = block
@@ -74,7 +71,6 @@ pub struct Catalog {
     pub failures: Vec<CatalogFailure>,
 }
 
-/// The four corners of a full cube's `dir` face, in the order a baked quad winds them.
 pub fn cube_corners(dir: Direction) -> [Vec3; 4] {
     mcrs_minecraft_mesh::smooth_light::corners(dir, Vec3::ZERO, Vec3::ONE)
 }
@@ -87,8 +83,6 @@ pub fn empty() -> Catalog {
     }
 }
 
-/// Bakes the states named by `ids`, which are indices into the corpus'
-/// state space and so index the catalog directly.
 pub fn extend(
     pack: &ResourceSet,
     catalog: &mut Catalog,

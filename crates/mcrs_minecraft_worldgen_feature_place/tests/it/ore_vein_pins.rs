@@ -8,10 +8,6 @@ use mcrs_minecraft_worldgen_feature_place::ore_modern::{
 };
 use mcrs_voxel::BlockPos;
 
-/// The probe box is the one thing the flat-world dump cannot pin, because the
-/// oracle stands `getHeight` in for a constant. At size 20 from (0, 64, 0) the
-/// reference's arithmetic gives a spread of 2.5 rounded up to 3 and a max radius
-/// of 2, so columns -5..=4 are tested against y 60.
 #[test]
 fn the_probe_box_is_the_reference_box() {
     let cfg = CompiledOre {
@@ -41,8 +37,6 @@ fn the_probe_box_is_the_reference_box() {
     assert!(!probe(Some([0, 6])), "the box does not reach 6");
 }
 
-/// The three segment draws are spent before the probe, so a vein whose probe box
-/// is entirely below the floor still advances the source.
 #[test]
 fn a_failed_probe_still_costs_the_segment_draws() {
     let cfg = CompiledOre {

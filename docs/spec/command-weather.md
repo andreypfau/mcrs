@@ -2,28 +2,25 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Parser ids | `minecraft:time` 43 |
 
-Source of these values: `assets/minecraft/version.json` and `assets/mcrs/reports/registries.json`,
-registry `minecraft:command_argument_type`.
+Version: see `assets/minecraft/version.json`. Source of the parser ids: `assets/mcrs/reports/registries.json`, registry
+`minecraft:command_argument_type`.
 
-This document states `weather clear`, the weather state that it writes, and how the rain level then
-changes. The forms `rain` and `thunder` are out of scope, except in the tree. It does not prescribe
-an architecture.
+This document states `weather clear`, the weather state that it writes, and how the rain strength
+then changes. The forms `rain` and `thunder` are out of scope, except in the tree. It does not
+prescribe an architecture.
 
 ## 0. Conventions
 
 - **Node**, **source**, **error**: as `command-parser.md` defines them.
 - **Weather state**: five values of the world: the clear time, the rain time, the thunder time,
   the rain flag and the thunder flag. The server has one weather state for all dimensions.
-- **Rain level**, **thunder level**: two f32 values from 0 to 1 of a dimension. The sky darkness
-  reads them (`environment-attributes.md`).
+- **Rain strength**, **thunder strength**: two f32 values from 0 to 1 of a dimension. The sky
+  darkness reads them (`environment-attributes.md`).
 - **Weather dimension**: a dimension whose type has sky light and no ceiling, for example the
   overworld. Only a weather dimension has rain.
-- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-W`. None of the experiments has
-  been run.
+- Provenance labels: `registry.md`, section 0.3. ID prefix: `CMD-W`.
 
 ---
 
@@ -68,18 +65,11 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: ru
      more than 0, decrease it by 1, and keep the rain flag and the thunder flag false. After it
      reaches 0, the cycle of rain and thunder runs again. That cycle is out of scope.
   2. If `advance_weather` is false, the weather state does not change.
-  3. Move the rain level by 0.01 toward 1 when the rain flag is true, and toward 0 when it is false.
-     Clamp it to the range from 0 to 1. Do the same for the thunder level with the thunder flag.
+  3. Move the rain strength by 0.01 toward 1 when the rain flag is true, and toward 0 when it is
+     false. Clamp it to the range from 0 to 1. Do the same for the thunder strength with the
+     thunder flag.
 - **Postconditions:** step 3 runs also when `advance_weather` is false. Thus after `weather clear`
-  in rain, the rain level falls to 0 within 100 ticks. Each change of a level sends the
-  `game_event` packet of that level to the players of the dimension.
+  in rain, the rain strength falls to 0 within 100 ticks. Each change of a strength sends the
+  `game_event` packet of that strength to the players of the dimension.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
-
----
-
-## 1. Use in a benchmark
-
-To fix clear weather, run `gamerule advance_weather false` and `weather clear`. Start the measure
-at least 100 ticks after these commands. Then the rain level is 0, and the sky darkness does not
-depend on the weather (`mob-goals.md`, GOAL-POS-006).

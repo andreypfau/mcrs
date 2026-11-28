@@ -313,7 +313,7 @@ fn side_sprite(fluid: Fluid, front_cover: u8) -> u16 {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "emits the top, bottom and side quads of each sloped fluid cell in one loop that shares the cell's corner heights, light and open faces"
+    reason = "one loop shares the cell's corner heights, light and faces"
 )]
 pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
     let sloped = std::mem::take(&mut scratch.sloped);
@@ -332,7 +332,7 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
             Pass::Translucent
         };
         let tint = if fluid.lava { 0 } else { Tint::Water.index() };
-        let out = &mut pass.of_mut(&mut scratch.complex_by_pass)[UNGROUPED];
+        let out = &mut pass.of_mut(&mut scratch.models_by_pass)[UNGROUPED];
 
         let mut corners = slope.corners;
         let facing = |face: usize| {
@@ -458,7 +458,6 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
     scratch.sloped = sloped;
 }
 
-/// A fluid face takes the brighter of two cells on each kind of light.
 fn fluid_light(first: u8, second: u8, emission: u8) -> VertexLight {
     let (first, second) = (
         CellLight::from_packed(first),
@@ -541,7 +540,7 @@ mod tests {
         let batch = mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch);
         let models = batch.model_quads();
         let mut surfaces = Vec::new();
-        for quad in &batch.simple {
+        for quad in &batch.greedy {
             if QUAD_FACE.read(quad) == 1 {
                 surfaces.push((
                     QUAD_W.read(quad) + 1,
@@ -574,7 +573,7 @@ mod tests {
 
             let mut scratch = Scratch::new();
             mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch)
-                .simple
+                .greedy
                 .iter()
                 .filter(|quad| QUAD_FACE.read(*quad) == Dir::Up as u64)
                 .count()

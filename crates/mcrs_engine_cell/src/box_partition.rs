@@ -1,6 +1,5 @@
 use core::num::NonZeroU32;
 
-/// The key of a chunk in a world, in chunks on each axis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ChunkKey {
     pub x: i32,
@@ -8,19 +7,15 @@ pub struct ChunkKey {
     pub z: i32,
 }
 
-/// The position of a cell in the cells of one world, from 0 up to the cell count.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CellIndex(pub u32);
 
-/// The minimum leaf size of one axis: a size in chunks, or the whole axis, which the partition
-/// never divides.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Leaf {
     Size(NonZeroU32),
     Whole,
 }
 
-/// The minimum leaf size on each axis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LeafSize {
     pub x: Leaf,
@@ -28,9 +23,6 @@ pub struct LeafSize {
     pub z: Leaf,
 }
 
-/// A static division of the chunks of one world into boxes of the leaf size. Each box belongs to
-/// one cell, and the boxes of the cells repeat in a grid, so neighbour boxes belong to different
-/// cells when the count allows it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BoxPartition {
     leaf: LeafSize,
@@ -38,7 +30,6 @@ pub struct BoxPartition {
     grid: Grid,
 }
 
-/// The extent of the grid of cells on each axis. The product is the cell count.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Grid {
     x: u32,
@@ -47,8 +38,6 @@ struct Grid {
 }
 
 impl BoxPartition {
-    /// Divides a world into boxes of `leaf` over `cells` cells. An axis with a [`Leaf::Whole`]
-    /// leaf takes no part in the grid; with no axis to divide, one cell owns everything.
     #[must_use]
     pub fn new(leaf: LeafSize, cells: NonZeroU32) -> Self {
         let sized = [leaf.x, leaf.z, leaf.y].map(|axis| matches!(axis, Leaf::Size(_)));
@@ -81,19 +70,16 @@ impl BoxPartition {
         }
     }
 
-    /// The number of cells.
     #[must_use]
     pub fn cells(&self) -> NonZeroU32 {
         self.cells
     }
 
-    /// The cell that owns `key`.
     #[must_use]
     pub fn owner(&self, key: ChunkKey) -> CellIndex {
         self.owner_of_box(self.box_of(key))
     }
 
-    /// Whether the cell `index` owns a chunk within `reach` chunks of `key` on every axis.
     #[must_use]
     pub fn reaches(&self, index: CellIndex, key: ChunkKey, reach: u32) -> bool {
         let reach = i32::try_from(reach).unwrap_or(i32::MAX);
@@ -107,7 +93,6 @@ impl BoxPartition {
             y: key.y.saturating_add(reach),
             z: key.z.saturating_add(reach),
         });
-        // Past one grid period on an axis, every cell of that axis is in reach.
         let span = |low: i32, high: i32, extent: u32| {
             let count = i64::from(high) - i64::from(low) + 1;
             low..=low.saturating_add(i32::try_from(count.min(i64::from(extent))).unwrap_or(1) - 1)
@@ -150,8 +135,6 @@ fn box_coordinate(coordinate: i32, leaf: Leaf) -> i32 {
     }
 }
 
-/// The smallest divisor `d` of `count` with `d` to the power `axes` at least `count`, so the
-/// grid is as close to a cube as the count allows.
 fn smallest_root_divisor(count: u32, axes: usize) -> u32 {
     let axes = u32::try_from(axes).unwrap_or(1);
     (1..=count)
