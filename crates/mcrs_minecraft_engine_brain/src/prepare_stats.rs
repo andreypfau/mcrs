@@ -2,7 +2,6 @@ use std::time::Duration;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct PrepareStats {
-    pub(crate) mobs: usize,
     pub(crate) waits: u64,
     pub(crate) prepare: Duration,
     pub(crate) life_cycle: Duration,

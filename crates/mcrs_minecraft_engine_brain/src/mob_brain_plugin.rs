@@ -204,7 +204,6 @@ fn prepare<B>(
     mut mobs: Thinking,
     panic_causes: Res<BrainPanicCauses<B>>,
     mut ai: ResMut<MobAi<B>>,
-    mut window: ResMut<AiWindow<B>>,
     mut threads: Local<Parallel<BrainOut>>,
 ) where
     B: for<'a, 'w> MobBrain<BlockGoalWorld<'a, DimensionView<'w>>> + Send + Sync + 'static,
@@ -213,14 +212,13 @@ fn prepare<B>(
         return;
     };
     let goal_world = BlockGoalWorld::new(&blocks, tables.collision());
-    let stats = ai.prepare(
+    ai.prepare(
         &goal_world,
         player_table(&players),
         &panic_causes.causes,
         mobs.reborrow(),
         &mut threads,
     );
-    window.record_prepare(&stats);
 }
 
 #[cfg_attr(
@@ -244,5 +242,5 @@ fn run_stage<B>(
     };
     let goal_world = BlockGoalWorld::new(&blocks, tables.collision());
     let stats = ai.run_stage(ComputeTaskPool::get(), &goal_world);
-    window.record_stage(ai.tick(), &stats);
+    window.record(ai.tick(), ai.prepared(), &stats);
 }

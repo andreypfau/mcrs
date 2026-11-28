@@ -10,6 +10,7 @@ pub struct BrainPanicCauses<B: 'static> {
 }
 
 impl<B> BrainPanicCauses<B> {
+    #[must_use]
     pub fn new(causes: PanicCauses) -> Self {
         Self {
             causes,

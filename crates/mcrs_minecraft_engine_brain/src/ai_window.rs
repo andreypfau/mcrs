@@ -47,24 +47,21 @@ impl<B> Default for AiWindow<B> {
 }
 
 impl<B> AiWindow<B> {
-    pub(crate) fn record_prepare(&mut self, stats: &PrepareStats) {
-        self.mobs = stats.mobs;
-        self.waits = stats.waits;
-        self.prepare = self.prepare.saturating_add(stats.prepare);
-        self.prepare_max = self.prepare_max.max(stats.prepare);
-        self.life_cycle = self.life_cycle.saturating_add(stats.life_cycle);
-        self.tile_tasks = self.tile_tasks.saturating_add(stats.tile_tasks);
-        self.publish = self.publish.saturating_add(stats.publish);
-    }
-
-    pub(crate) fn record_stage(&mut self, tick: u64, stats: &StageStats) {
+    pub(crate) fn record(&mut self, tick: u64, prepared: &PrepareStats, stats: &StageStats) {
+        self.mobs = stats.run.mobs;
+        self.waits = prepared.waits;
+        self.prepare = self.prepare.saturating_add(prepared.prepare);
+        self.prepare_max = self.prepare_max.max(prepared.prepare);
+        self.life_cycle = self.life_cycle.saturating_add(prepared.life_cycle);
+        self.tile_tasks = self.tile_tasks.saturating_add(prepared.tile_tasks);
+        self.publish = self.publish.saturating_add(prepared.publish);
         self.ticks = self.ticks.saturating_add(1);
         self.stage = self.stage.saturating_add(stats.elapsed);
         self.stage_max = self.stage_max.max(stats.elapsed);
-        self.evaluations = self.evaluations.saturating_add(stats.evaluations);
+        self.evaluations = self.evaluations.saturating_add(stats.run.evaluations);
         self.decisions = self
             .decisions
-            .saturating_add(u64::try_from(stats.decisions).unwrap_or(u64::MAX));
+            .saturating_add(u64::try_from(stats.run.decisions).unwrap_or(u64::MAX));
         if !tick.is_multiple_of(LOG_PERIOD) {
             return;
         }
