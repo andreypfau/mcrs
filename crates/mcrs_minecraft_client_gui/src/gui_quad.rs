@@ -1,6 +1,6 @@
 use bevy::math::{IRect, IVec2, Rect};
 use bevy::prelude::*;
-use mcrs_minecraft_font::font_glyph::{GlyphImage, Weight};
+use mcrs_minecraft_font::{GlyphImage, Weight};
 
 pub const WHITE: u32 = 0xFFFF_FFFF;
 

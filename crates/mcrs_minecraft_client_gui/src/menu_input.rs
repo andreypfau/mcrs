@@ -15,7 +15,7 @@ use crate::gui_pointer::GuiPointer;
 use crate::layer_due::gui_clock;
 use crate::menu::Menu;
 use crate::menu_event::MenuEvent;
-use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::Font;
 
 const BUTTONS: [(MouseButton, PointerButton); 3] = [
     (MouseButton::Left, PointerButton::Left),

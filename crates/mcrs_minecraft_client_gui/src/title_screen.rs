@@ -6,8 +6,7 @@ use mcrs_minecraft_core::VERSION;
 use crate::gui_quad::WHITE;
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::menu::{WidgetIcon, WidgetTooltip};
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 
 pub(crate) const SINGLEPLAYER: WidgetId = WidgetId(0);
 pub(crate) const ACCESSIBILITY: WidgetId = WidgetId(1);

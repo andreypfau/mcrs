@@ -153,9 +153,7 @@ impl<'a> BlockModels<'a> {
                     Err(error) => {
                         self.errors.push(ContentError {
                             path: block.to_owned(),
-                            kind: ContentErrorKind::Location {
-                                reason: error.reason,
-                            },
+                            kind: ContentErrorKind::Location(error),
                         });
                         return None;
                     }

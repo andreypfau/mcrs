@@ -2,9 +2,7 @@ use bevy::asset::AssetEvent;
 use bevy::prelude::*;
 
 use crate::gui_images::GuiImages;
-use mcrs_minecraft_font::font::Font;
-use mcrs_minecraft_font::glyph_cache::CELL_BYTES;
-use mcrs_minecraft_font::glyph_cache::GlyphCache;
+use mcrs_minecraft_font::{CELL_BYTES, Font, GlyphCache};
 
 pub(crate) struct GlyphCell {
     pub(crate) cell: usize,
@@ -61,17 +59,21 @@ mod tests {
     use bevy::asset::AssetId;
 
     use super::*;
-    use crate::corpus_pack::corpus_pack;
     use crate::inflate_zip::inflate_zip;
-    use mcrs_minecraft_font::font_definition::FontOptions;
+    use mcrs_minecraft_font::FontOptions;
+    use mcrs_minecraft_model::resource_set::ResourceSet;
 
     const GLYPHS: [char; 3] = ['\u{4E00}', '\u{4E01}', '\u{4E8C}'];
 
     #[test]
     fn resident_cells_are_queued_once_and_again_after_the_atlas_is_added() {
-        let font = Font::load(corpus_pack(), FontOptions::default(), inflate_zip)
-            .unwrap()
-            .font;
+        let font = Font::load(
+            ResourceSet::corpus().files(),
+            FontOptions::default(),
+            inflate_zip,
+        )
+        .unwrap()
+        .font;
         let mut cache = GlyphCache::default();
         cache.begin_frame();
         for glyph in GLYPHS {

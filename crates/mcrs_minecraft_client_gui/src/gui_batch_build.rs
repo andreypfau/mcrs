@@ -14,8 +14,7 @@ use crate::item_icons::ItemIcons;
 use crate::scene_icon::SceneIcon;
 use bevy::math::{IRect, IVec2};
 use bevy::prelude::*;
-use mcrs_minecraft_font::font::Font;
-use mcrs_minecraft_font::glyph_cache::GlyphCache;
+use mcrs_minecraft_font::{Font, GlyphCache};
 use mcrs_minecraft_item_icon::{GuiVertex, IconLayer, IconMeshes, ItemIcon, Overlays};
 use mcrs_minecraft_model::atlas::rgba;
 

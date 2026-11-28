@@ -17,7 +17,7 @@ use crate::gui_texture_id::GuiTextureId;
 use crate::layer_due::gui_clock;
 use crate::text_draw::draw_str;
 use crate::title_screen::{TitleText, notice_lines, version_text};
-use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::Font;
 
 const FADE_DELAY_MS: u64 = 1000;
 const FADE_MS: u64 = 1000;

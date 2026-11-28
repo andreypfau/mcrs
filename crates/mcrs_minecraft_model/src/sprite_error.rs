@@ -54,10 +54,7 @@ pub enum SpriteError {
         width: u32,
         height: u32,
     },
-    Location {
-        id: String,
-        reason: String,
-    },
+    Location(InvalidResourceLocation),
 }
 
 impl fmt::Display for SpriteError {
@@ -103,9 +100,11 @@ impl fmt::Display for SpriteError {
                 f,
                 "{path} is {width}x{height}, and a colormap is sampled as a 256x256 grid"
             ),
-            SpriteError::Location { id, reason } => {
-                write!(f, "the resource location `{id}`: {reason}")
-            }
+            SpriteError::Location(error) => write!(
+                f,
+                "the resource location `{}`: {}",
+                error.input, error.reason
+            ),
         }
     }
 }
@@ -114,10 +113,7 @@ impl Error for SpriteError {}
 
 impl From<InvalidResourceLocation> for SpriteError {
     fn from(error: InvalidResourceLocation) -> Self {
-        SpriteError::Location {
-            id: error.input,
-            reason: error.reason,
-        }
+        SpriteError::Location(error)
     }
 }
 

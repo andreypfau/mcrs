@@ -5,7 +5,7 @@ use mcrs_minecraft_client_widget::{WidgetId, Widgets};
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::world_presence::WorldPresence;
-use mcrs_minecraft_font::font::Span;
+use mcrs_minecraft_font::Span;
 
 #[derive(Resource, Debug)]
 pub struct Menu {

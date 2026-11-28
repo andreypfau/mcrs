@@ -14,7 +14,7 @@ use crate::outlined_box::draw_outlined_box;
 use crate::sprite_draw::draw_sprite;
 use crate::tab_bar_draw::draw_tab_bar;
 use crate::text_draw::draw_str;
-use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::Font;
 
 const ELLIPSIS: &str = "...";
 

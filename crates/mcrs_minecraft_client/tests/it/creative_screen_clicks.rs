@@ -14,7 +14,7 @@ use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_engine_registries::RegistryNames;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::ClientLanguage;
 use mcrs_minecraft_game_mode::{Abilities, GameMode};
 use mcrs_minecraft_inventory_client::{CreativeArea, CreativeClick, MenuAction, MenuInput};
 use mcrs_minecraft_item_stack::{Kind, NameLookup, NameTable, write_wire};

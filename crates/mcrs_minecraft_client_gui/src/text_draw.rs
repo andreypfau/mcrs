@@ -1,8 +1,7 @@
 use bevy::math::{IVec2, Vec2};
 
 use crate::gui_quad::GuiQuad;
-use mcrs_minecraft_font::font::{Font, Span, styled};
-use mcrs_minecraft_font::font_glyph::Weight;
+use mcrs_minecraft_font::{Font, Span, Weight, styled};
 
 pub fn shadow_color(color: u32) -> u32 {
     (color & 0xFF00_0000) | ((color & 0x00FC_FCFC) >> 2)

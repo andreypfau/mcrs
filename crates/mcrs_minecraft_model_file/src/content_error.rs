@@ -4,6 +4,7 @@ use std::fmt;
 use crate::block_state_file_error::BlockStateFileError;
 use crate::face_bake_error::FaceBakeError;
 use crate::model_file_error::ModelFileError;
+use mcrs_minecraft_resource::InvalidResourceLocation;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContentError {
@@ -21,7 +22,7 @@ pub enum ContentErrorKind {
     NoBlockState,
     ModelCycle { parent: String },
     NoPart { state: Vec<usize> },
-    Location { reason: String },
+    Location(InvalidResourceLocation),
 }
 
 impl fmt::Display for ContentError {
@@ -49,7 +50,7 @@ impl fmt::Display for ContentErrorKind {
             ContentErrorKind::NoPart { state } => {
                 write!(f, "no part for the state {state:?}")
             }
-            ContentErrorKind::Location { reason } => f.write_str(reason),
+            ContentErrorKind::Location(error) => f.write_str(&error.reason),
         }
     }
 }

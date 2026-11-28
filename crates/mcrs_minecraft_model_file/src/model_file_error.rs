@@ -19,7 +19,7 @@ pub enum ModelFileError {
     RotationIncomplete,
     RotationAxis { axis: String },
     RotationEmpty,
-    Location { id: String, reason: String },
+    Location(InvalidResourceLocation),
 }
 
 impl fmt::Display for ModelFileError {
@@ -46,9 +46,11 @@ impl fmt::Display for ModelFileError {
             }
             ModelFileError::RotationAxis { axis } => write!(f, "the rotation axis `{axis}`"),
             ModelFileError::RotationEmpty => f.write_str("a rotation with no axis and no angle"),
-            ModelFileError::Location { id, reason } => {
-                write!(f, "the resource location `{id}`: {reason}")
-            }
+            ModelFileError::Location(error) => write!(
+                f,
+                "the resource location `{}`: {}",
+                error.input, error.reason
+            ),
         }
     }
 }
@@ -57,9 +59,6 @@ impl Error for ModelFileError {}
 
 impl From<InvalidResourceLocation> for ModelFileError {
     fn from(error: InvalidResourceLocation) -> Self {
-        ModelFileError::Location {
-            id: error.input,
-            reason: error.reason,
-        }
+        ModelFileError::Location(error)
     }
 }

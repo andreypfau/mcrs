@@ -211,7 +211,7 @@ impl fmt::Debug for ResourceLocation<'_> {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("Not a valid resource location: {input} {reason}")]
 pub struct InvalidResourceLocation {
     pub input: String,

@@ -4,7 +4,7 @@ use mcrs_minecraft_chat_client::Tag;
 use mcrs_minecraft_client_widget::GuiRect;
 
 use crate::gui_size::GuiSize;
-use mcrs_minecraft_font::font::{self, Font, Span};
+use mcrs_minecraft_font::{Font, Span, span_at};
 
 pub(crate) const LINE: i32 = 9;
 pub(crate) const TEXT_OFFSET: i32 = 8;
@@ -72,7 +72,7 @@ pub(crate) fn text_under<'c>(
     let mut message = 0;
     for (slot, line) in lines.visible(page) {
         message += usize::from(line.last);
-        if let Some(span) = font::span_at(font, origin(slot), &line.content, at) {
+        if let Some(span) = span_at(font, origin(slot), &line.content, at) {
             return Some(TextUnder { span, message });
         }
     }

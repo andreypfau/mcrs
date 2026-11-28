@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
-use crate::corpus_pack::corpus_pack;
 use crate::font::{Font, Span};
 use crate::font_definition::{FontOptions, Toggle};
 use crate::font_glyph::ImageSource;
 use crate::inflate_zip::inflate_zip;
+use mcrs_minecraft_model::resource_set::ResourceSet;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -82,9 +82,13 @@ static DUMP: LazyLock<Dump> = LazyLock::new(|| {
 
 static FONTS: LazyLock<[Font; 3]> = LazyLock::new(|| {
     let load = |uniform, jp| {
-        Font::load(corpus_pack(), FontOptions { uniform, jp }, inflate_zip)
-            .unwrap()
-            .font
+        Font::load(
+            ResourceSet::corpus().files(),
+            FontOptions { uniform, jp },
+            inflate_zip,
+        )
+        .unwrap()
+        .font
     };
     [
         load(Toggle::Off, Toggle::Off),

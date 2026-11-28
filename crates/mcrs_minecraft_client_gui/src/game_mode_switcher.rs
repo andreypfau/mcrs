@@ -29,8 +29,7 @@ use mcrs_minecraft_client_world::chat::ChatMessage;
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 
 const MODIFIER: KeyCode = KeyCode::F3;
 const SWITCH: KeyCode = KeyCode::F4;

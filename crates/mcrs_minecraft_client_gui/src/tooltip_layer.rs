@@ -4,7 +4,7 @@ use crate::gui_layer::GuiLayer;
 use crate::gui_size::GuiSize;
 use crate::tooltip::{self, Tooltip};
 use bevy::prelude::*;
-use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::Font;
 
 #[derive(Component, Default)]
 #[require(GuiLayer = GuiLayer::new(GuiBand::Overlay, 0))]

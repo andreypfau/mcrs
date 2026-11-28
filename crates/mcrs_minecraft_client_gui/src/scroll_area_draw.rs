@@ -13,7 +13,7 @@ use crate::outlined_box::BLACK;
 use crate::sprite_draw::draw_sprite;
 use crate::text_draw::draw_text;
 use crate::world_presence::WorldPresence;
-use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::Font;
 
 const BACKGROUND_TILE: i32 = 32;
 const ROW_INSET: i32 = 2;

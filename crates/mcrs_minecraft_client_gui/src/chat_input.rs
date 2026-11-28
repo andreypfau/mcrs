@@ -32,10 +32,9 @@ use mcrs_minecraft_client_world::chat::{
 };
 use mcrs_minecraft_client_world::chat_history::CommandHistoryFile;
 use mcrs_minecraft_client_world::screen::Screen;
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
-use mcrs_minecraft_font::span_events::SpanEvents;
-use mcrs_minecraft_font::text::{self, Wrap};
+use mcrs_minecraft_font::{
+    ClientLanguage, Font, Span, SpanEvents, Wrap, text_spans_with_events, wrap,
+};
 
 #[derive(Resource, Default)]
 pub struct ChatLines {
@@ -94,8 +93,8 @@ fn project(
         events.clear();
     }
     let wrap_message = |text: &Text, tag: Option<Tag>, rows: &mut Vec<Vec<Span>>| {
-        let spans = text::text_spans_with_events(text, language, WHITE, events);
-        text::wrap(
+        let spans = text_spans_with_events(text, language, WHITE, events);
+        wrap(
             &spans,
             chat_view::wrap_width(tag),
             Wrap::ChatLog,

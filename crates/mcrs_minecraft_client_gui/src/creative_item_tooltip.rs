@@ -28,8 +28,7 @@ use crate::menu_item_tooltip::{
     self, HoveredItem, HoveredStack, LineSources, MenuItemTooltip, TooltipSlot, TooltipStyle,
 };
 use crate::tooltip::Tooltip;
-use mcrs_minecraft_font::font::Font;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AddedParts {

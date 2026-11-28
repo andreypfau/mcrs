@@ -44,7 +44,7 @@ use crate::loaded_creative_report::LoadedCreativeReport;
 use crate::mark_creative_screen::mark_creative_screen;
 use crate::menu_test_app::TABLE;
 use crate::search_input::SearchInput;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::ClientLanguage;
 
 const BUILDING_BLOCKS: CreativeTabIndex = tab(0);
 const COLORED_BLOCKS: CreativeTabIndex = tab(1);

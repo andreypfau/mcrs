@@ -11,8 +11,7 @@ use crate::gui_size::GuiSize;
 use crate::irect::irect;
 use crate::outlined_box::draw_outlined_box;
 use crate::text_draw::draw_str;
-use mcrs_minecraft_font::font::Font;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font};
 
 const PADDING: i32 = 12;
 const BOX_HEIGHT: i32 = 33;

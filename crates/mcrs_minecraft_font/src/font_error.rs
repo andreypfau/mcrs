@@ -1,6 +1,7 @@
 use core::error::Error;
 use core::fmt;
 
+use mcrs_minecraft_resource::InvalidResourceLocation;
 use mcrs_minecraft_resource_pack::{PackError, PngError};
 
 use crate::unihex_error::UnihexError;
@@ -13,7 +14,7 @@ pub enum FontError {
     Grid { texture: String },
     Unihex { archive: String, error: UnihexError },
     SelfReference { id: String },
-    InvalidId { id: String, reason: String },
+    InvalidId(InvalidResourceLocation),
 }
 
 impl fmt::Display for FontError {
@@ -26,7 +27,13 @@ impl fmt::Display for FontError {
             }
             Self::Unihex { archive, error } => write!(formatter, "{archive}: {error}"),
             Self::SelfReference { id } => write!(formatter, "the font {id} references itself"),
-            Self::InvalidId { id, reason } => write!(formatter, "{id:?} is not an id: {reason}"),
+            Self::InvalidId(error) => {
+                write!(
+                    formatter,
+                    "{:?} is not an id: {}",
+                    error.input, error.reason
+                )
+            }
         }
     }
 }

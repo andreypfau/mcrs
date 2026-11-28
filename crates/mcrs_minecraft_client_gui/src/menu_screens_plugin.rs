@@ -45,7 +45,7 @@ use crate::video_settings_screen::{self, wheel_gui_scale};
 use crate::world_entry::LocalOffset;
 use crate::world_presence::world_presence;
 use crate::world_rows::{PreselectedWorld, project_world_rows};
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::ClientLanguage;
 
 pub struct MenuScreensPlugin {
     pub preselected_world: Option<String>,

@@ -30,8 +30,7 @@ use crate::gui_batch_extract::{extract_gui_batch, gui_batch_extract_due};
 use crate::gui_glint::{GLINT_ALPHA, GuiGlint};
 use crate::gui_images::GuiImages;
 use crate::gui_phase::GuiPhase;
-use mcrs_minecraft_font::glyph_cache::CELL;
-use mcrs_minecraft_font::glyph_cache::{self, GlyphCache};
+use mcrs_minecraft_font::{CELL, GlyphCache, cell_origin};
 
 pub struct GuiItemsPlugin;
 
@@ -351,7 +350,7 @@ pub(super) fn upload_glyphs(
         return;
     };
     for GlyphCell { cell, pixels } in uploads.cells.drain(..) {
-        let (x, y) = glyph_cache::cell_origin(cell);
+        let (x, y) = cell_origin(cell);
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &atlas.texture,

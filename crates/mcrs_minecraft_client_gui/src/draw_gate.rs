@@ -18,8 +18,7 @@ use crate::gui_size::GuiSize;
 use crate::layer_due::layer_due;
 use crate::shown_drag_preview::ShownDragPreview;
 use crate::slot_icon::SlotIcon;
-use mcrs_minecraft_font::font::Font;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font};
 
 type HolderChanged = Or<(
     Changed<PlayerHolders>,

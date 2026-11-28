@@ -9,7 +9,7 @@ use crate::irect::{irect, point};
 use crate::menu::Menu;
 use crate::sprite_draw::draw_sprite;
 use crate::text_draw::draw_str;
-use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::Font;
 
 const HEADER_TILE: i32 = 16;
 const BACKGROUND_TILE: i32 = 32;

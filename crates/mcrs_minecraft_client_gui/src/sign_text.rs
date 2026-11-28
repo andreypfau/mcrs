@@ -4,13 +4,11 @@ use mcrs_minecraft_client_world::sign::{SignFamily, SignMount};
 use mcrs_minecraft_protocol_game::text::{IntoText, Text};
 use mcrs_voxel::BlockPos;
 
-use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::{Font, Span};
 
 use crate::gui_quad::GuiQuad;
 use crate::text_draw::{Shadow, draw_glyphs};
-use mcrs_minecraft_font::font_glyph::ImageSource;
-use mcrs_minecraft_font::language::ClientLanguage;
-use mcrs_minecraft_font::text::{Wrap, text_spans, wrap};
+use mcrs_minecraft_font::{ClientLanguage, ImageSource, Wrap, text_spans, wrap};
 
 pub const FULL_BRIGHT_LIGHT: u32 = 15_728_880;
 pub const BLACK_GLOW_OUTLINE: u32 = 0xFFF0_EBCC;

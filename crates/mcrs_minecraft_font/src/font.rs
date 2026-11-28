@@ -2,14 +2,20 @@ use bevy_math::IVec2;
 
 use crate::event_index::EventIndex;
 use crate::font_definition::{BitmapPage, FontOptions, Kind, Loading, Source};
-use crate::font_error::FontError;
 use crate::font_glyph::{Glyph, ImageSource, MISSING};
+use crate::font_load_failure::FontLoadFailure;
+use crate::font_notice::FontNotice;
 use crate::font_unihex::CELL_BYTES;
 use crate::inflated_file::InflatedFile;
-use crate::loaded_font::LoadedFont;
 use mcrs_minecraft_resource_pack::PackFiles;
 
 const DEFAULT_FONT: &str = "minecraft:default";
+
+#[derive(Clone, Debug)]
+pub struct LoadedFont {
+    pub font: Font,
+    pub notices: Vec<FontNotice>,
+}
 
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 #[derive(Clone, Debug, Default)]
@@ -23,13 +29,18 @@ impl Font {
         pack: &PackFiles,
         options: FontOptions,
         inflate: impl Fn(&[u8]) -> Result<Vec<InflatedFile>, String>,
-    ) -> Result<LoadedFont, FontError> {
+    ) -> Result<LoadedFont, FontLoadFailure> {
         let mut loading = Loading::new(pack, inflate);
-        let sources = loading.sources(DEFAULT_FONT)?;
-        Ok(LoadedFont {
-            font: Self { sources, options },
-            notices: loading.into_notices(),
-        })
+        match loading.sources(DEFAULT_FONT) {
+            Ok(sources) => Ok(LoadedFont {
+                font: Self { sources, options },
+                notices: loading.into_notices(),
+            }),
+            Err(error) => Err(FontLoadFailure {
+                error,
+                notices: loading.into_notices(),
+            }),
+        }
     }
 
     #[cfg(test)]
@@ -212,9 +223,11 @@ pub fn span_at<'s>(
 
 #[cfg(test)]
 pub(crate) fn corpus_font() -> &'static Font {
+    use mcrs_minecraft_model::resource_set::ResourceSet;
+
     static FONT: std::sync::LazyLock<Font> = std::sync::LazyLock::new(|| {
         Font::load(
-            crate::corpus_pack::corpus_pack(),
+            ResourceSet::corpus().files(),
             FontOptions::default(),
             crate::inflate_zip::inflate_zip,
         )

@@ -38,7 +38,7 @@ use crate::scene_icon::SceneIcon;
 use crate::shown_drag_preview::ShownDragPreview;
 use crate::slot_icon::SlotIconPlugin;
 use crate::tooltip::Tooltip;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::ClientLanguage;
 
 const BUILDING_BLOCKS: usize = 0;
 const SEARCH: usize = 6;

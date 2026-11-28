@@ -167,8 +167,8 @@ fn take_last_word(row: &mut Vec<Span>) -> Vec<Span> {
     carried
 }
 
-#[cfg(test)]
-pub(crate) fn row_texts(rows: &[Vec<Span>]) -> Vec<String> {
+#[must_use]
+pub fn row_texts(rows: &[Vec<Span>]) -> Vec<String> {
     rows.iter()
         .map(|row| row.iter().map(|span| span.text.as_str()).collect())
         .collect()

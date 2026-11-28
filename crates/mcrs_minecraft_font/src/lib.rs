@@ -1,22 +1,37 @@
-#[cfg(test)]
-mod corpus_pack;
-pub mod definition_error;
+mod definition_error;
 mod event_index;
-pub mod font;
-pub mod font_definition;
+mod font;
+mod font_definition;
 #[cfg(test)]
 mod font_dump_tests;
-pub mod font_error;
-pub mod font_glyph;
-pub mod font_notice;
+mod font_error;
+mod font_glyph;
+mod font_load_failure;
+mod font_notice;
 mod font_unihex;
-pub mod glyph_cache;
+mod glyph_cache;
 #[cfg(test)]
 mod inflate_zip;
-pub mod inflated_file;
-pub mod language;
-pub mod language_error;
-pub mod loaded_font;
-pub mod span_events;
-pub mod text;
-pub mod unihex_error;
+mod inflated_file;
+mod language;
+mod language_error;
+mod span_events;
+mod text;
+mod unihex_error;
+
+pub use definition_error::DefinitionError;
+pub use font::{ClickEvent, Font, Hover, LoadedFont, Span, span_at, styled};
+pub use font_definition::{BitmapPage, FontOptions, Toggle};
+pub use font_error::FontError;
+pub use font_glyph::{
+    Glyph, GlyphImage, ImageSource, MISSING_GLYPH_SIZE, Weight, missing_glyph_pixels,
+};
+pub use font_load_failure::FontLoadFailure;
+pub use font_notice::FontNotice;
+pub use glyph_cache::{CELL, CELL_BYTES, COLUMNS, GlyphCache, ROWS, SLOTS, cell_origin};
+pub use inflated_file::InflatedFile;
+pub use language::ClientLanguage;
+pub use language_error::LanguageError;
+pub use span_events::SpanEvents;
+pub use text::{Wrap, argb, row_texts, text_spans, text_spans_with_events, wrap};
+pub use unihex_error::UnihexError;

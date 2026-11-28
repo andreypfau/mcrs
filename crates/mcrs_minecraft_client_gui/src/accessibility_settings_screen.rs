@@ -8,8 +8,7 @@ use crate::gui_quad::WHITE;
 use crate::menu::WidgetTooltip;
 use crate::option_caption::option_caption;
 use crate::option_sub_screen::{OptionList, option_sub_screen};
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 
 pub(crate) const FOV_EFFECTS: WidgetId = WidgetId(3);
 pub(crate) const CONTROLS: WidgetId = WidgetId(4);

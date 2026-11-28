@@ -16,7 +16,7 @@ use crate::tooltip::Tooltip;
 use crate::tooltip_layer::{TooltipLayer, draw_tooltip};
 use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResourcePlugin;
-use mcrs_minecraft_font::glyph_cache::GlyphCache;
+use mcrs_minecraft_font::GlyphCache;
 use mcrs_minecraft_item_icon::IconMeshes;
 use mcrs_minecraft_model::item_model_bake::ItemModels;
 

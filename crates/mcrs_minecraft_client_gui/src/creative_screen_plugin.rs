@@ -30,7 +30,7 @@ use crate::gui_phase::GuiPhase;
 use crate::loaded_creative_report::LoadedCreativeReport;
 use crate::menu_input;
 use crate::stitch_requests::StitchRequests;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::ClientLanguage;
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CreativeContentSystems;

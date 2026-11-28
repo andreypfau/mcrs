@@ -16,7 +16,7 @@ use mcrs_minecraft_network::client::{ConnectionEnd, ConnectionEnded};
 
 use crate::cursor_grab::grab;
 use crate::title_draw::TitleScreenState;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::ClientLanguage;
 
 const LOADING_TIMEOUT: Duration = Duration::from_secs(30);
 const CREATED_WORLD_DELAY: Duration = Duration::from_millis(500);
@@ -236,7 +236,7 @@ mod tests {
         use crate::level_loading_screen::level_loading_screen;
         use crate::menu_test_app::{GUI, advance, caption, click, game_app, grab_mode, screen};
         use crate::message_screen;
-        use mcrs_minecraft_font::font::Span;
+        use mcrs_minecraft_font::Span;
 
         fn join(app: &mut App) -> Entity {
             app.world_mut()

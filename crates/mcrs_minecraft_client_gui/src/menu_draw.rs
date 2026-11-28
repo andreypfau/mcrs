@@ -16,8 +16,7 @@ use crate::menu::{Menu, MenuBackground};
 use crate::scroll_area_draw::draw_scroll_area;
 use crate::tooltip::{LineGap, Tooltip};
 use crate::world_presence::WorldPresence;
-use mcrs_minecraft_font::font::Font;
-use mcrs_minecraft_font::text::{self, Wrap};
+use mcrs_minecraft_font::{Font, Wrap, wrap};
 
 const ERROR_GRADIENT_TOP: u32 = 0xFF40_2020;
 const ERROR_GRADIENT_BOTTOM: u32 = 0xFF50_1010;
@@ -74,7 +73,7 @@ pub fn request_menu_tooltip(menu: &mut Menu, now_ms: u64, font: &Font, tooltip: 
         return;
     };
     tooltip.request_widget(request, menu.widgets.focused(), LineGap::Uniform, |lines| {
-        text::wrap(&entry.text, TOOLTIP_WRAP_WIDTH, Wrap::Tooltip, font, lines);
+        wrap(&entry.text, TOOLTIP_WRAP_WIDTH, Wrap::Tooltip, font, lines);
     });
 }
 
@@ -169,7 +168,7 @@ mod tests {
         EditBox, EditBoxLook, GuiExtent, GuiInput, GuiKey, GuiPoint, GuiRect, KeyModifiers,
         Overflow, Slider, TooltipDelay as Delay, WidgetId, Widgets,
     };
-    use mcrs_minecraft_font::font::Span;
+    use mcrs_minecraft_font::Span;
 
     const GUI: GuiSize = GuiSize {
         width: 320,
@@ -308,14 +307,14 @@ mod tests {
                     glyph: '_',
                     image: corpus_font().glyph('_').image.unwrap(),
                     color: shadow_color(text),
-                    weight: mcrs_minecraft_font::font_glyph::Weight::Regular,
+                    weight: mcrs_minecraft_font::Weight::Regular,
                 },
                 GuiQuad::Glyph {
                     pen: Vec2::new((after_end) as f32, (ty) as f32),
                     glyph: '_',
                     image: corpus_font().glyph('_').image.unwrap(),
                     color: text,
-                    weight: mcrs_minecraft_font::font_glyph::Weight::Regular,
+                    weight: mcrs_minecraft_font::Weight::Regular,
                 },
             ];
             let bar = GuiQuad::Fill {

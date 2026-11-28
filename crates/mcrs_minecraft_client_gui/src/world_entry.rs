@@ -8,8 +8,7 @@ use time::{OffsetDateTime, UtcOffset};
 use crate::gui_quad::WHITE;
 use crate::gui_texture_id::GuiTextureId;
 use crate::menu::{RowContent, RowLine};
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 
 const TEXT_X: i32 = 35;
 const NAME_Y: i32 = 1;

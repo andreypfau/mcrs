@@ -9,7 +9,7 @@ use crate::irect::{irect, point};
 use crate::menu::Menu;
 use crate::sprite_draw::draw_sprite;
 use crate::text_draw::{draw_str, draw_text};
-use mcrs_minecraft_font::font::{Font, Span};
+use mcrs_minecraft_font::{Font, Span};
 
 const UNDERSCORE: &str = "_";
 

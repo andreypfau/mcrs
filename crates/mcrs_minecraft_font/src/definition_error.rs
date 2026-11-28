@@ -1,12 +1,15 @@
 use core::error::Error;
 use core::fmt;
 
+use mcrs_minecraft_resource::InvalidResourceLocation;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DefinitionError {
     Json {
         reason: String,
     },
+    InvalidId(InvalidResourceLocation),
     AscentAboveHeight {
         texture: String,
         ascent: i32,
@@ -26,6 +29,7 @@ impl fmt::Display for DefinitionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Json { reason } => write!(formatter, "{reason}"),
+            Self::InvalidId(error) => write!(formatter, "{error}"),
             Self::AscentAboveHeight {
                 texture,
                 ascent,

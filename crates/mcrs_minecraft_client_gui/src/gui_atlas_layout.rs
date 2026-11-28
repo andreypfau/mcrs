@@ -3,9 +3,7 @@ use crate::gui_texture_id::GuiTextureId;
 use crate::sprite::GuiSprite;
 use bevy::math::{IRect, IVec2, Rect, Vec2};
 use bevy::prelude::*;
-use mcrs_minecraft_font::font_glyph::ImageSource;
-use mcrs_minecraft_font::glyph_cache::CELL;
-use mcrs_minecraft_font::glyph_cache::{self, GlyphCache};
+use mcrs_minecraft_font::{CELL, GlyphCache, ImageSource, cell_origin};
 use std::collections::HashMap;
 
 #[derive(Resource, Clone, Debug)]
@@ -55,7 +53,7 @@ impl GuiAtlasLayout {
             }
             ImageSource::Missing => Some(self.missing_glyph.as_rect()),
             ImageSource::Unifont { columns, .. } => {
-                let (x, y) = glyph_cache::cell_origin(cache.cell(glyph)?);
+                let (x, y) = cell_origin(cache.cell(glyph)?);
                 let min = self.glyph_origin.as_vec2() + Vec2::new(x as f32, y as f32);
                 Some(Rect::from_corners(
                     min,

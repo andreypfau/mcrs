@@ -35,8 +35,7 @@ use crate::title_screen::{self, accessibility_tooltip, title_screen};
 use crate::video_settings_screen::{self, video_settings_screen};
 use crate::world_list_error_screen::world_list_error_screen;
 use crate::world_presence::world_presence;
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 #[derive(Resource)]
 pub(crate) struct SingleplayerActive(pub(crate) bool);
 

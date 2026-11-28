@@ -16,8 +16,6 @@ mod controls_screen;
 mod corpus_font;
 #[cfg(test)]
 mod corpus_language;
-#[cfg(test)]
-mod corpus_pack;
 mod create_world_screen;
 mod creative_clicks;
 mod creative_grid;

@@ -28,10 +28,7 @@ use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_world::GuiTick;
 use mcrs_minecraft_client_world::chat::{Chat, ChatInput};
 use mcrs_minecraft_client_world::screen::Screen;
-use mcrs_minecraft_font::font::{Font, Hover, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
-use mcrs_minecraft_font::span_events::SpanEvents;
-use mcrs_minecraft_font::text::{self, Wrap};
+use mcrs_minecraft_font::{ClientLanguage, Font, Hover, Span, SpanEvents, Wrap, text_spans, wrap};
 
 const INPUT_FILL: u32 = 0x8000_0000;
 const INPUT_TEXT: u32 = 0xFFE0_E0E0;
@@ -62,7 +59,7 @@ impl ChatPointer<'_> {
         let language = self.language;
         self.tooltip.request(self.at, |rows| {
             let spans = [Span::new(language.get(tag.tooltip_key()), WHITE)];
-            text::wrap(&spans, TAG_TOOLTIP_WIDTH, Wrap::Tooltip, font, rows);
+            wrap(&spans, TAG_TOOLTIP_WIDTH, Wrap::Tooltip, font, rows);
         });
     }
 }
@@ -199,8 +196,8 @@ fn hover_lines(
 ) {
     match hover {
         Hover::ShowText { value } => {
-            let spans = text::text_spans(value, language, WHITE);
-            text::wrap(&spans, (gui_width / 2).max(200), Wrap::Tooltip, font, rows);
+            let spans = text_spans(value, language, WHITE);
+            wrap(&spans, (gui_width / 2).max(200), Wrap::Tooltip, font, rows);
         }
         Hover::ShowItem(_) => {}
         Hover::ShowEntity { id, uuid, name } => {
@@ -208,7 +205,7 @@ fn hover_lines(
                 return;
             }
             if let Some(name) = name {
-                rows.push(text::text_spans(name, language, WHITE));
+                rows.push(text_spans(name, language, WHITE));
             }
             let key = format!("entity.{}.{}", id.namespace(), id.path().replace('/', "."));
             let kind = vec![Span::new(language.get(&key), WHITE)];
@@ -320,7 +317,7 @@ pub fn draw(
         font,
     );
     if let Some((text, alpha)) = chat.overlay.shown(tick.0, 0.0) {
-        let spans = text::text_spans(text, &language, u32::from(alpha) << 24 | 0x00FF_FFFF);
+        let spans = text_spans(text, &language, u32::from(alpha) << 24 | 0x00FF_FFFF);
         text_draw::draw_centered_text(font, size.width / 2, size.height - 72, &spans, out);
     }
     if !open {
@@ -342,7 +339,7 @@ pub fn draw(
             tooltip.request(mouse, |rows| {
                 rows.push(match tip {
                     SuggestionTooltip::Key(key) => vec![Span::new(language.get(key), WHITE)],
-                    SuggestionTooltip::Text(text) => text::text_spans(text, &language, WHITE),
+                    SuggestionTooltip::Text(text) => text_spans(text, &language, WHITE),
                 });
             });
         }
@@ -411,12 +408,7 @@ mod tests {
     use super::*;
     use crate::corpus_font::corpus_font;
     use crate::corpus_language::corpus_language;
-    use mcrs_minecraft_font::font_glyph::Weight;
-    fn row_texts(rows: &[Vec<mcrs_minecraft_font::font::Span>]) -> Vec<String> {
-        rows.iter()
-            .map(|row| row.iter().map(|span| span.text.as_str()).collect())
-            .collect()
-    }
+    use mcrs_minecraft_font::{Weight, row_texts};
 
     #[test]
     fn a_closed_chat_redraws_only_on_the_ticks_where_a_line_fades() {
@@ -485,7 +477,7 @@ mod tests {
             let mut lines = mcrs_minecraft_chat_client::ChatLines::default();
             chat.log.push(Text::text("hi"), 0, None);
             lines.sync(&chat.log, None, |text, _, rows| {
-                rows.push(text::text_spans(text, corpus_language(), 0xFFFF_FFFF));
+                rows.push(text_spans(text, corpus_language(), 0xFFFF_FFFF));
             });
             let size = GuiSize {
                 width: 400,

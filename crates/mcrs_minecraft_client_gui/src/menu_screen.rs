@@ -21,7 +21,7 @@ use crate::item_icons::ItemIcons;
 use crate::menu_label_text::MenuLabelText;
 use crate::menu_stacks::MenuStacks;
 use crate::slot_icon::SlotIcon;
-use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::Font;
 
 const RECIPE_BOOK_BUTTON: GuiRect = GuiRect::new(104, 61, 20, 18);
 const DRAG_FILL: u32 = 0x80FF_FFFF;

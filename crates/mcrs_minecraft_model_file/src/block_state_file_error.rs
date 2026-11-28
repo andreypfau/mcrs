@@ -43,10 +43,7 @@ pub enum BlockStateFileError {
     Weight {
         weight: i64,
     },
-    Location {
-        id: String,
-        reason: String,
-    },
+    Location(InvalidResourceLocation),
 }
 
 impl fmt::Display for BlockStateFileError {
@@ -88,9 +85,11 @@ impl fmt::Display for BlockStateFileError {
             BlockStateFileError::Weight { weight } => {
                 write!(f, "the weight {weight} is below 1")
             }
-            BlockStateFileError::Location { id, reason } => {
-                write!(f, "the resource location `{id}`: {reason}")
-            }
+            BlockStateFileError::Location(error) => write!(
+                f,
+                "the resource location `{}`: {}",
+                error.input, error.reason
+            ),
         }
     }
 }
@@ -99,9 +98,6 @@ impl Error for BlockStateFileError {}
 
 impl From<InvalidResourceLocation> for BlockStateFileError {
     fn from(error: InvalidResourceLocation) -> Self {
-        BlockStateFileError::Location {
-            id: error.input,
-            reason: error.reason,
-        }
+        BlockStateFileError::Location(error)
     }
 }

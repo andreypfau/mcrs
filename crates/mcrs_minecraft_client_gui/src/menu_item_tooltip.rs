@@ -33,9 +33,7 @@ use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
 use crate::layer_due;
 use crate::tooltip::{LineGap, Tooltip};
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
-use mcrs_minecraft_font::text::{self, Wrap};
+use mcrs_minecraft_font::{ClientLanguage, Font, Span, Wrap, text_spans, wrap};
 
 const GRID_WIDGETS: u32 = 1 << 16;
 
@@ -185,13 +183,13 @@ impl MenuItemTooltip {
             match part.map(&ItemHoverMap) {
                 Ok(part) => self
                     .spans
-                    .extend(text::text_spans(&part, sources.language, WHITE)),
+                    .extend(text_spans(&part, sources.language, WHITE)),
                 Err(_) => self
                     .spans
                     .push(Span::new(sources.language.plain_text(part), WHITE)),
             }
         }
-        text::wrap(
+        wrap(
             &self.spans,
             TOOLTIP_WRAP_WIDTH,
             Wrap::Tooltip,

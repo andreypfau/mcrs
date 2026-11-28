@@ -1,5 +1,4 @@
-use mcrs_minecraft_font::font::Span;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Span};
 
 pub(crate) fn option_caption(
     language: &ClientLanguage,

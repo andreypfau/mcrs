@@ -7,9 +7,7 @@ use mcrs_minecraft_menu_geometry::{MenuGeometry, MenuLabels, TitlePosition};
 use crate::gui_quad::GuiQuad;
 use crate::irect;
 use crate::text_draw::draw_text_without_shadow;
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
-use mcrs_minecraft_font::text::text_spans;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span, text_spans};
 
 pub(crate) const LABEL_COLOR: u32 = 0xFF40_4040;
 const INVENTORY_LABEL: &str = "container.inventory";

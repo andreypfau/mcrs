@@ -9,8 +9,7 @@ use crate::layer_due::gui_clock;
 use crate::menu::{Menu, RowContent};
 use crate::select_world_screen::{DELETE, LIST, PLAY, search_query, shown_worlds};
 use crate::world_entry::{DOTS_FRAME_MS, LocalOffset, loading_entry, world_entry};
-use mcrs_minecraft_font::font::Font;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font};
 
 const ROW_INSET: i32 = 2;
 

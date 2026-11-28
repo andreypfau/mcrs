@@ -12,7 +12,7 @@ use crate::edit_input;
 use crate::layer_due;
 use crate::menu_input;
 use crate::search_input::SearchInput;
-use mcrs_minecraft_font::font::Font;
+use mcrs_minecraft_font::Font;
 
 #[derive(SystemParam)]
 pub(crate) struct CreativeScreenEdit<'w> {

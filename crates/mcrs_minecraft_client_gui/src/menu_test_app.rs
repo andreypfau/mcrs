@@ -32,7 +32,7 @@ use crate::menu::Menu;
 use crate::menu_plugin::MenuPlugin;
 use crate::menu_screens_plugin::MenuScreensPlugin;
 use crate::stitch_requests::StitchRequests;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::ClientLanguage;
 
 pub(crate) static ATLAS: LazyLock<GuiAtlasParts> = LazyLock::new(|| {
     build_gui_atlas(ResourceSet::corpus(), corpus_font(), &stitch_requests()).unwrap()

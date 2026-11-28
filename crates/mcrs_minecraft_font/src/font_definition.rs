@@ -76,7 +76,8 @@ impl Definition {
             .try_for_each(|provider| match provider {
                 Provider::Bitmap(spec) => spec.check(),
                 Provider::Unihex(spec) => spec.check(),
-                Provider::Space(_) | Provider::Reference(_) | Provider::Other => Ok(()),
+                Provider::Reference(spec) => check_id(&spec.id),
+                Provider::Space(_) | Provider::Other => Ok(()),
             })
     }
 }
@@ -139,6 +140,7 @@ struct UnihexSpec {
 
 impl UnihexSpec {
     fn check(&self) -> Result<(), DefinitionError> {
+        check_id(&self.hex_file)?;
         match self
             .size_overrides
             .iter()
@@ -275,10 +277,13 @@ impl<'a, F: Fn(&[u8]) -> Result<Vec<InflatedFile>, String>> Loading<'a, F> {
 }
 
 fn parse_id(id: &str) -> Result<ResourceLocation<'_>, FontError> {
-    ResourceLocation::read(id).map_err(|error| FontError::InvalidId {
-        id: id.to_owned(),
-        reason: error.reason,
-    })
+    ResourceLocation::read(id).map_err(FontError::InvalidId)
+}
+
+fn check_id(id: &str) -> Result<(), DefinitionError> {
+    ResourceLocation::read(id)
+        .map(|_| ())
+        .map_err(DefinitionError::InvalidId)
 }
 
 const DEFAULT_HEIGHT: i32 = 8;
@@ -297,6 +302,7 @@ pub(crate) struct BitmapSpec {
 
 impl BitmapSpec {
     pub(crate) fn check(&self) -> Result<(), DefinitionError> {
+        check_id(&self.file)?;
         if self.ascent > self.height {
             return Err(DefinitionError::AscentAboveHeight {
                 texture: self.file.clone(),
@@ -457,6 +463,7 @@ mod tests {
             r#"{"providers":[{"type":"space","advances":{"a":3}},{"type":"space","advances":"no"}]}"#,
             "not json",
             r#"{"providers":[{"type":"space","advances":{"ab":3}}]}"#,
+            r#"{"providers":[{"type":"bitmap","file":"Minecraft:font/a.png","ascent":7,"chars":["a"]}]}"#,
             r#"{"providers":[{"type":"bitmap","file":"minecraft:font/ascii.png","height":8,"ascent":9,"chars":["a"]}]}"#,
             r#"{"providers":[{"type":"bitmap","file":"minecraft:font/ascii.png","ascent":7,"chars":["ab","c"]}]}"#,
             r#"{"providers":[{"type":"unihex","hex_file":"minecraft:font/unifont.zip","size_overrides":[{"from":"b","to":"a","left":0,"right":1}]}]}"#,

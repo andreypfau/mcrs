@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_font"
-description = "The fonts, glyphs, text layout and client translations of a resource pack, with no Bevy"
+description = "The fonts, glyphs, text layout and client translations of a resource pack, on bevy_math without the Bevy app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -38,8 +38,7 @@ use crate::shown_drag_preview::ShownDragPreview;
 use crate::slot_icon::SlotIcon;
 use crate::text_draw;
 use crate::tooltip::Tooltip;
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 
 #[derive(Component, Default)]
 #[require(GuiLayer = GuiLayer::new(GuiBand::Screen, 4), Tooltip)]

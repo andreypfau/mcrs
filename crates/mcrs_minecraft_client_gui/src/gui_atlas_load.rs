@@ -13,12 +13,10 @@ use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerD
 use bevy::math::{IRect, IVec2, UVec2};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use mcrs_minecraft_font::font::Font;
-use mcrs_minecraft_font::font_definition::FontOptions;
-use mcrs_minecraft_font::font_glyph::{MISSING_GLYPH_SIZE, missing_glyph_pixels};
-use mcrs_minecraft_font::glyph_cache;
-use mcrs_minecraft_font::glyph_cache::CELL;
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{
+    CELL, COLUMNS, ClientLanguage, Font, FontOptions, MISSING_GLYPH_SIZE, ROWS,
+    missing_glyph_pixels,
+};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_resource_pack::{MISSING_SIZE, RgbaImage, missing_pixels};
 use std::collections::HashMap;
@@ -87,15 +85,19 @@ pub fn load_gui_atlas(
     requests: &StitchRequests,
     mut commands: Commands,
 ) -> Result<(), GuiAtlasError> {
-    let loaded = Font::load(pack.files(), FontOptions::default(), inflate_zip)
-        .map_err(|error| GuiAtlasError::Font(error.to_string()))?;
+    let loaded =
+        Font::load(pack.files(), FontOptions::default(), inflate_zip).map_err(|failure| {
+            for notice in &failure.notices {
+                warn!("{notice}");
+            }
+            GuiAtlasError::Font(failure.error)
+        })?;
     for notice in &loaded.notices {
         warn!("{notice}");
     }
     let font = loaded.font;
     let parts = build_gui_atlas(pack, &font, requests).map_err(GuiAtlasError::Textures)?;
-    let language = ClientLanguage::load(pack.files())
-        .map_err(|error| GuiAtlasError::Translations(error.to_string()))?;
+    let language = ClientLanguage::load(pack.files()).map_err(GuiAtlasError::Translations)?;
     let GuiAtlasParts {
         layout,
         atlas,
@@ -234,10 +236,7 @@ pub fn build_gui_atlas(
         MISSING_GLYPH_SIZE.0,
         MISSING_GLYPH_SIZE.1,
     ));
-    let (cache_width, cache_height) = (
-        (glyph_cache::COLUMNS * CELL) as u32,
-        (glyph_cache::ROWS * CELL) as u32,
-    );
+    let (cache_width, cache_height) = ((COLUMNS * CELL) as u32, (ROWS * CELL) as u32);
     images.push((
         Packed::Named(GLYPH_CACHE),
         vec![0; (cache_width * cache_height * 4) as usize],

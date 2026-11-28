@@ -7,9 +7,8 @@ use crate::gui_quad::GuiQuad;
 use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
 use crate::text_draw;
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
-use mcrs_minecraft_font::text;
+use mcrs_minecraft_font::text_spans;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 
 const ROW: i32 = 12;
 const ROW_FILL: u32 = 0xD000_0000;
@@ -167,7 +166,7 @@ fn error_spans(input: &str, hint: &Hint, language: &ClientLanguage) -> Vec<Span>
     let Ok(line) = mcrs_minecraft_command::parse_error_line(input, error).map(&ItemHoverMap) else {
         return Vec::new();
     };
-    text::text_spans(&line, language, ERROR_LINE)
+    text_spans(&line, language, ERROR_LINE)
 }
 
 #[cfg(test)]

@@ -132,9 +132,7 @@ impl<'a> ModelResolver<'a> {
             Err(error) => {
                 self.errors.push(ContentError {
                     path: id.to_owned(),
-                    kind: ContentErrorKind::Location {
-                        reason: error.reason,
-                    },
+                    kind: ContentErrorKind::Location(error),
                 });
                 self.files.insert(id.to_owned(), None);
                 return false;

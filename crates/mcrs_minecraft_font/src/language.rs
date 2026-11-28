@@ -76,8 +76,10 @@ impl ClientLanguage {
     }
 
     pub(crate) fn corpus() -> &'static ClientLanguage {
+        use mcrs_minecraft_model::resource_set::ResourceSet;
+
         static LANGUAGE: std::sync::LazyLock<ClientLanguage> = std::sync::LazyLock::new(|| {
-            ClientLanguage::load(crate::corpus_pack::corpus_pack()).unwrap()
+            ClientLanguage::load(ResourceSet::corpus().files()).unwrap()
         });
         &LANGUAGE
     }

@@ -7,8 +7,7 @@ use mcrs_minecraft_client_world::world_list::WorldList;
 use mcrs_minecraft_save::WorldSummary;
 
 use crate::menu::WidgetHint;
-use mcrs_minecraft_font::font::{Font, Span};
-use mcrs_minecraft_font::language::ClientLanguage;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 
 pub(crate) const TITLE: WidgetId = WidgetId(0);
 pub(crate) const SEARCH: WidgetId = WidgetId(1);
