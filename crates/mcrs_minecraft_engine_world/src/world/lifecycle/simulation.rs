@@ -247,7 +247,7 @@ fn shift_in(
     simulation.shift(
         old,
         new,
-        &loading.section_y,
+        loading.section_y(),
         owned,
         |pos, ticking, change| {
             mark(commands.reborrow(), index, pos, ticking, change);
