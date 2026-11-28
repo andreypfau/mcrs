@@ -5,14 +5,14 @@ use bevy_ecs::prelude::{
 };
 use mcrs_engine_store::{ChunkVersion, StoreOutput};
 use mcrs_minecraft_engine_world::world::dimension::{Dimension, InDimension};
-use mcrs_minecraft_engine_world::world::lifecycle::simulation::EntityTicking;
-use mcrs_minecraft_engine_world::world::lifecycle::stage::{
-    SectionStage, SectionStageChanged, SectionStages,
-};
 use mcrs_minecraft_engine_world::world::storage::block_entity::spawn_block_entities;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
+use mcrs_minecraft_engine_world::world::storage::entity_ticking::EntityTicking;
 use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_engine_world::world::storage::section_stage::{
+    SectionStage, SectionStageChanged, SectionStages,
+};
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 
