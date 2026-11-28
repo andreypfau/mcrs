@@ -33,6 +33,7 @@ pub fn due(census: Res<Census>, time: Res<Time>) -> bool {
         reason = "the log line is built once per census interval, and only when the census knob is set"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(7))]
 #[cfg_attr(
     mcrs_lint,
     expect(
