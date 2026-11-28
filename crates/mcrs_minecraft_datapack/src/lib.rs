@@ -5,6 +5,7 @@ mod filter;
 mod json;
 mod metadata;
 mod pack;
+mod pack_conflict;
 mod root;
 mod stack;
 
@@ -14,6 +15,7 @@ pub use pack::{
     AvailablePack, Features, KnownPack, PackContent, PackFile, PackFiles, PackIndex, PackSelection,
     PackStack, StackedPack, VANILLA_PACK,
 };
+pub use pack_conflict::PackConflict;
 pub use root::{
     DirectoryEntry, DirectoryPacks, PACKS_ROOT, PackSource, REPOSITORY_PACKS, ReadError, RootPacks,
     VANILLA_ROOT, below_vanilla_root, read_vanilla,
