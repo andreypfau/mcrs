@@ -141,7 +141,8 @@ fn enchantments_ignore_the_order_and_reject_a_repeated_enchantment() {
 
 #[test]
 fn tooltip_display_compares_its_hidden_components_as_a_set() {
-    let hidden = |types: &[u16]| TooltipDisplay::hiding(types.iter().copied().map(ComponentType));
+    let hidden =
+        |types: &[u16]| TooltipDisplay::new(false, types.iter().copied().map(ComponentType));
     assert_eq!(
         hidden(&[11, 13, 3, 13, 11]).hidden_components(),
         [ComponentType(11), ComponentType(13), ComponentType(3)]
@@ -153,8 +154,7 @@ fn tooltip_display_compares_its_hidden_components_as_a_set() {
     );
     assert_ne!(hidden(&[13, 3]), hidden(&[13, 3, 11]));
 
-    let mut hides_all = hidden(&[13]);
-    hides_all.hide_tooltip = true;
+    let hides_all = TooltipDisplay::new(true, [ComponentType(13)]);
     assert_ne!(hides_all, hidden(&[13]));
 }
 

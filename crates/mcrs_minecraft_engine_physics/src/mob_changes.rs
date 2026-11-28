@@ -5,16 +5,23 @@ use bevy_ecs::system::ResMut;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 
 #[derive(Resource, Debug, Default)]
 pub struct MobChanges {
     pub(crate) spawned: Vec<Spawned>,
+    pub(crate) swings: Vec<Swung>,
 }
 
 impl MobChanges {
     #[must_use]
     pub fn spawned(&self) -> &[Spawned] {
         &self.spawned
+    }
+
+    #[must_use]
+    pub fn swings(&self) -> &[Swung] {
+        &self.swings
     }
 }
 
@@ -27,10 +34,20 @@ pub struct Spawned {
     pub vitals: Vitals,
 }
 
-pub(crate) fn has_spawns(changes: Res<MobChanges>) -> bool {
-    !changes.spawned.is_empty()
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Swung {
+    pub entity: Entity,
+    pub hand: Hand,
+    pub animation: SwingAnimationKind,
+    pub duration: i32,
+}
+
+pub(crate) fn has_mob_changes(changes: Res<MobChanges>) -> bool {
+    !changes.spawned.is_empty() || !changes.swings.is_empty()
 }
 
 pub(crate) fn clear_mob_changes(mut changes: ResMut<MobChanges>) {
     changes.spawned.clear();
+    changes.swings.clear();
 }

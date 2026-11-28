@@ -2,22 +2,12 @@ pub use mcrs_voxel::SectionPos;
 
 use crate::palette::ChunkBlocks;
 use crate::world::dimension::InDimension;
-use crate::world::lifecycle::stage::SectionStage;
-use crate::world::lifecycle::ticket::TicketPlugin;
 use crate::world::storage::random_ticks::RandomTickIndex;
-use bevy_app::{App, Plugin};
+use crate::world::storage::section_stage::SectionStage;
 use bevy_ecs::prelude::{Bundle, Component, Entity};
 use mcrs_minecraft_simulation::TickingSectionMut;
 use mcrs_minecraft_volume::{PalettedSection, PalettedSectionMut};
 use rustc_hash::FxHashMap;
-
-pub(crate) struct SectionPlugin;
-
-impl Plugin for SectionPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(TicketPlugin);
-    }
-}
 
 #[derive(Bundle)]
 pub struct SectionBundle {

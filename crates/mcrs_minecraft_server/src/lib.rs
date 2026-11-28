@@ -63,6 +63,12 @@ impl Default for MinecraftServerPlugins {
 }
 
 impl MinecraftServerPlugins {
+    #[must_use]
+    pub fn with_local_packs(mut self, extra: impl IntoIterator<Item = String>) -> Self {
+        self.core.local_packs.extend(extra);
+        self
+    }
+
     pub fn embedded() -> Self {
         let defaults = Self::default();
         Self {

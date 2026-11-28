@@ -22,15 +22,18 @@ use mcrs_minecraft_engine_world::world::dimension::{
     DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
-use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
-use mcrs_minecraft_engine_world::world::lifecycle::ticket::{ChunkSpawnSet, SectionEntitySet};
+use mcrs_minecraft_engine_world::world::lifecycle::ticket::SectionEntitySet;
 use mcrs_minecraft_engine_world::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_engine_world::world::light_gate::{
     ColumnAwaitsLight, ColumnLightGate, ColumnLightSettled, LightGated, SectionRelit,
 };
+use mcrs_minecraft_engine_world::world::storage::chunk_spawn_set::ChunkSpawnSet;
 use mcrs_minecraft_engine_world::world::storage::column::{ColumnIndex, ColumnLifecycleSet};
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_engine_world::world::storage::section_stage::{
+    SectionStage, SectionStageChanged,
+};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::chunk::LightData;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;

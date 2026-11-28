@@ -4,7 +4,7 @@ use bevy_ecs::resource::Resource;
 use mcrs_engine_cell::{BoxPartition, CellIndex, ChunkKey, Leaf, LeafSize};
 use mcrs_voxel::ColumnPos;
 
-use crate::world::lifecycle::column_loading::LOADING_RINGS;
+use crate::loading_rings::LOADING_RINGS;
 
 pub const REGION_COLUMNS: NonZeroU32 = match NonZeroU32::new(32) {
     Some(width) => width,

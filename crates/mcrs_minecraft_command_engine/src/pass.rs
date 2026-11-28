@@ -3,7 +3,7 @@ use crate::command_event::CommandEvent;
 use crate::command_limits::CommandLimits;
 use crate::command_queue::{CommandQueue, QueuedLine};
 use crate::command_set::CommandSet;
-use crate::command_targets::CommandTargets;
+use crate::command_targets::{CommandTargets, dimension_position};
 use crate::dimension_entry::DimensionEntry;
 use crate::executor::{Deferred, DimExecutor, settle};
 use crate::parse_line::{LineToParse, ParseSource, parse_line};
@@ -42,6 +42,8 @@ pub(crate) struct PassBuffers {
     queue: CommandQueue,
     deferred: Vec<Deferred>,
     players: Option<QueryState<PlayerRow, With<Player>>>,
+    dimension_entries: Vec<DimensionEntry>,
+    player_entries: Vec<PlayerEntry>,
 }
 
 type PlayerRow = (
@@ -300,27 +302,23 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
     let Some(mut targets) = world.remove_resource::<CommandTargets>() else {
         return;
     };
-    fill_dimensions(world, &mut targets);
-    let own = targets.dimension_of(here);
+    collect_dimensions(world, &mut buffers.dimension_entries);
+    let dimensions = &buffers.dimension_entries;
+    let own = dimension_position(dimensions, here);
     let players = buffers
         .players
         .get_or_insert_with(|| world.query_filtered::<PlayerRow, With<Player>>());
     let requests = world.get_resource::<DepartureRequests>();
-    targets.players.clear();
+    buffers.player_entries.clear();
     for (entity, &Owner(session), profile, transform, mode, body) in players.iter(world) {
         let dimension = requests
             .and_then(|requests| requests.destination(entity))
-            .and_then(|key| {
-                targets
-                    .dimensions
-                    .iter()
-                    .position(|entry| entry.key == *key)
-            })
+            .and_then(|key| dimensions.iter().position(|entry| entry.key == *key))
             .or(own);
         let Some(dimension) = dimension else {
             continue;
         };
-        targets.players.push(PlayerEntry {
+        buffers.player_entries.push(PlayerEntry {
             session,
             dimension,
             entity: Some(entity),
@@ -333,10 +331,10 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
     }
     if let Some(foreign) = world.get_resource::<ForeignPlayers>() {
         for row in foreign.rows() {
-            let Some(dimension) = targets.dimension_of(row.dim) else {
+            let Some(dimension) = dimension_position(dimensions, row.dim) else {
                 continue;
             };
-            targets.players.push(PlayerEntry {
+            buffers.player_entries.push(PlayerEntry {
                 session: row.session,
                 dimension,
                 entity: None,
@@ -348,12 +346,15 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
             });
         }
     }
-    targets.index_players();
+    targets.rebuild(
+        buffers.dimension_entries.drain(..),
+        buffers.player_entries.drain(..),
+    );
     world.insert_resource(targets);
 }
 
-fn fill_dimensions(world: &World, targets: &mut CommandTargets) {
-    targets.dimensions.clear();
+fn collect_dimensions(world: &World, entries: &mut Vec<DimensionEntry>) {
+    entries.clear();
     let (Some(running), Some(types)) = (
         world.get_resource::<RunningDimensions>(),
         world
@@ -362,14 +363,12 @@ fn fill_dimensions(world: &World, targets: &mut CommandTargets) {
     ) else {
         return;
     };
-    targets
-        .dimensions
-        .extend(running.iter().filter_map(|dimension| {
-            let id = Id::checked(dimension.dimension_type.number(), types.len())?;
-            Some(DimensionEntry {
-                label: dimension.label,
-                key: dimension.key.clone(),
-                coordinate_scale: types.get(id)?.coordinate_scale,
-            })
-        }));
+    entries.extend(running.iter().filter_map(|dimension| {
+        let id = Id::checked(dimension.dimension_type.number(), types.len())?;
+        Some(DimensionEntry {
+            label: dimension.label,
+            key: dimension.key.clone(),
+            coordinate_scale: types.get(id)?.coordinate_scale,
+        })
+    }));
 }

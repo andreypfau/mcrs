@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mcrs_minecraft_datapack::{
-    AvailablePack, Features, PackDiagnostic, PackFiles, PackSelection, PackStack, pack_stack,
+    AvailablePack, Features, PackFiles, PackSelection, SelectedStack, pack_stack,
 };
 use mcrs_minecraft_registries::{
     Declaration, Diagnostic, Diagnostics, IdSet, KeySet, Named, Namer, Ref, Registries, Resolve,
@@ -211,7 +211,7 @@ impl Packs {
         &mut self.files
     }
 
-    pub fn stack(&self) -> (PackStack, Vec<PackDiagnostic>) {
+    pub fn stack(&self) -> SelectedStack {
         pack_stack(&self.selection, &self.available, &self.features, false)
     }
 
@@ -219,7 +219,7 @@ impl Packs {
         self,
         declarations: impl IntoIterator<Item = Declaration>,
     ) -> Result<(Registries, Diagnostics), Diagnostics> {
-        let (stack, _) = self.stack();
+        let SelectedStack { stack, .. } = self.stack();
         Registries::load(
             declarations.into_iter().collect(),
             Arc::new(stack),
@@ -228,7 +228,7 @@ impl Packs {
     }
 
     pub fn reload(self, previous: &Registries) -> Result<(Registries, Diagnostics), Diagnostics> {
-        let (stack, _) = self.stack();
+        let SelectedStack { stack, .. } = self.stack();
         previous.reload(Arc::new(stack), self.files)
     }
 }

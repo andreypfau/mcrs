@@ -13,9 +13,11 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_engine_world::world::storage::section_stage::{
+    SectionStage, SectionStageChanged,
+};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLightUpdate;
 use mcrs_minecraft_protocol_game::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_simulation::BlockUpdateFlags;

@@ -52,6 +52,7 @@ pub(crate) fn has_motion_work(
     !assigned.0.is_empty()
         || !news.spawned.is_empty()
         || !news.strikes.is_empty()
+        || !news.swings.is_empty()
         || !movers.entities().is_empty()
         || !departures.0.is_empty()
 }
@@ -123,6 +124,13 @@ pub(crate) fn publish_motion(
         }
     }
     news.strikes.clear();
+    for swing in news.swings.drain(..) {
+        if let Ok((_, _, _, _, published)) = entities.get(swing.subject.entity)
+            && let Some(tile) = published.tile()
+        {
+            push_signal(&mut events, tile, swing.subject.id, swing.signal);
+        }
+    }
     let departures = &mut departures.0;
     departures.sort_unstable();
     for departure in departures.drain(..) {

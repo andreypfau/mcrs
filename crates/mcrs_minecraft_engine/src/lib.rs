@@ -92,6 +92,7 @@ mod respawn_packet;
 mod send_own_attributes;
 pub mod server_edit;
 mod shift_key;
+mod spawn_override;
 pub mod stored_column;
 mod stored_columns_landing;
 pub mod swing;
@@ -135,6 +136,7 @@ pub use publish_player_tiles::HiddenPlayer;
 pub use respawn_packet::{KeptPlayerData, respawn_packet};
 pub use send_own_attributes::OwnAttributesSet;
 pub use shift_key::ShiftKey;
+pub use spawn_override::SpawnOverride;
 pub use world_state::{
     SavedSpawn, WorldStatePlugin, WorldStateSources, WorldStateWrite, WorldStateWriter,
 };

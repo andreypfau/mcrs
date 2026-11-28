@@ -1,19 +1,16 @@
-use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_resource::ResourceLocationBuf;
-
 use crate::EntityTypeSet;
 use crate::EquippableSlot;
+use crate::Identifier;
 use crate::SoundEventRef;
 use crate::entity_form::EntityForm;
-use crate::identifier::Identifier;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Equippable {
     pub slot: EquippableSlot,
     pub equip_sound: Option<SoundEventRef>,
-    asset_id: Option<Identifier>,
-    camera_overlay: Option<Identifier>,
+    pub asset_id: Option<Identifier>,
+    pub camera_overlay: Option<Identifier>,
     pub allowed_entities: Option<EntityTypeSet>,
     pub dispensable: bool,
     pub swappable: bool,
@@ -39,24 +36,6 @@ impl Equippable {
             can_be_sheared: false,
             shearing_sound: None,
         }
-    }
-
-    #[must_use]
-    pub fn asset_id(&self) -> Option<ResourceLocation<'_>> {
-        self.asset_id.as_ref().map(Identifier::as_location)
-    }
-
-    pub fn set_asset_id(&mut self, asset_id: Option<ResourceLocationBuf>) {
-        self.asset_id = asset_id.map(Identifier::Owned);
-    }
-
-    #[must_use]
-    pub fn camera_overlay(&self) -> Option<ResourceLocation<'_>> {
-        self.camera_overlay.as_ref().map(Identifier::as_location)
-    }
-
-    pub fn set_camera_overlay(&mut self, camera_overlay: Option<ResourceLocationBuf>) {
-        self.camera_overlay = camera_overlay.map(Identifier::Owned);
     }
 }
 

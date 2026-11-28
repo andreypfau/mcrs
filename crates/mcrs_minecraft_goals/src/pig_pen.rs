@@ -186,7 +186,7 @@ impl PigPen {
     ) -> PenTick {
         let tick = self.driver.begin_tick();
         self.publish();
-        let decisions = self.driver.run_stage(&self.ground, run) as u64;
+        let decisions = self.driver.run_stage(&self.ground, run).decisions as u64;
         self.decisions += decisions;
         for issued in self.driver.take_due() {
             for decision in issued.tiles.values().flatten() {

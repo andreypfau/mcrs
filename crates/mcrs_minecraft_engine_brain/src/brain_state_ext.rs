@@ -87,9 +87,7 @@ impl BrainStateExt for BrainState {
             },
         });
         let reach = self.rules.idle_reset_range;
-        let near = players.rows().iter().any(|player| {
-            player.is_qualified() && player.position.distance_squared(position) < reach * reach
-        });
+        let near = players.qualified_within(position, reach);
         let idle_time = if near || struck_now {
             0
         } else {

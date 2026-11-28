@@ -1,5 +1,5 @@
-use crate::step::Step;
-use crate::task_end::TaskOutcome;
+use crate::task_end::{TaskEnd, TaskOutcome};
+use crate::tasks::Tasks;
 
 pub trait Stage: Send + Sized + 'static {
     const NAME: &'static str;
@@ -20,5 +20,27 @@ pub trait Stage: Send + Sized + 'static {
 
     fn is_idle(&self) -> bool {
         !self.has_work()
+    }
+}
+
+pub struct Step<'a, S: Stage> {
+    outputs: &'a mut Vec<S::Output>,
+    tasks: &'a mut Tasks<S::TaskOutput>,
+}
+
+impl<'a, S: Stage> Step<'a, S> {
+    pub(crate) fn new(
+        outputs: &'a mut Vec<S::Output>,
+        tasks: &'a mut Tasks<S::TaskOutput>,
+    ) -> Self {
+        Self { outputs, tasks }
+    }
+
+    pub fn emit(&mut self, output: S::Output) {
+        self.outputs.push(output);
+    }
+
+    pub fn begin_task(&mut self) -> TaskEnd<S::TaskOutput> {
+        self.tasks.begin()
     }
 }

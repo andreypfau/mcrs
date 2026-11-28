@@ -32,6 +32,7 @@ use crate::FireworkExplosion;
 use crate::Fireworks;
 use crate::Food;
 use crate::HashError;
+use crate::Identifier;
 use crate::InlineInstrument;
 use crate::Instrument;
 use crate::InstrumentId;
@@ -511,8 +512,20 @@ impl<L: NameLookup> Walk<'_, L> {
         Ok(sink.fields([
             Field::new("slot", sink.leaf(Leaf::String(equippable.slot.name()))),
             Field::optional("equip_sound", equip_sound),
-            Field::optional("asset_id", equippable.asset_id().map(name)),
-            Field::optional("camera_overlay", equippable.camera_overlay().map(name)),
+            Field::optional(
+                "asset_id",
+                equippable
+                    .asset_id
+                    .as_ref()
+                    .map(Identifier::as_location)
+                    .map(name),
+            ),
+            Field::optional(
+                "camera_overlay",
+                (equippable.camera_overlay.as_ref())
+                    .map(Identifier::as_location)
+                    .map(name),
+            ),
             Field::optional("allowed_entities", allowed_entities),
             Field::optional("dispensable", flag(equippable.dispensable, true)),
             Field::optional("swappable", flag(equippable.swappable, true)),
