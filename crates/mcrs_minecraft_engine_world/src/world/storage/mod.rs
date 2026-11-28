@@ -1,8 +1,12 @@
 pub mod block_entity;
+mod block_tile;
 pub mod chunk_spawn_set;
 pub mod column;
 pub mod entity_ticking;
+mod indexed_section;
+pub mod random_listing;
 pub mod random_ticks;
 pub mod section;
 pub mod section_stage;
+mod tile_batch;
 pub mod view;
