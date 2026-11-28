@@ -16,6 +16,7 @@ mod world_generation;
 mod worldgen_registries_plugin;
 
 pub use dimension_plans::DimensionPlans;
+pub use generation_stage::stored_column;
 pub use template_asset::{TemplateAsset, WorldgenAssetsPlugin};
 pub use template_handle::template_handle;
 pub use world_gen_plugin::WorldGenPlugin;

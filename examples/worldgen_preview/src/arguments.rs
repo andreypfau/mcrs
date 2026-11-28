@@ -8,7 +8,8 @@ use mcrs_voxel::ColumnPos;
 
 pub const USAGE: &str = "usage: mcrs_minecraft_worldgen_preview \
     --assets <dir> --vanilla <dir> [--pack <dir>]... --seed <n> [--dimension <id>] \
-    --from <chunk x>,<chunk z> --to <chunk x>,<chunk z> --out <dir> [--slice x=<n>|z=<n>]...";
+    --from <chunk x>,<chunk z> --to <chunk x>,<chunk z> --out <dir> [--slice x=<n>|z=<n>]... \
+    [--world <dir>] [--climate <file> [--climate-step <blocks>]]";
 
 #[derive(Clone, Copy)]
 pub enum Slice {
@@ -26,6 +27,9 @@ pub struct Arguments {
     pub to: ColumnPos,
     pub out: PathBuf,
     pub slices: Vec<Slice>,
+    pub world: Option<PathBuf>,
+    pub climate: Option<PathBuf>,
+    pub climate_step: i32,
 }
 
 impl Arguments {
@@ -39,6 +43,9 @@ impl Arguments {
         let mut to = None;
         let mut out = None;
         let mut slices = Vec::new();
+        let mut world = None;
+        let mut climate = None;
+        let mut climate_step = 4;
         let mut arguments = arguments.into_iter();
         while let Some(flag) = arguments.next() {
             let flag = flag.to_string_lossy().into_owned();
@@ -56,6 +63,9 @@ impl Arguments {
                 "--to" => to = Some(parse_chunk(&text())?),
                 "--out" => out = Some(PathBuf::from(&value)),
                 "--slice" => slices.push(parse_slice(&text())?),
+                "--world" => world = Some(PathBuf::from(&value)),
+                "--climate" => climate = Some(PathBuf::from(&value)),
+                "--climate-step" => climate_step = parse_step(&text())?,
                 _ => bail!("unknown argument {flag}\n{USAGE}"),
             }
         }
@@ -71,6 +81,9 @@ impl Arguments {
             to: ColumnPos::new(from.x.max(to.x), from.z.max(to.z)),
             out: out.context(USAGE)?,
             slices,
+            world,
+            climate,
+            climate_step,
         })
     }
 }
@@ -82,6 +95,13 @@ fn parse_seed(text: &str) -> anyhow::Result<u64> {
         Err(_) => text
             .parse()
             .with_context(|| format!("the seed {text} is not a 64-bit integer")),
+    }
+}
+
+fn parse_step(text: &str) -> anyhow::Result<i32> {
+    match text.parse() {
+        Ok(step) if step > 0 => Ok(step),
+        _ => bail!("the climate step {text} is not a positive number of blocks"),
     }
 }
 

@@ -1,6 +1,7 @@
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder};
 use mcrs_engine_link::{InFlight, Step, TaskOutcome};
 use mcrs_minecraft_anvil::{ChunkStructures, StructureStart};
+use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_engine::column_generation::GenerationAnswer;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
@@ -350,71 +351,73 @@ impl GenerationStage {
         if self.priority_index.get(&col) != Some(&key) {
             return None;
         }
-        let states = ctx.blocks.state_count();
-        let Some(merged) = self.store.merged(col) else {
+        let Some(merged) = self.store.merged(col).map(Arc::clone) else {
             self.store.forget(col);
             self.forgotten.push(col);
             return None;
         };
-        let bottom = merged.y_sections.first().copied().unwrap_or(0);
-        let sections: Option<Vec<StoredSection>> = self
-            .rows
-            .clone()
-            .map(|y| {
-                let (blocks, biomes) = y
-                    .checked_sub(bottom)
-                    .and_then(|slot| usize::try_from(slot).ok())
-                    .and_then(|slot| merged.sections.get(slot))
-                    .and_then(Option::as_ref)?;
-                Some(StoredSection {
-                    blocks: ChunkBlocks::new(section_states(blocks, states)),
-                    biomes: biomes.clone(),
-                    block_light: None,
-                    sky_light: None,
-                })
-            })
-            .collect();
-        let heightmaps = merged.maps.clone();
-        let ticks = generated_ticks::column_ticks(&merged.ticks, &ctx.blocks);
-        let structures = structures_for(ctx, col);
-
         self.priority_index.remove(&col);
         self.fresh.remove(&key);
         self.store.set_stage(col, Stage::Delivered);
         self.store.take_entities(col);
         let block_entities = self.store.take_block_entities(col);
-        let stored = match sections.zip(heightmaps) {
-            Some((sections, heightmaps)) => Some(StoredColumn {
-                status: mcrs_minecraft_region_disk::stored_column::ChunkStatus::Full,
-                is_light_on: false,
-                inhabited_time: 0,
-                last_update: 0,
-                min_section_y: self.rows.start,
-                sections,
-                block_entities,
-                unknown_block_entities: Vec::new(),
-                heightmaps,
-                retrogen: None,
-                structures,
-                post_processing: Vec::new(),
-                upgrade_data: Default::default(),
-                blending_data: None,
-                ticks,
-            }),
-            None => {
-                warn!(
-                    x = col.x,
-                    z = col.z,
-                    "a generated column lacks the blocks of a section or its heightmaps"
-                );
-                None
-            }
-        };
+        let stored = stored_column(ctx, col, &merged, self.rows.clone(), block_entities);
+        if stored.is_none() {
+            warn!(
+                x = col.x,
+                z = col.z,
+                "a generated column lacks the blocks of a section or its heightmaps"
+            );
+        }
         Some(GenerationAnswer {
             column: col,
             stored,
         })
     }
+}
+
+pub fn stored_column(
+    ctx: &FillContext,
+    col: ColumnPos,
+    merged: &FilledSnapshot,
+    rows: Range<i32>,
+    block_entities: Vec<GeneratedBlockEntity>,
+) -> Option<StoredColumn> {
+    let states = ctx.blocks.state_count();
+    let bottom = merged.y_sections.first().copied().unwrap_or(0);
+    let min_section_y = rows.start;
+    let sections = rows
+        .map(|y| {
+            let (blocks, biomes) = y
+                .checked_sub(bottom)
+                .and_then(|slot| usize::try_from(slot).ok())
+                .and_then(|slot| merged.sections.get(slot))
+                .and_then(Option::as_ref)?;
+            Some(StoredSection {
+                blocks: ChunkBlocks::new(section_states(blocks, states)),
+                biomes: biomes.clone(),
+                block_light: None,
+                sky_light: None,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(StoredColumn {
+        status: mcrs_minecraft_region_disk::stored_column::ChunkStatus::Full,
+        is_light_on: false,
+        inhabited_time: 0,
+        last_update: 0,
+        min_section_y,
+        sections,
+        block_entities,
+        unknown_block_entities: Vec::new(),
+        heightmaps: merged.maps.clone()?,
+        retrogen: None,
+        structures: structures_for(ctx, col),
+        post_processing: Vec::new(),
+        upgrade_data: Default::default(),
+        blending_data: None,
+        ticks: generated_ticks::column_ticks(&merged.ticks, &ctx.blocks),
+    })
 }
 
 fn structures_for(ctx: &FillContext, column: ColumnPos) -> ChunkStructures {
