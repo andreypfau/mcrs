@@ -12,6 +12,7 @@ use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_damage::DamageSource;
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::HitRecord;
+use mcrs_minecraft_engine_brain::BrainPanicCauses;
 use mcrs_minecraft_engine_brain::MobAi;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_damage::DamageRequest;
@@ -91,9 +92,11 @@ impl Run {
         scene
             .app
             .add_plugins(MobBrainPlugin::new(pig_brain, PANIC_CAUSES));
-        let mut ai = MobAi::new(StageConfig::new(WorldSeed(42)), pig_brain);
-        ai.set_panic_causes(PanicCauses::new([CACTUS]));
+        let ai = MobAi::new(StageConfig::new(WorldSeed(42)), pig_brain);
         let world = scene.app.world_mut();
+        world.insert_resource(BrainPanicCauses::<PigBrain>::new(PanicCauses::new([
+            CACTUS,
+        ])));
         world.insert_resource(ai);
         world.spawn((
             Player,
@@ -188,7 +191,7 @@ impl Run {
                 .hash(&mut hasher);
             }
         }
-        for (tile, brains) in self.ai().stage().tiles() {
+        for (tile, brains) in self.ai().driver().tiles() {
             tile.hash(&mut hasher);
             for entry in brains.iter() {
                 entry.mob.hash(&mut hasher);
@@ -246,7 +249,7 @@ fn run_orders(ticks: u64, orders: &[Vec<u32>]) -> Crowd {
     Crowd {
         hash,
         walked,
-        evaluations: runs[0].ai().stage().evaluations(),
+        evaluations: runs[0].ai().driver().evaluations(),
     }
 }
 

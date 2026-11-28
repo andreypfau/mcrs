@@ -111,7 +111,7 @@ fn a_cactus_hit_makes_a_resting_pig_panic_and_run() {
         server.ticks(operator, 1);
         let ai = server.world().resource::<MobAi<VanillaBrain>>();
         panicked |= ai
-            .stage()
+            .driver()
             .tiles()
             .any(|(_, brains)| brains.iter().any(|entry| pig_panics(entry.brain)));
     }
@@ -163,7 +163,7 @@ fn a_drown_hit_each_80_ticks_keeps_a_pig_strolling_without_a_panic() {
             server.ticks(operator, 1);
             let ai = server.world().resource::<MobAi<VanillaBrain>>();
             let panics = ai
-                .stage()
+                .driver()
                 .tiles()
                 .any(|(_, brains)| brains.iter().any(|entry| pig_panics(entry.brain)));
             assert!(!panics, "drown is not a panic cause");
@@ -214,7 +214,7 @@ fn summoned_cows_sheep_and_chickens_get_their_brains_and_stroll() {
     let mobs = mob_entities(&mut server);
     let ai = server.world().resource::<MobAi<VanillaBrain>>();
     let mut brains = 0;
-    for entry in ai.stage().tiles().flat_map(|(_, brains)| brains.iter()) {
+    for entry in ai.driver().tiles().flat_map(|(_, brains)| brains.iter()) {
         let kind = mobs
             .iter()
             .find(|mob| mob.id == entry.mob)

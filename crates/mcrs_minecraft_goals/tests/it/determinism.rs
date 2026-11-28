@@ -136,7 +136,7 @@ fn run_scene(wake: WakeMode, ticks: u32, hit_tick: u64) -> (Vec<u64>, u64) {
             pen.state_hash(HashScope::Decisions)
         })
         .collect();
-    (hashes, pen.stage().evaluations())
+    (hashes, pen.driver().evaluations())
 }
 
 fn assert_sleep_matches_poll(ticks: u32, hit_tick: u64) {

@@ -24,7 +24,6 @@ use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::Progress;
-use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::TickContext;
 use mcrs_minecraft_brain::Ticket;
@@ -186,7 +185,7 @@ impl PigPen {
     ) -> PenTick {
         let tick = self.driver.begin_tick();
         self.publish();
-        let decisions = self.driver.run_stage(&self.ground, run) as u64;
+        let decisions = self.driver.run_stage(&self.ground, run).decisions as u64;
         self.decisions += decisions;
         for issued in self.driver.take_due() {
             for decision in issued.tiles.values().flatten() {
@@ -203,8 +202,8 @@ impl PigPen {
     }
 
     #[must_use]
-    pub const fn stage(&self) -> &Stage<PigBrain> {
-        self.driver.stage()
+    pub const fn driver(&self) -> &AiDriver<PigBrain> {
+        &self.driver
     }
 
     #[must_use]
@@ -233,7 +232,7 @@ impl PigPen {
             pig.damage.hash(&mut hasher);
             pig.panic.hash(&mut hasher);
         }
-        for (tile, brains) in self.driver.stage().tiles() {
+        for (tile, brains) in self.driver.tiles() {
             tile.hash(&mut hasher);
             for entry in brains.iter() {
                 entry.mob.hash(&mut hasher);
