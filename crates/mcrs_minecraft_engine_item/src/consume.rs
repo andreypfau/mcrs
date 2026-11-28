@@ -2,7 +2,7 @@ use bevy_ecs::world::EntityWorldMut;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::Kind;
 
-use crate::slot_changed::touch;
+use crate::in_slot::touch;
 
 pub(crate) fn consume(mut entity: EntityWorldMut, items: u8) {
     if !entity.contains::<Kind>() {
