@@ -150,6 +150,7 @@ const NO_BEVY_PACKAGES: [&str; 143] = [
     "mcrs_minecraft_painting_variant",
     "mcrs_minecraft_numeric",
     "mcrs_minecraft_particle",
+    "mcrs_minecraft_pathfind",
     "mcrs_minecraft_physics",
     "mcrs_minecraft_pose",
     "mcrs_minecraft_potion",
