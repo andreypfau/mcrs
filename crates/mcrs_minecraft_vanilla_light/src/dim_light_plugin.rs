@@ -85,6 +85,7 @@ fn await_light(mut awaiting: MessageReader<ColumnAwaitsLight>, mut light: ResMut
         reason = "copies the player columns only when a player enters another column, and the copy moves to the light thread"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn reprioritize_light_work(
     mut light: ResMut<LightLink>,
     players: Populated<&Transform, With<Player>>,

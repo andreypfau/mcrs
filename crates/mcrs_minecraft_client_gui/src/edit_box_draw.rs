@@ -1,17 +1,21 @@
-use bevy::math::IVec2;
-use mcrs_minecraft_client_widget::{Caret, EditBox, EditBoxLayout, GuiRect, Widget};
+use mcrs_minecraft_client_widget::{
+    EditBox, EditBoxFrame, EditBoxHighlight, EditBoxPart, GuiPoint, GuiRect, Widget,
+};
 
-use crate::font::{Font, Span, draw_str, draw_str_without_shadow, draw_text};
+use crate::font::{Span, draw_str, draw_text};
+use crate::gui_sprite_id::GuiSpriteId;
 use crate::menu::Menu;
 use crate::menu_draw::{irect, point};
-use crate::scene::GuiQuad;
+use crate::scene::{GuiAtlasData, GuiQuad};
+
+const UNDERSCORE: &str = "_";
 
 pub(crate) fn draw_edit_box(
     menu: &Menu,
     widget: &Widget,
     edit: &EditBox,
     now_ms: u64,
-    font: &Font,
+    atlas: &GuiAtlasData,
     out: &mut Vec<GuiQuad>,
 ) {
     let hint = menu
@@ -19,58 +23,69 @@ pub(crate) fn draw_edit_box(
         .iter()
         .find(|entry| entry.widget == widget.id())
         .map(|entry| entry.text.as_slice());
-    draw_edit_box_in(widget.rect(), hint, edit, now_ms, font, out);
+    let highlight = if menu.widgets.is_highlighted(widget) {
+        EditBoxHighlight::On
+    } else {
+        EditBoxHighlight::Off
+    };
+    draw_edit_box_in(widget.rect(), hint, highlight, edit, now_ms, atlas, out);
 }
 
 pub(crate) fn draw_edit_box_in(
     rect: GuiRect,
-    hint_text: Option<&[Span]>,
+    hint: Option<&[Span]>,
+    highlight: EditBoxHighlight,
     edit: &EditBox,
     now_ms: u64,
-    font: &Font,
+    atlas: &GuiAtlasData,
     out: &mut Vec<GuiQuad>,
 ) {
-    let EditBoxLayout {
-        origin,
-        visible,
-        color,
-        caret,
-        selection,
-        hint,
-        suggestion,
-        ..
-    } = edit.layout(rect, now_ms, &|text| font.str_width(text));
-    let run = |at: IVec2, text: &str, color: u32, out: &mut Vec<GuiQuad>| {
-        if edit.text_shadow {
-            draw_str(font, at.as_vec2(), text, color, false, out);
-        } else {
-            draw_str_without_shadow(font, at.as_vec2(), text, color, out);
-        }
-    };
-    run(
-        point(origin),
-        edit.text().get(visible).unwrap_or_default(),
-        color,
-        out,
+    edit.draw(
+        EditBoxFrame {
+            hint,
+            highlight,
+            ..EditBoxFrame::new(rect, now_ms)
+        },
+        &|text| atlas.font.str_width(text),
+        &[],
+        &mut |part| draw_edit_box_part(atlas, part, out),
     );
-    if let (Some(at), Some(text)) = (hint, hint_text) {
-        draw_text(font, point(at), text, out);
-    }
-    if let (Some(at), Some(text)) = (suggestion, edit.suggestion.as_deref()) {
-        run(point(at), text, EditBoxLayout::SUGGESTION_COLOR, out);
-    }
-    if let Some(rect) = selection {
-        out.push(GuiQuad::Highlight {
+}
+
+pub(crate) fn draw_edit_box_part(
+    atlas: &GuiAtlasData,
+    part: EditBoxPart<'_, &[Span]>,
+    out: &mut Vec<GuiQuad>,
+) {
+    match part {
+        EditBoxPart::Frame { rect, highlighted } => {
+            let id = if highlighted {
+                GuiSpriteId::TextFieldHighlighted
+            } else {
+                GuiSpriteId::TextField
+            };
+            atlas.sprite(id).draw(irect(rect), out);
+        }
+        EditBoxPart::Text {
+            at, text, color, ..
+        }
+        | EditBoxPart::Suggestion { at, text, color } => {
+            draw_run(atlas, at, text, color, out);
+        }
+        EditBoxPart::Hint { at, hint } => draw_text(&atlas.font, point(at), hint, out),
+        EditBoxPart::Selection { rect, invert } => out.push(GuiQuad::Highlight {
             rect: irect(rect),
-            invert: edit.invert,
-        });
-    }
-    match caret {
-        Some(Caret::Bar(rect)) => out.push(GuiQuad::Fill {
+            invert,
+        }),
+        EditBoxPart::CaretBar { rect, color } => out.push(GuiQuad::Fill {
             rect: irect(rect),
             color,
         }),
-        Some(Caret::Underscore(at)) => run(point(at), "_", color, out),
+        EditBoxPart::CaretUnderscore { at, color } => draw_run(atlas, at, UNDERSCORE, color, out),
         _ => {}
     }
+}
+
+fn draw_run(atlas: &GuiAtlasData, at: GuiPoint, text: &str, color: u32, out: &mut Vec<GuiQuad>) {
+    draw_str(&atlas.font, point(at).as_vec2(), text, color, false, out);
 }

@@ -329,6 +329,7 @@ type LayerInputs = (
         reason = "the controllers allocate only for an entity whose data, equipment, model or skin changed, or after an asset reload"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(9))]
 pub(crate) fn write_layers(
     assets: Option<Res<EntityAssets>>,
     items: Option<Res<Items>>,

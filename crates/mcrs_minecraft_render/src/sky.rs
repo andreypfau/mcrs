@@ -221,6 +221,7 @@ fn write_sky(sky: Option<Res<Sky>>, extracted: Option<Res<ExtractedSky>>, queue:
         reason = "the pipelines are queued only when the sky effects or the transparency mode change"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(5))]
 #[cfg_attr(
     mcrs_lint,
     expect(

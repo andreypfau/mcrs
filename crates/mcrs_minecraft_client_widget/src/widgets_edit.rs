@@ -18,7 +18,7 @@ struct EditTarget<'a> {
 impl Widgets {
     #[must_use]
     pub fn captures_keyboard(&self) -> bool {
-        self.editing_box().is_some_and(|edit| edit.editable)
+        self.editing_box().is_some_and(EditBox::is_editable)
     }
 
     pub fn type_text(
@@ -123,7 +123,7 @@ impl Widgets {
         let index = self.focused?;
         let edit = self.edit_box(index)?;
         let widget = self.widgets.get(index)?;
-        (widget.takes_input() && edit.editing).then_some(edit)
+        (widget.takes_input() && edit.is_editing()).then_some(edit)
     }
 
     fn editing_box_mut(&mut self) -> Option<EditTarget<'_>> {
@@ -133,7 +133,7 @@ impl Widgets {
         }
         let (id, rect) = (widget.id(), widget.rect);
         match &mut widget.kind {
-            WidgetKind::EditBox(edit) if edit.editing => Some(EditTarget { id, rect, edit }),
+            WidgetKind::EditBox(edit) if edit.is_editing() => Some(EditTarget { id, rect, edit }),
             _ => None,
         }
     }

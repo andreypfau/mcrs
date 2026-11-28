@@ -83,6 +83,7 @@ impl CreativeSession<'_, '_> {
     }
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn creative_inputs_changed(session: CreativeSession, content: Res<CreativeTabContent>) -> bool {
     let (Some(registries), Some(items)) = (&session.registries, &session.items) else {
         return false;
@@ -96,13 +97,6 @@ fn creative_inputs_changed(session: CreativeSession, content: Res<CreativeTabCon
         || session.operator() != content.operator()
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "runs only when the registries, the item table, the language or the operator status changes"
-    )
-)]
 fn rebuild_creative_content(
     session: CreativeSession,
     report: Res<LoadedCreativeReport>,

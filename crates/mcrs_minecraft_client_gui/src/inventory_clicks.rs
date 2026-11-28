@@ -471,6 +471,7 @@ type Outputs<'w, 's> = (
         reason = "allocates only when the player copies or cuts the selected search text"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn click_in_menu(
     mut gestures: Gestures,
     pointer: ScreenPointer,

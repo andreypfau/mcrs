@@ -1,7 +1,7 @@
 use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_widget::{
     BUTTON_HEIGHT, BUTTON_WIDTH, GuiExtent, GuiRect, Slider, TooltipDelay, Widget, WidgetId,
-    WidgetKind,
+    WidgetKind, WidgetValue,
 };
 
 use crate::font::{Font, Span};
@@ -58,9 +58,8 @@ pub(crate) fn fov_effects_tooltip(language: &ClientLanguage) -> WidgetTooltip {
 
 pub(crate) fn write_option(options: &mut ClientOptions, widget: &Widget) {
     if widget.id() == FOV_EFFECTS
-        && let WidgetKind::Slider(slider) = &widget.kind
+        && let Some(WidgetValue::Number(position)) = widget.value()
     {
-        let position = slider.position();
         options.fov_effect_scale = (position * position) as f32;
     }
 }

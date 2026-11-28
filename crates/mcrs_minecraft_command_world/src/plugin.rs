@@ -50,6 +50,7 @@ impl Plugin for ForcedColumnsPlugin {
     }
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn sprint_reported(pace: Option<Res<TickPace>>) -> bool {
     pace.is_some_and(|pace| pace.has_report())
 }

@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 
+use crate::edit_box::EditBox;
 use crate::gui_key::GuiKey;
 use crate::gui_rect::GuiRect;
 use crate::input_device::InputDevice;
@@ -57,7 +58,7 @@ impl Widgets {
         }
         if let Some(focused) = self.focused.filter(|focused| !self.accepts(*focused)) {
             if let Some(edit) = self.edit_box_mut(focused) {
-                edit.editing = false;
+                edit.release();
             }
             self.focused = None;
             events.push(WidgetEvent::FocusChanged { focused: None });
@@ -442,7 +443,7 @@ impl Widgets {
         let keeps_focus = self
             .focused
             .and_then(|focused| self.edit_box(focused))
-            .is_some_and(|edit| !edit.can_lose_focus);
+            .is_some_and(EditBox::keeps_focus);
         if index == self.focused || (index.is_none() && keeps_focus) {
             return;
         }
@@ -558,14 +559,14 @@ impl Widgets {
         if before == self.focused {
             return;
         }
-        if let Some(edit) = before.and_then(|index| self.edit_box_mut(index))
-            && edit.can_lose_focus
-        {
-            edit.editing = false;
+        if let Some(edit) = before.and_then(|index| self.edit_box_mut(index)) {
+            edit.blur();
         }
         if let Some(edit) = self.focused.and_then(|index| self.edit_box_mut(index)) {
-            edit.focus_ms = now_ms;
-            edit.editing = entry == FocusEntry::Edit;
+            match entry {
+                FocusEntry::Edit => edit.focus(now_ms),
+                FocusEntry::Browse => edit.focus_without_editing(now_ms),
+            }
         }
     }
 }

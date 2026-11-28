@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use core::mem;
 
 use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -18,6 +19,7 @@ use crate::nbt_depth::STACK_LEVEL;
 use crate::nbt_depth::check_nbt_depth;
 use crate::saved::is_air;
 use crate::saved_form::Fault;
+use crate::wire_scan::prefixed_value;
 use crate::wire_value::put_length;
 use crate::wire_value::put_var_int;
 use crate::wire_value::read_value_at;
@@ -44,13 +46,6 @@ pub fn read_wire_not_empty<L: NameLookup>(
     read_wire(input, names)?.ok_or(WireError::EmptyStack)
 }
 
-pub fn read_wire_with_length<L: NameLookup>(
-    input: &mut &[u8],
-    names: &L,
-) -> Result<Option<ItemStack>, WireError> {
-    read_frame(input, names, Entries::LengthPrefixed)
-}
-
 pub fn write_wire<L: NameLookup>(
     stack: Option<&ItemStack>,
     names: &L,
@@ -70,19 +65,11 @@ pub fn write_wire_not_empty<L: NameLookup>(
     write_wire(Some(stack), names, output)
 }
 
-pub fn write_wire_with_length<L: NameLookup>(
-    stack: Option<&ItemStack>,
-    names: &L,
-    output: &mut Vec<u8>,
-) -> Result<(), WireError> {
-    write_frame(stack, names, Entries::LengthPrefixed, output)
-}
-
 fn frame_length(input: &mut &[u8]) -> Result<usize, WireError> {
     usize::try_from(read_var_int(input, WireError::of_frame)?).map_err(|_| WireError::Malformed)
 }
 
-fn read_frame<L: NameLookup>(
+pub(crate) fn read_frame<L: NameLookup>(
     input: &mut &[u8],
     names: &L,
     entries: Entries,
@@ -196,31 +183,14 @@ fn read_prefixed_value<L: NameLookup>(
     names: &L,
     component: &TypeRef<'_>,
 ) -> Result<PatchEntry, WireError> {
-    let length = frame_length(input)?;
-    let (bytes, rest) = input
-        .split_at_checked(length)
-        .ok_or(WireError::UnexpectedEnd)?;
-    *input = rest;
-    if let Some(key) = component.builtin {
-        let mut value_input = bytes;
-        let bad_length = WireError::BadLength(component.id);
-        let value =
-            read_value_at(key, &mut value_input, names, STACK_LEVEL).map_err(
-                |error| match error {
-                    WireError::UnexpectedEnd => bad_length,
-                    other => other,
-                },
-            )?;
-        if !value_input.is_empty() {
-            return Err(bad_length);
-        }
-        return Ok(PatchEntry::Value(value));
-    }
-    Ok(PatchEntry::UndecodedWire(UndecodedWireValue::new(
-        component.id,
-        component.builtin,
-        bytes,
-    )))
+    prefixed_value(input, component.id, |value| match component.builtin {
+        Some(key) => read_value_at(key, value, names, STACK_LEVEL).map(PatchEntry::Value),
+        None => Ok(PatchEntry::UndecodedWire(UndecodedWireValue::new(
+            component.id,
+            component.builtin,
+            mem::take(value),
+        ))),
+    })
 }
 
 fn put_new(
@@ -248,7 +218,7 @@ pub(crate) fn present<'stack, L: NameLookup, E>(
     Ok((!is_air(item)).then_some(stack))
 }
 
-fn write_frame<L: NameLookup>(
+pub(crate) fn write_frame<L: NameLookup>(
     stack: Option<&ItemStack>,
     names: &L,
     entries: Entries,

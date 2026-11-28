@@ -46,10 +46,11 @@ use crate::menu_screen::{
     MenuContents, background_extent, background_region, menu_backgrounds, menu_screen,
 };
 use crate::menu_stacks::MenuStacks;
+use crate::project_menu::MenuExtent;
 use crate::slot_icon::SlotIcon;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
-use mcrs_minecraft_client_widget::GuiPoint;
+use mcrs_minecraft_client_widget::{GuiExtent, GuiPoint};
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_entity_render::{EntitySlotSystems, FigureView};
 use mcrs_minecraft_game_mode::GameMode;
@@ -606,8 +607,13 @@ fn begin_gui_frame(
     window: Single<&Window, With<PrimaryWindow>>,
     config: Res<GuiConfig>,
     mut scene: ResMut<GuiScene>,
+    mut extent: ResMut<MenuExtent>,
 ) {
     scene.size = GuiSize::of(window_framebuffer(&window), config.scale);
+    extent.set_if_neq(MenuExtent(GuiExtent::new(
+        scene.size.width,
+        scene.size.height,
+    )));
     scene.cursor = gui_pointer(&window, &config, scene.size.scale)
         .map(gui_point)
         .map_or(IVec2::new(-1, -1), menu_draw::point);
@@ -645,6 +651,7 @@ pub(crate) struct ScreenStacks {
         reason = "caches the menu stacks and labels, so it allocates only when the open menu, its title or the language changes"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(14))]
 pub(crate) fn draw_screens(
     screen: Res<Screen>,
     player: Query<(
@@ -984,6 +991,9 @@ impl Plugin for GuiPlugin {
             .add_plugins(crate::creative_screen_plugin::CreativeScreenPlugin)
             .add_observer(spawn_inventory_figure)
             .init_resource::<crate::title_draw::TitleScreenState>()
+            .init_resource::<MenuExtent>()
+            .init_resource::<crate::creative_screen_draw::CreativeTextTooltip>()
+            .init_resource::<crate::game_mode_switcher::SwitcherText>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
             .add_systems(
@@ -1002,11 +1012,15 @@ impl Plugin for GuiPlugin {
                     crate::menu_item_tooltip::request_menu_item_tooltip
                         .run_if(resource_exists::<ItemTable>)
                         .run_if(not(creative_screen_shown)),
+                    crate::creative_screen_draw::rebuild_creative_text
+                        .run_if(resource_exists_and_changed::<ClientLanguage>),
                     draw_creative_screen.run_if(creative_screen_shown),
                     request_creative_item_tooltip
                         .run_if(resource_exists::<ItemTable>)
                         .run_if(creative_screen_shown),
                     crate::chat::draw,
+                    crate::game_mode_switcher::rebuild_switcher_text
+                        .run_if(resource_exists_and_changed::<ClientLanguage>),
                     crate::game_mode_switcher::draw
                         .run_if(crate::game_mode_switcher::switcher_shown),
                     crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),

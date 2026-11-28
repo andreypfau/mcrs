@@ -392,33 +392,6 @@ fn decode_with<'a>(
     Ok(patch)
 }
 
-pub fn encode_delimited_patch(patch: &ComponentPatch<Wire>, w: impl Write) -> Result<()> {
-    encode_with(patch, w, |value, w| {
-        let mut bytes = Vec::new();
-        value.encode(&mut bytes)?;
-        VarInt(bytes.len() as i32).encode(&mut *w)?;
-        Ok(w.write_all(&bytes)?)
-    })
-}
-
-pub fn decode_delimited_patch(r: &mut &[u8]) -> Result<ComponentPatch<Wire>> {
-    decode_with(r, |kind, r| {
-        let len = VarInt::decode(r)?.0;
-        ensure!(len >= 0, "negative component length");
-        let len = len as usize;
-        ensure!(
-            len <= r.len(),
-            "component {} declares {len} bytes but {} remain",
-            kind.location(),
-            r.len()
-        );
-        let (mut slice, rest) = r.split_at(len);
-        let value = decode_component_value(kind, &mut slice)?;
-        *r = rest;
-        Ok(value)
-    })
-}
-
 impl Encode for ComponentPatch<Wire> {
     fn encode(&self, w: impl Write) -> Result<()> {
         encode_with(self, w, |value, w| value.encode(w))

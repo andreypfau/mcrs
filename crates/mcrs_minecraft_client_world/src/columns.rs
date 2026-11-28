@@ -1178,6 +1178,7 @@ impl LightStep<'_> {
     }
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn columns_unsettled(arrivals: Res<Arrivals>, store: Res<ColumnStore>) -> bool {
     !arrivals.queue.is_empty()
         || store.has_changes()

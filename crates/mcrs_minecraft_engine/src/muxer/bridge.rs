@@ -109,6 +109,7 @@ pub(crate) fn inbound_held(sessions: Query<&PendingInbound>) -> bool {
         reason = "allocates the wire entries only for a player list update, which a join or a leave sends"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 pub fn bridge_outbound(
     mut messages: ResMut<Messages<OutboundPlayerPacket>>,
     anchors: Res<SessionAnchors>,
@@ -298,6 +299,7 @@ const MAX_UNSENT_BYTES: usize = 256 * 1024 * 1024;
         reason = "allocates the wire entries only for a player list update, which a join or a leave sends"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 pub fn dispatch_encode(
     mut players: Writers,
     mut commands: Commands,
@@ -760,6 +762,7 @@ pub fn forward_pending_inbound(
         reason = "allocates the refusal cause only when a client is disconnected for an invalid move"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 pub fn bridge_inbound(
     mut conns: Populated<(
         Entity,

@@ -18,7 +18,7 @@ pub(crate) fn draw_tab_bar(
     atlas: &GuiAtlasData,
     out: &mut Vec<GuiQuad>,
 ) {
-    let WidgetKind::TabBar(bar) = &widget.kind else {
+    let WidgetKind::TabBar(bar) = widget.kind() else {
         return;
     };
     let screen_width = menu.widgets.screen().width;

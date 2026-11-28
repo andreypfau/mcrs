@@ -79,6 +79,14 @@ const TRIGGER_POLL_SECONDS: f32 = 0.25;
         reason = "the file name of a screenshot carries the wall-clock time"
     )
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "polled by timer; it builds the file name only on the frame that finds the trigger file"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn capture(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>, dir: Res<ScreenshotDir>) {
     let trigger = dir.trigger();
     if trigger.exists() {
@@ -131,6 +139,7 @@ struct Settling {
         reason = "allocates and writes the timing table only on the timeout and on the one frame that captures the scene"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 fn capture_scene(
     mut commands: Commands,
     capture: Res<SceneCapture>,

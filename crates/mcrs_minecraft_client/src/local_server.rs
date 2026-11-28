@@ -107,6 +107,7 @@ fn ready_to_open(waiting: Res<WaitingOpen>, running: Option<Res<LocalServerThrea
         reason = "the server build allocates only on the frame that opens a local world"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
 fn open_local_world(
     (settings, running): (Res<Settings>, Option<Res<LocalServerThread>>),
     mut waiting: ResMut<WaitingOpen>,
@@ -286,6 +287,7 @@ fn build_server(
         reason = "the username moves into the join request, which is written once when the local server starts"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn join_local_server(
     mut server: ResMut<LocalServerThread>,
     local: ResMut<LocalServer>,

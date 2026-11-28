@@ -24,6 +24,14 @@ pub(crate) struct ShownRows {
     dots_frame: u64,
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "rebuilds the rows only when the world list, the language or the search text changes, or the loading dots advance; the search text lives in the menu widgets, and the dots follow the wall clock, so no event announces them"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(26))]
 pub(crate) fn project_world_rows(
     mut menu: ResMut<Menu>,
     worlds: Res<WorldList>,
@@ -112,7 +120,7 @@ pub(crate) fn project_world_rows(
 }
 
 fn list_rows(widgets: &Widgets) -> Option<(usize, Option<usize>)> {
-    match widgets.get(LIST).map(|widget| &widget.kind) {
+    match widgets.get(LIST).map(|widget| widget.kind()) {
         Some(WidgetKind::SelectionList(list)) => Some((list.rows(), list.selected())),
         _ => None,
     }
@@ -133,7 +141,7 @@ fn loading(
 ) -> RowContent {
     let inner = widgets
         .get(LIST)
-        .and_then(|widget| match &widget.kind {
+        .and_then(|widget| match widget.kind() {
             WidgetKind::SelectionList(list) => list.row_rect(widget.rect(), 0),
             _ => None,
         })

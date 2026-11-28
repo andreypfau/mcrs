@@ -13,6 +13,7 @@ pub struct Facts {
     pub sets: Vec<SetFact>,
     pub writes: Vec<SystemWrites>,
     pub always_changed: Vec<AlwaysChanged>,
+    pub event_conditions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +55,7 @@ impl Facts {
             && self.sets.is_empty()
             && self.writes.is_empty()
             && self.always_changed.is_empty()
+            && self.event_conditions.is_empty()
         {
             return match fs::remove_file(path) {
                 Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),

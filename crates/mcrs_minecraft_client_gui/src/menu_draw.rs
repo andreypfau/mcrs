@@ -58,18 +58,28 @@ pub(crate) fn draw_widget(
     atlas: &GuiAtlasData,
     out: &mut Vec<GuiQuad>,
 ) {
-    match widget.kind {
-        WidgetKind::SelectionList(_) | WidgetKind::WidgetList(_) | WidgetKind::ScrollPanel(_) => {
-            draw_scroll_area(menu, widget, world, now_ms, atlas, out);
-        }
+    if widget.kind().is_scroll_container() {
+        draw_scroll_area(menu, widget, world, now_ms, atlas, out);
+    } else {
+        draw_leaf(menu, widget, now_ms, atlas, out);
+    }
+}
+
+pub(crate) fn draw_leaf(
+    menu: &Menu,
+    widget: &Widget,
+    now_ms: u64,
+    atlas: &GuiAtlasData,
+    out: &mut Vec<GuiQuad>,
+) {
+    match *widget.kind() {
         WidgetKind::TabBar(_) => draw_tab_bar(menu, widget, now_ms, atlas, out),
         WidgetKind::SectionLabel => {
             draw_section_label_box(menu, widget, out);
             draw_caption(widget, now_ms, &atlas.font, out);
         }
         WidgetKind::EditBox(ref edit) => {
-            draw_sprites(menu, widget, atlas, out);
-            draw_edit_box(menu, widget, edit, now_ms, &atlas.font, out);
+            draw_edit_box(menu, widget, edit, now_ms, atlas, out);
         }
         _ => {
             draw_sprites(menu, widget, atlas, out);
@@ -101,6 +111,7 @@ pub fn request_menu_tooltip(menu: &mut Menu, now_ms: u64, font: &Font, tooltip: 
         reason = "the tooltip wraps the widget text only when a new widget tooltip shows"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(6))]
 pub(crate) fn draw(
     mut menu: ResMut<Menu>,
     atlas: Option<Res<GuiAtlas>>,
@@ -133,7 +144,7 @@ fn draw_background(
     let tab_bar = menu
         .widgets
         .iter()
-        .find(|widget| widget.visible && matches!(widget.kind, WidgetKind::TabBar(_)));
+        .find(|widget| widget.visible && matches!(widget.kind(), WidgetKind::TabBar(_)));
     let top = tab_bar.map_or(0, |bar| bar.rect().y.saturating_add(bar.rect().height));
     let screen = IRect::new(0, top, size.width, size.height);
     let (background, header, footer) = match world {
@@ -190,14 +201,6 @@ fn draw_sprites(menu: &Menu, widget: &Widget, atlas: &GuiAtlasData, out: &mut Ve
             };
             atlas.sprite(id).draw(irect(rect), out);
         }
-        Some(WidgetSprite::TextField { highlighted }) => {
-            let id = if highlighted {
-                GuiSpriteId::TextFieldHighlighted
-            } else {
-                GuiSpriteId::TextField
-            };
-            atlas.sprite(id).draw(irect(rect), out);
-        }
         Some(WidgetSprite::Checkbox {
             selected,
             highlighted,
@@ -246,7 +249,7 @@ fn draw_sprites(menu: &Menu, widget: &Widget, atlas: &GuiAtlasData, out: &mut Ve
         }
         _ => {}
     }
-    if let WidgetKind::IconButton { icon, .. } = widget.kind
+    if let WidgetKind::IconButton { icon, .. } = *widget.kind()
         && let Some(origin) = widget.icon_origin(atlas.font.str_width(&widget.caption))
         && let Some(entry) = menu.icons.iter().find(|entry| entry.widget == widget.id())
     {
@@ -258,7 +261,7 @@ fn draw_sprites(menu: &Menu, widget: &Widget, atlas: &GuiAtlasData, out: &mut Ve
 fn draw_caption(widget: &Widget, now_ms: u64, font: &Font, out: &mut Vec<GuiQuad>) {
     let caption = widget.caption.as_str();
     let color = widget.caption_color();
-    match widget.kind {
+    match *widget.kind() {
         WidgetKind::Checkbox { .. } => {
             let count = i32::try_from(caption.lines().count()).unwrap_or(i32::MAX);
             let origin = point(checkbox_label_origin(widget.rect(), count));
@@ -311,7 +314,7 @@ fn cut_room(widget: &Widget, text_width: i32, font: &Font) -> Option<i32> {
     let WidgetKind::Text {
         max_width,
         overflow: Overflow::Cut,
-    } = widget.kind
+    } = *widget.kind()
     else {
         return None;
     };
@@ -350,8 +353,8 @@ mod tests {
     use crate::item_decorations::WHITE;
     use crate::menu::WidgetTooltip;
     use mcrs_minecraft_client_widget::{
-        EditBox, GuiExtent, GuiInput, GuiKey, KeyModifiers, Slider, TooltipDelay as Delay,
-        WidgetId, Widgets,
+        EditBox, EditBoxLook, GuiExtent, GuiInput, GuiKey, KeyModifiers, Slider,
+        TooltipDelay as Delay, WidgetId, Widgets,
     };
 
     const GUI: GuiSize = GuiSize {
@@ -486,7 +489,7 @@ mod tests {
             const BOX: WidgetId = WidgetId(1);
             let rect = GuiRect::new(10, 20, 150, 20);
             let (tx, ty) = (14, 26);
-            let text = EditBox::default().text_color;
+            let text = 0xFFE0_E0E0;
             let after_a = tx + ATLAS.font.str_width("a");
             let after_end = tx + ATLAS.font.str_width("ab") + 1;
             let underscore = [
@@ -545,8 +548,12 @@ mod tests {
                 (true, focus_all, 300, LIT, vec![highlight]),
             ];
             for (case, (border, act, now_ms, frame, parts)) in cases.into_iter().enumerate() {
-                let mut edit = EditBox::default();
-                edit.border = border;
+                let look = if border {
+                    EditBoxLook::Form
+                } else {
+                    EditBoxLook::Chat
+                };
+                let mut edit = EditBox::new(look);
                 edit.set("ab");
                 let widget = Widget::new(BOX, rect, String::new(), WidgetKind::EditBox(edit));
                 let mut menu = menu(widget, GuiPoint::new(300, 200));

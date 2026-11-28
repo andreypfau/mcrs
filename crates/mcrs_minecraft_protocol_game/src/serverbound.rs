@@ -1,4 +1,3 @@
-use crate::item::DelimitedStack;
 use crate::player::{CommandArgumentSignature, MessageSignature, PlayerAction};
 use crate::pos::MoveFlags;
 use crate::recipe::RecipeBookType;
@@ -9,6 +8,7 @@ use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item_stack::HashedStack;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_protocol::packets::common::serverbound::{
     ClientInformation, CustomClickAction, Payload, Pong, ResourcePack,
 };
@@ -359,7 +359,7 @@ pub struct ServerboundSetCarriedItem {
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ServerboundSetCreativeModeSlot {
     pub slot: i16,
-    pub item: DelimitedStack,
+    pub item: WireStackWithLength,
 }
 
 #[derive(Clone, Debug, Encode, Decode)]

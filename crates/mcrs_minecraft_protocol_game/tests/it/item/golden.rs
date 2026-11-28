@@ -10,16 +10,17 @@ use mcrs_minecraft_item_stack::HashedComponent;
 use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::PatchEntry;
 use mcrs_minecraft_item_stack::WireError;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::matches_hashed;
 use mcrs_minecraft_item_stack::read_wire;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::item::{
     ComponentPatch, CreativeSlotLock, CustomName, Damage, ItemComponentValue, Lore, MaxStackSize,
-    Template, Text, Unbreakable, decode_delimited_patch, encode_delimited_patch, hash_ops,
+    Template, Text, Unbreakable, hash_ops,
 };
-use mcrs_minecraft_registries::FromWire;
 use mcrs_minecraft_registries::Named;
 
 use crate::item::harness::{custom_data, hex, json_of, lookup, named, read_json};
@@ -64,17 +65,63 @@ fn a_patch_matches_the_vanilla_stream_codec() {
         patch
     );
     assert!(r.is_empty());
+}
 
-    let delimited = hex(PATCH_DELIMITED_WIRE);
-    let mut out = Vec::new();
-    encode_delimited_patch(&patch.to_wire(&lookup()).unwrap(), &mut out).unwrap();
-    assert_eq!(out, delimited);
-    let mut r = &delimited[..];
-    assert_eq!(
-        ComponentPatch::from_wire(decode_delimited_patch(&mut r).unwrap(), &lookup()).unwrap(),
-        patch
+fn sword_with_length(patch: &str) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    VarInt(1).encode(&mut bytes).unwrap();
+    sword().encode(&mut bytes).unwrap();
+    bytes.extend(hex(patch));
+    bytes
+}
+
+#[test]
+fn the_length_prefixed_stack_reads_the_vanilla_stream_codec() {
+    let items = test_item_table();
+    let names = RegistryNames::new(test_registries(), &items);
+    let bytes = sword_with_length(PATCH_DELIMITED_WIRE);
+    let mut input = bytes.as_slice();
+    let frame = WireStackWithLength::decode(&mut input).unwrap();
+    assert!(input.is_empty(), "{} bytes are left", input.len());
+    let mut encoded = Vec::new();
+    frame.encode(&mut encoded).unwrap();
+    assert_eq!(encoded, bytes);
+
+    let read = frame.read(&names).unwrap().unwrap();
+    let lock = ComponentType(DataComponentType::CreativeSlotLock as u16);
+    let (locks, rest): (Vec<&PatchEntry>, Vec<&PatchEntry>) = read.patch().iter().partition(
+        |entry| matches!(entry, PatchEntry::UndecodedWire(value) if value.component() == lock),
     );
-    assert!(r.is_empty());
+    assert_eq!(locks.len(), 1, "{locks:?}");
+    let expected = sword_stack(&names, false).unwrap().unwrap();
+    assert_eq!(read.kind, expected.kind);
+    assert_eq!(read.count, expected.count);
+    assert_eq!(rest, expected.patch().iter().collect::<Vec<_>>());
+
+    let written = WireStackWithLength::write(Some(&read), &names).unwrap();
+    assert_eq!(written.read(&names), Ok(Some(read)));
+    assert_eq!(sorted_entries(written.bytes()), sorted_entries(&bytes));
+}
+
+fn sorted_entries(frame: &[u8]) -> (Vec<&[u8]>, Vec<i32>) {
+    let mut input = frame;
+    let mut next = || VarInt::decode(&mut input).unwrap().0;
+    let [_count, _item, values, removals] = [next(), next(), next(), next()];
+    let mut entries = Vec::new();
+    for _ in 0..values {
+        let start = input;
+        VarInt::decode(&mut input).unwrap();
+        let length = usize::try_from(VarInt::decode(&mut input).unwrap().0).unwrap();
+        input = &input[length..];
+        entries.push(&start[..start.len() - input.len()]);
+    }
+    entries.sort();
+    let mut removed: Vec<i32> = (0..removals)
+        .map(|_| VarInt::decode(&mut input).unwrap().0)
+        .collect();
+    removed.sort();
+    assert!(input.is_empty(), "the frame ends after its removals");
+    (entries, removed)
 }
 
 #[test]

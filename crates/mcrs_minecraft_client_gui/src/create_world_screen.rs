@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use bevy::prelude::Resource;
 use mcrs_minecraft_client_widget::{
-    Alignment, Child, CycleButton, EditBox, EditBoxLayout, Grid, GridChild, GuiExtent, GuiInput,
+    Alignment, Child, CycleButton, EditBox, EditBoxHint, Grid, GridChild, GuiExtent, GuiInput,
     GuiRect, LayoutCell, LengthUnit, Overflow, Padding, Stack, Tab, TabBar, TooltipDelay, Widget,
-    WidgetEvent, WidgetId, WidgetKind, Widgets, text_line_extent,
+    WidgetEvent, WidgetId, WidgetKind, WidgetValue, Widgets, text_line_extent,
 };
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_save::{NewWorld, NewWorldMode};
@@ -94,16 +94,16 @@ impl NewWorldForm {
     }
 
     pub(crate) fn write(&mut self, widget: &Widget) {
-        let WidgetKind::CycleButton(cycle) = &widget.kind else {
+        let Some(WidgetValue::Choice(index)) = widget.value() else {
             return;
         };
         match widget.id() {
             GAME_MODE => {
-                if let Some((mode, _)) = GAME_MODES.get(cycle.index()) {
+                if let Some((mode, _)) = GAME_MODES.get(index) {
                     self.game_mode = *mode;
                 }
             }
-            WORLD_TYPE => self.world_type = Some(cycle.index()),
+            WORLD_TYPE => self.world_type = Some(index),
             _ => {}
         }
     }
@@ -142,8 +142,8 @@ pub(crate) fn show_tab(widgets: &mut Widgets, tab: usize, events: &mut Vec<Widge
 }
 
 pub(crate) fn edit_text(widgets: &Widgets, id: WidgetId) -> Option<&str> {
-    match &widgets.get(id)?.kind {
-        WidgetKind::EditBox(edit) => Some(edit.text()),
+    match widgets.value(id)? {
+        WidgetValue::Text(text) => Some(text),
         _ => None,
     }
 }
@@ -205,7 +205,6 @@ pub(crate) fn create_world_menu(
         if let Some(text) = text {
             edit.set(text);
         }
-        edit.has_hint = text.is_none();
         Widget::new(id, rect, String::new(), WidgetKind::EditBox(edit))
     };
     let cycle = |id, rect, name_key, value, cycle: Option<CycleButton>| {
@@ -270,7 +269,7 @@ pub(crate) fn create_world_menu(
         widget: SEED,
         text: vec![Span::new(
             language.get("selectWorld.seedInfo"),
-            EditBoxLayout::HINT_COLOR,
+            EditBoxHint::DEFAULT_COLOR,
         )],
     }];
     Some(menu)

@@ -1,0 +1,190 @@
+# Experiment DLG-EXP-001 of docs/spec/dialog.md, section 16: load.
+# Source: the log of the vanilla server. The data pack "dlg" is enabled. Each line is the feedback
+# of one command of the form "dialog show <player> <inline dialog>". The target player is not
+# online, so the feedback "No player was found" means that the dialog value decoded.
+# A "Failed to parse structure" line gives the error. The next line gives the end of the command
+# text, up to the mark "<--[HERE]". The saved logs do not hold the whole command of each case.
+# Lines that start with "# " are notes of the fixture. The other lines are the raw log lines.
+# One edit: the name of the map type in an error text is replaced with <map>.
+#
+[20:35:50] [Server thread/INFO]: System chat: There are 2 data pack(s) enabled: [vanilla (built-in)], [file/dlg (world)]
+[20:35:50] [Server thread/INFO]: System chat: There are no more data packs available
+[20:35:54] [Server thread/INFO]: System chat: No player was found
+[20:35:56] [Server thread/INFO]: System chat: No player was found
+[20:35:57] [Server thread/INFO]: System chat: Failed to parse structure: Dialogs that pause the game must use after_action values that unpause it after user action!
+[20:35:57] [Server thread/INFO]: System chat: ...on:"none"}<--[HERE]
+[20:35:58] [Server thread/INFO]: System chat: Failed to parse structure: Unknown element name: zzz
+[20:35:58] [Server thread/INFO]: System chat: ...ion:"zzz"}<--[HERE]
+[20:36:16] [Server thread/INFO]: System chat: No player was found
+[20:36:17] [Server thread/INFO]: System chat: Failed to parse structure: Unknown registry key in ResourceKey[minecraft:root / minecraft:dialog_type]: minecraft:nope
+[20:36:17] [Server thread/INFO]: System chat: ...title:"x"}<--[HERE]
+[20:36:17] [Server thread/INFO]: System chat: Failed to parse structure: No key type in <map>[{title:"x"}]
+[20:36:17] [Server thread/INFO]: System chat: ...title:"x"}<--[HERE]
+[20:36:17] [Server thread/INFO]: System chat: Failed to parse structure: No key title in <map>[{type:"minecraft:notice"}]
+[20:36:17] [Server thread/INFO]: System chat: ...t:notice"}<--[HERE]
+[20:36:17] [Server thread/INFO]: System chat: No player was found
+[20:36:18] [Server thread/INFO]: System chat: No player was found
+[20:36:18] [Server thread/INFO]: System chat: No player was found
+[20:36:18] [Server thread/INFO]: System chat: Failed to parse structure: Dialogs that pause the game must use after_action values that unpause it after user action!
+[20:36:18] [Server thread/INFO]: System chat: ...on:"none"}<--[HERE]
+[20:36:18] [Server thread/INFO]: System chat: No player was found
+[20:36:19] [Server thread/INFO]: System chat: No player was found
+[20:36:19] [Server thread/INFO]: System chat: No player was found
+[20:36:19] [Server thread/INFO]: System chat: Failed to parse structure: Unknown element name: zz
+[20:36:19] [Server thread/INFO]: System chat: ...tion:"zz"}<--[HERE]
+[20:36:19] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;1024]: 0
+[20:36:19] [Server thread/INFO]: System chat: ...,width:0}}<--[HERE]
+[20:36:20] [Server thread/INFO]: System chat: No player was found
+[20:36:20] [Server thread/INFO]: System chat: No player was found
+[20:36:20] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;1024]: 1025
+[20:36:20] [Server thread/INFO]: System chat: ...dth:1025}}<--[HERE]
+[20:36:20] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;1024]: 0
+[20:36:20] [Server thread/INFO]: System chat: ...,width:0}}<--[HERE]
+[20:36:21] [Server thread/INFO]: System chat: No player was found
+[20:36:21] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;1024]: 1025
+[20:36:21] [Server thread/INFO]: System chat: ...dth:1025}}<--[HERE]
+[20:36:21] [Server thread/INFO]: System chat: Failed to parse structure: List must have contents
+[20:36:21] [Server thread/INFO]: System chat: ...ctions:[]}<--[HERE]
+[20:36:21] [Server thread/INFO]: System chat: Failed to parse structure: No key actions in <map>[{title:"x",type:"minecraft:multi_action"}]
+[20:36:21] [Server thread/INFO]: System chat: ...title:"x"}<--[HERE]
+[20:36:22] [Server thread/INFO]: System chat: No player was found
+[20:36:22] [Server thread/INFO]: System chat: Failed to parse structure: Value must be positive: 0
+[20:36:22] [Server thread/INFO]: System chat: ...columns:0}<--[HERE]
+[20:36:22] [Server thread/INFO]: System chat: No player was found
+[20:36:22] [Server thread/INFO]: System chat: Failed to parse structure: Value must be positive: 0
+[20:36:22] [Server thread/INFO]: System chat: ...columns:0}<--[HERE]
+[20:36:23] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;1024]: 0
+[20:36:23] [Server thread/INFO]: System chat: ...n_width:0}<--[HERE]
+[20:36:23] [Server thread/INFO]: System chat: No player was found
+[20:36:23] [Server thread/INFO]: System chat: No player was found
+[20:36:23] [Server thread/INFO]: System chat: No player was found
+[20:36:24] [Server thread/INFO]: System chat: No player was found
+[20:36:24] [Server thread/INFO]: System chat: No player was found
+[20:36:24] [Server thread/INFO]: System chat: No player was found
+[20:36:24] [Server thread/INFO]: System chat: Failed to parse structure: Failed to get element t:zz from registry minecraft:dialog
+[20:36:24] [Server thread/INFO]: System chat: ...:["t:zz"]}<--[HERE]
+[20:36:25] [Server thread/INFO]: System chat: Failed to parse structure: No key dialogs in <map>[{title:"x",type:"minecraft:dialog_list"}]
+[20:36:25] [Server thread/INFO]: System chat: ...title:"x"}<--[HERE]
+[20:36:25] [Server thread/INFO]: System chat: Failed to parse structure: No key no in <map>[{title:"x",type:"minecraft:confirmation",yes:{label:"y"}}]
+[20:36:25] [Server thread/INFO]: System chat: ...abel:"y"}}<--[HERE]
+[20:36:44] [Server thread/INFO]: System chat: No player was found
+[20:36:44] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;256]: 0
+[20:36:44] [Server thread/INFO]: System chat: ...,width:0}}<--[HERE]
+[20:36:45] [Server thread/INFO]: System chat: No player was found
+[20:36:45] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;256]: 257
+[20:36:45] [Server thread/INFO]: System chat: ...idth:257}}<--[HERE]
+[20:36:45] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;256]: 257
+[20:36:45] [Server thread/INFO]: System chat: ...ight:257}}<--[HERE]
+[20:36:45] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;256]: 0
+[20:36:45] [Server thread/INFO]: System chat: ...height:0}}<--[HERE]
+[20:36:46] [Server thread/INFO]: System chat: No player was found
+[20:36:46] [Server thread/INFO]: System chat: No player was found
+[20:36:46] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;1024]: 1025
+[20:36:46] [Server thread/INFO]: System chat: ...th:1025}}}<--[HERE]
+[20:36:46] [Server thread/INFO]: System chat: No player was found
+[20:36:47] [Server thread/INFO]: System chat: No player was found
+[20:36:47] [Server thread/INFO]: System chat: Failed to parse structure: a-b is not a valid input name
+[20:36:47] [Server thread/INFO]: System chat: ...bel:"l"}]}<--[HERE]
+[20:36:47] [Server thread/INFO]: System chat: Failed to parse structure: a b is not a valid input name
+[20:36:47] [Server thread/INFO]: System chat: ...bel:"l"}]}<--[HERE]
+[20:36:47] [Server thread/INFO]: System chat: Failed to parse structure: a.b is not a valid input name
+[20:36:47] [Server thread/INFO]: System chat: ...bel:"l"}]}<--[HERE]
+[20:36:48] [Server thread/INFO]: System chat: No player was found
+[20:36:48] [Server thread/INFO]: System chat: No player was found
+[20:36:48] [Server thread/INFO]: System chat: No player was found
+[20:36:48] [Server thread/INFO]: System chat: Failed to parse structure: No key key in <map>[{label:"l",type:"minecraft:boolean"}]
+[20:36:48] [Server thread/INFO]: System chat: ...bel:"l"}]}<--[HERE]
+[20:36:49] [Server thread/INFO]: System chat: Failed to parse structure: Unknown registry key in ResourceKey[minecraft:root / minecraft:input_control_type]: minecraft:nope
+[20:36:49] [Server thread/INFO]: System chat: ...bel:"l"}]}<--[HERE]
+[20:36:49] [Server thread/INFO]: System chat: No player was found
+[20:36:49] [Server thread/INFO]: System chat: No player was found
+[20:36:49] [Server thread/INFO]: System chat: Failed to parse structure: Initial value 11.0 is outside of range [0.0, 10.0]
+[20:36:49] [Server thread/INFO]: System chat: ...tial:11}]}<--[HERE]
+[20:36:50] [Server thread/INFO]: System chat: Failed to parse structure: Initial value -1.0 is outside of range [0.0, 10.0]
+[20:36:50] [Server thread/INFO]: System chat: ...tial:-1}]}<--[HERE]
+[20:36:50] [Server thread/INFO]: System chat: No player was found
+[20:36:50] [Server thread/INFO]: System chat: Failed to parse structure: Initial value 11.0 is outside of range [0.0, 10.0]
+[20:36:50] [Server thread/INFO]: System chat: ...tial:11}]}<--[HERE]
+[20:36:50] [Server thread/INFO]: System chat: No player was found
+[20:36:51] [Server thread/INFO]: System chat: Failed to parse structure: Value must be positive: 0.0
+[20:36:51] [Server thread/INFO]: System chat: ...,step:0}]}<--[HERE]
+[20:36:51] [Server thread/INFO]: System chat: Failed to parse structure: Value must be positive: -1.0
+[20:36:51] [Server thread/INFO]: System chat: ...step:-1}]}<--[HERE]
+[20:36:51] [Server thread/INFO]: System chat: No player was found
+[20:36:51] [Server thread/INFO]: System chat: Failed to parse structure: No key end in <map>[{key:"a",label:"l",start:0,type:"minecraft:number_range"}]
+[20:36:51] [Server thread/INFO]: System chat: ...start:0}]}<--[HERE]
+[20:36:52] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;1024]: 0
+[20:36:52] [Server thread/INFO]: System chat: ...width:0}]}<--[HERE]
+[20:36:52] [Server thread/INFO]: System chat: No player was found
+[20:36:52] [Server thread/INFO]: System chat: Failed to parse structure: List must have contents
+[20:36:52] [Server thread/INFO]: System chat: ...ions:[]}]}<--[HERE]
+[20:36:52] [Server thread/INFO]: System chat: Failed to parse structure: No key options in <map>[{key:"a",label:"l",type:"minecraft:single_option"}]
+[20:36:52] [Server thread/INFO]: System chat: ...bel:"l"}]}<--[HERE]
+[20:36:53] [Server thread/INFO]: System chat: No player was found
+[20:36:53] [Server thread/INFO]: System chat: No player was found
+[20:36:53] [Server thread/INFO]: System chat: Failed to parse structure: Multiple initial values
+[20:36:53] [Server thread/INFO]: System chat: ...:true}]}]}<--[HERE]
+[20:36:53] [Server thread/INFO]: System chat: Failed to parse structure: Failed to parse either. First: No key id in <map>[{display:"P"}]; Second: Not a string; List must have contents
+[20:36:53] [Server thread/INFO]: System chat: ...y:"P"}]}]}<--[HERE]
+[20:36:54] [Server thread/INFO]: System chat: No player was found
+[20:36:54] [Server thread/INFO]: System chat: No player was found
+[20:36:54] [Server thread/INFO]: System chat: Failed to parse structure: Default text length exceeds allowed size
+[20:36:54] [Server thread/INFO]: System chat: ...ength:3}]}<--[HERE]
+[20:36:54] [Server thread/INFO]: System chat: No player was found
+[20:36:55] [Server thread/INFO]: System chat: Failed to parse structure: Value must be positive: 0
+[20:36:55] [Server thread/INFO]: System chat: ...ength:0}]}<--[HERE]
+[20:36:55] [Server thread/INFO]: System chat: No player was found
+[20:36:55] [Server thread/INFO]: System chat: Failed to parse structure: Value must be positive: 0
+[20:36:55] [Server thread/INFO]: System chat: ...ines:0}}]}<--[HERE]
+[20:36:55] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;512]: 0
+[20:36:55] [Server thread/INFO]: System chat: ...ight:0}}]}<--[HERE]
+[20:36:56] [Server thread/INFO]: System chat: No player was found
+[20:36:56] [Server thread/INFO]: System chat: Failed to parse structure: Value must be within range [1;512]: 513
+[20:36:56] [Server thread/INFO]: System chat: ...ht:513}}]}<--[HERE]
+[20:36:56] [Server thread/INFO]: System chat: Failed to parse structure: Default text length exceeds allowed size
+[20:36:56] [Server thread/INFO]: System chat: ...ength:3}]}<--[HERE]
+[20:37:15] [Server thread/INFO]: System chat: Incorrect argument for command
+[20:37:15] [Server thread/INFO]: System chat: ...og show @a <--[HERE]
+[20:37:15] [Server thread/INFO]: System chat: No player was found
+[20:37:15] [Server thread/INFO]: System chat: Failed to parse structure: Unsupported protocol in URI: ftp://example.com: ftp://example.com
+[20:37:15] [Server thread/INFO]: System chat: ...le.com"}}}<--[HERE]
+[20:37:16] [Server thread/INFO]: System chat: Failed to parse structure: Unknown registry key in ResourceKey[minecraft:root / minecraft:dialog_action_type]: minecraft:open_file
+[20:37:16] [Server thread/INFO]: System chat: .../tmp/x"}}}<--[HERE]
+[20:37:16] [Server thread/INFO]: System chat: Failed to parse structure: Unknown registry key in ResourceKey[minecraft:root / minecraft:dialog_action_type]: minecraft:nope
+[20:37:16] [Server thread/INFO]: System chat: ...t:nope"}}}<--[HERE]
+[20:37:16] [Server thread/INFO]: System chat: No player was found
+[20:37:16] [Server thread/INFO]: System chat: No player was found
+[20:37:17] [Server thread/INFO]: System chat: Failed to parse structure: No key command in <map>[{type:"minecraft:run_command"}]
+[20:37:17] [Server thread/INFO]: System chat: ...ommand"}}}<--[HERE]
+[20:37:17] [Server thread/INFO]: System chat: No player was found
+[20:37:17] [Server thread/INFO]: System chat: No player was found
+[20:37:17] [Server thread/INFO]: System chat: No player was found
+[20:37:18] [Server thread/INFO]: System chat: No player was found
+[20:37:18] [Server thread/INFO]: System chat: No player was found
+[20:37:18] [Server thread/INFO]: System chat: No player was found
+[20:37:18] [Server thread/INFO]: System chat: Failed to parse structure: No key id in <map>[{type:"minecraft:custom"}]
+[20:37:18] [Server thread/INFO]: System chat: ...custom"}}}<--[HERE]
+[20:37:19] [Server thread/INFO]: System chat: No player was found
+[20:37:19] [Server thread/INFO]: System chat: Failed to parse structure: Failed to parse template say hi: No variables in macro
+[20:37:19] [Server thread/INFO]: System chat: ...say hi"}}}<--[HERE]
+[20:37:19] [Server thread/INFO]: System chat: Failed to parse structure: Failed to parse template cost $5: No variables in macro
+[20:37:19] [Server thread/INFO]: System chat: ...ost $5"}}}<--[HERE]
+[20:37:19] [Server thread/INFO]: System chat: Failed to parse structure: Failed to parse template say $(a: Unterminated macro variable
+[20:37:19] [Server thread/INFO]: System chat: ...ay $(a"}}}<--[HERE]
+[20:37:20] [Server thread/INFO]: System chat: Failed to parse structure: Failed to parse template say $(a-b): Invalid macro variable name 'a-b'
+[20:37:20] [Server thread/INFO]: System chat: ...$(a-b)"}}}<--[HERE]
+[20:37:20] [Server thread/INFO]: System chat: No player was found
+[20:37:20] [Server thread/INFO]: System chat: Failed to parse structure: Failed to parse template say $(a $(b)): Invalid macro variable name 'a $(b'
+[20:37:20] [Server thread/INFO]: System chat: ... $(b))"}}}<--[HERE]
+[20:37:20] [Server thread/INFO]: System chat: No player was found
+[20:37:21] [Server thread/INFO]: System chat: No player was found
+[20:37:21] [Server thread/INFO]: System chat: No player was found
+[20:37:21] [Server thread/INFO]: System chat: No player was found
+[20:37:21] [Server thread/INFO]: System chat: No player was found
+[20:37:22] [Server thread/INFO]: System chat: Failed to parse structure: Not a compound tag: 5
+[20:37:22] [Server thread/INFO]: System chat: ...tions:5}}}<--[HERE]
+[20:37:22] [Server thread/INFO]: System chat: Failed to parse structure: Click event type not allowed: OPEN_FILE
+[20:37:22] [Server thread/INFO]: System chat: ...tmp/x"}}}}<--[HERE]
+[20:37:22] [Server thread/INFO]: System chat: No player was found
+[20:37:22] [Server thread/INFO]: System chat: Failed to parse structure: Click event type not allowed: OPEN_FILE
+[20:37:22] [Server thread/INFO]: System chat: .../tmp/x"}}}<--[HERE]

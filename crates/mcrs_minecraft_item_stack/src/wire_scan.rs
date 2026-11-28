@@ -1,6 +1,7 @@
 use mcrs_minecraft_nbt::MAX_DEPTH;
 use mcrs_minecraft_nbt::NbtBudget;
 
+use crate::ComponentType;
 use crate::WireError;
 use crate::data_component_type_keys::DataComponentType;
 use crate::nbt_depth::STACK_LEVEL;
@@ -55,17 +56,43 @@ fn scan_patch(input: &mut &[u8], entries: Entries, depth: u32) -> Result<(), Wir
         let component = read_type(input)?;
         match entries {
             Entries::Bare => skip_value(component, input, depth)?,
-            Entries::LengthPrefixed => {
-                let length = length(input)?;
-                let rest = input.get(length..).ok_or(WireError::UnexpectedEnd)?;
-                *input = rest;
-            }
+            Entries::LengthPrefixed => skip_prefixed_value(component, input, depth)?,
         }
     }
     for _ in 0..removals {
         read_type(input)?;
     }
     Ok(())
+}
+
+fn skip_prefixed_value(
+    component: DataComponentType,
+    input: &mut &[u8],
+    depth: u32,
+) -> Result<(), WireError> {
+    let id = ComponentType(component.id().number());
+    prefixed_value(input, id, |value| skip_value(component, value, depth))
+}
+
+pub(crate) fn prefixed_value<T>(
+    input: &mut &[u8],
+    component: ComponentType,
+    read: impl FnOnce(&mut &[u8]) -> Result<T, WireError>,
+) -> Result<T, WireError> {
+    let length = length(input)?;
+    let (mut value, rest) = input
+        .split_at_checked(length)
+        .ok_or(WireError::UnexpectedEnd)?;
+    *input = rest;
+    let bad_length = WireError::BadLength(component);
+    let read = read(&mut value).map_err(|error| match error {
+        WireError::UnexpectedEnd => bad_length,
+        other => other,
+    })?;
+    if !value.is_empty() {
+        return Err(bad_length);
+    }
+    Ok(read)
 }
 
 pub(crate) fn skip_component_map(input: &mut &[u8], depth: u32) -> Result<(), WireError> {

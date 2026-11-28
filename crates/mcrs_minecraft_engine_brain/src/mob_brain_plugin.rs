@@ -195,6 +195,7 @@ fn set_panic_causes<B: Send + Sync + 'static>(
         reason = "the tile tasks borrow the rows of this tick and move to the compute pool, so their lists cannot live in a reused buffer"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
 fn prepare<B>(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,

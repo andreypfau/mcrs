@@ -13,6 +13,7 @@ use mcrs_minecraft_item_stack::HashScratch;
 use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::matches_hashed;
 use mcrs_minecraft_menu_key::menu_keys::MenuType;
@@ -22,8 +23,8 @@ use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::clientbound::*;
 use mcrs_minecraft_protocol_game::item::Text as ItemText;
 use mcrs_minecraft_protocol_game::item::{
-    ComponentMap, ComponentPatch, CustomName, Damage, DelimitedStack, ItemCost, MaxStackSize,
-    MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage, Unbreakable,
+    ComponentMap, ComponentPatch, CustomName, Damage, ItemCost, MaxStackSize, MerchantOffer,
+    QuickCraftButton, QuickCraftKind, QuickCraftStage, Unbreakable,
 };
 use mcrs_minecraft_protocol_game::serverbound::*;
 use mcrs_minecraft_protocol_game::text::{RawText, Text};
@@ -102,6 +103,15 @@ fn one(fixture: &Fixture, path: &str) -> ItemStack {
     ItemStack::new(Kind(item(fixture, path).number()), count)
 }
 
+fn sword_stack(fixture: &Fixture) -> ItemStack {
+    one(fixture, "diamond_sword")
+        .set(mcrs_minecraft_item_stack::Damage(7))
+        .set(mcrs_minecraft_item_stack::CustomName(
+            mcrs_minecraft_text::Text::text("named"),
+        ))
+        .set(mcrs_minecraft_item_stack::Unbreakable)
+}
+
 fn plain(f: &Fixture, path: &str, n: i32) -> ProtoStack<Wire> {
     wire_form(&ProtoStack::new(item(f, path), n, ComponentPatch::EMPTY))
 }
@@ -113,6 +123,8 @@ fn plain(f: &Fixture, path: &str, n: i32) -> ProtoStack<Wire> {
 )]
 fn container_packets_are_the_games_bytes() {
     let f = &fixture();
+    let items = test_item_table();
+    let names = RegistryNames::new(test_registries(), &items);
     check(
         f,
         "container_set_slot",
@@ -216,22 +228,16 @@ fn container_packets_are_the_games_bytes() {
             carried_item: ProtoStack::default(),
         },
     );
-    check(
-        f,
-        "set_creative_mode_slot",
-        ServerboundSetCreativeModeSlot {
-            slot: 36,
-            item: DelimitedStack(sword(f).to_wire(&lookup()).unwrap()),
-        },
-    );
-    let (packet, _) = decode::<ServerboundSetCreativeModeSlot>(f, "set_creative_mode_slot");
-    assert_eq!(packet.item.check(&lookup()).unwrap(), sword(f));
+    let (packet, bytes) = decode::<ServerboundSetCreativeModeSlot>(f, "set_creative_mode_slot");
+    assert_eq!(encoded(&packet), bytes);
+    assert_eq!(packet.slot, 36);
+    assert_eq!(packet.item.read(&names), Ok(Some(sword_stack(f))));
     check(
         f,
         "set_creative_mode_slot_empty",
         ServerboundSetCreativeModeSlot {
             slot: -1,
-            item: DelimitedStack::default(),
+            item: WireStackWithLength::EMPTY,
         },
     );
     check(
@@ -429,12 +435,7 @@ fn container_click_carries_hashed_slots() {
     let items = test_item_table();
     let names = RegistryNames::new(test_registries(), &items);
     let mut scratch = HashScratch::default();
-    let sword = one(f, "diamond_sword")
-        .set(mcrs_minecraft_item_stack::Damage(7))
-        .set(mcrs_minecraft_item_stack::CustomName(
-            mcrs_minecraft_text::Text::text("named"),
-        ))
-        .set(mcrs_minecraft_item_stack::Unbreakable);
+    let sword = sword_stack(f);
     assert_eq!(
         matches_hashed(Some(changed), Some(&sword), &names, &mut scratch),
         Ok(true)

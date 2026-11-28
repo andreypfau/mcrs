@@ -287,7 +287,7 @@ pub(crate) fn gui_key(code: KeyCode) -> Option<GuiKey> {
 #[cfg(test)]
 mod tests {
     use mcrs_minecraft_client_widget::{
-        EditBox, GuiExtent, GuiInput, GuiPoint, GuiRect, Widget, WidgetId, WidgetKind,
+        EditBox, GuiExtent, GuiInput, GuiPoint, GuiRect, Widget, WidgetId, WidgetKind, WidgetValue,
     };
 
     use super::*;
@@ -313,8 +313,8 @@ mod tests {
             widgets.select_all();
             let read = || Some("xy".to_owned());
             let returned = shortcut.apply(&mut widgets, read, &width, &mut Vec::new());
-            let value = match widgets.get(EDIT).map(|widget| &widget.kind) {
-                Some(WidgetKind::EditBox(edit)) => edit.text(),
+            let value = match widgets.value(EDIT) {
+                Some(WidgetValue::Text(text)) => text,
                 _ => "",
             };
             assert_eq!((returned.as_deref(), value), (copied, text));

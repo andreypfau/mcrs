@@ -10,7 +10,10 @@ use fixture_sets::GatedSystems;
 #[derive(Component)]
 pub struct Player(pub u8);
 
-#[cfg_attr(mcrs_lint, expect(mcrs::exclusive_system, mcrs::ungated_system, reason = "fixture"))]
+#[cfg_attr(
+    mcrs_lint,
+    expect(mcrs::exclusive_system, mcrs::ungated_system, reason = "fixture")
+)]
 fn drain(_: &mut World) {}
 
 #[cfg_attr(mcrs_lint, expect(mcrs::ungated_system, reason = "fixture"))]
@@ -53,7 +56,10 @@ pub fn build(app: &mut App) {
             single,
         ),
     )
-    .add_systems(Update, in_set_gated_in_another_schedule.in_set(GatedSystems))
+    .add_systems(
+        Update,
+        in_set_gated_in_another_schedule.in_set(GatedSystems),
+    )
     .add_systems(Startup, (setup, exclusive_at_startup));
     fixture_sets::add_every_frame(app, through_helper);
     fixture_sets::add_gated(app, through_gated_helper);
