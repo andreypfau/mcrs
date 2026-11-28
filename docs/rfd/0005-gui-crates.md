@@ -685,7 +685,7 @@ of `mcrs_minecraft_model`. It has no Bevy and is not part of `mcrs_minecraft_res
 `model_file`, the model, the atlas, the font and the language take these items from it. It is not
 `no_std`, because `png` 0.18 reads through `std::io` (section "Options" records `zune-png`).
 
-**`mcrs_minecraft_font`** (11 files). Modules: `font`, `font_definition`, `font_glyph`,
+**`mcrs_minecraft_font`** (19 files after step 6). Modules: `font`, `font_definition`, `font_glyph`,
 `font_unihex`, `glyph_cache`, `language`, `text`, `span_events`, `event_index`,
 `font_dump_tests`.
 
@@ -1058,7 +1058,7 @@ Line counts are estimates of the added lines, from `wc -l` of the modules that c
 | 3 | `client_gui` | Done: the gesture kernel without Bevy, without creative and without `item_stack`; the split of `gesture_frame`, `viewer` and `drag_preview` | about 700 |
 | 4 | `container_gesture` | Done with step 3: move the kernel as a `no_std` crate | about 500 |
 | 5 | `client_gui`, `client` | Done: the stitch requests; `menu_background` out of the atlas; `sprite_draw`; `in_game_gradient`; `gui_clock`; `debug_chord`; `GuiPlugin` loses `screen` | about 500 |
-| 6 | `resource_pack`, `model_file`, `model`, `font`, `client` | A redesign step: create `resource_pack` with the missing texture; the font loader takes bytes and returns errors; move the font; `client` reads the jar | about 2,000 |
+| 6 | `resource_pack`, `model_file`, `model`, `font`, `client` | Done: `resource_pack` with `PackFiles`, the PNG decoder and the missing texture; the font loader takes `PackFiles` and returns errors and notices; ids through `ResourceLocation`; the font moves; `client` reads the jar | about 2,000 |
 | 7 | `gui_atlas`, `gui_scene`, `gui_primitives` | Move the atlas, the scene and the primitives; split `menu_test_app` and `slot_icon` | about 2,700 |
 | 8 | `gui_render` | Move the batch, the pipeline, the extract and the panorama spin | about 1,500 |
 | 9 | `gui_screen`, `client_world`, `chat_client`, `inventory_client`, `client_gui`, `gui_render`, `client` | The stack (`no_std`), chat, container, creative and the game mode switcher as entities; `ShowsFigure`; the split of `inventory_clicks` | about 2,100 |
@@ -1145,6 +1145,22 @@ prepare the move of step 7.
 
 A test loads the atlas with the requests of both plugins and checks the regions of each
 background and each tab sprite. The existing atlas tests check the rest.
+
+### Step 6: the resource pack and the font
+
+The step is done. It adds two crates of layer 3 (determination 2).
+
+- `mcrs_minecraft_resource_pack` holds `PackFiles`, `pack_path`, the PNG decoder `RgbaImage::decode_png`
+  and the missing texture. The decoder uses the `png` crate. It gives the same RGBA bytes as the
+  Bevy image for all 4007 PNG files of the client jar.
+- The font loader and the language loader take `&PackFiles` and return error enums. A file with
+  an invalid provider is a `FontNotice`, and the Bevy caller logs it. The caller gives the
+  function that inflates the unifont archive, so the font does not name `client_jar`.
+- `full_id`, `split_id` and `resource_path` end. Each id goes through `ResourceLocation::read`, and an
+  invalid id is an error value.
+- `mcrs_minecraft_font` holds the font modules. It has 19 files, because each error enum and the
+  notice have their own file. It depends on `bevy_math`, so it is not in the list of crates
+  without Bevy. Its `bevy` feature adds the `Resource` derives.
 
 ### Steps 9 to 12: the screen entities
 
