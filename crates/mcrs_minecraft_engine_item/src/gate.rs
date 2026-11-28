@@ -12,8 +12,6 @@ pub enum Gate {
     Ask(GateId),
 }
 
-pub type GateFn = fn(&World, &GateQuery) -> Filter;
-
 impl Gate {
     #[must_use]
     pub fn answer(self, world: &World, query: &GateQuery) -> Filter {

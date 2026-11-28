@@ -41,42 +41,12 @@ use crate::Stacks;
 use crate::capacity::capacity;
 use crate::placement::Placement;
 use crate::request_scratch::RequestScratch;
+use crate::settlement::Placed;
+use crate::settlement::Settlement;
+use crate::settlement::Source;
+use crate::settlement::Taken;
 use crate::slot_changed::write_slot_changed;
 use crate::spawn_stack::spawn_stack;
-
-#[derive(Default)]
-pub(crate) struct Settlement {
-    changed: Vec<SlotRef>,
-    placed: Vec<Placed>,
-    dropped: Vec<Taken>,
-    despawned: Vec<Entity>,
-}
-
-impl Settlement {
-    fn clear(&mut self) {
-        self.changed.clear();
-        self.placed.clear();
-        self.dropped.clear();
-        self.despawned.clear();
-    }
-}
-
-struct Taken {
-    source: Source,
-    count: u8,
-}
-
-struct Placed {
-    slot: SlotRef,
-    source: Source,
-    count: u8,
-}
-
-#[derive(Clone, Copy)]
-enum Source {
-    Same(Entity),
-    CopyOf(Entity),
-}
 
 #[derive(Default)]
 struct PlanBuffers {

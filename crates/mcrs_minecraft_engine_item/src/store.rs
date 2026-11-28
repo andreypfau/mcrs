@@ -6,7 +6,7 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_table::Prototype;
 
 use crate::Removed;
-use crate::slot_changed::touch;
+use crate::in_slot::touch;
 
 pub(crate) enum Target<T> {
     Value(T),
