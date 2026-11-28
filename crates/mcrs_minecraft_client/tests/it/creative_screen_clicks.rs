@@ -707,7 +707,7 @@ fn add_input(app: &mut App) {
         frozen_ticks: None,
         advanced_tooltips: false,
     })
-    .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+    .insert_resource(ClientLanguage::load(ResourceSet::corpus().files()).unwrap())
     .init_resource::<SentActions>()
     .init_resource::<JustPressed>()
     .add_systems(Update, record_just_pressed)

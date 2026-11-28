@@ -14,6 +14,7 @@ use mcrs_minecraft_client_gui::draw_centered_text;
 use mcrs_minecraft_client_gui::font::{Font, Span};
 use mcrs_minecraft_client_gui::font_definition::FontOptions;
 use mcrs_minecraft_client_gui::font_glyph::ImageSource;
+use mcrs_minecraft_client_gui::inflate_zip::inflate_zip;
 use mcrs_minecraft_client_gui::scene::GuiQuad;
 use mcrs_minecraft_model::resource_set::{ResourceSet, is_resource};
 use mcrs_minecraft_model::vanilla_source::{fill, register_source};
@@ -220,7 +221,12 @@ fn load_font(fetch: Res<Fetch>, mut images: ResMut<Assets<Image>>, mut commands:
 
 fn font_pages(files: Files) -> Result<(Font, Vec<(usize, Image)>), String> {
     let pack: ResourceSet = files.into_iter().collect();
-    let font = Font::load(&pack, FontOptions::default())?;
+    let loaded = Font::load(pack.files(), FontOptions::default(), inflate_zip)
+        .map_err(|error| error.to_string())?;
+    for notice in &loaded.notices {
+        warn!("{notice}");
+    }
+    let font = loaded.font;
     let pages = font
         .bitmap_pages()
         .map(|(source, page)| {

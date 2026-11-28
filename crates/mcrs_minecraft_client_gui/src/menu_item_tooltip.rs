@@ -404,7 +404,7 @@ mod tests {
         insert_gui_assets(app.world_mut());
         app.insert_resource(items)
             .insert_resource(CurrentRegistries::new(test_registries().clone()))
-            .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+            .insert_resource(ClientLanguage::load(ResourceSet::corpus().files()).unwrap())
             .insert_resource(GuiConfig {
                 scale: 1,
                 cursor: None,

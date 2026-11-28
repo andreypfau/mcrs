@@ -11,6 +11,7 @@ use mcrs_minecraft_client_gui::font_glyph::{
     ImageSource, MISSING_GLYPH_SIZE, missing_glyph_pixels,
 };
 use mcrs_minecraft_client_gui::glyph_cache::{self, CELL, COLUMNS, ROWS, SLOTS};
+use mcrs_minecraft_client_gui::inflate_zip::inflate_zip;
 use mcrs_minecraft_client_gui::language::ClientLanguage;
 use mcrs_minecraft_client_gui::sign_text::SignQuad;
 
@@ -161,7 +162,12 @@ fn load_assets(
         return;
     };
     let loaded = (|| {
-        let font = Font::load(pack, FontOptions::default())?;
+        let loaded = Font::load(pack.files(), FontOptions::default(), inflate_zip)
+            .map_err(|error| error.to_string())?;
+        for notice in &loaded.notices {
+            warn!("{notice}");
+        }
+        let font = loaded.font;
         let (page, pixels, height) = GlyphPage::new(&font);
         let mut image = Image::new(
             Extent3d {
@@ -175,7 +181,7 @@ fn load_assets(
             RenderAssetUsages::default(),
         );
         image.sampler = ImageSampler::nearest();
-        let language = ClientLanguage::load(pack)?;
+        let language = ClientLanguage::load(pack.files()).map_err(|error| error.to_string())?;
         Ok::<_, String>(TextAssets {
             font,
             language,

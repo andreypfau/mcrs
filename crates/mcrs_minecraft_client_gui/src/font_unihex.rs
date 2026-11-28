@@ -1,6 +1,6 @@
-use mcrs_minecraft_client_jar::Directory;
-
 use crate::font_glyph::{Glyph, GlyphImage, ImageSource};
+use crate::inflated_file::InflatedFile;
+use crate::unihex_error::UnihexError;
 
 pub const CELL: usize = 16;
 pub(crate) const CELL_BYTES: usize = CELL * CELL * 4;
@@ -29,15 +29,20 @@ pub(crate) struct Unihex {
 }
 
 impl Unihex {
-    pub(crate) fn new(archive: &[u8], size_overrides: &[SizeOverride]) -> Result<Self, String> {
-        let directory = Directory::of(archive)?;
+    pub(crate) fn new(
+        files: &[InflatedFile],
+        size_overrides: &[SizeOverride],
+    ) -> Result<Self, UnihexError> {
         let mut entries = Vec::new();
         let mut rows = Vec::new();
-        for file in directory.inflated(archive, |name| name.ends_with(".hex")) {
-            let (name, bytes) = file?;
-            let text = std::str::from_utf8(&bytes).map_err(|error| format!("{name}: {error}"))?;
-            read_lines(text, &mut entries, &mut rows)
-                .map_err(|error| format!("{name}: {error}"))?;
+        for file in files {
+            if !file.name.ends_with(".hex") {
+                continue;
+            }
+            let text = std::str::from_utf8(&file.bytes).map_err(|_| UnihexError::NotText {
+                file: file.name.clone(),
+            })?;
+            read_lines(&file.name, text, &mut entries, &mut rows)?;
         }
         entries.sort_by_key(|entry| entry.code_point);
         let mut unique: Vec<Entry> = Vec::with_capacity(entries.len());
@@ -146,28 +151,47 @@ impl Unihex {
     }
 }
 
-fn read_lines(text: &str, entries: &mut Vec<Entry>, rows: &mut Vec<u8>) -> Result<(), String> {
+fn read_lines(
+    file: &str,
+    text: &str,
+    entries: &mut Vec<Entry>,
+    rows: &mut Vec<u8>,
+) -> Result<(), UnihexError> {
     for (number, line) in text.lines().enumerate() {
         let number = number + 1;
-        let (code_point, data) = line
-            .split_once(':')
-            .ok_or_else(|| format!("line {number} has no colon"))?;
+        let bad_code_point = || UnihexError::BadCodePoint {
+            file: file.to_owned(),
+            line: number,
+        };
+        let (code_point, data) = line.split_once(':').ok_or_else(|| UnihexError::NoColon {
+            file: file.to_owned(),
+            line: number,
+        })?;
         if !(4..=6).contains(&code_point.len()) || !is_upper_hex(code_point) {
-            return Err(format!("line {number} has a bad code point"));
+            return Err(bad_code_point());
         }
         let code_point = u32::from_str_radix(code_point, 16)
             .ok()
             .filter(|&value| value <= 0x10_FFFF)
-            .ok_or_else(|| format!("line {number} has a bad code point"))?;
+            .ok_or_else(bad_code_point)?;
         let columns = match data.len() {
             32 => 8,
             64 => 16,
             96 => 24,
             128 => 32,
-            other => return Err(format!("line {number} has {other} digits of data")),
+            other => {
+                return Err(UnihexError::DigitCount {
+                    file: file.to_owned(),
+                    line: number,
+                    digits: other,
+                });
+            }
         };
         if !is_upper_hex(data) {
-            return Err(format!("line {number} has a bad digit in its data"));
+            return Err(UnihexError::BadDigit {
+                file: file.to_owned(),
+                line: number,
+            });
         }
         let offset = rows.len();
         rows.extend(
@@ -227,7 +251,7 @@ mod tests {
     fn a_glyph_is_drawn_from_its_first_inked_column_in_row_order() {
         let line = format!("0041:38{}", "00".repeat(15));
         let (mut entries, mut rows) = (Vec::new(), Vec::new());
-        read_lines(&line, &mut entries, &mut rows).unwrap();
+        read_lines("", &line, &mut entries, &mut rows).unwrap();
         let hex = Unihex { entries, rows };
         let mut cell = [0; CELL_BYTES];
         assert!(hex.rasterise('A', &mut cell));

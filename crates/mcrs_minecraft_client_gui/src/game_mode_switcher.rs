@@ -438,7 +438,7 @@ mod tests {
                     height: 240,
                     scale: 1,
                 })
-                .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+                .insert_resource(ClientLanguage::load(ResourceSet::corpus().files()).unwrap())
                 .insert_resource(*TABLE)
                 .insert_resource(MODELS.clone())
                 .init_resource::<SwitcherText>()

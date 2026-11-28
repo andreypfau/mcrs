@@ -9,6 +9,7 @@ use crate::gui_image_handles::GuiImageHandles;
 use crate::gui_images::GuiImages;
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
+use crate::inflate_zip::inflate_zip;
 use crate::language::ClientLanguage;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::stitch_request::StitchRequest;
@@ -86,9 +87,15 @@ pub fn load_gui_atlas(
     requests: &StitchRequests,
     mut commands: Commands,
 ) -> Result<(), GuiAtlasError> {
-    let font = Font::load(pack, FontOptions::default()).map_err(GuiAtlasError::Font)?;
+    let loaded = Font::load(pack.files(), FontOptions::default(), inflate_zip)
+        .map_err(|error| GuiAtlasError::Font(error.to_string()))?;
+    for notice in &loaded.notices {
+        warn!("{notice}");
+    }
+    let font = loaded.font;
     let parts = build_gui_atlas(pack, &font, requests).map_err(GuiAtlasError::Textures)?;
-    let language = ClientLanguage::load(pack).map_err(GuiAtlasError::Translations)?;
+    let language = ClientLanguage::load(pack.files())
+        .map_err(|error| GuiAtlasError::Translations(error.to_string()))?;
     let GuiAtlasParts {
         layout,
         atlas,

@@ -1,16 +1,19 @@
 use std::collections::{BTreeMap, HashMap};
 
-use bevy::log::warn;
 use bevy::math::{Rect, URect, UVec2};
 
-use mcrs_minecraft_model::resource_set::ResourceSet;
-use mcrs_minecraft_model_file::resource_id::{full_id, split_id};
-use mcrs_minecraft_resource_pack::RgbaImage;
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource_pack::{PackFiles, RgbaImage};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 
+use crate::definition_error::DefinitionError;
+use crate::font_error::FontError;
 use crate::font_glyph::{Glyph, GlyphImage, ImageSource};
+use crate::font_notice::FontNotice;
 use crate::font_unihex::{SizeOverride, Unihex};
+use crate::inflated_file::InflatedFile;
+use crate::unihex_error::UnihexError;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Toggle {
@@ -67,7 +70,7 @@ struct Definition {
 }
 
 impl Definition {
-    fn check(&self) -> Result<(), String> {
+    fn check(&self) -> Result<(), DefinitionError> {
         self.providers
             .iter()
             .try_for_each(|provider| match provider {
@@ -135,16 +138,17 @@ struct UnihexSpec {
 }
 
 impl UnihexSpec {
-    fn check(&self) -> Result<(), String> {
+    fn check(&self) -> Result<(), DefinitionError> {
         match self
             .size_overrides
             .iter()
             .find(|size| size.from.0 >= size.to.0)
         {
-            Some(size) => Err(format!(
-                "{}: an override from {:?} is not below {:?}",
-                self.hex_file, size.from.0, size.to.0
-            )),
+            Some(size) => Err(DefinitionError::UnorderedOverride {
+                hex_file: self.hex_file.clone(),
+                from: size.from.0,
+                to: size.to.0,
+            }),
             None => Ok(()),
         }
     }
@@ -162,88 +166,119 @@ impl UnihexSpec {
     }
 }
 
-pub(crate) fn sources(pack: &ResourceSet, id: &str) -> Result<Vec<Source>, String> {
-    resolve(pack, id, &mut Vec::new())
+pub(crate) struct Loading<'a, F> {
+    pack: &'a PackFiles,
+    inflate: F,
+    stack: Vec<String>,
+    notices: Vec<FontNotice>,
 }
 
-fn resolve(pack: &ResourceSet, id: &str, loading: &mut Vec<String>) -> Result<Vec<Source>, String> {
-    let id = full_id(id);
-    if loading.contains(&id) {
-        return Err(format!("the font {id} references itself"));
-    }
-    loading.push(id.clone());
-    let (namespace, path) = split_id(&id);
-    let file = format!("{namespace}/font/{path}.json");
-    let bytes = pack
-        .read(&file)
-        .map_err(|error| format!("the font {id}: {error}"))?;
-    let definition = match serde_json::from_slice::<Definition>(bytes)
-        .map_err(|error| error.to_string())
-        .and_then(|definition| definition.check().map(|()| definition))
-    {
-        Ok(definition) => definition,
-        Err(error) => {
-            warn!("{file} is ignored: {error}");
-            loading.pop();
-            return Ok(Vec::new());
+impl<'a, F: Fn(&[u8]) -> Result<Vec<InflatedFile>, String>> Loading<'a, F> {
+    pub(crate) fn new(pack: &'a PackFiles, inflate: F) -> Self {
+        Self {
+            pack,
+            inflate,
+            stack: Vec::new(),
+            notices: Vec::new(),
         }
-    };
-    let mut sources = Vec::new();
-    for provider in definition.providers {
-        match provider {
-            Provider::Other => {
-                warn!("{file}: a provider of a kind this client does not read is skipped")
+    }
+
+    pub(crate) fn into_notices(self) -> Vec<FontNotice> {
+        self.notices
+    }
+
+    pub(crate) fn sources(&mut self, id: &str) -> Result<Vec<Source>, FontError> {
+        let location = parse_id(id)?;
+        let id = format!("{}:{}", location.namespace(), location.path());
+        if self.stack.contains(&id) {
+            return Err(FontError::SelfReference { id });
+        }
+        let file = format!("{}/font/{}.json", location.namespace(), location.path());
+        let bytes = self.pack.read(&file)?;
+        let definition = match serde_json::from_slice::<Definition>(bytes)
+            .map_err(|error| DefinitionError::Json {
+                reason: error.to_string(),
+            })
+            .and_then(|definition| definition.check().map(|()| definition))
+        {
+            Ok(definition) => definition,
+            Err(reason) => {
+                self.notices.push(FontNotice::IgnoredFile { file, reason });
+                return Ok(Vec::new());
             }
-            Provider::Reference(reference) => {
-                for mut source in resolve(pack, &reference.id, loading)? {
-                    source.filter = source.filter.overridden_by(reference.filter);
-                    sources.push(source);
+        };
+        self.stack.push(id);
+        let sources = self.providers(&file, definition.providers);
+        self.stack.pop();
+        sources
+    }
+
+    fn providers(
+        &mut self,
+        file: &str,
+        providers: Vec<Provider>,
+    ) -> Result<Vec<Source>, FontError> {
+        let mut sources = Vec::new();
+        for provider in providers {
+            match provider {
+                Provider::Other => self.notices.push(FontNotice::UnknownProvider {
+                    file: file.to_owned(),
+                }),
+                Provider::Reference(reference) => {
+                    for mut source in self.sources(&reference.id)? {
+                        source.filter = source.filter.overridden_by(reference.filter);
+                        sources.push(source);
+                    }
                 }
-            }
-            Provider::Space(spec) => {
-                let advances = spec
-                    .advances
-                    .iter()
-                    .map(|(key, advance)| (key.0, *advance))
-                    .collect();
-                sources.push(Source {
+                Provider::Space(spec) => {
+                    let advances = spec
+                        .advances
+                        .iter()
+                        .map(|(key, advance)| (key.0, *advance))
+                        .collect();
+                    sources.push(Source {
+                        filter: spec.filter,
+                        kind: Kind::Space(advances),
+                    });
+                }
+                Provider::Bitmap(spec) => sources.push(Source {
                     filter: spec.filter,
-                    kind: Kind::Space(advances),
-                });
-            }
-            Provider::Bitmap(spec) => {
-                let (namespace, path) = split_id(&spec.file);
-                let texture = format!("{namespace}/textures/{path}");
-                let image =
-                    RgbaImage::decode_png(pack.read(&texture).map_err(|error| error.to_string())?)
-                        .map_err(|error| format!("cannot decode {texture}: {error}"))?;
-                sources.push(Source {
+                    kind: Kind::Bitmap(self.bitmap(&spec)?),
+                }),
+                Provider::Unihex(spec) => sources.push(Source {
                     filter: spec.filter,
-                    kind: Kind::Bitmap(BitmapPage::new(
-                        &spec,
-                        image.rgba,
-                        image.width,
-                        image.height,
-                    )?),
-                });
-            }
-            Provider::Unihex(spec) => {
-                let (namespace, path) = split_id(&spec.hex_file);
-                let archive = format!("{namespace}/{path}");
-                let bytes = pack.read(&archive).map_err(|error| error.to_string())?;
-                let overrides = spec.overrides();
-                sources.push(Source {
-                    filter: spec.filter,
-                    kind: Kind::Unihex(
-                        Unihex::new(bytes, &overrides)
-                            .map_err(|error| format!("{archive}: {error}"))?,
-                    ),
-                });
+                    kind: Kind::Unihex(self.unihex(&spec)?),
+                }),
             }
         }
+        Ok(sources)
     }
-    loading.pop();
-    Ok(sources)
+
+    fn bitmap(&self, spec: &BitmapSpec) -> Result<BitmapPage, FontError> {
+        let location = parse_id(&spec.file)?;
+        let texture = format!("{}/textures/{}", location.namespace(), location.path());
+        let image = RgbaImage::decode_png(self.pack.read(&texture)?)
+            .map_err(|error| FontError::Png { texture, error })?;
+        BitmapPage::new(spec, image.rgba, image.width, image.height)
+    }
+
+    fn unihex(&self, spec: &UnihexSpec) -> Result<Unihex, FontError> {
+        let location = parse_id(&spec.hex_file)?;
+        let archive = format!("{}/{}", location.namespace(), location.path());
+        let files =
+            (self.inflate)(self.pack.read(&archive)?).map_err(|reason| FontError::Unihex {
+                archive: archive.clone(),
+                error: UnihexError::Inflate { reason },
+            })?;
+        Unihex::new(&files, &spec.overrides()).map_err(|error| FontError::Unihex { archive, error })
+    }
+}
+
+fn parse_id(id: &str) -> Result<ResourceLocation<'_>, FontError> {
+    ResourceLocation::read(id).map_err(|error| FontError::InvalidId {
+        id: id.to_owned(),
+        reason: error.reason,
+    })
 }
 
 const DEFAULT_HEIGHT: i32 = 8;
@@ -261,16 +296,19 @@ pub(crate) struct BitmapSpec {
 }
 
 impl BitmapSpec {
-    pub(crate) fn check(&self) -> Result<(), String> {
+    pub(crate) fn check(&self) -> Result<(), DefinitionError> {
         if self.ascent > self.height {
-            return Err(format!(
-                "{}: the ascent {} is above the height {}",
-                self.file, self.ascent, self.height
-            ));
+            return Err(DefinitionError::AscentAboveHeight {
+                texture: self.file.clone(),
+                ascent: self.ascent,
+                height: self.height,
+            });
         }
         let columns = self.chars.first().map_or(0, |row| row.chars().count());
         if columns == 0 || self.chars.iter().any(|row| row.chars().count() != columns) {
-            return Err(format!("{}: the rows of chars differ in length", self.file));
+            return Err(DefinitionError::UnevenRows {
+                texture: self.file.clone(),
+            });
         }
         Ok(())
     }
@@ -302,15 +340,14 @@ impl BitmapPage {
         pixels: Vec<u8>,
         width: u32,
         height: u32,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, FontError> {
         let columns = spec.chars.first().map_or(0, |row| row.chars().count()) as u32;
         let rows = spec.chars.len() as u32;
         let (cell_width, cell_height) = (width / columns, height / rows);
         if cell_width == 0 || cell_height == 0 || spec.height <= 0 {
-            return Err(format!(
-                "{}: the texture is smaller than its grid",
-                spec.file
-            ));
+            return Err(FontError::Grid {
+                texture: spec.file.clone(),
+            });
         }
         let scale = spec.height as f32 / cell_height as f32;
         let mut cells = BTreeMap::new();
@@ -385,13 +422,17 @@ fn ink_width(pixels: &[u8], width: u32, cell: URect) -> u32 {
 mod tests {
     use super::*;
 
-    fn pack(default: &str) -> ResourceSet {
-        [(
-            "minecraft/font/default.json".to_owned(),
-            default.as_bytes().to_vec(),
-        )]
-        .into_iter()
-        .collect()
+    fn pack(default: &str) -> PackFiles {
+        let mut pack = PackFiles::default();
+        pack.add_file("minecraft/font/default.json", default.as_bytes().to_vec())
+            .unwrap();
+        pack
+    }
+
+    fn load(pack: &PackFiles) -> (Vec<Source>, Vec<FontNotice>) {
+        let mut loading = Loading::new(pack, |_: &[u8]| Ok(Vec::new()));
+        let sources = loading.sources("minecraft:default").unwrap();
+        (sources, loading.into_notices())
     }
 
     #[test]
@@ -399,29 +440,35 @@ mod tests {
         let pack = pack(
             r#"{"providers":[{"type":"ttf","file":"x.ttf"},{"type":"space","advances":{"a":3}}]}"#,
         );
-        let sources = sources(&pack, "minecraft:default").unwrap();
+        let (sources, notices) = load(&pack);
         assert_eq!(sources.len(), 1);
         assert!(matches!(sources[0].kind, Kind::Space(_)));
+        assert_eq!(
+            notices,
+            [FontNotice::UnknownProvider {
+                file: "minecraft/font/default.json".to_owned()
+            }]
+        );
     }
 
     #[test]
     fn a_file_with_an_invalid_provider_is_ignored_as_a_whole() {
-        let pack = pack(
-            r#"{"providers":[{"type":"space","advances":{"a":3}},{"type":"space","advances":"no"}]}"#,
-        );
-        assert!(sources(&pack, "minecraft:default").unwrap().is_empty());
         for definition in [
+            r#"{"providers":[{"type":"space","advances":{"a":3}},{"type":"space","advances":"no"}]}"#,
             "not json",
             r#"{"providers":[{"type":"space","advances":{"ab":3}}]}"#,
             r#"{"providers":[{"type":"bitmap","file":"minecraft:font/ascii.png","height":8,"ascent":9,"chars":["a"]}]}"#,
             r#"{"providers":[{"type":"bitmap","file":"minecraft:font/ascii.png","ascent":7,"chars":["ab","c"]}]}"#,
             r#"{"providers":[{"type":"unihex","hex_file":"minecraft:font/unifont.zip","size_overrides":[{"from":"b","to":"a","left":0,"right":1}]}]}"#,
         ] {
+            let (sources, notices) = load(&pack(definition));
+            assert!(sources.is_empty(), "{definition}");
             assert!(
-                sources(&self::pack(definition), "minecraft:default")
-                    .unwrap()
-                    .is_empty(),
-                "{definition}"
+                matches!(
+                    notices.as_slice(),
+                    [FontNotice::IgnoredFile { file, .. }] if file == "minecraft/font/default.json"
+                ),
+                "{definition}: {notices:?}"
             );
         }
     }

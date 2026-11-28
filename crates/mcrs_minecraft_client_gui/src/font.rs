@@ -2,10 +2,13 @@ use bevy::ecs::resource::Resource;
 use bevy::math::IVec2;
 
 use crate::event_index::EventIndex;
-use crate::font_definition::{BitmapPage, FontOptions, Kind, Source, sources};
+use crate::font_definition::{BitmapPage, FontOptions, Kind, Loading, Source};
+use crate::font_error::FontError;
 use crate::font_glyph::{Glyph, ImageSource, MISSING};
 use crate::font_unihex::CELL_BYTES;
-use mcrs_minecraft_model::resource_set::ResourceSet;
+use crate::inflated_file::InflatedFile;
+use crate::loaded_font::LoadedFont;
+use mcrs_minecraft_resource_pack::PackFiles;
 
 const DEFAULT_FONT: &str = "minecraft:default";
 
@@ -16,10 +19,16 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn load(pack: &ResourceSet, options: FontOptions) -> Result<Self, String> {
-        Ok(Self {
-            sources: sources(pack, DEFAULT_FONT)?,
-            options,
+    pub fn load(
+        pack: &PackFiles,
+        options: FontOptions,
+        inflate: impl Fn(&[u8]) -> Result<Vec<InflatedFile>, String>,
+    ) -> Result<LoadedFont, FontError> {
+        let mut loading = Loading::new(pack, inflate);
+        let sources = loading.sources(DEFAULT_FONT)?;
+        Ok(LoadedFont {
+            font: Self { sources, options },
+            notices: loading.into_notices(),
         })
     }
 
@@ -144,11 +153,11 @@ fn formatting(code: char) -> Option<Format> {
     }
 }
 
-pub type ClickEvent = mcrs_minecraft_protocol_game::text::ClickEvent<
+pub type ClickEvent = mcrs_minecraft_text::ClickEvent<
     mcrs_minecraft_item::Template<mcrs_minecraft_registries::Named>,
 >;
 
-pub type Hover = mcrs_minecraft_protocol_game::text::HoverEvent<
+pub type Hover = mcrs_minecraft_text::HoverEvent<
     mcrs_minecraft_item::Template<mcrs_minecraft_registries::Named>,
 >;
 
@@ -204,7 +213,13 @@ pub fn span_at<'s>(
 #[cfg(test)]
 pub(crate) fn corpus_font() -> &'static Font {
     static FONT: std::sync::LazyLock<Font> = std::sync::LazyLock::new(|| {
-        Font::load(ResourceSet::corpus(), FontOptions::default()).unwrap()
+        Font::load(
+            crate::corpus_pack::corpus_pack(),
+            FontOptions::default(),
+            crate::inflate_zip::inflate_zip,
+        )
+        .unwrap()
+        .font
     });
     &FONT
 }

@@ -1,8 +1,9 @@
 use bevy::prelude::Resource;
 
 use crate::font::Span;
+use crate::language_error::LanguageError;
 use mcrs_minecraft_lang::{EN_US, FormatError, Language, Piece, template_pieces};
-use mcrs_minecraft_model::resource_set::ResourceSet;
+use mcrs_minecraft_resource_pack::PackFiles;
 use mcrs_minecraft_text::{Text, TextTypes};
 use mcrs_minecraft_text_flatten::TextHost;
 
@@ -10,10 +11,13 @@ use mcrs_minecraft_text_flatten::TextHost;
 pub struct ClientLanguage(Language);
 
 impl ClientLanguage {
-    pub fn load(pack: &ResourceSet) -> Result<Self, String> {
-        Language::from_json(pack.read(EN_US).map_err(|error| error.to_string())?)
+    pub fn load(pack: &PackFiles) -> Result<Self, LanguageError> {
+        Language::from_json(pack.read(EN_US).map_err(LanguageError::Pack)?)
             .map(Self)
-            .map_err(|error| format!("{EN_US}: {error}"))
+            .map_err(|error| LanguageError::Json {
+                file: EN_US.to_owned(),
+                reason: error.to_string(),
+            })
     }
 
     pub fn contains(&self, key: &str) -> bool {
@@ -73,8 +77,9 @@ impl ClientLanguage {
     }
 
     pub(crate) fn corpus() -> &'static ClientLanguage {
-        static LANGUAGE: std::sync::LazyLock<ClientLanguage> =
-            std::sync::LazyLock::new(|| ClientLanguage::load(ResourceSet::corpus()).unwrap());
+        static LANGUAGE: std::sync::LazyLock<ClientLanguage> = std::sync::LazyLock::new(|| {
+            ClientLanguage::load(crate::corpus_pack::corpus_pack()).unwrap()
+        });
         &LANGUAGE
     }
 }

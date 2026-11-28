@@ -81,7 +81,7 @@ pub(crate) fn game_app() -> App {
         scale: 1,
     })
     .insert_resource(GuiPointer::default())
-    .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+    .insert_resource(ClientLanguage::load(ResourceSet::corpus().files()).unwrap())
     .init_resource::<ClientOptions>()
     .init_resource::<Screen>()
     .init_resource::<Time<Real>>();

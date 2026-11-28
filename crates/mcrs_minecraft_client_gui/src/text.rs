@@ -1,5 +1,7 @@
-use mcrs_minecraft_protocol_game::text::color::RgbColor;
-use mcrs_minecraft_protocol_game::text::{Color, GlyphFont, Text};
+use mcrs_minecraft_item::Text;
+use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_text::color::RgbColor;
+use mcrs_minecraft_text::{Color, GlyphFont};
 use mcrs_minecraft_text_flatten::{Projection, UnitBudget, flatten};
 
 use crate::font::{Font, Span};
@@ -14,12 +16,12 @@ pub fn argb(color: Color) -> u32 {
     0xFF00_0000 | u32::from(rgb.r) << 16 | u32::from(rgb.g) << 8 | u32::from(rgb.b)
 }
 
-pub fn text_spans(text: &Text, language: &ClientLanguage, color: u32) -> Vec<Span> {
+pub fn text_spans(text: &Text<Named>, language: &ClientLanguage, color: u32) -> Vec<Span> {
     spans(text, language, color, None)
 }
 
 pub fn text_spans_with_events(
-    text: &Text,
+    text: &Text<Named>,
     language: &ClientLanguage,
     color: u32,
     events: &mut SpanEvents,
@@ -28,7 +30,7 @@ pub fn text_spans_with_events(
 }
 
 fn spans(
-    text: &Text,
+    text: &Text<Named>,
     language: &ClientLanguage,
     color: u32,
     events: Option<&mut SpanEvents>,
@@ -176,7 +178,7 @@ pub(crate) fn row_texts(rows: &[Vec<Span>]) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::font::corpus_font;
-    use mcrs_minecraft_protocol_game::text::IntoText;
+    use mcrs_minecraft_text::IntoText;
     use mcrs_minecraft_text_flatten::MAX_UNITS;
 
     #[test]

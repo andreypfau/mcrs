@@ -349,7 +349,7 @@ mod tests {
             app.world_mut().spawn((Window::default(), PrimaryWindow));
             app.world_mut().spawn(Player);
             app.update();
-            let language = ClientLanguage::load(ResourceSet::corpus()).unwrap();
+            let language = ClientLanguage::load(ResourceSet::corpus().files()).unwrap();
             tap_escape(&mut app);
             assert_eq!(screen(&app), Screen::Pause);
             assert!(!app.world().contains_resource::<Menu>());

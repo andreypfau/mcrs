@@ -153,7 +153,7 @@ pub(crate) fn creative_app() -> App {
             scale: 1,
         })
         .insert_resource(GuiPointer::default())
-        .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+        .insert_resource(ClientLanguage::load(ResourceSet::corpus().files()).unwrap())
         .insert_resource(VANILLA.clone())
         .init_resource::<CreativeScreenState>()
         .init_resource::<Time<Real>>()

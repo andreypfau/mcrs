@@ -635,7 +635,7 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
     app.add_plugins(CreativeScreenPlugin)
         .insert_resource(CurrentRegistries::new(test_registries().clone()))
         .insert_resource::<ItemTable>(*TABLE)
-        .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+        .insert_resource(ClientLanguage::load(ResourceSet::corpus().files()).unwrap())
         .insert_resource(Screen::Menu)
         .init_resource::<ClientOptions>()
         .add_systems(Update, mark_creative_screen.after(CreativeContentSystems));
