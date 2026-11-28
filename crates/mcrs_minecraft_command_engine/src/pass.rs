@@ -3,7 +3,7 @@ use crate::command_event::CommandEvent;
 use crate::command_limits::CommandLimits;
 use crate::command_queue::{CommandQueue, QueuedLine};
 use crate::command_set::CommandSet;
-use crate::command_targets::CommandTargets;
+use crate::command_targets::{CommandTargets, dimension_position};
 use crate::dimension_entry::DimensionEntry;
 use crate::executor::{Deferred, DimExecutor, settle};
 use crate::parse_line::{LineToParse, ParseSource, parse_line};
@@ -304,7 +304,7 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
     };
     collect_dimensions(world, &mut buffers.dimension_entries);
     let dimensions = &buffers.dimension_entries;
-    let own = dimensions.iter().position(|entry| entry.label == here);
+    let own = dimension_position(dimensions, here);
     let players = buffers
         .players
         .get_or_insert_with(|| world.query_filtered::<PlayerRow, With<Player>>());
@@ -331,7 +331,7 @@ fn collect_targets(world: &mut World, buffers: &mut PassBuffers, here: Entity) {
     }
     if let Some(foreign) = world.get_resource::<ForeignPlayers>() {
         for row in foreign.rows() {
-            let Some(dimension) = dimensions.iter().position(|entry| entry.label == row.dim) else {
+            let Some(dimension) = dimension_position(dimensions, row.dim) else {
                 continue;
             };
             buffers.player_entries.push(PlayerEntry {
