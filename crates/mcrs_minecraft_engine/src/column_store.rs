@@ -18,7 +18,6 @@ use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 
 use crate::advance_production::advance_production;
-use crate::cell_mail::CellMail;
 use crate::cold_columns::{
     SaveRequest, columns_cooling, mark_changed_block_entities, mark_changed_sections,
     mark_final_light, save_all_loaded_columns, save_dirty_loaded_columns, write_cold_columns,
@@ -29,6 +28,7 @@ use crate::column_asks::{
 };
 use crate::column_light::ColdStageLandSet;
 use crate::column_production::ColumnProduction;
+use crate::column_store_mail::ColumnStoreMail;
 use crate::column_streams::{ColumnStreamSet, land_viewed_columns, report_player_views};
 use crate::heightmap::update_column_heightmaps;
 use crate::hot_ticket::{raise_hot_ticket, release_hot_ticket, track_hot_tickets};
@@ -224,7 +224,7 @@ impl ColumnStoreLink {
         }
     }
 
-    pub(crate) fn take_mail(&mut self, mail: &mut CellMail) {
+    pub(crate) fn take_mail(&mut self, mail: &mut ColumnStoreMail) {
         mail.asks.append(&mut self.out_asks);
         mail.answers.append(&mut self.out_answers);
         mail.holds.append(&mut self.out_holds);
