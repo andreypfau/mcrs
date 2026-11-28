@@ -1054,9 +1054,9 @@ Line counts are estimates of the added lines, from `wc -l` of the modules that c
 | Step | Crate group | Content | Lines |
 |---|---|---|---|
 | 1 | `client_gui` | Done: split `scene.rs`, add `GuiPhase`, make `Font` a resource, break the cycles (5 to 0) | about 3,200 added, 2,700 deleted |
-| 2 | `client_gui`, `client` | The retained scene. Done: `GuiSize`, `GuiPointer`, retained layers, the atlas asset, the glyph upload list. Open: the F3 condition, the layer leaks, `GuiPointer` of WID-PTR-005, the creative tab figure. | about 2,600 |
-| 3 | `client_gui` | The gesture kernel without Bevy, without creative and without `item_stack`; the split of `gesture_frame`, `viewer` and `drag_preview` | about 700 |
-| 4 | `container_gesture` | Move the kernel as a `no_std` crate | about 500 |
+| 2 | `client_gui`, `client` | Done: the retained scene, `GuiSize`, `GuiPointer` of WID-PTR-005, retained layers, the atlas asset, the glyph upload list, the F3 condition | about 2,600 |
+| 3 | `client_gui` | Done: the gesture kernel without Bevy, without creative and without `item_stack`; the split of `gesture_frame`, `viewer` and `drag_preview` | about 700 |
+| 4 | `container_gesture` | Done with step 3: move the kernel as a `no_std` crate | about 500 |
 | 5 | `client_gui`, `client` | The stitch requests; `menu_background` out of the atlas; `sprite_draw`; `in_game_gradient`; `gui_clock`; `debug_chord`; `GuiPlugin` loses `screen` | about 500 |
 | 6 | `resource_pack`, `model_file`, `model`, `font`, `client` | A redesign step: create `resource_pack` with the missing texture; the font loader takes bytes and returns errors; move the font; `client` reads the jar | about 2,000 |
 | 7 | `gui_atlas`, `gui_scene`, `gui_primitives` | Move the atlas, the scene and the primitives; split `menu_test_app` and `slot_icon` | about 2,700 |
