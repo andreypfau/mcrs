@@ -65,6 +65,7 @@ use crate::FireworkExplosion;
 use crate::FireworkShape;
 use crate::Fireworks;
 use crate::Food;
+use crate::Identifier;
 use crate::InlineInstrument;
 use crate::Instrument;
 use crate::InstrumentId;
@@ -614,11 +615,11 @@ impl<L: NameLookup> Reader<'_, L> {
                 hidden.push(ComponentType(self.entry(NameTable::ComponentType, name)?));
             }
         }
-        let mut display = TooltipDisplay::hiding(hidden);
-        if let Some(hide_tooltip) = map.get("hide_tooltip") {
-            display.hide_tooltip = self.boolean(hide_tooltip)?;
-        }
-        Ok(display)
+        let hide_tooltip = match map.get("hide_tooltip") {
+            Some(tag) => self.boolean(tag)?,
+            None => false,
+        };
+        Ok(TooltipDisplay::new(hide_tooltip, hidden))
     }
 
     fn food(&self, tag: &NbtTag) -> Result<Food, SavedError> {
@@ -719,12 +720,12 @@ impl<L: NameLookup> Reader<'_, L> {
         let slot = self.string(self.necessary(map, "slot")?)?;
         let mut equippable = Equippable::new(EquippableSlot::from_name(slot).ok_or(self.bad())?);
         equippable.equip_sound = self.optional(map, "equip_sound", Self::sound_event)?;
-        equippable.set_asset_id(self.optional(map, "asset_id", |reader, tag| {
-            Ok(reader.identifier(tag)?.to_buf())
-        })?);
-        equippable.set_camera_overlay(self.optional(map, "camera_overlay", |reader, tag| {
-            Ok(reader.identifier(tag)?.to_buf())
-        })?);
+        equippable.asset_id = self.optional(map, "asset_id", |reader, tag| {
+            Ok(Identifier::Owned(reader.identifier(tag)?.to_buf()))
+        })?;
+        equippable.camera_overlay = self.optional(map, "camera_overlay", |reader, tag| {
+            Ok(Identifier::Owned(reader.identifier(tag)?.to_buf()))
+        })?;
         equippable.allowed_entities =
             self.optional(map, "allowed_entities", Self::entity_type_set)?;
         equippable.dispensable = self.flag(map, "dispensable", equippable.dispensable)?;

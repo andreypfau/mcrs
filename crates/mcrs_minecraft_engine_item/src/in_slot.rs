@@ -3,6 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::DeferredWorld;
+use bevy_ecs::world::EntityWorldMut;
 use bevy_ecs::world::World;
 
 use crate::Dropped;
@@ -105,6 +106,18 @@ fn leave_world(world: &mut World, stack: Entity, slot: InSlot) {
     {
         entity.remove::<Dropped>();
     }
+}
+
+pub(crate) fn touch(stack: &mut EntityWorldMut) {
+    let Some(slot) = stack.get::<InSlot>().copied() else {
+        return;
+    };
+    stack.world_scope(|world| {
+        write_slot_changed(
+            world.get_resource_mut::<Messages<SlotChanged>>(),
+            slot.slot_ref(),
+        );
+    });
 }
 
 #[cfg(test)]

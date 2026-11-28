@@ -4,6 +4,8 @@ use bytes::{Bytes, BytesMut};
 use mcrs_engine_muxer::{EntityId, ViewerId};
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_protocol::{Result, VarInt};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundSwingAnimation;
+use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 
@@ -33,9 +35,18 @@ pub(crate) struct MobTrackers {
     mobs: FxHashMap<EntityId, Mob>,
     scratch: BytesMut,
     signals: Vec<(EntityId, Bytes)>,
+    swings: Vec<PendingMobSwing>,
     farewells: FxHashMap<EntityId, Vec<ViewerId>>,
     behind: BTreeSet<ViewerId>,
     missed: BTreeMap<ViewerId, BTreeSet<EntityId>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PendingMobSwing {
+    subject: EntityId,
+    hand: Hand,
+    animation: SwingAnimationKind,
+    duration: i32,
 }
 
 #[derive(Debug)]
@@ -101,6 +112,20 @@ impl MobTrackers {
         signal: MobSignal,
         holds: &HoldSet,
     ) -> Result<()> {
+        if let MobSignal::Swing {
+            hand,
+            animation,
+            duration,
+        } = signal
+        {
+            self.swings.push(PendingMobSwing {
+                subject,
+                hand,
+                animation,
+                duration,
+            });
+            return Ok(());
+        }
         if holds.holders(subject).is_empty() {
             return Ok(());
         }
@@ -222,6 +247,7 @@ impl MobTrackers {
             mobs,
             scratch,
             signals,
+            swings,
             farewells,
             behind,
             missed,
@@ -231,6 +257,7 @@ impl MobTrackers {
                 delivery.owe(viewer, packet.clone());
             }
         }
+        send_mob_swings(mobs, swings, holds, delivery);
         farewells.clear();
         for (subject, holders) in holds.held() {
             let Some(mob) = mobs.get_mut(&subject) else {
@@ -261,6 +288,38 @@ impl MobTrackers {
             }
         }
         resend_missed(mobs, behind, missed, scratch, delivery);
+    }
+}
+
+fn send_mob_swings(
+    mobs: &FxHashMap<EntityId, Mob>,
+    swings: &mut Vec<PendingMobSwing>,
+    holds: &HoldSet,
+    delivery: &mut Delivery,
+) {
+    for swing in swings.drain(..) {
+        if !mobs.contains_key(&swing.subject) {
+            continue;
+        }
+        let observers = holds.holders(swing.subject);
+        if observers.is_empty() {
+            continue;
+        }
+        let packet = match record(&ClientboundSwingAnimation {
+            entity_id: wire_id(swing.subject),
+            hand: swing.hand,
+            animation: swing.animation,
+            duration: VarInt(swing.duration),
+        }) {
+            Ok(packet) => packet,
+            Err(error) => {
+                tracing::warn!("a mob swing did not encode: {error:#}");
+                continue;
+            }
+        };
+        for &viewer in observers {
+            delivery.owe(viewer, packet.clone());
+        }
     }
 }
 

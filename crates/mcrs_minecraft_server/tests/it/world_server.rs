@@ -10,6 +10,7 @@ use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bevy_tasks::block_on;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_engine::AutosaveCadence;
 use mcrs_minecraft_engine::block_simulation::DimensionBlockRules;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
@@ -95,6 +96,7 @@ pub fn wait_for_generation(app: &mut App, label: Entity) {
             Instant::now() < deadline,
             "the generation context never loaded"
         );
+        app.insert_resource(AutosaveCadence::default());
         crate::host_app::tick(app);
     }
 }

@@ -8,6 +8,7 @@ use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_damage::DamageSource;
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::HitOutcome;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_damage::DamageRequest;
 use mcrs_minecraft_engine_damage::Damaged;
@@ -20,11 +21,15 @@ use mcrs_minecraft_engine_entity_motion_replication::NetworkIds;
 use mcrs_minecraft_engine_mob_attributes::AttributeEdit;
 use mcrs_minecraft_engine_mob_attributes::MobAttributesPlugin;
 use mcrs_minecraft_engine_physics::FLOOR;
+use mcrs_minecraft_engine_physics::MobChanges;
 use mcrs_minecraft_engine_physics::MobExtras;
 use mcrs_minecraft_engine_physics::MobIndex;
 use mcrs_minecraft_engine_physics::MobSpawnRequest;
+use mcrs_minecraft_engine_physics::MobSwing;
+use mcrs_minecraft_engine_physics::MobSwingSpec;
 use mcrs_minecraft_engine_physics::SpawnSetup;
 use mcrs_minecraft_engine_physics::TestScene;
+use mcrs_minecraft_engine_physics::swing_mob;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 use mcrs_minecraft_engine_world::entity_ids::EntityIdRange;
 use mcrs_minecraft_engine_world::session::Owner;
@@ -42,6 +47,7 @@ use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
+use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
 use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSignal;
 use mcrs_minecraft_replication::ReplicationData;
@@ -183,6 +189,25 @@ fn outcome(scene: &TestScene, pig: Entity) -> Option<HitOutcome> {
         .filter(|damaged| damaged.target == pig)
         .map(|damaged| damaged.report.outcome)
         .last()
+}
+
+fn swing(scene: &mut TestScene, pig: Entity, spec: MobSwingSpec) -> bool {
+    let tick = scene.tick;
+    let world = scene.app.world_mut();
+    world.resource_scope(|world, mut changes: bevy_ecs::world::Mut<MobChanges>| {
+        let state = world.get::<MotionState>(pig).expect("pig state").0;
+        let vitals = world.get::<Vitals>(pig).copied();
+        let mut tracker = world.get_mut::<MobSwing>(pig).expect("pig swing");
+        swing_mob(
+            pig,
+            &state,
+            vitals.as_ref(),
+            &mut tracker,
+            &mut changes,
+            spec,
+            tick,
+        )
+    })
 }
 
 #[test]
@@ -331,6 +356,33 @@ fn a_killed_mob_is_hurt_dies_and_is_removed_after_its_death_time() {
     assert!(
         scene.app.world().get_entity(pig).is_err(),
         "the pig left the world"
+    );
+}
+
+#[test]
+fn an_accepted_mob_swing_publishes_one_swing_signal_and_no_move() {
+    let mut scene = scene();
+    let pig = summon(&mut scene, DVec3::new(4.5, f64::from(FLOOR), 4.5));
+    ticks(&mut scene, 5);
+
+    let stab = MobSwingSpec::new(Hand::Off, SwingAnimationKind::Stab, 6);
+    assert!(swing(&mut scene, pig, stab), "the swing starts");
+    assert_eq!(
+        tick(&mut scene),
+        [Seen::Signal {
+            id: FIRST_ID,
+            signal: MobSignal::Swing {
+                hand: Hand::Off,
+                animation: SwingAnimationKind::Stab,
+                duration: 6,
+            },
+        }],
+        "a stationary mob swing publishes only the signal without an extraneous move"
+    );
+    assert_eq!(
+        tick(&mut scene),
+        [],
+        "a stationary mob swing is cleared after publishing and does not repeat"
     );
 }
 

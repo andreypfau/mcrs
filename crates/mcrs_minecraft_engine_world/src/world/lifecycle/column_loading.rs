@@ -6,18 +6,18 @@ use indexmap::IndexSet;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::{FxBuildHasher, FxHashSet};
 
+use crate::loading_rings::LOADING_RINGS;
 use crate::world::lifecycle::coverage::Coverage;
-
-pub const LOADING_RINGS: i32 = 2;
+use crate::world::lifecycle::pending_spawn::PendingSpawn;
 
 #[derive(Component, Debug)]
 pub struct ColumnLoading {
     tickets: Coverage<ColumnPos>,
-    pub(crate) covered: Coverage<ColumnPos>,
-    pub(crate) section_y: RangeInclusive<i32>,
-    pub(crate) pending_spawn: IndexSet<SectionPos, FxBuildHasher>,
-    pub(crate) pending_release: FxHashSet<SectionPos>,
-    pub(crate) cooling: Vec<ColumnPos>,
+    covered: Coverage<ColumnPos>,
+    section_y: RangeInclusive<i32>,
+    pending_spawn: IndexSet<SectionPos, FxBuildHasher>,
+    pending_release: FxHashSet<SectionPos>,
+    cooling: Vec<ColumnPos>,
 }
 
 impl ColumnLoading {
@@ -97,9 +97,56 @@ impl ColumnLoading {
     pub fn is_loaded(&self, pos: SectionPos) -> bool {
         is_loaded(&self.covered, &self.section_y, pos)
     }
+
+    #[must_use]
+    pub fn section_y(&self) -> &RangeInclusive<i32> {
+        &self.section_y
+    }
+
+    pub fn requeue(&mut self, pos: SectionPos) {
+        self.pending_spawn.insert(pos);
+    }
+
+    #[must_use]
+    pub fn has_pending_spawns(&self) -> bool {
+        !self.pending_spawn.is_empty()
+    }
+
+    pub fn take_nearest(
+        &mut self,
+        centers: &[SectionPos],
+        limit: usize,
+        taken: &mut Vec<PendingSpawn>,
+    ) {
+        taken.clear();
+        taken.extend(
+            self.pending_spawn
+                .iter()
+                .map(|&pos| PendingSpawn::nearest(pos, centers)),
+        );
+        if limit < taken.len() {
+            taken.select_nth_unstable_by_key(limit, PendingSpawn::distance_sq);
+            taken.truncate(limit);
+        }
+        taken.sort_unstable_by_key(PendingSpawn::distance_sq);
+        for pending in taken.iter() {
+            self.pending_spawn.swap_remove(&pending.pos());
+        }
+    }
+
+    pub fn cool_and_release(&mut self, mut keep: impl FnMut(SectionPos) -> bool) {
+        self.cooling.clear();
+        let Self {
+            covered,
+            section_y,
+            pending_release,
+            ..
+        } = self;
+        pending_release.retain(|&pos| !is_loaded(covered, section_y, pos) && keep(pos));
+    }
 }
 
-pub(crate) fn is_loaded(
+fn is_loaded(
     covered: &Coverage<ColumnPos>,
     section_y: &RangeInclusive<i32>,
     pos: SectionPos,

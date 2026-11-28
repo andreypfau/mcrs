@@ -7,9 +7,9 @@ use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, Resource, Without,
 use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ScheduleSystem;
+use bevy_math::DVec3;
 use bevy_state::prelude::in_state;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_engine::SavedSpawn;
 use mcrs_minecraft_engine::client_info::ClientInfo;
 use mcrs_minecraft_engine::coordinator::join::place_joining_players;
 use mcrs_minecraft_engine::game_profile::GameProfile;
@@ -21,6 +21,7 @@ use mcrs_minecraft_engine::persisted_registry::{
 };
 use mcrs_minecraft_engine::to_coordinator::JoinRequested;
 use mcrs_minecraft_engine::to_muxer::JoinPlaced;
+use mcrs_minecraft_engine::{SavedSpawn, SpawnOverride};
 use mcrs_minecraft_engine_registries::SyncedRegistries;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
@@ -89,12 +90,13 @@ enum JoinPose {
 fn join_placement(
     snapshot: &PersistedSnapshot,
     spawn: Option<&RespawnData>,
+    spawn_override: Option<DVec3>,
 ) -> Result<JoinPose, PersistedError> {
     let pos = snapshot.pos()?;
     let spawn_rotation = spawn.map_or([0.0; 2], |spawn| [spawn.yaw, spawn.pitch]);
     let [yaw, pitch] = snapshot.rotation()?.unwrap_or(spawn_rotation);
     let rotation = Rotation::new(yaw, pitch);
-    Ok(match pos {
+    Ok(match spawn_override.or(pos) {
         Some(translation) => JoinPose::At(Transform {
             translation,
             rotation,
@@ -261,12 +263,17 @@ pub fn initial_player_spawn() -> ScheduleConfigs<ScheduleSystem> {
         .chain()
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub fn request_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
     sessions: Query<(&Session, &SessionPlacement, &GameProfile)>,
     dim_inputs: Res<DimInputs>,
     save: Option<Res<WorldSave>>,
     saved_spawn: Option<Res<SavedSpawn>>,
+    spawn_override: Option<Res<SpawnOverride>>,
     registry: Res<PersistedRegistry>,
     mut requests: MessageWriter<JoinRequested>,
 ) {
@@ -305,13 +312,14 @@ pub fn request_initial_player_spawn(
         };
         snapshot.insert_profile(profile);
         let spawn = saved_spawn.as_deref().map(|spawn| &spawn.0);
-        let placement = match join_placement(&snapshot, spawn) {
+        let spawn_override = spawn_override.as_deref().map(|spawn| spawn.0);
+        let placement = match join_placement(&snapshot, spawn, spawn_override) {
             Ok(placement) => placement,
             Err(err) => {
                 tracing::error!(uuid = %profile.id, "player pose not loaded, never saving it: {err}");
                 snapshot = PersistedSnapshot::unreadable();
                 snapshot.insert_profile(profile);
-                join_placement(&snapshot, spawn)
+                join_placement(&snapshot, spawn, spawn_override)
                     .unwrap_or(JoinPose::Facing(Rotation::new(0.0, 0.0)))
             }
         };
@@ -328,7 +336,11 @@ pub fn request_initial_player_spawn(
         }
         requests.write(JoinRequested {
             session: session.0,
-            saved_dimension: saved_dimension.or_else(|| spawn.map(|spawn| spawn.dimension.clone())),
+            saved_dimension: if spawn_override.is_some() {
+                None
+            } else {
+                saved_dimension.or_else(|| spawn.map(|spawn| spawn.dimension.clone()))
+            },
             snapshot,
         });
     }
@@ -366,7 +378,7 @@ mod join_placement_tests {
         let mut snapshot = PersistedSnapshot::default();
         snapshot.put(&["Pos"], &"here").unwrap();
 
-        assert!(join_placement(&snapshot, Some(&spawn())).is_err());
+        assert!(join_placement(&snapshot, Some(&spawn()), None).is_err());
     }
 
     fn placed_at(pose: JoinPose) -> Transform {
@@ -389,7 +401,7 @@ mod join_placement_tests {
                 snapshot.insert_rotation(Rotation::new(yaw, pitch));
             }
 
-            let placed = join_placement(&snapshot, spawn.as_ref()).unwrap();
+            let placed = join_placement(&snapshot, spawn.as_ref(), None).unwrap();
 
             assert_eq!(
                 placed,
@@ -404,7 +416,7 @@ mod join_placement_tests {
     fn the_pos_and_the_rotation_of_a_file_come_before_the_spawn() {
         let at = DVec3::new(1.0, 2.0, 3.0);
         let placed = placed_at(
-            join_placement(&pose_snapshot(at, Some([90.0, 10.0])), Some(&spawn())).unwrap(),
+            join_placement(&pose_snapshot(at, Some([90.0, 10.0])), Some(&spawn()), None).unwrap(),
         );
 
         assert_eq!(placed.translation, at);
@@ -417,9 +429,35 @@ mod join_placement_tests {
     #[test]
     fn a_rotation_missing_from_a_file_with_a_pos_takes_the_spawn_rotation() {
         let at = DVec3::new(1.0, 2.0, 3.0);
-        let placed = placed_at(join_placement(&pose_snapshot(at, None), Some(&spawn())).unwrap());
+        let placed =
+            placed_at(join_placement(&pose_snapshot(at, None), Some(&spawn()), None).unwrap());
 
         assert_eq!(placed.translation, at);
         assert_eq!(placed.rotation.yaw(), 30.0);
+    }
+
+    #[test]
+    fn a_spawn_override_replaces_the_position_and_keeps_the_rotation() {
+        let at = DVec3::new(1.0, 2.0, 3.0);
+        let over = DVec3::new(500.0, 90.0, -40.0);
+        let placed = placed_at(
+            join_placement(
+                &pose_snapshot(at, Some([90.0, 10.0])),
+                Some(&spawn()),
+                Some(over),
+            )
+            .unwrap(),
+        );
+
+        assert_eq!(placed.translation, over);
+        assert_eq!(
+            [placed.rotation.yaw(), placed.rotation.pitch()],
+            [90.0, 10.0]
+        );
+
+        let fresh = placed_at(
+            join_placement(&PersistedSnapshot::default(), Some(&spawn()), Some(over)).unwrap(),
+        );
+        assert_eq!(fresh.translation, over);
     }
 }

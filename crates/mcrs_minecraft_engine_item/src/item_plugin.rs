@@ -27,8 +27,8 @@ use crate::RequestResult;
 use crate::Selected;
 use crate::SlotChanged;
 use crate::Slots;
+use crate::commit::RequestScratch;
 use crate::item_components::ItemComponents;
-use crate::request_scratch::RequestScratch;
 
 pub struct ItemPlugin {
     schedule: InternedScheduleLabel,

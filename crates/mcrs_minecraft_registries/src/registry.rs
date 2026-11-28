@@ -66,6 +66,14 @@ impl Names {
         &self.names
     }
 
+    pub(crate) fn iter_ids<R>(
+        &self,
+    ) -> impl Iterator<Item = (Id<R>, &ResourceLocationBuf)> + use<'_, R> {
+        let len = self.len();
+        (self.names.iter().zip(0..=u16::MAX))
+            .filter_map(move |(name, number)| Some((Id::checked(number, len)?, name)))
+    }
+
     pub(crate) fn origin(&self, number: u16) -> Option<PackIndex> {
         self.origins.get(usize::from(number)).copied()
     }
@@ -104,10 +112,8 @@ impl<'a, R> Entries<'a, R> {
         self.names.all()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Id<R>, &'a ResourceLocationBuf)> + 'a {
-        let len = self.names.len();
-        (self.names.all().iter().zip(0..=u16::MAX))
-            .filter_map(move |(name, number)| Some((Id::checked(number, len)?, name)))
+    pub fn iter(&self) -> impl Iterator<Item = (Id<R>, &'a ResourceLocationBuf)> + use<'a, R> {
+        self.names.iter_ids()
     }
 }
 
@@ -154,15 +160,9 @@ impl<V: RegistryValue> Registry<V> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (Id<V::Registry>, &ResourceLocationBuf, &V)> {
-        let len = self.names.len();
-        self.names
-            .all()
-            .iter()
+        (self.names.iter_ids())
             .zip(self.values.iter())
-            .zip(0..=u16::MAX)
-            .filter_map(move |((name, value), number)| {
-                Some((Id::checked(number, len)?, name, value))
-            })
+            .map(|((id, name), value)| (id, name, value))
     }
 }
 

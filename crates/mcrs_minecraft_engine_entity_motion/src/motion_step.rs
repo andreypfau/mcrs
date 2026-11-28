@@ -18,6 +18,7 @@ use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::BodyGrid;
+use mcrs_minecraft_physics::CORPSE_REMOVAL_TICKS;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::GridRow;
@@ -60,7 +61,6 @@ use crate::section_cache::SectionCache;
 use crate::tile_edits::SlotChange;
 use crate::tile_edits::TileEdits;
 
-const DEATH_TICKS: u8 = 20;
 const STILL_INPUT: f64 = 1.0e-7;
 
 type Moving<'a> = (
@@ -422,7 +422,7 @@ fn expire(at: &Stepping<'_>, motion: &EntityState, vitals: Option<&Vitals>) -> O
     let died = vitals
         .filter(|_| living)
         .and_then(|vitals| vitals.death_time)
-        .is_some_and(|ticks| ticks >= DEATH_TICKS);
+        .is_some_and(|ticks| ticks >= CORPSE_REMOVAL_TICKS);
     (died || expires).then_some(Expiry {
         entity: at.entity,
         key: motion.key,

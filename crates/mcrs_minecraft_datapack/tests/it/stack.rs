@@ -3,7 +3,8 @@ use std::fs;
 
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_datapack::{
-    AvailablePack, Features, KnownPack, Level, PackDiagnostic, PackSelection, pack_stack,
+    AvailablePack, Features, KnownPack, Level, PackDiagnostic, PackSelection, SelectedStack,
+    pack_stack,
 };
 
 use mcrs_minecraft_fixtures::vanilla_dir;
@@ -39,7 +40,7 @@ struct Case {
 
 fn assert_stacks(cases: Vec<Case>) {
     for case in cases {
-        let (stack, diagnostics) = pack_stack(
+        let SelectedStack { stack, diagnostics } = pack_stack(
             &case.selection,
             &case.available,
             &features(case.world_features),
@@ -265,7 +266,7 @@ fn enabled_features_are_the_union_of_the_stack_and_the_world() {
         ),
     ];
     for (world, expected) in cases {
-        let (stack, _) = pack_stack(
+        let SelectedStack { stack, .. } = pack_stack(
             &selection(&["vanilla", "file/a"], &[]),
             &[
                 AvailablePack::vanilla(),
@@ -292,7 +293,7 @@ enum Outcome {
 fn assert_metadata_outcomes(cases: &[(&str, Option<&str>, Outcome)]) {
     for &(name, meta, ref outcome) in cases {
         let pack = AvailablePack::zip("p.zip", meta.map(|m| m.as_bytes().to_vec()));
-        let (stack, diagnostics) = pack_stack(
+        let SelectedStack { stack, diagnostics } = pack_stack(
             &selection(&["vanilla", "file/p.zip"], &[]),
             &[AvailablePack::vanilla(), pack],
             &features(None),
@@ -455,7 +456,7 @@ fn pack_format_range_decides_compatibility_warning() {
 #[test]
 fn known_packs_are_offered_in_stack_order_for_built_in_packs_only() {
     let trade = fs::read(vanilla_dir().join("datapacks/trade_rebalance/pack.mcmeta")).unwrap();
-    let (stack, _) = pack_stack(
+    let SelectedStack { stack, .. } = pack_stack(
         &selection(&["vanilla", "file/x", "trade_rebalance"], &[]),
         &[
             AvailablePack::vanilla(),

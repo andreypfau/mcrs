@@ -9,6 +9,7 @@ use crate::PlayerTable;
 use crate::Replica;
 use crate::Stage;
 use crate::StageConfig;
+use crate::StageRun;
 use crate::TickContext;
 use crate::TileWork;
 use mcrs_minecraft_entity_key::EntityId;
@@ -45,6 +46,11 @@ impl<B> AiDriver<B> {
     #[must_use]
     pub const fn tick(&self) -> u64 {
         self.tick
+    }
+
+    #[must_use]
+    pub fn tile_of(&self, mob: EntityId) -> Option<TileKey> {
+        self.stage.tile_of(mob)
     }
 
     #[must_use]
@@ -102,8 +108,9 @@ impl<B> AiDriver<B> {
         &mut self,
         world: &W,
         run: impl FnOnce(&mut [TileWork<'_, B>], &TickContext<'_, W>),
-    ) -> usize {
+    ) -> StageRun {
         let tick = self.tick;
+        let evaluations_before = self.stage.evaluations();
         let cx = TickContext {
             tick,
             config: *self.stage.config(),
@@ -117,6 +124,10 @@ impl<B> AiDriver<B> {
         let decisions = issued.len();
         self.pipeline.ready(issued);
         self.replica.retire(tick.saturating_add(1));
-        decisions
+        StageRun {
+            decisions,
+            evaluations: self.stage.evaluations().saturating_sub(evaluations_before),
+            mobs: self.stage.len(),
+        }
     }
 }

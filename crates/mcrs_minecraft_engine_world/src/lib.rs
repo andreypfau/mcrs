@@ -6,6 +6,7 @@ pub mod entity;
 pub mod entity_births;
 pub mod entity_ids;
 pub mod game_rules;
+pub mod loading_rings;
 pub mod owned_columns;
 pub mod palette;
 pub mod server_loop;

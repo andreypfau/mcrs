@@ -1,11 +1,17 @@
 #[rustfmt::skip]
 pub mod game_rule_keys;
+pub mod invalid_game_rule_value;
+pub mod mcrs_game_rule;
+pub mod preset;
 #[rustfmt::skip]
 pub mod registry_keys;
 
 use mcrs_minecraft_resource::ResourceLocation;
 
 pub use game_rule_keys::GameRule;
+pub use invalid_game_rule_value::InvalidGameRuleValue;
+pub use mcrs_game_rule::McrsGameRule;
+pub use preset::{AnyGameRule, GameRulePreset, GameRuleValues};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameRuleCategory {
@@ -22,6 +28,16 @@ pub enum GameRuleCategory {
 pub enum GameRuleValueType {
     Bool { default: bool },
     Int { default: i32, min: i32, max: i32 },
+}
+
+impl GameRuleValueType {
+    #[must_use]
+    pub const fn accepts(self, value: i32) -> bool {
+        match self {
+            Self::Bool { .. } => value == 0 || value == 1,
+            Self::Int { min, max, .. } => min <= value && value <= max,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

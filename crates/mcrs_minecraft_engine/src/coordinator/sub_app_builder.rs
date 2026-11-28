@@ -24,7 +24,7 @@ use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 
-use crate::block_simulation::DimensionBlockRules;
+use crate::block_simulation::{BlockSimulationConfig, DimensionBlockRules};
 use crate::column_store::ColumnStorePlugin;
 use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use crate::minecraft_entity::MinecraftEntityPlugin;
@@ -36,11 +36,13 @@ use mcrs_minecraft_engine_world::owned_columns::{OwnedColumns, region_partition}
 use mcrs_minecraft_engine_world::server_loop::run_schedules_on_one_thread;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::{
-    DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
+    DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
 };
 use mcrs_minecraft_engine_world::world::dimension_builders::{
     DimensionBuild, DimensionBuilders, DimensionHostBuilder,
 };
+use mcrs_minecraft_engine_world::world::dimension_bundle::DimensionBundle;
+use mcrs_minecraft_engine_world::world::dimension_plugin::DimensionPlugin;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_minecraft_engine_world::world::sub_app::{
@@ -204,6 +206,12 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             ..AssetPlugin::default()
         });
         sub_app.add_plugins(PlayerTrackerPlugin);
+        let config = app
+            .world()
+            .get_resource::<BlockSimulationConfig>()
+            .copied()
+            .unwrap_or_default();
+        sub_app.insert_resource(config);
         let rules = app
             .world()
             .get_resource::<DimensionBlockRules>()
@@ -232,6 +240,9 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
         }
         if let Some(save) = host.get_resource::<WorldSave>() {
             sub_app.insert_resource(save.clone());
+        }
+        if let Some(spawn) = host.get_resource::<crate::SpawnOverride>() {
+            sub_app.insert_resource(*spawn);
         }
         if let Some(spawn) = host.get_resource::<crate::SavedSpawn>() {
             sub_app.insert_resource(spawn.clone());

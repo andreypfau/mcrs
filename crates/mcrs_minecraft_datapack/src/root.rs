@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Component, Path, PathBuf};
 
-use crate::{AvailablePack, PackDiagnostic, PackFiles, PackStack, StackedPack};
+use crate::{
+    AvailablePack, Features, PackConflict, PackDiagnostic, PackFiles, PackSelection, PackStack,
+    SelectedStack, StackedPack, pack_stack,
+};
 
 pub const PACKS_ROOT: &str = "mcrs/datapacks";
 pub const VANILLA_ROOT: &str = "minecraft";
@@ -11,6 +14,7 @@ pub const REPOSITORY_PACKS: [&str; 2] = ["mcrs", "beta"];
 const FEATURE_PACKS: &str = "minecraft/datapacks";
 const METADATA: &str = "pack.mcmeta";
 const STANDARD_DATA: &str = "data";
+const FILE_PREFIX: &str = "file/";
 
 pub fn below_vanilla_root(path: &Path) -> Option<&Path> {
     path.strip_prefix(VANILLA_ROOT).ok()
@@ -54,7 +58,7 @@ impl fmt::Display for ReadError {
     }
 }
 
-impl std::error::Error for ReadError {}
+impl core::error::Error for ReadError {}
 
 pub struct DirectoryEntry {
     pub name: String,
@@ -258,12 +262,56 @@ impl RootPacks {
         Ok(packs)
     }
 
-    pub fn available(&self) -> &[AvailablePack] {
-        &self.available
-    }
-
-    pub fn unavailable(&self) -> &[PackDiagnostic] {
-        &self.unavailable
+    pub fn stack(
+        &self,
+        standard_packs: &[String],
+        local_packs: &[String],
+        embedded_packs: Vec<String>,
+    ) -> Result<SelectedStack, PackConflict> {
+        if let Some(name) = standard_packs
+            .iter()
+            .find(|name| local_packs.contains(name))
+        {
+            return Err(PackConflict::LocalNamedAsStandard(name.clone()));
+        }
+        let standard = |name: &str| standard_packs.iter().any(|standard| standard == name);
+        let local = |name: &str| local_packs.iter().any(|local| local == name);
+        let mut selection = PackSelection::default();
+        let mut available: Vec<AvailablePack> = (self.available.iter())
+            .filter(|pack| {
+                (pack.id().strip_prefix(FILE_PREFIX))
+                    .is_none_or(|name| local(name) || standard(name))
+            })
+            .cloned()
+            .collect();
+        for id in embedded_packs {
+            if available.iter().any(|pack| pack.id() == id) {
+                return Err(PackConflict::EmbeddedIdTaken(id));
+            }
+            selection.enabled.push(id.clone());
+            available.push(AvailablePack::embedded(id));
+        }
+        if !standard_packs.is_empty() {
+            let mut local_ids: Vec<&str> = (available.iter())
+                .map(AvailablePack::id)
+                .filter(|id| {
+                    id.strip_prefix(FILE_PREFIX)
+                        .is_some_and(|name| !standard(name))
+                })
+                .collect();
+            local_ids.sort_unstable();
+            let standard_ids = standard_packs
+                .iter()
+                .map(|name| format!("{FILE_PREFIX}{name}"))
+                .filter(|id| available.iter().any(|pack| pack.id() == id));
+            let enabled = local_ids.into_iter().map(str::to_owned).chain(standard_ids);
+            selection.enabled.extend(enabled);
+        }
+        let mut selected = pack_stack(&selection, &available, &Features::vanilla(), false);
+        selected
+            .diagnostics
+            .extend(self.unavailable.iter().cloned());
+        Ok(selected)
     }
 
     pub fn read_files(
