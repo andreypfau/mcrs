@@ -58,7 +58,7 @@ fn timed_step(pen: &mut PigPen, pool: &ThreadPool, threads: usize) -> Duration {
 
 fn report(wake: WakeMode, idle: IdleRule, pool: &ThreadPool, threads: usize) {
     let mut pen = pen(wake, idle);
-    let (evaluations, decisions) = (pen.driver().evaluations(), pen.decisions());
+    let (evaluations, decisions) = (pen.stage().evaluations(), pen.decisions());
     let mut walking = 0;
     let mut stage = Duration::ZERO;
     for _ in 0..REPORT_TICKS {
@@ -66,7 +66,7 @@ fn report(wake: WakeMode, idle: IdleRule, pool: &ThreadPool, threads: usize) {
         walking += pen.walking();
     }
     let ticks = f64::from(REPORT_TICKS);
-    let evaluations = (pen.driver().evaluations() - evaluations) as f64 / ticks;
+    let evaluations = (pen.stage().evaluations() - evaluations) as f64 / ticks;
     let decisions = (pen.decisions() - decisions) as f64 / ticks;
     let per_tick = stage.as_secs_f64() / ticks;
     eprintln!(

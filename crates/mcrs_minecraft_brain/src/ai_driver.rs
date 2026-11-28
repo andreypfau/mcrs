@@ -11,7 +11,6 @@ use crate::Stage;
 use crate::StageConfig;
 use crate::StageRun;
 use crate::TickContext;
-use crate::TileBrains;
 use crate::TileWork;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityUuid;
@@ -50,27 +49,13 @@ impl<B> AiDriver<B> {
     }
 
     #[must_use]
-    pub fn len(&self) -> usize {
-        self.stage.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.stage.is_empty()
-    }
-
-    #[must_use]
     pub fn tile_of(&self, mob: EntityId) -> Option<TileKey> {
         self.stage.tile_of(mob)
     }
 
     #[must_use]
-    pub fn evaluations(&self) -> u64 {
-        self.stage.evaluations()
-    }
-
-    pub fn tiles(&self) -> impl Iterator<Item = (TileKey, &TileBrains<B>)> {
-        self.stage.tiles()
+    pub const fn stage(&self) -> &Stage<B> {
+        &self.stage
     }
 
     #[must_use]
@@ -142,6 +127,7 @@ impl<B> AiDriver<B> {
         StageRun {
             decisions,
             evaluations: self.stage.evaluations().saturating_sub(evaluations_before),
+            mobs: self.stage.len(),
         }
     }
 }

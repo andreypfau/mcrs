@@ -191,7 +191,7 @@ impl Run {
                 .hash(&mut hasher);
             }
         }
-        for (tile, brains) in self.ai().driver().tiles() {
+        for (tile, brains) in self.ai().stage().tiles() {
             tile.hash(&mut hasher);
             for entry in brains.iter() {
                 entry.mob.hash(&mut hasher);
@@ -249,7 +249,7 @@ fn run_orders(ticks: u64, orders: &[Vec<u32>]) -> Crowd {
     Crowd {
         hash,
         walked,
-        evaluations: runs[0].ai().driver().evaluations(),
+        evaluations: runs[0].ai().stage().evaluations(),
     }
 }
 

@@ -15,6 +15,7 @@ use mcrs_minecraft_brain::MobBrain;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::PanicCauses;
 use mcrs_minecraft_brain::PlayerTable;
+use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_damage::HitRecord;
 use mcrs_minecraft_damage::Vitals;
@@ -59,6 +60,7 @@ pub struct MobAi<B: Send + Sync + 'static> {
     ended: Vec<EntityId>,
     gathered: BrainOut,
     facts: Vec<TiledFact>,
+    prepared: PrepareStats,
 }
 
 #[derive(Debug)]
@@ -111,12 +113,17 @@ impl<B: Send + Sync + 'static> MobAi<B> {
             ended: Vec::new(),
             gathered: BrainOut::default(),
             facts: Vec::new(),
+            prepared: PrepareStats::default(),
         }
     }
 
     #[must_use]
-    pub const fn driver(&self) -> &AiDriver<B> {
-        &self.driver
+    pub const fn stage(&self) -> &Stage<B> {
+        self.driver.stage()
+    }
+
+    pub(crate) const fn prepared(&self) -> &PrepareStats {
+        &self.prepared
     }
 
     #[must_use]
@@ -144,7 +151,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         panic_causes: &PanicCauses,
         mut mobs: Thinking<'_, '_>,
         threads: &mut Parallel<BrainOut>,
-    ) -> PrepareStats {
+    ) {
         let started = Instant::now();
         let tick = self.driver.begin_tick();
         self.follow_life_cycle(tick);
@@ -172,8 +179,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         );
         let ran = Instant::now();
         self.publish(threads, players);
-        PrepareStats {
-            mobs: self.driver.len(),
+        self.prepared = PrepareStats {
             waits,
             life_cycle: followed.duration_since(started),
             tile_tasks: ran.duration_since(followed),
@@ -191,8 +197,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
             .driver
             .run_stage(world, |work, cx| run_tiles(pool, work, cx));
         StageStats {
-            decisions: run.decisions,
-            evaluations: run.evaluations,
+            run,
             elapsed: started.elapsed(),
         }
     }
