@@ -28,7 +28,7 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 20] = [
+const NO_STD_PACKAGES: [&str; 21] = [
     "mcrs_command",
     "mcrs_minecraft_bedrock_wire",
     "mcrs_minecraft_block_break",
@@ -48,10 +48,11 @@ const NO_STD_PACKAGES: [&str; 20] = [
     "mcrs_minecraft_swing",
     "mcrs_molang",
     "mcrs_molang_wgsl",
+    "mcrs_raknet",
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 143] = [
+const NO_BEVY_PACKAGES: [&str; 144] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -193,11 +194,16 @@ const NO_BEVY_PACKAGES: [&str; 143] = [
     "mcrs_minecraft_worldgen_testing",
     "mcrs_molang",
     "mcrs_molang_wgsl",
+    "mcrs_raknet",
     "mcrs_test_alloc",
     "mcrs_voxel",
 ];
 
-const WIRE_LAYER_PACKAGES: [&str; 2] = ["mcrs_minecraft_protocol", "mcrs_minecraft_network"];
+const WIRE_LAYER_PACKAGES: [&str; 3] = [
+    "mcrs_minecraft_protocol",
+    "mcrs_minecraft_network",
+    "mcrs_raknet",
+];
 
 const STANDALONE_BAKE_PACKAGES: [&str; 3] = [
     "mcrs_minecraft_model",

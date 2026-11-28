@@ -280,5 +280,6 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_trim`: The values of the trim material and trim pattern registries
 - `mcrs_minecraft_value_provider`: Int, float and height providers and their codecs
 - `mcrs_minecraft_volume`: One block access API over every store of world data: bounds, per-section access, section handles and cursors
+- `mcrs_raknet`: Sans-IO RakNet transport implementation with an optional tokio UDP driver
 - `mcrs_test_alloc`: A global allocator that counts the allocations of the calling thread, for tests
 - `mcrs_voxel`: Owns the block, section, local and column positions and the block state id of a voxel world; the chunk position type is ColumnPos
