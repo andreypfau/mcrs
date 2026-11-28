@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::vec;
 
 use bevy_app::{App, FixedUpdate, Last, Plugin};
@@ -30,6 +31,7 @@ use crate::column_light::ColdStageLandSet;
 use crate::column_production::ColumnProduction;
 use crate::column_store_mail::ColumnStoreMail;
 use crate::column_streams::{ColumnStreamSet, land_viewed_columns, report_player_views};
+use crate::column_tick_holder::ColumnTickHolder;
 use crate::heightmap::update_column_heightmaps;
 use crate::hot_ticket::{raise_hot_ticket, release_hot_ticket, track_hot_tickets};
 use crate::stored_columns_landing::{
@@ -42,8 +44,19 @@ pub type ColumnStoreInput = StoreInput<ColumnPos, StoredColumn>;
 
 pub type ColumnStoreOutput = StoreOutput<ColumnPos, StoredColumn>;
 
-pub struct ColumnStorePlugin {
-    pub owned: Option<OwnedColumns>,
+pub struct ColumnStorePlugin<T> {
+    owned: Option<OwnedColumns>,
+    ticks: PhantomData<fn() -> T>,
+}
+
+impl<T> ColumnStorePlugin<T> {
+    #[must_use]
+    pub fn new(owned: Option<OwnedColumns>) -> Self {
+        Self {
+            owned,
+            ticks: PhantomData,
+        }
+    }
 }
 
 #[derive(Resource, Default)]
@@ -316,7 +329,7 @@ impl ColumnStoreLink {
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StoredColumnLandSet;
 
-impl Plugin for ColumnStorePlugin {
+impl<T: ColumnTickHolder> Plugin for ColumnStorePlugin<T> {
     fn build(&self, app: &mut App) {
         app.insert_resource(ColumnStoreLink::new(self.owned));
         app.init_resource::<ColumnProduction>();
@@ -338,7 +351,7 @@ impl Plugin for ColumnStorePlugin {
                 (
                     mark_changed_sections.run_if(on_message::<BlockPlaced>),
                     mark_changed_block_entities,
-                    write_cold_columns.run_if(columns_cooling),
+                    write_cold_columns::<T>.run_if(columns_cooling),
                 )
                     .chain()
                     .in_set(ColumnCoolSet),
@@ -378,8 +391,8 @@ impl Plugin for ColumnStorePlugin {
         app.add_systems(
             Last,
             (
-                save_dirty_loaded_columns.run_if(resource_exists::<SaveRequest>),
-                save_all_loaded_columns.run_if(resource_exists::<SaveRequest>),
+                save_dirty_loaded_columns::<T>.run_if(resource_exists::<SaveRequest>),
+                save_all_loaded_columns::<T>.run_if(resource_exists::<SaveRequest>),
             )
                 .chain()
                 .after(update_column_heightmaps),
