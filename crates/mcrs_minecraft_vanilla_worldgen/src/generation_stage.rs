@@ -4,8 +4,8 @@ use mcrs_minecraft_anvil::{ChunkStructures, StructureStart};
 use mcrs_minecraft_engine::column_generation::GenerationAnswer;
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
+use mcrs_minecraft_engine_world::loading_rings::LOADING_RINGS;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
-use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
 use mcrs_minecraft_region_disk::stored_column::{StoredColumn, StoredSection};
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_minecraft_worldgen_generator::staging::{

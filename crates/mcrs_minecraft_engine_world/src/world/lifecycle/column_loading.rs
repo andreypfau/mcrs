@@ -6,9 +6,8 @@ use indexmap::IndexSet;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::{FxBuildHasher, FxHashSet};
 
+use crate::loading_rings::LOADING_RINGS;
 use crate::world::lifecycle::coverage::Coverage;
-
-pub const LOADING_RINGS: i32 = 2;
 
 #[derive(Component, Debug)]
 pub struct ColumnLoading {
