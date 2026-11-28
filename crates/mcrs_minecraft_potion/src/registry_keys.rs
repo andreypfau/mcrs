@@ -1,7 +1,7 @@
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const POTION: RegistryKey<crate::potion_keys::Potion> =
-    RegistryKey::new(rl!("minecraft:potion"));
+    <crate::potion_keys::Potion as Registered>::REGISTRY;
 impl Registered for crate::potion_keys::Potion {
-    const REGISTRY: RegistryKey<Self> = POTION;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:potion"));
 }

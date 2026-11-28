@@ -1,115 +1,115 @@
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const CAT_SOUND_VARIANT: RegistryKey<crate::variant::CatSoundVariant> =
-    RegistryKey::new(rl!("minecraft:cat_sound_variant"));
+    <crate::variant::CatSoundVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::CatSoundVariant {
-    const REGISTRY: RegistryKey<Self> = CAT_SOUND_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:cat_sound_variant"));
 }
 
 pub const CAT_VARIANT: RegistryKey<crate::variant::CatVariant> =
-    RegistryKey::new(rl!("minecraft:cat_variant"));
+    <crate::variant::CatVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::CatVariant {
-    const REGISTRY: RegistryKey<Self> = CAT_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:cat_variant"));
 }
 
 pub const CHICKEN_SOUND_VARIANT: RegistryKey<crate::variant::ChickenSoundVariant> =
-    RegistryKey::new(rl!("minecraft:chicken_sound_variant"));
+    <crate::variant::ChickenSoundVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::ChickenSoundVariant {
-    const REGISTRY: RegistryKey<Self> = CHICKEN_SOUND_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:chicken_sound_variant"));
 }
 
 pub const CHICKEN_VARIANT: RegistryKey<crate::variant::ChickenVariant> =
-    RegistryKey::new(rl!("minecraft:chicken_variant"));
+    <crate::variant::ChickenVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::ChickenVariant {
-    const REGISTRY: RegistryKey<Self> = CHICKEN_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:chicken_variant"));
 }
 
 pub const COW_SOUND_VARIANT: RegistryKey<crate::variant::CowSoundVariant> =
-    RegistryKey::new(rl!("minecraft:cow_sound_variant"));
+    <crate::variant::CowSoundVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::CowSoundVariant {
-    const REGISTRY: RegistryKey<Self> = COW_SOUND_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:cow_sound_variant"));
 }
 
 pub const COW_VARIANT: RegistryKey<crate::variant::CowVariant> =
-    RegistryKey::new(rl!("minecraft:cow_variant"));
+    <crate::variant::CowVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::CowVariant {
-    const REGISTRY: RegistryKey<Self> = COW_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:cow_variant"));
 }
 
 pub const DAMAGE_TYPE: RegistryKey<crate::damage_type::DamageType> =
-    RegistryKey::new(rl!("minecraft:damage_type"));
+    <crate::damage_type::DamageType as Registered>::REGISTRY;
 impl Registered for crate::damage_type::DamageType {
-    const REGISTRY: RegistryKey<Self> = DAMAGE_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:damage_type"));
 }
 
 pub const ENTITY_TYPE: RegistryKey<crate::entity_type_keys::EntityType> =
-    RegistryKey::new(rl!("minecraft:entity_type"));
+    <crate::entity_type_keys::EntityType as Registered>::REGISTRY;
 impl Registered for crate::entity_type_keys::EntityType {
-    const REGISTRY: RegistryKey<Self> = ENTITY_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:entity_type"));
 }
 
 pub const FROG_VARIANT: RegistryKey<crate::variant::FrogVariant> =
-    RegistryKey::new(rl!("minecraft:frog_variant"));
+    <crate::variant::FrogVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::FrogVariant {
-    const REGISTRY: RegistryKey<Self> = FROG_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:frog_variant"));
 }
 
 pub const MOB_EFFECT: RegistryKey<crate::mob_effect_keys::MobEffect> =
-    RegistryKey::new(rl!("minecraft:mob_effect"));
+    <crate::mob_effect_keys::MobEffect as Registered>::REGISTRY;
 impl Registered for crate::mob_effect_keys::MobEffect {
-    const REGISTRY: RegistryKey<Self> = MOB_EFFECT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:mob_effect"));
 }
 
 pub const PIG_SOUND_VARIANT: RegistryKey<crate::variant::PigSoundVariant> =
-    RegistryKey::new(rl!("minecraft:pig_sound_variant"));
+    <crate::variant::PigSoundVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::PigSoundVariant {
-    const REGISTRY: RegistryKey<Self> = PIG_SOUND_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:pig_sound_variant"));
 }
 
 pub const PIG_VARIANT: RegistryKey<crate::variant::PigVariant> =
-    RegistryKey::new(rl!("minecraft:pig_variant"));
+    <crate::variant::PigVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::PigVariant {
-    const REGISTRY: RegistryKey<Self> = PIG_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:pig_variant"));
 }
 
 pub const SPAWN_CONDITION_TYPE: RegistryKey<crate::spawn_condition_type_keys::SpawnConditionType> =
-    RegistryKey::new(rl!("minecraft:spawn_condition_type"));
+    <crate::spawn_condition_type_keys::SpawnConditionType as Registered>::REGISTRY;
 impl Registered for crate::spawn_condition_type_keys::SpawnConditionType {
-    const REGISTRY: RegistryKey<Self> = SPAWN_CONDITION_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:spawn_condition_type"));
 }
 
 pub const VILLAGER_PROFESSION: RegistryKey<crate::villager_profession_keys::VillagerProfession> =
-    RegistryKey::new(rl!("minecraft:villager_profession"));
+    <crate::villager_profession_keys::VillagerProfession as Registered>::REGISTRY;
 impl Registered for crate::villager_profession_keys::VillagerProfession {
-    const REGISTRY: RegistryKey<Self> = VILLAGER_PROFESSION;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:villager_profession"));
 }
 
 pub const VILLAGER_TYPE: RegistryKey<crate::villager_type_keys::VillagerType> =
-    RegistryKey::new(rl!("minecraft:villager_type"));
+    <crate::villager_type_keys::VillagerType as Registered>::REGISTRY;
 impl Registered for crate::villager_type_keys::VillagerType {
-    const REGISTRY: RegistryKey<Self> = VILLAGER_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:villager_type"));
 }
 
 pub const WOLF_SOUND_VARIANT: RegistryKey<crate::variant::WolfSoundVariant> =
-    RegistryKey::new(rl!("minecraft:wolf_sound_variant"));
+    <crate::variant::WolfSoundVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::WolfSoundVariant {
-    const REGISTRY: RegistryKey<Self> = WOLF_SOUND_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:wolf_sound_variant"));
 }
 
 pub const WOLF_VARIANT: RegistryKey<crate::variant::WolfVariant> =
-    RegistryKey::new(rl!("minecraft:wolf_variant"));
+    <crate::variant::WolfVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::WolfVariant {
-    const REGISTRY: RegistryKey<Self> = WOLF_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:wolf_variant"));
 }
 
 pub const STRUCTURE: RegistryKey<crate::spawn_condition::Structure> =
-    RegistryKey::new(rl!("minecraft:worldgen/structure"));
+    <crate::spawn_condition::Structure as Registered>::REGISTRY;
 impl Registered for crate::spawn_condition::Structure {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:worldgen/structure"));
 }
 
 pub const ZOMBIE_NAUTILUS_VARIANT: RegistryKey<crate::variant::ZombieNautilusVariant> =
-    RegistryKey::new(rl!("minecraft:zombie_nautilus_variant"));
+    <crate::variant::ZombieNautilusVariant as Registered>::REGISTRY;
 impl Registered for crate::variant::ZombieNautilusVariant {
-    const REGISTRY: RegistryKey<Self> = ZOMBIE_NAUTILUS_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:zombie_nautilus_variant"));
 }

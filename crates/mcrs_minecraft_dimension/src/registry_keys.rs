@@ -1,24 +1,24 @@
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
-pub const DIMENSION: RegistryKey<crate::Dimension> = RegistryKey::new(rl!("minecraft:dimension"));
+pub const DIMENSION: RegistryKey<crate::Dimension> = <crate::Dimension as Registered>::REGISTRY;
 impl Registered for crate::Dimension {
-    const REGISTRY: RegistryKey<Self> = DIMENSION;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:dimension"));
 }
 
 pub const DIMENSION_TYPE: RegistryKey<crate::DimensionType> =
-    RegistryKey::new(rl!("minecraft:dimension_type"));
+    <crate::DimensionType as Registered>::REGISTRY;
 impl Registered for crate::DimensionType {
-    const REGISTRY: RegistryKey<Self> = DIMENSION_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:dimension_type"));
 }
 
 pub const CHUNK_GENERATOR: RegistryKey<crate::chunk_generator_keys::ChunkGeneratorType> =
-    RegistryKey::new(rl!("minecraft:worldgen/chunk_generator"));
+    <crate::chunk_generator_keys::ChunkGeneratorType as Registered>::REGISTRY;
 impl Registered for crate::chunk_generator_keys::ChunkGeneratorType {
-    const REGISTRY: RegistryKey<Self> = CHUNK_GENERATOR;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:worldgen/chunk_generator"));
 }
 
 pub const NOISE_SETTINGS: RegistryKey<crate::NoiseSettings> =
-    RegistryKey::new(rl!("minecraft:worldgen/noise_settings"));
+    <crate::NoiseSettings as Registered>::REGISTRY;
 impl Registered for crate::NoiseSettings {
-    const REGISTRY: RegistryKey<Self> = NOISE_SETTINGS;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:worldgen/noise_settings"));
 }

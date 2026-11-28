@@ -1,64 +1,63 @@
 use mcrs_minecraft_resource::{Registered, RegistryKey, ResourceLocation, rl};
 
 pub const CHAT_TYPE: RegistryKey<crate::chat_type::ChatType> =
-    RegistryKey::new(rl!("minecraft:chat_type"));
+    <crate::chat_type::ChatType as Registered>::REGISTRY;
 impl Registered for crate::chat_type::ChatType {
-    const REGISTRY: RegistryKey<Self> = CHAT_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:chat_type"));
 }
 
 pub const ENCHANTMENT_PROVIDER: RegistryKey<crate::enchantment_provider::EnchantmentProvider> =
-    RegistryKey::new(rl!("minecraft:enchantment_provider"));
+    <crate::enchantment_provider::EnchantmentProvider as Registered>::REGISTRY;
 impl Registered for crate::enchantment_provider::EnchantmentProvider {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_PROVIDER;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:enchantment_provider"));
 }
 
 pub const SULFUR_CUBE_ARCHETYPE: RegistryKey<crate::sulfur_cube_archetype::SulfurCubeArchetype> =
-    RegistryKey::new(rl!("minecraft:sulfur_cube_archetype"));
+    <crate::sulfur_cube_archetype::SulfurCubeArchetype as Registered>::REGISTRY;
 impl Registered for crate::sulfur_cube_archetype::SulfurCubeArchetype {
-    const REGISTRY: RegistryKey<Self> = SULFUR_CUBE_ARCHETYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:sulfur_cube_archetype"));
 }
 
 pub const TEST_ENVIRONMENT: RegistryKey<crate::test_types::TestEnvironment> =
-    RegistryKey::new(rl!("minecraft:test_environment"));
+    <crate::test_types::TestEnvironment as Registered>::REGISTRY;
 impl Registered for crate::test_types::TestEnvironment {
-    const REGISTRY: RegistryKey<Self> = TEST_ENVIRONMENT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:test_environment"));
 }
 
-pub const TEST_ENVIRONMENT_DEFINITION_TYPE: RegistryKey<
-    crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType,
-> = RegistryKey::new(rl!("minecraft:test_environment_definition_type"));
+pub const TEST_ENVIRONMENT_DEFINITION_TYPE: RegistryKey<crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType> = <crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType as Registered>::REGISTRY;
 impl Registered for crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType {
-    const REGISTRY: RegistryKey<Self> = TEST_ENVIRONMENT_DEFINITION_TYPE;
+    const REGISTRY: RegistryKey<Self> =
+        RegistryKey::new(rl!("minecraft:test_environment_definition_type"));
 }
 
 pub const TEST_INSTANCE: RegistryKey<crate::test_types::TestInstance> =
-    RegistryKey::new(rl!("minecraft:test_instance"));
+    <crate::test_types::TestInstance as Registered>::REGISTRY;
 impl Registered for crate::test_types::TestInstance {
-    const REGISTRY: RegistryKey<Self> = TEST_INSTANCE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:test_instance"));
 }
 
 pub const TEST_INSTANCE_TYPE: RegistryKey<crate::test_instance_type_keys::TestInstanceType> =
-    RegistryKey::new(rl!("minecraft:test_instance_type"));
+    <crate::test_instance_type_keys::TestInstanceType as Registered>::REGISTRY;
 impl Registered for crate::test_instance_type_keys::TestInstanceType {
-    const REGISTRY: RegistryKey<Self> = TEST_INSTANCE_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:test_instance_type"));
 }
 
 pub const TRADE_SET: RegistryKey<crate::villager_trade::TradeSet> =
-    RegistryKey::new(rl!("minecraft:trade_set"));
+    <crate::villager_trade::TradeSet as Registered>::REGISTRY;
 impl Registered for crate::villager_trade::TradeSet {
-    const REGISTRY: RegistryKey<Self> = TRADE_SET;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:trade_set"));
 }
 
 pub const VILLAGER_TRADE: RegistryKey<crate::villager_trade::VillagerTrade> =
-    RegistryKey::new(rl!("minecraft:villager_trade"));
+    <crate::villager_trade::VillagerTrade as Registered>::REGISTRY;
 impl Registered for crate::villager_trade::VillagerTrade {
-    const REGISTRY: RegistryKey<Self> = VILLAGER_TRADE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:villager_trade"));
 }
 
 pub const WORLD_PRESET: RegistryKey<crate::worldgen::world_preset::WorldPreset> =
-    RegistryKey::new(rl!("minecraft:worldgen/world_preset"));
+    <crate::worldgen::world_preset::WorldPreset as Registered>::REGISTRY;
 impl Registered for crate::worldgen::world_preset::WorldPreset {
-    const REGISTRY: RegistryKey<Self> = WORLD_PRESET;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:worldgen/world_preset"));
 }
 
 pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
