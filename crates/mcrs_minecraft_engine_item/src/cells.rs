@@ -40,7 +40,7 @@ impl<'w> Cells<'w> {
     pub(crate) fn in_world(
         world: &'w World,
         stack: Entity,
-        mask: impl Fn(&Table) -> u128,
+        mask: impl FnOnce(&Table) -> u128,
     ) -> Option<Self> {
         let location = world.entities().get(stack).ok()??;
         let table = world.storages().tables.get(location.table_id)?;
