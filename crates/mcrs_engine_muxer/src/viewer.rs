@@ -6,7 +6,6 @@ use std::ops::RangeInclusive;
 use bytes::Bytes;
 
 use crate::entity_id::ViewerId;
-use crate::place::Place;
 use crate::planner;
 use crate::planner::{Measured, Point, SubscriptionChange, TileHeader};
 use crate::replication_codec::{Hold, ReplicationCodec};
@@ -14,7 +13,7 @@ use crate::subscription::Subscription;
 use crate::tier::Tier;
 use crate::tile_blob::TileBlob;
 use crate::tile_reach;
-use crate::tile_reach::TileReach;
+use crate::tile_reach::{Place, TileReach};
 use crate::tile_stream::TileStream;
 use crate::view::View;
 use mcrs_minecraft_entity_key::EntityId;
@@ -50,18 +49,16 @@ impl Viewer {
         }
     }
 
-    pub(crate) fn retarget(&mut self, view: View) {
-        self.view = view;
-        self.settled_at = None;
-    }
-
-    pub(crate) fn dropped_tiles(&self, view: &View) -> Vec<TileKey> {
+    pub(crate) fn retarget(&mut self, view: View) -> Vec<TileKey> {
         let restart = self.view.subject != view.subject;
-        self.subscriptions
+        let dropped = self
+            .subscriptions
             .keys()
             .filter(|&&tile| restart || !view.contains(tile))
             .copied()
-            .collect()
+            .collect();
+        self.view = view;
+        dropped
     }
 
     pub(crate) fn subscribed_tiles(&self) -> impl Iterator<Item = TileKey> + '_ {
@@ -115,11 +112,11 @@ impl Viewer {
     pub(crate) fn is_settled(
         &self,
         position: Point,
-        mut changed: impl Iterator<Item = TileKey>,
+        changed: impl IntoIterator<Item = TileKey>,
     ) -> bool {
         self.settled_at == Some(position)
             && !planner::reads_budget(self.measured)
-            && !changed.any(|tile| self.view.contains(tile))
+            && !changed.into_iter().any(|tile| self.view.contains(tile))
     }
 
     pub(crate) fn moved_little(&self, position: Point) -> bool {
@@ -148,7 +145,7 @@ impl Viewer {
         self.region.iter().map(|(&tile, &reach)| (tile, reach))
     }
 
-    pub(crate) fn wants<C: ReplicationCodec>(
+    fn wants<C: ReplicationCodec>(
         &self,
         codec: &C,
         subject: EntityId,
@@ -166,6 +163,16 @@ impl Viewer {
             let [x, _, z] = codec.position(subject)?;
             Some((x - viewer.x).hypot(z - viewer.z))
         })
+    }
+
+    pub(crate) fn track<C: ReplicationCodec>(
+        &mut self,
+        codec: &C,
+        subject: EntityId,
+        place: Option<Place>,
+    ) -> Option<HoldChange> {
+        let wanted = self.wants(codec, subject, place);
+        self.settle_hold(subject, wanted.then_some(Tier::NEAREST))
     }
 
     pub(crate) fn wanted_tier(
@@ -195,19 +202,16 @@ impl Viewer {
         })
     }
 
-    pub(crate) fn subscription(&self, tile: TileKey) -> Subscription {
-        self.subscriptions.get(&tile).copied().unwrap_or_default()
-    }
-
-    pub(crate) fn set_subscription(&mut self, tile: TileKey, subscription: Option<Subscription>) {
-        match subscription {
-            Some(subscription) => {
-                self.subscriptions.insert(tile, subscription);
-            }
-            None => {
-                self.subscriptions.remove(&tile);
-            }
-        }
+    pub(crate) fn replace_subscription(
+        &mut self,
+        tile: TileKey,
+        subscription: Option<Subscription>,
+    ) -> Subscription {
+        let old = match subscription {
+            Some(subscription) => self.subscriptions.insert(tile, subscription),
+            None => self.subscriptions.remove(&tile),
+        };
+        old.unwrap_or_default()
     }
 
     pub(crate) fn settle_hold(

@@ -1,17 +1,17 @@
+use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
 use std::num::NonZeroU32;
 
 use crate::entity_event::{EntityEvent, SubjectEvent};
 use crate::entity_id::ViewerId;
-use crate::place::Place;
 use crate::planner::{BUDGET, SubscriptionChange, TileHeader};
 use crate::replication_codec::{BlobKind, Hold, ReplicationCodec};
 use crate::subscription::{LAYERS, layer_ranks};
 use crate::tier::Tier;
 use crate::tile_blob::TileBlob;
 use crate::tile_delta::{TileDelta, TileDeltas};
-use crate::tile_reach::{MAX_RANGE, TileReach};
+use crate::tile_reach::{MAX_RANGE, Place, TileReach};
 use crate::tile_stream::TileStream;
 use crate::view::View;
 use crate::viewer::{Gain, HoldChange, Viewer};
@@ -181,20 +181,20 @@ impl<C: ReplicationCodec> Muxer<C> {
 
     pub fn subscribe(&mut self, viewer: ViewerId, view: View) {
         let mut lost = Vec::new();
-        if let Some(state) = self.viewers.get(&viewer) {
-            let dropped = state.dropped_tiles(&view);
-            for tile in dropped {
-                let change = SubscriptionChange {
-                    tile,
-                    subscription: None,
-                };
-                self.resubscribe(viewer, change, &mut lost);
+        let dropped = match self.viewers.entry(viewer) {
+            Entry::Occupied(mut entry) => entry.get_mut().retarget(view),
+            Entry::Vacant(entry) => {
+                entry.insert(Viewer::new(view));
+                Vec::new()
             }
+        };
+        for tile in dropped {
+            let change = SubscriptionChange {
+                tile,
+                subscription: None,
+            };
+            self.resubscribe(viewer, change, &mut lost);
         }
-        self.viewers
-            .entry(viewer)
-            .and_modify(|state| state.retarget(view))
-            .or_insert_with(|| Viewer::new(view));
         self.send_removal(viewer, &lost);
         self.replan(viewer);
         let mut settled = Settled::default();
@@ -355,9 +355,7 @@ impl<C: ReplicationCodec> Muxer<C> {
                     let place = self.homes.get(&subject).and_then(|&home| {
                         Some(Place::new(state.reach(home)?, *self.ranges.get(&subject)?))
                     });
-                    let wanted = state.wants(&self.codec, subject, place);
-                    let change = state.settle_hold(subject, wanted.then_some(Tier::NEAREST));
-                    settled.record(viewer, change);
+                    settled.record(viewer, state.track(&self.codec, subject, place));
                 }
                 let on_edge = bounds.is_some_and(|bounds| {
                     reach.can_reach(bounds.max) && !reach.is_inside(bounds.min)
@@ -369,9 +367,7 @@ impl<C: ReplicationCodec> Muxer<C> {
                     let place = stream
                         .range_of(subject)
                         .map(|range| Place::new(reach, range));
-                    let wanted = state.wants(&self.codec, subject, place);
-                    let change = state.settle_hold(subject, wanted.then_some(Tier::NEAREST));
-                    settled.record(viewer, change);
+                    settled.record(viewer, state.track(&self.codec, subject, place));
                 }
             }
         }
@@ -432,9 +428,7 @@ impl<C: ReplicationCodec> Muxer<C> {
             let reach = state.reach(tile);
             for entry in &stream.ranged {
                 let place = reach.map(|reach| Place::new(reach, entry.range));
-                let wanted = state.wants(&self.codec, entry.subject, place);
-                let change = state.settle_hold(entry.subject, wanted.then_some(Tier::NEAREST));
-                settled.record(viewer, change);
+                settled.record(viewer, state.track(&self.codec, entry.subject, place));
             }
         }
         for &tile in judged.get(first_dropped..).unwrap_or_default() {
@@ -598,7 +592,7 @@ impl<C: ReplicationCodec> Muxer<C> {
             return;
         };
         let tile = change.tile;
-        let old = state.subscription(tile);
+        let old = state.replace_subscription(tile, change.subscription);
         let new = change.subscription.unwrap_or_default();
         let stream = self.tiles.entry(tile).or_default();
         for (layer, (was, now)) in old.layers.iter().zip(&new.layers).enumerate() {
@@ -623,13 +617,11 @@ impl<C: ReplicationCodec> Muxer<C> {
             }
         }
         match change.subscription {
-            Some(subscription) => {
+            Some(_) => {
                 stream.viewers.insert(viewer);
-                state.set_subscription(tile, Some(subscription));
             }
             None => {
                 stream.viewers.remove(&viewer);
-                state.set_subscription(tile, None);
                 self.forget_if_empty(tile);
             }
         }

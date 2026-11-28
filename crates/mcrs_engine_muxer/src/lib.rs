@@ -3,7 +3,6 @@ mod entity_event;
 mod entity_id;
 mod muxer;
 mod muxers;
-mod place;
 mod planner;
 mod replication_codec;
 mod subscription;
