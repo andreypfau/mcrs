@@ -10,6 +10,7 @@ use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
+use crate::coordinator::server_state_host_plugin;
 use crate::muxer::backlog;
 use crate::muxer::bridge;
 use crate::muxer::bridge_queue::OutboundQueue;
@@ -67,10 +68,12 @@ impl Plugin for MuxerPlugin {
                 bridge::bridge_player_attach
                     .run_if(bridge::messages_pending::<OutboundPlayerAttached>),
                 bridge::forward_pending_inbound.run_if(bridge::inbound_held),
-                online_count::send_online_count.run_if(
-                    any_match_filter::<Changed<SessionPlacement>>
-                        .or_eager(any_component_removed::<SessionPlacement>),
-                ),
+                online_count::send_online_count
+                    .run_if(
+                        any_match_filter::<Changed<SessionPlacement>>
+                            .or_eager(any_component_removed::<SessionPlacement>),
+                    )
+                    .before(server_state_host_plugin::announce_tick_state),
                 latency::forward_latency,
             )
                 .chain(),

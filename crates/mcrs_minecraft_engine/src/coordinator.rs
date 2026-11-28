@@ -1,3 +1,4 @@
+pub mod ban_list_host_plugin;
 pub mod birth_clock;
 pub mod clock;
 pub mod coordinator_plugin;
@@ -7,7 +8,11 @@ pub mod dim_cells;
 pub mod dimension_order;
 pub mod entity_id_ranges;
 pub mod join;
+pub mod op_list_host_plugin;
 pub mod ops;
 pub mod roster;
 pub mod running_dimensions;
+pub mod server_state_host_plugin;
 pub mod sub_app_builder;
+pub mod whitelist_host_plugin;
+pub mod world_clock_host_plugin;

@@ -7,7 +7,7 @@ use bevy_math::DVec3;
 use bevy_time::TimeUpdateStrategy;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
-use mcrs_minecraft_engine::coordinator::clock::WorldClockHostPlugin;
+use mcrs_minecraft_engine::coordinator::world_clock_host_plugin::WorldClockHostPlugin;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_environment::{AdvanceTime, WorldClockPlugin};
 use mcrs_minecraft_protocol::VarInt;
