@@ -1,25 +1,8 @@
-//! Vertical window mapping a tall or unbounded dimension onto the client height range.
-//!
-//! Defined per Issue #677 and Doctrine #566:
-//! - Pure `#![no_std]` data model without Bevy and without panics.
-//! - Bounded memory footprint (at most 16 bytes).
-//! - Bi-directional panic-free coordinate translation between canonical and window-relative coordinates.
-//! - Grid-aligned window selection so players at the same height share the identical window.
-
 use crate::{BlockPos, SectionPos};
 
-/// A vertical window mapping canonical dimension heights into a client's visible range.
-///
-/// A connection has a vertical window: the first canonical section that the client sees
-/// as its own section 0, and the count of visible sections.
-///
-/// When `num_sections == 0`, the window is the **identity window**: the dimension fits
-/// the client's native range, and coordinates pass through untranslated.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct VerticalWindow {
-    /// The first canonical section that the client sees as its section 0.
     first_section: i32,
-    /// The number of sections visible in this window (0 = identity / unbounded).
     num_sections: u32,
 }
 
@@ -31,17 +14,11 @@ impl Default for VerticalWindow {
 }
 
 impl VerticalWindow {
-    /// The identity window for dimensions that fit the client's native height range.
-    /// In an identity window, coordinates are never translated.
     pub const IDENTITY: Self = Self {
         first_section: 0,
         num_sections: 0,
     };
 
-    /// Creates a new vertical window.
-    ///
-    /// - `first_section`: canonical section Y mapped to client section 0.
-    /// - `num_sections`: number of sections visible (passing 0 creates an identity window).
     #[inline]
     #[must_use]
     pub const fn new(first_section: i32, num_sections: u32) -> Self {
@@ -51,28 +28,24 @@ impl VerticalWindow {
         }
     }
 
-    /// Returns `true` if this is the identity window.
     #[inline]
     #[must_use]
     pub const fn is_identity(&self) -> bool {
         self.num_sections == 0
     }
 
-    /// The first canonical section that the client sees as its section 0.
     #[inline]
     #[must_use]
     pub const fn first_section(&self) -> i32 {
         self.first_section
     }
 
-    /// The number of sections visible in this window (0 if identity).
     #[inline]
     #[must_use]
     pub const fn num_sections(&self) -> u32 {
         self.num_sections
     }
 
-    /// The lowest canonical block Y included in this window.
     #[inline]
     #[must_use]
     pub const fn min_block_y(&self) -> i32 {
@@ -83,7 +56,6 @@ impl VerticalWindow {
         }
     }
 
-    /// The highest canonical block Y included in this window.
     #[inline]
     #[must_use]
     pub const fn max_block_y(&self) -> i32 {
@@ -106,7 +78,6 @@ impl VerticalWindow {
         }
     }
 
-    /// Returns `true` if the given canonical section Y is inside this window.
     #[inline]
     #[must_use]
     pub const fn contains_section(&self, section_y: i32) -> bool {
@@ -117,7 +88,6 @@ impl VerticalWindow {
         diff >= 0 && diff < (self.num_sections as i64)
     }
 
-    /// Returns `true` if the given canonical block Y is inside this window.
     #[inline]
     #[must_use]
     pub const fn contains_block_y(&self, block_y: i32) -> bool {
@@ -133,9 +103,6 @@ impl VerticalWindow {
         b >= min_y && b < min_y.saturating_add(span)
     }
 
-    /// Translates a canonical section Y to a window-relative section index.
-    ///
-    /// Returns `Some(window_section)` if within the window, or `None` if out of bounds.
     #[inline]
     #[must_use]
     pub const fn to_window_section_y(&self, section_y: i32) -> Option<i32> {
@@ -151,7 +118,6 @@ impl VerticalWindow {
         }
     }
 
-    /// Untranslates a window-relative section index back to a canonical section Y.
     #[inline]
     #[must_use]
     pub const fn from_window_section_y(&self, window_section_y: i32) -> i32 {
@@ -162,9 +128,6 @@ impl VerticalWindow {
         }
     }
 
-    /// Translates a canonical block Y to a window-relative block Y.
-    ///
-    /// Returns `Some(window_y)` if within the window, or `None` if out of bounds.
     #[inline]
     #[must_use]
     pub const fn to_window_block_y(&self, block_y: i32) -> Option<i32> {
@@ -183,7 +146,6 @@ impl VerticalWindow {
         }
     }
 
-    /// Untranslates a window-relative block Y back to canonical block Y.
     #[inline]
     #[must_use]
     pub const fn from_window_block_y(&self, window_block_y: i32) -> i32 {
@@ -202,7 +164,6 @@ impl VerticalWindow {
         }
     }
 
-    /// Translates an outbound `BlockPos` from canonical to window coordinates.
     #[inline]
     #[must_use]
     pub fn translate_block_pos(&self, pos: BlockPos) -> Option<BlockPos> {
@@ -210,7 +171,6 @@ impl VerticalWindow {
         Some(BlockPos::new(pos.x, y, pos.z))
     }
 
-    /// Untranslates an inbound `BlockPos` from window coordinates back to canonical coordinates.
     #[inline]
     #[must_use]
     pub fn untranslate_block_pos(&self, pos: BlockPos) -> BlockPos {
@@ -218,7 +178,6 @@ impl VerticalWindow {
         BlockPos::new(pos.x, y, pos.z)
     }
 
-    /// Translates an outbound `SectionPos` from canonical to window coordinates.
     #[inline]
     #[must_use]
     pub fn translate_section_pos(&self, pos: SectionPos) -> Option<SectionPos> {
@@ -226,7 +185,6 @@ impl VerticalWindow {
         Some(SectionPos::new(pos.x, y, pos.z))
     }
 
-    /// Untranslates an inbound `SectionPos` from window coordinates back to canonical coordinates.
     #[inline]
     #[must_use]
     pub fn untranslate_section_pos(&self, pos: SectionPos) -> SectionPos {
@@ -235,15 +193,9 @@ impl VerticalWindow {
     }
 }
 
-/// Global grid policy for allocating vertical windows.
-///
-/// Ensures two players at the same height get the same window, minimizing duplicate
-/// broadcasts, and applies hysteresis margins so players near boundaries do not rapidly thrash windows.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct VerticalGridPolicy {
-    /// Number of sections per grid step (e.g. 8 or 16).
     pub grid_step: u32,
-    /// Number of sections near boundary before triggering a rebase.
     pub margin_sections: u32,
 }
 
@@ -258,7 +210,6 @@ impl Default for VerticalGridPolicy {
 }
 
 impl VerticalGridPolicy {
-    /// Creates a new vertical grid policy.
     #[inline]
     #[must_use]
     pub const fn new(grid_step: u32, margin_sections: u32) -> Self {
@@ -268,11 +219,12 @@ impl VerticalGridPolicy {
         }
     }
 
-    /// Calculates the canonical window for a given player section Y and window height.
-    ///
-    /// Snaps the center of the window to the nearest grid step.
     #[must_use]
-    pub fn select_window(&self, player_section_y: i32, window_height_sections: u32) -> VerticalWindow {
+    pub fn select_window(
+        &self,
+        player_section_y: i32,
+        window_height_sections: u32,
+    ) -> VerticalWindow {
         if window_height_sections == 0 {
             return VerticalWindow::IDENTITY;
         }
@@ -280,7 +232,11 @@ impl VerticalGridPolicy {
         let half_height = (window_height_sections / 2) as i32;
         let ideal_first = player_section_y.saturating_sub(half_height);
 
-        let step = if self.grid_step == 0 { 1 } else { self.grid_step as i64 };
+        let step = if self.grid_step == 0 {
+            1
+        } else {
+            self.grid_step as i64
+        };
         let rem = (ideal_first as i64).rem_euclid(step);
         let aligned_first = (ideal_first as i64) - rem;
 
@@ -295,8 +251,6 @@ impl VerticalGridPolicy {
         VerticalWindow::new(clamped_first, window_height_sections)
     }
 
-    /// Checks if a player's position has drifted close enough to the window edge
-    /// that a rebase should be scheduled.
     #[must_use]
     pub fn needs_rebase(&self, current_window: &VerticalWindow, player_section_y: i32) -> bool {
         if current_window.is_identity() {
