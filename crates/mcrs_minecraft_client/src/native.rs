@@ -206,6 +206,7 @@ pub fn run() -> AppExit {
             .add_before::<sky::SkyPlugin>(knobs.gui())
             .add(screenshot::ScreenshotPlugin),
     )
+    .insert_resource(knobs.start_screen())
     .add_systems(
         Update,
         mcrs_minecraft_client::stream::load_gui_atlas.run_if(not(resource_exists::<

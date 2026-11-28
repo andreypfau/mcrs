@@ -13,6 +13,7 @@ use mcrs_minecraft_client_widget::{
 use crate::edit_input::clipboard_text;
 use crate::font::Font;
 use crate::gui_pointer::GuiPointer;
+use crate::layer_due::gui_clock;
 use crate::menu::Menu;
 use crate::menu_event::MenuEvent;
 
@@ -23,10 +24,6 @@ const BUTTONS: [(MouseButton, PointerButton); 3] = [
 ];
 
 const CAPTURE_EXEMPT: [KeyCode; 3] = [KeyCode::Escape, KeyCode::F2, KeyCode::F11];
-
-pub(crate) fn menu_clock(time: &Time<Real>) -> u64 {
-    u64::try_from(time.elapsed().as_millis()).unwrap_or(u64::MAX)
-}
 
 pub(crate) fn text_width(font: Option<&Font>) -> impl Fn(&str) -> i32 + '_ {
     move |text| font.map_or(0, |font| font.str_width(text))
@@ -77,7 +74,7 @@ pub(crate) fn menu_pointer(
     if pointer.is_idle(menu.widgets.input().mouse(), &buttons, &scroll) {
         return;
     }
-    let now_ms = menu_clock(&time);
+    let now_ms = gui_clock(&time);
     let modifiers = modifiers(&keys);
     let width = text_width(font.as_deref());
     let widgets = &mut menu.widgets;
@@ -131,7 +128,7 @@ pub(crate) fn menu_keys(
         input.keyboard.clear();
         return;
     }
-    let now_ms = menu_clock(&time);
+    let now_ms = gui_clock(&time);
     let modifiers = modifiers(&input.keys);
     let width = text_width(font.as_deref());
     for key in input.keyboard.read() {
@@ -234,7 +231,7 @@ pub(crate) fn menu_deferred(
 ) {
     menu.bypass_change_detection()
         .widgets
-        .apply_deferred(menu_clock(&time), &mut events);
+        .apply_deferred(gui_clock(&time), &mut events);
     if !events.is_empty() {
         menu.set_changed();
     }

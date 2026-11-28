@@ -27,6 +27,7 @@ use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
 use crate::irect;
 use crate::language::ClientLanguage;
+use crate::layer_due;
 use crate::menu_input;
 use crate::span_events::SpanEvents;
 use crate::text::{self, Wrap};
@@ -212,7 +213,7 @@ fn chat_keys(
     } else {
         return;
     };
-    let now_ms = menu_input::menu_clock(&time);
+    let now_ms = layer_due::gui_clock(&time);
     let lookup = world.lookup();
     let source = Source::new(world.level(), &lookup);
     let cx = chat::context(
@@ -250,7 +251,7 @@ fn chat_keys(
             moved,
             modifiers.shift,
             font,
-            menu_input::menu_clock(&time),
+            layer_due::gui_clock(&time),
         );
         let changed = mouse(
             &keys,

@@ -8,6 +8,7 @@ use crate::gui_quad::GuiQuad;
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::irect::{irect, point};
 use crate::menu::Menu;
+use crate::sprite_draw::draw_sprite;
 use crate::text_draw::{draw_str, draw_text};
 
 const UNDERSCORE: &str = "_";
@@ -64,7 +65,7 @@ pub(crate) fn draw_edit_box_part(
             } else {
                 GuiSpriteId::TextField
             };
-            atlas.sprite(id).draw(irect(rect), out);
+            draw_sprite(&atlas.sprite(id), irect(rect), out);
         }
         EditBoxPart::Text {
             at, text, color, ..

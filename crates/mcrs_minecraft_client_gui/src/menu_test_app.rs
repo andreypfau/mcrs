@@ -21,18 +21,30 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_save::{ListedLevel, WorldSummary};
 use time::UtcOffset;
 
+use crate::creative_screen_plugin::CreativeScreenPlugin;
 use crate::font::corpus_font;
 use crate::gui_atlas_load::{GuiAtlasParts, build_gui_atlas};
 use crate::gui_config::GuiConfig;
 use crate::gui_pointer::GuiPointer;
 use crate::gui_size::GuiSize;
+use crate::inventory_clicks::InventoryClicksPlugin;
 use crate::language::ClientLanguage;
 use crate::menu::Menu;
 use crate::menu_plugin::MenuPlugin;
 use crate::menu_screens_plugin::MenuScreensPlugin;
+use crate::stitch_requests::StitchRequests;
 
-pub(crate) static ATLAS: LazyLock<GuiAtlasParts> =
-    LazyLock::new(|| build_gui_atlas(ResourceSet::corpus(), corpus_font()).unwrap());
+pub(crate) static ATLAS: LazyLock<GuiAtlasParts> = LazyLock::new(|| {
+    build_gui_atlas(ResourceSet::corpus(), corpus_font(), &stitch_requests()).unwrap()
+});
+
+pub(crate) fn stitch_requests() -> StitchRequests {
+    let mut app = App::new();
+    app.add_plugins((InventoryClicksPlugin, CreativeScreenPlugin));
+    app.world_mut()
+        .remove_resource::<StitchRequests>()
+        .unwrap_or_default()
+}
 
 pub(crate) fn insert_gui_assets(world: &mut World) {
     world.insert_resource(ATLAS.layout.clone());

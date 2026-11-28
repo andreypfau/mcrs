@@ -7,8 +7,8 @@ use mcrs_minecraft_save::WorldSummary;
 
 use crate::font::Font;
 use crate::language::ClientLanguage;
+use crate::layer_due::gui_clock;
 use crate::menu::{Menu, RowContent};
-use crate::menu_input::menu_clock;
 use crate::select_world_screen::{DELETE, LIST, PLAY, search_query, shown_worlds};
 use crate::world_entry::{DOTS_FRAME_MS, LocalOffset, loading_entry, world_entry};
 
@@ -46,7 +46,7 @@ pub(crate) fn project_world_rows(
     };
     let reading = matches!(*worlds, WorldList::Reading);
     let expected = if reading { 1 } else { shown.worlds.len() };
-    let dots_frame = menu_clock(&time) / DOTS_FRAME_MS;
+    let dots_frame = gui_clock(&time) / DOTS_FRAME_MS;
     let stale = worlds.is_changed()
         || language.is_changed()
         || rows != expected
@@ -155,6 +155,6 @@ fn loading(
         widgets.screen().width,
         language,
         font,
-        menu_clock(time),
+        gui_clock(time),
     )
 }

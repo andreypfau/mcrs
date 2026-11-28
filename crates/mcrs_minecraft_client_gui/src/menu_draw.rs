@@ -10,10 +10,10 @@ use crate::gui_layer::GuiLayer;
 use crate::gui_quad::GuiQuad;
 use crate::gui_size::GuiSize;
 use crate::gui_texture_id::GuiTextureId;
+use crate::in_game_gradient::{DIM_BOTTOM, DIM_TOP};
+use crate::layer_due::gui_clock;
 use crate::leaf_draw::draw_leaf;
 use crate::menu::{Menu, MenuBackground};
-use crate::menu_input::menu_clock;
-use crate::menu_screen::{DIM_BOTTOM, DIM_TOP};
 use crate::scroll_area_draw::draw_scroll_area;
 use crate::text::{self, Wrap};
 use crate::tooltip::{LineGap, Tooltip};
@@ -93,7 +93,7 @@ pub(crate) fn draw(
     let (Some(mut menu), Some(atlas), Some(font)) = (menu, atlas, font) else {
         return;
     };
-    let now_ms = menu_clock(&time);
+    let now_ms = gui_clock(&time);
     let scrolls = draw_menu(&menu, now_ms, *size, &atlas, &font, out);
     if scrolls {
         layer.redraw_at(now_ms);
@@ -163,6 +163,7 @@ mod tests {
     use crate::gui_sprite_id::GuiSpriteId;
     use crate::irect::irect;
     use crate::menu::WidgetTooltip;
+    use crate::sprite_draw::draw_sprite;
     use crate::text_draw::shadow_color;
     use mcrs_minecraft_client_widget::{
         EditBox, EditBoxLook, GuiExtent, GuiInput, GuiKey, GuiPoint, GuiRect, KeyModifiers,
@@ -184,15 +185,10 @@ mod tests {
     }
 
     mod jar {
-        use std::sync::LazyLock;
 
-        use crate::gui_atlas_load::{GuiAtlasParts, build_gui_atlas};
-        use mcrs_minecraft_model::resource_set::ResourceSet;
+        use crate::menu_test_app::ATLAS;
 
         use super::*;
-
-        static ATLAS: LazyLock<GuiAtlasParts> =
-            LazyLock::new(|| build_gui_atlas(ResourceSet::corpus(), corpus_font()).unwrap());
 
         fn quads(menu: &Menu) -> Vec<GuiQuad> {
             let mut quads = Vec::new();
@@ -277,7 +273,7 @@ mod tests {
                 let quads = quads(&menu(widget, mouse));
                 let mut expected = Vec::new();
                 for (id, at) in sprites {
-                    ATLAS.layout.sprite(id).draw(irect(at), &mut expected);
+                    draw_sprite(&ATLAS.layout.sprite(id), irect(at), &mut expected);
                 }
                 assert_eq!(quads[..expected.len()], expected[..], "case {case}");
                 let colours: Vec<u32> = quads[expected.len()..]
@@ -375,7 +371,7 @@ mod tests {
                 draw_menu(&menu, now_ms, GUI, &ATLAS.layout, corpus_font(), &mut quads);
                 let mut expected = Vec::new();
                 if let Some(id) = frame {
-                    ATLAS.layout.sprite(id).draw(irect(rect), &mut expected);
+                    draw_sprite(&ATLAS.layout.sprite(id), irect(rect), &mut expected);
                 }
                 assert_eq!(quads[..expected.len()], expected[..], "case {case}");
                 let drawn: Vec<GuiQuad> = quads[expected.len()..]

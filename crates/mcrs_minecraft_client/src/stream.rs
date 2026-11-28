@@ -6,6 +6,7 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
+use mcrs_minecraft_client_gui::scene::StitchRequests;
 use mcrs_minecraft_client_world::camera_section_ready::CameraSectionReady;
 use mcrs_minecraft_client_world::columns::{
     ClientTerrainSet, ColumnChange, ColumnStore, Columns, Extent,
@@ -982,10 +983,14 @@ fn kill(bucket: &mut DrawBucket, first: u32, count: u32) {
     }
 }
 
-pub fn load_gui_atlas(catalog: Res<BlockCatalog>, mut commands: Commands) {
+pub fn load_gui_atlas(
+    catalog: Res<BlockCatalog>,
+    requests: Res<StitchRequests>,
+    mut commands: Commands,
+) {
     if let Some(pack) = catalog.pack()
         && let Err(reason) =
-            mcrs_minecraft_client_gui::scene::load_gui_atlas(pack, commands.reborrow())
+            mcrs_minecraft_client_gui::scene::load_gui_atlas(pack, &requests, commands.reborrow())
     {
         panic!("cannot load the GUI: {reason}");
     }

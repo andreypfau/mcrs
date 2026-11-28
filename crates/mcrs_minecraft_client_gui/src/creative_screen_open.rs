@@ -4,7 +4,7 @@ use mcrs_minecraft_inventory_client::CreativeScreen;
 
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
-use crate::menu_input;
+use crate::layer_due;
 
 pub(crate) fn open_creative_screen(
     _: On<Add<CreativeScreen>>,
@@ -14,6 +14,6 @@ pub(crate) fn open_creative_screen(
 ) {
     creative.open(&content);
     if let Some(time) = time {
-        creative.focus_search(menu_input::menu_clock(&time));
+        creative.focus_search(layer_due::gui_clock(&time));
     }
 }

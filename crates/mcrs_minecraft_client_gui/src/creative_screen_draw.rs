@@ -28,12 +28,13 @@ use crate::gui_pointer::GuiPointer;
 use crate::gui_quad::GuiQuad;
 use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
+use crate::in_game_gradient::{DIM_BOTTOM, DIM_TOP};
 use crate::irect;
 use crate::item_icons::ItemIcons;
 use crate::language::ClientLanguage;
-use crate::menu_input;
+use crate::layer_due;
 use crate::menu_label_text::LABEL_COLOR;
-use crate::menu_screen::{self, DIM_BOTTOM, DIM_TOP};
+use crate::menu_screen;
 use crate::menu_stacks::MenuStacks;
 use crate::shown_drag_preview::ShownDragPreview;
 use crate::slot_icon::SlotIcon;
@@ -91,7 +92,7 @@ pub(crate) fn draw_creative_screen(
         holders.get(slot.holder).ok()?.get(usize::from(slot.index))
     });
     let no_drag = DragPreview::default();
-    let now_ms = menu_input::menu_clock(&time);
+    let now_ms = layer_due::gui_clock(&time);
     let frame = CreativeFrame {
         state: &creative,
         content: &content,

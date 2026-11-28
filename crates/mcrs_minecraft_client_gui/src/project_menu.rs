@@ -25,9 +25,9 @@ use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
 use crate::gui_size::window_framebuffer;
 use crate::language::ClientLanguage;
+use crate::layer_due::gui_clock;
 use crate::level_loading_screen::level_loading_screen;
 use crate::menu::{Menu, MenuBackground};
-use crate::menu_input::menu_clock;
 use crate::mouse_settings_screen::mouse_settings_screen;
 use crate::options_screen::{self, options_screen};
 use crate::pause_screen::pause_screen;
@@ -332,7 +332,7 @@ pub(crate) fn project_menu(
             built.world = world;
             built
                 .widgets
-                .focus_initial(None, menu_clock(&source.time), &mut events);
+                .focus_initial(None, gui_clock(&source.time), &mut events);
             commands.insert_resource(built);
         }
         events.clear();
@@ -356,7 +356,7 @@ pub(crate) fn project_menu(
     if reopened || !keeps_widgets(screen) {
         built.widgets.focus_initial(
             kept_focus(left, screen),
-            menu_clock(&source.time),
+            gui_clock(&source.time),
             &mut events,
         );
         events.clear();

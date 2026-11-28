@@ -12,6 +12,7 @@ use crate::gui_sprite_id::GuiSpriteId;
 use crate::irect::{irect, point};
 use crate::menu::Menu;
 use crate::outlined_box::draw_outlined_box;
+use crate::sprite_draw::draw_sprite;
 use crate::tab_bar_draw::draw_tab_bar;
 use crate::text_draw::draw_str;
 
@@ -57,7 +58,7 @@ fn draw_sprites(
                 ButtonSprite::Highlighted => GuiSpriteId::ButtonHighlighted,
                 ButtonSprite::Disabled => GuiSpriteId::ButtonDisabled,
             };
-            atlas.sprite(id).draw(irect(rect), out);
+            draw_sprite(&atlas.sprite(id), irect(rect), out);
         }
         Some(WidgetSprite::Checkbox {
             selected,
@@ -70,7 +71,7 @@ fn draw_sprites(
                 (true, true) => GuiSpriteId::CheckboxSelectedHighlighted,
             };
             let square = GuiRect::new(rect.x, rect.y, CHECKBOX_SIZE, CHECKBOX_SIZE);
-            atlas.sprite(id).draw(irect(square), out);
+            draw_sprite(&atlas.sprite(id), irect(square), out);
         }
         Some(WidgetSprite::Slider {
             bar_highlighted,
@@ -87,8 +88,8 @@ fn draw_sprites(
             } else {
                 GuiSpriteId::SliderHandle
             };
-            atlas.sprite(bar).draw(irect(rect), out);
-            atlas.sprite(handle).draw(irect(handle_rect), out);
+            draw_sprite(&atlas.sprite(bar), irect(rect), out);
+            draw_sprite(&atlas.sprite(handle), irect(handle_rect), out);
         }
         Some(WidgetSprite::Image {
             active,
@@ -103,7 +104,7 @@ fn draw_sprites(
                 (false, false) => image.inactive,
                 (false, true) => image.inactive_highlighted,
             };
-            atlas.sprite(id).draw(irect(rect), out);
+            draw_sprite(&atlas.sprite(id), irect(rect), out);
         }
         _ => {}
     }
@@ -112,7 +113,7 @@ fn draw_sprites(
         && let Some(entry) = menu.icons.iter().find(|entry| entry.widget == widget.id())
     {
         let bounds = GuiRect::new(origin.x, origin.y, icon.width, icon.height);
-        atlas.sprite(entry.sprite).draw(irect(bounds), out);
+        draw_sprite(&atlas.sprite(entry.sprite), irect(bounds), out);
     }
 }
 

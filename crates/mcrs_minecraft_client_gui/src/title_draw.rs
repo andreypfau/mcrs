@@ -15,7 +15,7 @@ use crate::gui_quad::GuiQuad;
 use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
 use crate::gui_texture_id::GuiTextureId;
-use crate::menu_input::menu_clock;
+use crate::layer_due::gui_clock;
 use crate::text_draw::draw_str;
 use crate::title_screen::{TitleText, notice_lines, version_text};
 
@@ -133,7 +133,7 @@ pub(crate) fn project_title_fade(
     mut fade: ResMut<GuiFade>,
 ) {
     let alpha = if *screen == Screen::Title {
-        GuiFade(state.alpha(menu_clock(&time)))
+        GuiFade(state.alpha(gui_clock(&time)))
     } else {
         GuiFade::OPAQUE
     };

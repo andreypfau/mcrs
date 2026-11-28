@@ -20,6 +20,7 @@ use crate::creative_screen_draw::{
 use crate::creative_screen_open::open_creative_screen;
 use crate::creative_screen_shown::creative_screen_shown;
 use crate::creative_screen_state::CreativeScreenState;
+use crate::creative_stitch_requests::creative_stitch_requests;
 use crate::creative_tab_content::CreativeInputs;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::draw_gate::{layer_stale, slot_view_changed};
@@ -29,6 +30,7 @@ use crate::gui_phase::GuiPhase;
 use crate::language::ClientLanguage;
 use crate::loaded_creative_report::LoadedCreativeReport;
 use crate::menu_input;
+use crate::stitch_requests::StitchRequests;
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CreativeContentSystems;
@@ -37,6 +39,9 @@ pub struct CreativeScreenPlugin;
 
 impl Plugin for CreativeScreenPlugin {
     fn build(&self, app: &mut App) {
+        app.world_mut()
+            .get_resource_or_init::<StitchRequests>()
+            .extend(creative_stitch_requests());
         app.insert_resource(LoadedCreativeReport::embedded())
             .init_resource::<CreativeTabContent>()
             .init_resource::<CreativeScreenState>()

@@ -1,13 +1,16 @@
 use crate::gui_layer::GuiLayer;
-use crate::menu_input;
 use bevy::prelude::*;
+
+pub(crate) fn gui_clock(time: &Time<Real>) -> u64 {
+    u64::try_from(time.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
 
 #[cfg_attr(mcrs_lint, mcrs::event_condition)]
 pub(crate) fn layer_due<Kind: Component>(
     time: Res<Time<Real>>,
     layers: Query<&GuiLayer, With<Kind>>,
 ) -> bool {
-    let now = menu_input::menu_clock(&time);
+    let now = gui_clock(&time);
     layers.iter().any(|layer| layer.due(now))
 }
 

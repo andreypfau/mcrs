@@ -11,6 +11,7 @@ use crate::irect::{irect, point};
 use crate::leaf_draw::draw_leaf;
 use crate::menu::Menu;
 use crate::outlined_box::BLACK;
+use crate::sprite_draw::draw_sprite;
 use crate::text_draw::draw_text;
 use crate::world_presence::WorldPresence;
 
@@ -74,10 +75,12 @@ pub(crate) fn draw_scroll_area(
     }
     if let Some(scrollbar) = widget.scrollbar() {
         let track = atlas.sprite(GuiSpriteId::ScrollerBackground);
-        track.draw(irect(scrollbar.track), out);
-        atlas
-            .sprite(GuiSpriteId::Scroller)
-            .draw(irect(scrollbar.thumb), out);
+        draw_sprite(&track, irect(scrollbar.track), out);
+        draw_sprite(
+            &atlas.sprite(GuiSpriteId::Scroller),
+            irect(scrollbar.thumb),
+            out,
+        );
     }
     scrolls
 }
@@ -180,20 +183,18 @@ mod tests {
     use super::*;
 
     mod jar {
-        use std::sync::LazyLock;
 
         use mcrs_minecraft_client_widget::{
             AreaSlot, GuiExtent, GuiInput, GuiPoint, GuiRect, KeyModifiers, PointerButton,
             PointerPress, WidgetId, WidgetList, Widgets,
         };
-        use mcrs_minecraft_model::resource_set::ResourceSet;
 
         use super::*;
         use crate::font::corpus_font;
-        use crate::gui_atlas_load::{GuiAtlasParts, build_gui_atlas};
         use crate::gui_size::GuiSize;
         use crate::menu::MenuBackground;
         use crate::menu_draw::draw_menu;
+        use crate::menu_test_app::ATLAS;
 
         const GUI: GuiSize = GuiSize {
             width: 427,
@@ -201,9 +202,6 @@ mod tests {
             scale: 2,
         };
         const LIST: WidgetId = WidgetId(1);
-
-        static ATLAS: LazyLock<GuiAtlasParts> =
-            LazyLock::new(|| build_gui_atlas(ResourceSet::corpus(), corpus_font()).unwrap());
 
         fn screen() -> Widgets {
             let extent = GuiExtent::new(GUI.width, GUI.height);
@@ -219,7 +217,7 @@ mod tests {
 
         fn sprite_run(id: GuiSpriteId, rect: IRect) -> Vec<GuiQuad> {
             let mut run = Vec::new();
-            ATLAS.layout.sprite(id).draw(rect, &mut run);
+            draw_sprite(&ATLAS.layout.sprite(id), rect, &mut run);
             run
         }
 

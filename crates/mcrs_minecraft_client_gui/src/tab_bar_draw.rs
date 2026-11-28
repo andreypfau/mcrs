@@ -8,6 +8,7 @@ use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::irect::{irect, point};
 use crate::menu::Menu;
+use crate::sprite_draw::draw_sprite;
 use crate::text_draw::draw_str;
 
 const HEADER_TILE: i32 = 16;
@@ -52,7 +53,7 @@ pub(crate) fn draw_tab_bar(
             continue;
         };
         if let Some(sprite) = menu.widgets.tab_sprite(widget, index) {
-            atlas.sprite(tab_sprite_id(sprite)).draw(irect(bounds), out);
+            draw_sprite(&atlas.sprite(tab_sprite_id(sprite)), irect(bounds), out);
         }
         let label_width = font.str_width(&tab.label);
         let color = tab.label_color();
@@ -111,26 +112,21 @@ mod tests {
     use super::*;
 
     mod jar {
-        use std::sync::LazyLock;
 
         use mcrs_minecraft_client_widget::{GuiExtent, GuiInput, GuiPoint, Tab, WidgetId, Widgets};
-        use mcrs_minecraft_model::resource_set::ResourceSet;
 
         use super::*;
         use crate::font::corpus_font;
-        use crate::gui_atlas_load::{GuiAtlasParts, build_gui_atlas};
         use crate::gui_size::GuiSize;
         use crate::menu::MenuBackground;
         use crate::menu_draw::draw_menu;
+        use crate::menu_test_app::ATLAS;
 
         const GUI: GuiSize = GuiSize {
             width: 427,
             height: 240,
             scale: 2,
         };
-
-        static ATLAS: LazyLock<GuiAtlasParts> =
-            LazyLock::new(|| build_gui_atlas(ResourceSet::corpus(), corpus_font()).unwrap());
 
         #[test]
         fn each_tab_at_427_draws_the_sprite_of_its_state_in_its_rectangle() {
@@ -173,10 +169,11 @@ mod tests {
                 let mut from = 0;
                 for (left, name) in [28, 152, 276].into_iter().zip(sprites) {
                     let mut run = Vec::new();
-                    ATLAS
-                        .layout
-                        .sprite(name)
-                        .draw(IRect::new(left, 0, left + 124, 24), &mut run);
+                    draw_sprite(
+                        &ATLAS.layout.sprite(name),
+                        IRect::new(left, 0, left + 124, 24),
+                        &mut run,
+                    );
                     let at = quads
                         .get(from..)
                         .and_then(|rest| rest.windows(run.len()).position(|w| w == run));

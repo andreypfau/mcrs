@@ -12,28 +12,27 @@ use crate::gui_layer::spawn_layer;
 use crate::gui_phase::GuiPhase;
 use crate::gui_pointer::GuiPointerPlugin;
 use crate::item_icons::build_icon_meshes;
+use crate::stitch_requests::StitchRequests;
 use crate::tooltip::Tooltip;
 use crate::tooltip_layer::{TooltipLayer, draw_tooltip};
 use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResourcePlugin;
-use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_item_icon::IconMeshes;
 use mcrs_minecraft_model::item_model_bake::ItemModels;
 
 pub struct GuiPlugin {
     pub config: GuiConfig,
-    pub screen: Screen,
 }
 
 impl Plugin for GuiPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(self.config)
-            .insert_resource(self.screen)
             .init_resource::<GuiBatch>()
             .init_resource::<BatchGlint>()
             .init_resource::<GuiGlint>()
             .init_resource::<GuiFade>()
             .init_resource::<GlyphCache>()
+            .init_resource::<StitchRequests>()
             .add_plugins(GuiPointerPlugin)
             .add_plugins(ExtractResourcePlugin::<GuiImages>::default())
             .add_plugins(ExtractResourcePlugin::<GuiGlint>::default())

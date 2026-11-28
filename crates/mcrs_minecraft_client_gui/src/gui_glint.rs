@@ -4,7 +4,7 @@ use bevy::render::extract_resource::ExtractResource;
 use bevy::time::Real;
 
 use crate::gui_config::GuiConfig;
-use crate::menu_input;
+use crate::layer_due;
 
 #[derive(Resource, Clone, Copy, Default, PartialEq, ExtractResource)]
 #[extract_app(RenderApp)]
@@ -18,7 +18,7 @@ pub(crate) fn write_gui_glint(
     mut glint: ResMut<GuiGlint>,
 ) {
     let millis = config.frozen_ticks.map_or(
-        i64::try_from(menu_input::menu_clock(&time)).unwrap_or(i64::MAX),
+        i64::try_from(layer_due::gui_clock(&time)).unwrap_or(i64::MAX),
         |ticks| ticks.saturating_mul(50),
     );
     glint.set_if_neq(GuiGlint {

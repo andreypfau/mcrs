@@ -10,6 +10,7 @@ use crate::creative_search_edit;
 use crate::creative_tab_content::CreativeTabContent;
 use crate::edit_input;
 use crate::font::Font;
+use crate::layer_due;
 use crate::menu_input;
 use crate::search_input::SearchInput;
 
@@ -24,7 +25,7 @@ pub(crate) struct CreativeScreenEdit<'w> {
 
 impl CreativeScreenEdit<'_> {
     pub(crate) fn select(&mut self, tab: CreativeTabIndex) {
-        let now_ms = self.time.as_deref().map(menu_input::menu_clock);
+        let now_ms = self.time.as_deref().map(layer_due::gui_clock);
         self.with(|screen, content| {
             screen.select(tab, content);
             if let Some(now_ms) = now_ms

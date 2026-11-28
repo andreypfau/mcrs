@@ -8,6 +8,7 @@ use mcrs_minecraft_item::slots;
 use mcrs_minecraft_item_icon::{Overlays, StackOverlay};
 use mcrs_minecraft_menu_geometry::{BackgroundPart, MenuGeometry};
 
+use crate::background_region::background_region;
 use crate::figure_placement::FigurePlacement;
 use crate::font::Font;
 use crate::gui_atlas_layout::GuiAtlasLayout;
@@ -15,17 +16,15 @@ use crate::gui_layer::GuiLayer;
 use crate::gui_quad::WHITE;
 use crate::gui_quad::{GuiQuad, sprite};
 use crate::gui_size::GuiSize;
+use crate::in_game_gradient::{DIM_BOTTOM, DIM_TOP};
 use crate::irect;
 use crate::item_icons::ItemIcons;
-use crate::menu_background::background_region;
 use crate::menu_label_text::MenuLabelText;
 use crate::menu_stacks::MenuStacks;
 use crate::slot_icon::SlotIcon;
 
 const RECIPE_BOOK_BUTTON: GuiRect = GuiRect::new(104, 61, 20, 18);
 const DRAG_FILL: u32 = 0x80FF_FFFF;
-pub(crate) const DIM_TOP: u32 = 0xC010_1010;
-pub(crate) const DIM_BOTTOM: u32 = 0xD010_1010;
 
 pub(crate) fn empty_icon(menu: u16) -> Option<&'static str> {
     match menu {
@@ -228,7 +227,7 @@ mod tests {
     use std::sync::LazyLock;
 
     use crate::font::corpus_font;
-    use crate::gui_atlas_load::{GuiAtlasParts, build_gui_atlas};
+    use crate::menu_test_app::ATLAS;
     use bevy::app::App;
     use bevy::math::Vec2;
     use mcrs_minecraft_engine_inventory_menu::MenuParts;
@@ -253,7 +252,6 @@ mod tests {
     use mcrs_minecraft_item_stack::NameTable;
     use mcrs_minecraft_item_table::ItemTable;
     use mcrs_minecraft_menu_key::menu_keys::MenuType;
-    use mcrs_minecraft_model::resource_set::ResourceSet;
     use mcrs_minecraft_model::stack_view::StackView;
     use mcrs_minecraft_player_holders::PlayerHolders;
     use mcrs_minecraft_player_holders::PlayerHoldersPlugin;
@@ -276,9 +274,6 @@ mod tests {
         height: 240,
         scale: 2,
     };
-
-    static ATLAS: LazyLock<GuiAtlasParts> =
-        LazyLock::new(|| build_gui_atlas(ResourceSet::corpus(), corpus_font()).unwrap());
 
     static ICON: LazyLock<SlotIcon> = LazyLock::new(|| {
         let location = ResourceLocation::read("minecraft:stone").unwrap();

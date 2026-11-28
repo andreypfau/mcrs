@@ -25,7 +25,7 @@ use crate::gui_layer::GuiLayer;
 use crate::gui_pointer::GuiPointer;
 use crate::gui_size::GuiSize;
 use crate::language::ClientLanguage;
-use crate::menu_input;
+use crate::layer_due;
 use crate::menu_item_tooltip::{
     self, HoveredItem, HoveredStack, LineSources, MenuItemTooltip, TooltipSlot, TooltipStyle,
 };
@@ -145,7 +145,7 @@ pub(crate) fn request_creative_item_tooltip(
     tooltip.follow(hovered, style, &mut stacks, &sources, |stack, parts| {
         push_added_parts(stack, added, &content, search_text, parts);
     });
-    let now_ms = menu_input::menu_clock(&time);
+    let now_ms = layer_due::gui_clock(&time);
     let (request, layer) = &mut *layer;
     if let Some(at) = tooltip.request(hovered, now_ms, pointer, *size, request) {
         layer.redraw_at(at);

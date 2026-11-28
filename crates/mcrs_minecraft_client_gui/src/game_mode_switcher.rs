@@ -16,7 +16,7 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundChangeGameMode;
 use mcrs_minecraft_protocol_game::text::{Color, IntoText, Text};
 
 use crate::cursor_grab::grab;
-use crate::debug_screen::{DebugModifier, toggle_overlay};
+use crate::debug_chord::{DebugModifier, DebugOverlayToggle};
 use crate::draw_gate::{item_icons_changed, layer_stale};
 use crate::font::{Font, Span};
 use crate::gui_band::GuiBand;
@@ -107,7 +107,7 @@ impl Plugin for GameModeSwitcherPlugin {
                 switch_game_mode
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush)
-                    .before(toggle_overlay),
+                    .before(DebugOverlayToggle),
             )
             .add_systems(
                 PostUpdate,
@@ -286,8 +286,7 @@ fn switcher(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::debug_screen::DebugModifier;
-    use crate::debug_screen::DebugOverlay;
+    use crate::debug_chord::{DebugOverlay, toggle_overlay};
     use bevy::input::common_conditions::input_just_released;
     use bevy::window::CursorGrabMode;
 
@@ -302,7 +301,9 @@ mod tests {
                 Update,
                 (
                     switch_game_mode,
-                    toggle_overlay.run_if(input_just_released(KeyCode::F3)),
+                    toggle_overlay
+                        .run_if(input_just_released(KeyCode::F3))
+                        .in_set(DebugOverlayToggle),
                 )
                     .chain(),
             );

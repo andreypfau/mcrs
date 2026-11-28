@@ -8,6 +8,7 @@ use bevy::ui::UiSystems;
 use bevy::ui_render::RenderUiSystems;
 
 use crate::chunk_map::ChunkMap;
+use crate::debug_chord::{DebugModifier, DebugOverlay, DebugOverlayToggle, toggle_overlay};
 use crate::debug_displayer::DebugScreenDisplayer;
 use crate::light_levels::LightLevels;
 
@@ -89,9 +90,6 @@ impl Refresh {
     }
 }
 
-#[derive(Resource, Default, Deref, DerefMut)]
-pub struct DebugOverlay(bool);
-
 #[derive(SystemSet, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DebugScreenSet {
     Clear,
@@ -148,7 +146,9 @@ impl Plugin for DebugScreenPlugin {
                 Update,
                 (
                     (
-                        toggle_overlay.run_if(input_just_released(KeyCode::F3)),
+                        toggle_overlay
+                            .run_if(input_just_released(KeyCode::F3))
+                            .in_set(DebugOverlayToggle),
                         schedule_refresh.run_if(refresh_scheduled),
                     )
                         .chain()
@@ -296,21 +296,6 @@ pub fn spawn(mut commands: Commands) {
             },
             Visibility::Hidden,
         ));
-    }
-}
-
-#[derive(Resource, Default, PartialEq)]
-pub struct DebugModifier {
-    pub used: bool,
-}
-
-pub fn toggle_overlay(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut modifier: ResMut<DebugModifier>,
-    mut overlay: ResMut<DebugOverlay>,
-) {
-    if keys.just_released(KeyCode::F3) && !std::mem::take(&mut modifier.used) {
-        **overlay = !**overlay;
     }
 }
 

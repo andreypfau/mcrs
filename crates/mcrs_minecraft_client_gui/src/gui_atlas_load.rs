@@ -10,14 +10,14 @@ use crate::gui_images::GuiImages;
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::language::ClientLanguage;
-use crate::menu_background::{background_extent, background_region, menu_backgrounds};
 use crate::sprite::{GuiSprite, Scaling};
+use crate::stitch_request::StitchRequest;
+use crate::stitch_requests::StitchRequests;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::math::{IRect, IVec2, UVec2};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use mcrs_minecraft_menu_geometry::{CREATIVE_TABS, CreativeGeometry};
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use std::collections::HashMap;
@@ -59,17 +59,6 @@ pub(crate) const GUI_TEXTURES: [&str; 26] = [
     "icon/chat_modified",
 ];
 
-pub(crate) fn creative_sprites() -> impl Iterator<Item = &'static str> {
-    CREATIVE_TABS
-        .into_iter()
-        .flat_map(|tab| [tab.selected_sprite(), tab.unselected_sprite()])
-        .chain([
-            CreativeGeometry::SCROLLER,
-            CreativeGeometry::SCROLLER_DISABLED,
-        ])
-        .map(|location| location.path())
-}
-
 fn texture_path(name: &str) -> String {
     match name {
         "container/gamemode_switcher" => {
@@ -92,9 +81,13 @@ pub(crate) enum Packed {
     Page(usize),
 }
 
-pub fn load_gui_atlas(pack: &ResourceSet, mut commands: Commands) -> Result<(), GuiAtlasError> {
+pub fn load_gui_atlas(
+    pack: &ResourceSet,
+    requests: &StitchRequests,
+    mut commands: Commands,
+) -> Result<(), GuiAtlasError> {
     let font = Font::load(pack, FontOptions::default()).map_err(GuiAtlasError::Font)?;
-    let parts = build_gui_atlas(pack, &font).map_err(GuiAtlasError::Textures)?;
+    let parts = build_gui_atlas(pack, &font, requests).map_err(GuiAtlasError::Textures)?;
     let language = ClientLanguage::load(pack).map_err(GuiAtlasError::Translations)?;
     let GuiAtlasParts {
         layout,
@@ -156,7 +149,11 @@ fn glint_image(width: u32, height: u32, pixels: Vec<u8>) -> Image {
     clippy::too_many_lines,
     reason = "one load packs every texture in the order each placement depends on the last"
 )]
-pub fn build_gui_atlas(pack: &ResourceSet, font: &Font) -> Result<GuiAtlasParts, String> {
+pub fn build_gui_atlas(
+    pack: &ResourceSet,
+    font: &Font,
+    requests: &StitchRequests,
+) -> Result<GuiAtlasParts, String> {
     let mut images = Vec::new();
     let mut glint = None;
     let sprite_scalings = load_widget_images(pack, &mut images);
@@ -176,35 +173,36 @@ pub fn build_gui_atlas(pack: &ResourceSet, font: &Font) -> Result<GuiAtlasParts,
             _ => images.push((Packed::Named(name), pixels, width, height)),
         }
     }
-    for name in creative_sprites() {
-        load_image(
-            pack,
-            name,
-            &texture_path(name),
-            Ok(Scaling::Stretch),
-            &mut images,
-        );
-    }
-    let mut backgrounds = Vec::new();
-    for texture in menu_backgrounds() {
-        let Some(name) = background_region(texture) else {
-            continue;
-        };
-        if backgrounds.contains(&name) {
-            continue;
+    for request in requests.iter() {
+        match request {
+            StitchRequest::Sprite(location) => {
+                let name = location.path();
+                load_image(
+                    pack,
+                    name,
+                    &texture_path(name),
+                    Ok(Scaling::Stretch),
+                    &mut images,
+                );
+            }
+            StitchRequest::Background {
+                texture,
+                region,
+                extent,
+            } => {
+                let path = format!("{}/{}", texture.namespace(), texture.path());
+                let (pixels, width, height) =
+                    decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
+                        .map_err(|error| error.to_string())?;
+                let extent = extent.min(UVec2::new(width, height));
+                images.push((
+                    Packed::Named(region),
+                    crop(&pixels, width, extent.x, extent.y),
+                    extent.x,
+                    extent.y,
+                ));
+            }
         }
-        backgrounds.push(name);
-        let path = format!("{}/{}", texture.namespace(), texture.path());
-        let (pixels, width, height) =
-            decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
-                .map_err(|error| error.to_string())?;
-        let extent = background_extent(texture).min(UVec2::new(width, height));
-        images.push((
-            Packed::Named(name),
-            crop(&pixels, width, extent.x, extent.y),
-            extent.x,
-            extent.y,
-        ));
     }
     for (source, page) in font.bitmap_pages() {
         let (width, height) = page.size();
@@ -377,8 +375,7 @@ pub(crate) fn crop(pixels: &[u8], stride: u32, width: u32, height: u32) -> Vec<u
 mod tests {
     use super::*;
     use crate::font::corpus_font;
-    use crate::gui_quad::GuiQuad;
-    use crate::gui_quad::WHITE;
+    use crate::menu_test_app::{ATLAS, stitch_requests};
 
     #[test]
     fn the_gui_atlas_holds_every_region_and_the_digit_widths() {
@@ -386,19 +383,30 @@ mod tests {
             layout: atlas,
             atlas: image,
             glint,
-        } = build_gui_atlas(ResourceSet::corpus(), corpus_font()).unwrap();
+        } = &*ATLAS;
         for name in GUI_TEXTURES
             .iter()
             .filter(|n| **n != "misc/enchanted_glint_item")
         {
             assert!(atlas.regions.contains_key(name), "{name}");
         }
-        for texture in menu_backgrounds() {
-            assert!(
-                background_region(texture).is_some_and(|name| atlas.regions.contains_key(name)),
-                "{texture:?}"
-            );
+        for request in stitch_requests().iter() {
+            let region = request.region();
+            assert!(atlas.regions.contains_key(region), "{region}");
+            if let StitchRequest::Background { extent, .. } = request {
+                assert_eq!(atlas.region(region).size().as_uvec2(), extent, "{region}");
+            }
         }
+        assert_eq!(
+            atlas.region("container/generic_54").size(),
+            IVec2::new(176, 222)
+        );
+        assert_eq!(
+            atlas
+                .region("container/creative_inventory/tab_items")
+                .size(),
+            IVec2::new(195, 136)
+        );
         assert_eq!(atlas.region("hud/hotbar").size(), IVec2::new(182, 22));
         assert_eq!(
             atlas.region("container/inventory").size(),
@@ -422,31 +430,14 @@ mod tests {
     }
 
     #[test]
-    fn the_button_is_a_nine_slice_and_a_sprite_the_pack_lacks_is_the_missing_sprite() {
-        let GuiAtlasParts { layout: atlas, .. } =
-            build_gui_atlas(ResourceSet::corpus(), corpus_font()).unwrap();
+    fn every_sprite_id_is_stitched_and_a_sprite_the_pack_lacks_is_the_missing_sprite() {
+        let atlas = &ATLAS.layout;
         for id in GuiSpriteId::ALL {
             assert_ne!(atlas.sprite(id), atlas.missing, "{}", id.name());
         }
         for id in GuiTextureId::ALL {
             assert!(atlas.regions.contains_key(id.name()), "{}", id.name());
         }
-        let button = atlas.region(GuiSpriteId::Button.name()).min;
-        let mut out = Vec::new();
-        atlas
-            .sprite(GuiSpriteId::Button)
-            .draw(IRect::new(0, 0, 50, 20), &mut out);
-        assert_eq!(out.len(), 9, "{out:?}");
-        for (at, texel) in [((0, 0), (0, 0)), ((47, 0), (197, 0)), ((0, 17), (0, 17))] {
-            let (at, texel) = (IVec2::from(at), button + IVec2::from(texel));
-            let corner = GuiQuad::Texels {
-                rect: IRect::from_corners(at, at + 3),
-                texels: Rect::from_corners(texel.as_vec2(), (texel + 3).as_vec2()),
-                color: WHITE,
-            };
-            assert!(out.contains(&corner), "{corner:?} in {out:?}");
-        }
-
         let gui = [
             "minecraft/font/",
             "minecraft/textures/font/",
@@ -460,7 +451,7 @@ mod tests {
             .cloned()
             .collect();
         let GuiAtlasParts { layout: atlas, .. } =
-            build_gui_atlas(&without_button, corpus_font()).unwrap();
+            build_gui_atlas(&without_button, corpus_font(), &StitchRequests::default()).unwrap();
         assert_eq!(atlas.sprite(GuiSpriteId::Button), atlas.missing);
         assert_ne!(atlas.sprite(GuiSpriteId::ButtonHighlighted), atlas.missing);
     }

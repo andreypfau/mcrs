@@ -341,7 +341,6 @@ impl Knobs {
                 frozen_ticks: self.frozen_time(),
                 advanced_tooltips: false,
             },
-            screen: self.start_screen(),
         }
     }
 

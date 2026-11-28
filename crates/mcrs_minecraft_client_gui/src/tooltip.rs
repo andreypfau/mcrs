@@ -3,6 +3,7 @@ use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_client_widget::{GuiExtent, TooltipRequest, WidgetId};
 
 use crate::font::{Font, Span};
+use crate::sprite_draw::draw_sprite;
 
 use crate::gui_atlas_layout::GuiAtlasLayout;
 use crate::gui_quad::GuiQuad;
@@ -162,7 +163,7 @@ pub fn draw(
     };
     let background = IRect::from_corners(at - OFFSET, at + size + OFFSET);
     for sprite in [GuiSpriteId::TooltipBackground, GuiSpriteId::TooltipFrame] {
-        atlas.sprite(sprite).draw(background, out);
+        draw_sprite(&atlas.sprite(sprite), background, out);
     }
     for (index, line) in lines.iter().enumerate() {
         text_draw::draw_text(

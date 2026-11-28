@@ -51,11 +51,13 @@ use crate::gui_size::GuiSize;
 use crate::hover::Hover;
 use crate::item_key_codes;
 use crate::mark_creative_screen::mark_creative_screen;
+use crate::menu_background::container_backgrounds;
 use crate::menu_input;
 use crate::menu_screen;
 use crate::menu_stacks::MenuStacks;
 use crate::search_input::SearchInput;
 use crate::shown_drag_preview::ShownDragPreview;
+use crate::stitch_requests::StitchRequests;
 use crate::wheel_notches;
 
 const INVENTORY: KeyCode = KeyCode::KeyE;
@@ -64,6 +66,9 @@ pub struct InventoryClicksPlugin;
 
 impl Plugin for InventoryClicksPlugin {
     fn build(&self, app: &mut App) {
+        app.world_mut()
+            .get_resource_or_init::<StitchRequests>()
+            .extend(container_backgrounds());
         app.init_resource::<ShownDragPreview>()
             .add_systems(
                 Update,

@@ -24,7 +24,7 @@ use crate::gui_quad::WHITE;
 use crate::gui_size::GuiSize;
 use crate::irect;
 use crate::language::ClientLanguage;
-use crate::menu_input;
+use crate::layer_due;
 use crate::span_events::SpanEvents;
 use crate::text::{self, Wrap};
 use crate::text_draw;
@@ -327,7 +327,7 @@ pub fn draw(
         return;
     }
     let screen = &input.0;
-    let now_ms = menu_input::menu_clock(&time);
+    let now_ms = layer_due::gui_clock(&time);
     let blink = screen.edit().next_blink_ms(now_ms);
     input_box(size, &atlas, font, screen, now_ms, &mut runs, out);
     if let Some((list, rows)) = screen
