@@ -15,9 +15,9 @@ use bevy_app::{App, FixedPreUpdate, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_command::GraphBuilder;
+use mcrs_minecraft_engine::DimInboxDrain;
 use mcrs_minecraft_engine::ability::{AnswerOpLevel, OpLevelAnnounced};
 use mcrs_minecraft_engine::command_handoff::CommandHandoff;
-use mcrs_minecraft_engine::dim_tick::DimInboxDrain;
 use mcrs_minecraft_engine::drain_player_despawn::drain_inbound_player_despawn;
 use mcrs_minecraft_engine::minecraft_entity::InboundDispatch;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
@@ -123,7 +123,7 @@ impl<S: CommandSet> Plugin for DimCommandPlugin<S> {
             FixedPreUpdate,
             run_commands::<S>
                 .run_if(commands_pending)
-                .after(DimInboxDrain)
+                .after(DimInboxDrain::After)
                 .after(InboundDispatch)
                 .after(drain_inbound_player_despawn),
         );
