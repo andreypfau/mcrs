@@ -162,9 +162,6 @@ impl AckPacket {
         let mut end = first;
 
         for &seq in sorted.iter().skip(1) {
-            if records.len() >= MAX_RECORDS_PER_ACK {
-                break;
-            }
             if seq.as_u32() == end.as_u32().wrapping_add(1) & 0x00FF_FFFF {
                 end = seq;
             } else if seq == end {
@@ -180,12 +177,10 @@ impl AckPacket {
             }
         }
 
-        if records.len() < MAX_RECORDS_PER_ACK {
-            if start == end {
-                records.push(AckRecord::Single(start));
-            } else {
-                records.push(AckRecord::Range(start, end));
-            }
+        if start == end {
+            records.push(AckRecord::Single(start));
+        } else {
+            records.push(AckRecord::Range(start, end));
         }
 
         Self { is_nack, records }

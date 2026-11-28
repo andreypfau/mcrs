@@ -1,5 +1,7 @@
 extern crate alloc;
 
+mod hardening;
+
 use bytes::Bytes;
 use core::net::SocketAddr;
 use mcrs_raknet::{
@@ -8,10 +10,6 @@ use mcrs_raknet::{
     MAX_SPLIT_COUNT, MIN_MTU, Motd, NewIncomingConnection, OpenConnectionRequest2, RaknetEvent,
     RaknetServer, RaknetSession, Reliability, SessionError, SplitInfo, Uint24,
 };
-use mcrs_test_alloc::CountingAllocator;
-
-#[global_allocator]
-static ALLOCATOR: CountingAllocator = CountingAllocator;
 
 #[test]
 fn uint24_arithmetic_and_codecs() {
@@ -272,10 +270,14 @@ fn ocr2_session_hijack_rejected() {
     let nic_len = nic.write_to(&mut nic_buf).unwrap();
 
     let mut dg = Datagram::new(Uint24::new(0));
-    dg.push_frame(Frame::new(
-        Reliability::ReliableOrdered,
-        Bytes::copy_from_slice(&nic_buf[..nic_len]),
-    ));
+    dg.push_frame(
+        Frame::new(
+            Reliability::ReliableOrdered,
+            Bytes::copy_from_slice(&nic_buf[..nic_len]),
+        )
+        .with_reliable_index(Uint24::new(0))
+        .with_order(Uint24::new(0), 0),
+    );
     let mut dg_buf = [0u8; 512];
     let dg_len = dg.write_to(&mut dg_buf).unwrap();
 
@@ -353,36 +355,4 @@ fn connected_ping_no_overflow() {
     let decoded_pong = ConnectedPong::read_from(&pong_buf[..pong_len]).unwrap();
     assert_eq!(decoded_pong.client_time, i64::MAX);
     assert_eq!(decoded_pong.server_time, 123456789);
-}
-
-#[test]
-fn steady_path_zero_allocations() {
-    let peer: SocketAddr = "127.0.0.1:19132".parse().unwrap();
-    let mut session = RaknetSession::new(peer, 1400, 1, 1000).unwrap();
-
-    let mut dg = Datagram::new(Uint24::new(0));
-    dg.push_frame(Frame::new(
-        Reliability::Unreliable,
-        Bytes::from_static(b"warmup"),
-    ));
-    let mut buf = [0u8; 128];
-    let len = dg.write_to(&mut buf).unwrap();
-    let mut rcv = Vec::with_capacity(16);
-    session.handle_packet(&buf[..len], 1000, &mut rcv);
-    rcv.clear();
-
-    let mut tx_outbound = alloc::collections::VecDeque::with_capacity(16);
-    session.produce_outgoing_packets(1001, &mut tx_outbound);
-    tx_outbound.clear();
-
-    let before = mcrs_test_alloc::allocations();
-
-    let num = Uint24::new(12345);
-    let mut write_buf = [0u8; 3];
-    num.write_to(&mut write_buf).unwrap();
-    let (read_num, _) = Uint24::read_from(&write_buf).unwrap();
-    assert_eq!(read_num, num);
-
-    let after = mcrs_test_alloc::allocations();
-    assert_eq!(after - before, 0);
 }

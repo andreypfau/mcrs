@@ -9,6 +9,7 @@ use crate::frame::SplitInfo;
 pub const MAX_SPLIT_COUNT: u32 = 8192;
 pub const MAX_ACTIVE_SPLITS: usize = 64;
 pub const MAX_TOTAL_REASSEMBLY_BYTES: usize = 16 * 1024 * 1024;
+pub const PART_OVERHEAD_BYTES: usize = 64;
 pub const DEFAULT_SPLIT_TIMEOUT_MS: u64 = 10_000;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,9 +30,17 @@ struct IncompleteSplit {
     created_at_ms: u64,
 }
 
+impl IncompleteSplit {
+    fn charged_bytes(&self) -> usize {
+        self.total_len
+            .saturating_add(self.parts.len().saturating_mul(PART_OVERHEAD_BYTES))
+    }
+}
+
 pub struct FragmentReassembler {
     active: BTreeMap<u16, IncompleteSplit>,
     total_buffered_bytes: usize,
+    limit_bytes: usize,
     timeout_ms: u64,
 }
 
@@ -47,6 +56,7 @@ impl FragmentReassembler {
         Self {
             active: BTreeMap::new(),
             total_buffered_bytes: 0,
+            limit_bytes: MAX_TOTAL_REASSEMBLY_BYTES,
             timeout_ms,
         }
     }
@@ -59,6 +69,10 @@ impl FragmentReassembler {
     #[must_use]
     pub fn total_buffered_bytes(&self) -> usize {
         self.total_buffered_bytes
+    }
+
+    pub fn set_limit_bytes(&mut self, limit_bytes: usize) {
+        self.limit_bytes = limit_bytes.min(MAX_TOTAL_REASSEMBLY_BYTES);
     }
 
     pub fn insert(
@@ -78,7 +92,8 @@ impl FragmentReassembler {
         }
 
         let payload_len = payload.len();
-        if self.total_buffered_bytes.saturating_add(payload_len) > MAX_TOTAL_REASSEMBLY_BYTES {
+        let charge = payload_len.saturating_add(PART_OVERHEAD_BYTES);
+        if self.total_buffered_bytes.saturating_add(charge) > self.limit_bytes {
             return Err(FragmentError::MemoryLimitExceeded);
         }
 
@@ -106,7 +121,7 @@ impl FragmentReassembler {
             vacant.insert(payload);
             entry.received_count += 1;
             entry.total_len += payload_len;
-            self.total_buffered_bytes += payload_len;
+            self.total_buffered_bytes += charge;
         }
 
         if entry.received_count == entry.count {
@@ -116,7 +131,7 @@ impl FragmentReassembler {
                 .ok_or(FragmentError::CorruptedPart)?;
             self.total_buffered_bytes = self
                 .total_buffered_bytes
-                .saturating_sub(split_data.total_len);
+                .saturating_sub(split_data.charged_bytes());
 
             let mut assembled = Vec::with_capacity(split_data.total_len);
             for part_idx in 0..split_data.count {
@@ -138,7 +153,7 @@ impl FragmentReassembler {
         self.active.retain(|_, split| {
             let is_alive = now_ms.saturating_sub(split.created_at_ms) <= timeout;
             if !is_alive {
-                expired_bytes += split.total_len;
+                expired_bytes += split.charged_bytes();
             }
             is_alive
         });

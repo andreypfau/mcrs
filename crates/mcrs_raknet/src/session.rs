@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::collections::{BTreeMap, BTreeSet, VecDeque};
+use alloc::collections::{BTreeMap, VecDeque};
 use alloc::vec::Vec;
 use bytes::Bytes;
 use core::net::SocketAddr;
@@ -11,8 +11,9 @@ use crate::connected::{
     NewIncomingConnection, SYSTEM_ADDRESSES,
 };
 use crate::datagram::Datagram;
-use crate::fragment::FragmentReassembler;
-use crate::frame::Frame;
+use crate::fragment::{FragmentReassembler, MAX_SPLIT_COUNT};
+use crate::frame::{Frame, SplitInfo};
+use crate::receive_window::ReceiveWindow;
 use crate::reliability::Reliability;
 use crate::unconnected::id;
 use crate::wire::Uint24;
@@ -25,7 +26,8 @@ pub const MAX_CHANNEL_BUFFER_PER_CHANNEL: usize = 256;
 pub const MAX_RETRANSMIT_ATTEMPTS: u8 = 10;
 pub const MAX_IN_FLIGHT_DATAGRAMS: usize = 64;
 pub const MAX_PENDING_SEQS: usize = 512;
-pub const MAX_DEDUP_HISTORY: usize = 2048;
+pub const HANDSHAKE_TIMEOUT_MS: u64 = 10_000;
+pub const IDLE_TIMEOUT_MS: u64 = 30_000;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SessionState {
@@ -34,10 +36,11 @@ pub enum SessionState {
     Disconnected,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SessionError {
     InvalidMtu,
     ChannelOutOfBounds,
+    PayloadTooLarge,
     Disconnected,
 }
 
@@ -60,10 +63,12 @@ pub struct RaknetSession {
 
     channel_send_indices: [Uint24; MAX_ORDER_CHANNELS],
     channel_recv_indices: [Uint24; MAX_ORDER_CHANNELS],
+    channel_send_sequences: [Uint24; MAX_ORDER_CHANNELS],
+    channel_recv_sequences: [Option<Uint24>; MAX_ORDER_CHANNELS],
     channel_queues: [BTreeMap<Uint24, Bytes>; MAX_ORDER_CHANNELS],
 
-    received_seq_history: BTreeSet<Uint24>,
-    highest_recv_seq: Option<Uint24>,
+    received_datagrams: ReceiveWindow,
+    received_reliable: ReceiveWindow,
 
     pending_incoming_seqs: Vec<Uint24>,
     pending_nacks: Vec<Uint24>,
@@ -97,9 +102,11 @@ impl RaknetSession {
             next_split_id: 0,
             channel_send_indices: [Uint24::new(0); MAX_ORDER_CHANNELS],
             channel_recv_indices: [Uint24::new(0); MAX_ORDER_CHANNELS],
+            channel_send_sequences: [Uint24::new(0); MAX_ORDER_CHANNELS],
+            channel_recv_sequences: [None; MAX_ORDER_CHANNELS],
             channel_queues: Default::default(),
-            received_seq_history: BTreeSet::new(),
-            highest_recv_seq: None,
+            received_datagrams: ReceiveWindow::new(),
+            received_reliable: ReceiveWindow::new(),
             pending_incoming_seqs: Vec::new(),
             pending_nacks: Vec::new(),
             unacked_datagrams: BTreeMap::new(),
@@ -135,6 +142,15 @@ impl RaknetSession {
         self.client_guid = guid;
     }
 
+    #[must_use]
+    pub fn reassembly_bytes(&self) -> usize {
+        self.reassembler.total_buffered_bytes()
+    }
+
+    pub fn set_reassembly_limit(&mut self, limit_bytes: usize) {
+        self.reassembler.set_limit_bytes(limit_bytes);
+    }
+
     #[inline]
     #[must_use]
     pub fn max_payload_per_frame(&self) -> usize {
@@ -167,7 +183,7 @@ impl RaknetSession {
 
             self.record_incoming_sequence(seq);
 
-            if !self.track_received_dedup(seq) {
+            if !self.received_datagrams.accept(seq) {
                 return Some(());
             }
 
@@ -185,102 +201,143 @@ impl RaknetSession {
             self.pending_incoming_seqs.push(seq);
         }
 
-        let Some(highest) = self.highest_recv_seq else {
-            self.highest_recv_seq = Some(seq);
+        let Some(highest) = self.received_datagrams.highest() else {
             return;
         };
 
         if seq.is_newer_than(highest) {
             let mut missing = highest.wrapping_add(1);
             while missing != seq && self.pending_nacks.len() < MAX_PENDING_SEQS {
-                if !self.received_seq_history.contains(&missing) {
+                if !self.received_datagrams.contains(missing) {
                     self.pending_nacks.push(missing);
                 }
                 missing = missing.wrapping_add(1);
             }
-            self.highest_recv_seq = Some(seq);
         }
-    }
-
-    fn track_received_dedup(&mut self, seq: Uint24) -> bool {
-        if self.received_seq_history.contains(&seq) {
-            return false;
-        }
-        self.received_seq_history.insert(seq);
-        if self.received_seq_history.len() > MAX_DEDUP_HISTORY {
-            let oldest = self.received_seq_history.iter().next().copied();
-            if let Some(oldest) = oldest {
-                self.received_seq_history.remove(&oldest);
-            }
-        }
-        true
     }
 
     fn handle_frame(&mut self, frame: Frame, now_ms: u64, received_payloads: &mut Vec<Bytes>) {
+        let reliability = frame.reliability;
+        if reliability.is_reliable()
+            && let Some(index) = frame.reliable_index
+            && !self.received_reliable.accept(index)
+        {
+            return;
+        }
+
+        let channel = frame.order_channel as usize;
+        let ordering = reliability.is_ordered() || reliability.is_sequenced();
+        if ordering && channel >= MAX_ORDER_CHANNELS {
+            self.state = SessionState::Disconnected;
+            return;
+        }
+
         let payload = if let Some(split) = frame.split_info {
             match self.reassembler.insert(split, frame.payload, now_ms) {
                 Ok(Some(full)) => full,
-                _ => return,
+                Ok(None) => return,
+                Err(_) => {
+                    if reliability.is_reliable() {
+                        self.state = SessionState::Disconnected;
+                    }
+                    return;
+                }
             }
         } else {
             frame.payload
         };
 
-        if frame.reliability.is_ordered() || frame.reliability.is_sequenced() {
-            let channel = frame.order_channel as usize;
-            if channel >= MAX_ORDER_CHANNELS {
-                return;
-            }
-
-            let order_idx = frame.order_index.unwrap_or(Uint24::new(0));
-            let expected_idx = self
-                .channel_recv_indices
-                .get(channel)
-                .copied()
-                .unwrap_or(Uint24::new(0));
-
-            if order_idx == expected_idx {
-                if let Some(slot) = self.channel_recv_indices.get_mut(channel) {
-                    *slot = expected_idx.wrapping_add(1);
-                }
-                self.process_control_or_payload(payload, received_payloads, now_ms);
-
-                let mut drained = Vec::new();
-                if let Some(queue) = self.channel_queues.get_mut(channel) {
-                    let mut current_expected = self
-                        .channel_recv_indices
-                        .get(channel)
-                        .copied()
-                        .unwrap_or(Uint24::new(0));
-                    while let Some(next_payload) = queue.remove(&current_expected) {
-                        current_expected = current_expected.wrapping_add(1);
-                        drained.push(next_payload);
-                    }
-                    if let Some(slot) = self.channel_recv_indices.get_mut(channel) {
-                        *slot = current_expected;
-                    }
-                }
-                for next_payload in drained {
-                    self.process_control_or_payload(next_payload, received_payloads, now_ms);
-                }
-            } else if order_idx.is_newer_than(expected_idx) {
-                let diff = order_idx.wrapping_sub(expected_idx);
-                if diff <= MAX_ORDER_WINDOW {
-                    self.buffer_ordered_frame(channel, order_idx, payload);
-                }
-            }
+        let order_index = frame.order_index.unwrap_or(Uint24::new(0));
+        if reliability.is_ordered() {
+            self.handle_ordered(channel, order_index, payload, received_payloads, now_ms);
+        } else if reliability.is_sequenced() {
+            let sequence_index = frame.sequence_index.unwrap_or(Uint24::new(0));
+            self.handle_sequenced(
+                channel,
+                order_index,
+                sequence_index,
+                payload,
+                received_payloads,
+                now_ms,
+            );
         } else {
             self.process_control_or_payload(payload, received_payloads, now_ms);
         }
     }
 
-    fn buffer_ordered_frame(&mut self, channel: usize, order_idx: Uint24, payload: Bytes) {
-        let Some(queue) = self.channel_queues.get_mut(channel) else {
+    fn handle_ordered(
+        &mut self,
+        channel: usize,
+        order_index: Uint24,
+        payload: Bytes,
+        received_payloads: &mut Vec<Bytes>,
+        now_ms: u64,
+    ) {
+        let Some(expected) = self.channel_recv_indices.get(channel).copied() else {
             return;
         };
-        if queue.len() < MAX_CHANNEL_BUFFER_PER_CHANNEL {
-            queue.insert(order_idx, payload);
+
+        if order_index == expected {
+            let mut drained = Vec::new();
+            let mut next = expected.wrapping_add(1);
+            if let Some(queue) = self.channel_queues.get_mut(channel) {
+                while let Some(next_payload) = queue.remove(&next) {
+                    next = next.wrapping_add(1);
+                    drained.push(next_payload);
+                }
+            }
+            if let Some(slot) = self.channel_recv_indices.get_mut(channel) {
+                *slot = next;
+            }
+            if let Some(slot) = self.channel_recv_sequences.get_mut(channel) {
+                *slot = None;
+            }
+            self.process_control_or_payload(payload, received_payloads, now_ms);
+            for next_payload in drained {
+                self.process_control_or_payload(next_payload, received_payloads, now_ms);
+            }
+        } else if order_index.is_newer_than(expected) {
+            let within_window = order_index.wrapping_sub(expected) <= MAX_ORDER_WINDOW;
+            if !within_window || !self.buffer_ordered_frame(channel, order_index, payload) {
+                self.state = SessionState::Disconnected;
+            }
         }
+    }
+
+    fn handle_sequenced(
+        &mut self,
+        channel: usize,
+        order_index: Uint24,
+        sequence_index: Uint24,
+        payload: Bytes,
+        received_payloads: &mut Vec<Bytes>,
+        now_ms: u64,
+    ) {
+        let Some(expected) = self.channel_recv_indices.get(channel).copied() else {
+            return;
+        };
+        if order_index != expected {
+            return;
+        }
+        let Some(slot) = self.channel_recv_sequences.get_mut(channel) else {
+            return;
+        };
+        if slot.is_some_and(|highest| !sequence_index.is_newer_than(highest)) {
+            return;
+        }
+        *slot = Some(sequence_index);
+        self.process_control_or_payload(payload, received_payloads, now_ms);
+    }
+
+    fn buffer_ordered_frame(&mut self, channel: usize, order_idx: Uint24, payload: Bytes) -> bool {
+        let Some(queue) = self.channel_queues.get_mut(channel) else {
+            return false;
+        };
+        if queue.len() >= MAX_CHANNEL_BUFFER_PER_CHANNEL && !queue.contains_key(&order_idx) {
+            return false;
+        }
+        queue.insert(order_idx, payload);
+        true
     }
 
     fn process_control_or_payload(
@@ -411,102 +468,114 @@ impl RaknetSession {
             return Err(SessionError::InvalidMtu);
         }
 
-        let ch = channel as usize;
+        let part_count = payload.len().div_ceil(max_part);
+        if part_count > MAX_SPLIT_COUNT as usize {
+            return Err(SessionError::PayloadTooLarge);
+        }
 
-        if payload.len() <= max_part {
-            let reliable_index = if reliability.is_reliable() {
-                let idx = self.next_reliable_index;
-                self.next_reliable_index = self.next_reliable_index.wrapping_add(1);
-                Some(idx)
-            } else {
-                None
-            };
+        let (order_index, sequence_index) = self.next_ordering(channel, reliability);
 
-            let order_index = if reliability.is_ordered() || reliability.is_sequenced() {
-                let idx = self
-                    .channel_send_indices
-                    .get(ch)
-                    .copied()
-                    .unwrap_or(Uint24::new(0));
-                if let Some(slot) = self.channel_send_indices.get_mut(ch) {
-                    *slot = idx.wrapping_add(1);
-                }
-                Some(idx)
-            } else {
-                None
-            };
+        if part_count <= 1 {
+            let frame = self.build_frame(reliability, channel, order_index, sequence_index, None);
+            self.enqueue_frame(Frame { payload, ..frame });
+            return Ok(());
+        }
 
-            let frame = Frame {
+        let split_id = self.next_split_id;
+        self.next_split_id = self.next_split_id.wrapping_add(1);
+
+        for index in 0..part_count {
+            let start = index * max_part;
+            let end = core::cmp::min(start + max_part, payload.len());
+            let split = SplitInfo::new(part_count as u32, split_id, index as u32);
+            let frame = self.build_frame(
                 reliability,
-                reliable_index,
-                sequence_index: None,
+                channel,
                 order_index,
-                order_channel: channel,
-                split_info: None,
-                payload,
-            };
-
-            if reliability.is_reliable() {
-                self.outbound_reliable_queue.push_back(frame);
-            } else {
-                self.outbound_unreliable_queue.push_back(frame);
-            }
-        } else {
-            let split_id = self.next_split_id;
-            self.next_split_id = self.next_split_id.wrapping_add(1);
-
-            let splits = FragmentReassembler::split_payload(&payload, split_id, max_part);
-            let mut offset = 0;
-
-            let order_index = if reliability.is_ordered() || reliability.is_sequenced() {
-                let idx = self
-                    .channel_send_indices
-                    .get(ch)
-                    .copied()
-                    .unwrap_or(Uint24::new(0));
-                if let Some(slot) = self.channel_send_indices.get_mut(ch) {
-                    *slot = idx.wrapping_add(1);
-                }
-                Some(idx)
-            } else {
-                None
-            };
-
-            for split in splits {
-                let chunk_len = core::cmp::min(max_part, payload.len().saturating_sub(offset));
-                let chunk = payload.slice(offset..offset + chunk_len);
-                offset += chunk_len;
-
-                let reliable_index = if reliability.is_reliable() {
-                    let idx = self.next_reliable_index;
-                    self.next_reliable_index = self.next_reliable_index.wrapping_add(1);
-                    Some(idx)
-                } else {
-                    None
-                };
-
-                let frame = Frame {
-                    reliability,
-                    reliable_index,
-                    sequence_index: None,
-                    order_index,
-                    order_channel: channel,
-                    split_info: Some(split),
-                    payload: chunk,
-                };
-
-                if reliability.is_reliable() {
-                    self.outbound_reliable_queue.push_back(frame);
-                } else {
-                    self.outbound_unreliable_queue.push_back(frame);
-                }
-            }
+                sequence_index,
+                Some(split),
+            );
+            self.enqueue_frame(Frame {
+                payload: payload.slice(start..end),
+                ..frame
+            });
         }
 
         Ok(())
     }
 
+    fn next_ordering(
+        &mut self,
+        channel: u8,
+        reliability: Reliability,
+    ) -> (Option<Uint24>, Option<Uint24>) {
+        let ch = channel as usize;
+        let (Some(send_index), Some(send_sequence)) = (
+            self.channel_send_indices.get_mut(ch),
+            self.channel_send_sequences.get_mut(ch),
+        ) else {
+            return (None, None);
+        };
+        if reliability.is_ordered() {
+            let index = *send_index;
+            *send_index = index.wrapping_add(1);
+            *send_sequence = Uint24::new(0);
+            (Some(index), None)
+        } else if reliability.is_sequenced() {
+            let sequence = *send_sequence;
+            *send_sequence = sequence.wrapping_add(1);
+            (Some(*send_index), Some(sequence))
+        } else {
+            (None, None)
+        }
+    }
+
+    fn build_frame(
+        &mut self,
+        reliability: Reliability,
+        channel: u8,
+        order_index: Option<Uint24>,
+        sequence_index: Option<Uint24>,
+        split_info: Option<SplitInfo>,
+    ) -> Frame {
+        let reliable_index = if reliability.is_reliable() {
+            let index = self.next_reliable_index;
+            self.next_reliable_index = index.wrapping_add(1);
+            Some(index)
+        } else {
+            None
+        };
+        Frame {
+            reliability,
+            reliable_index,
+            sequence_index,
+            order_index,
+            order_channel: channel,
+            split_info,
+            payload: Bytes::new(),
+        }
+    }
+
+    fn enqueue_frame(&mut self, frame: Frame) {
+        if frame.reliability.is_reliable() {
+            self.outbound_reliable_queue.push_back(frame);
+        } else {
+            self.outbound_unreliable_queue.push_back(frame);
+        }
+    }
+
     pub fn tick(&mut self, now_ms: u64) {
+        let idle_limit_ms = if self.state == SessionState::Handshake {
+            HANDSHAKE_TIMEOUT_MS
+        } else {
+            IDLE_TIMEOUT_MS
+        };
+        if now_ms.saturating_sub(self.last_recv_ms) > idle_limit_ms {
+            self.state = SessionState::Disconnected;
+            self.unacked_datagrams.clear();
+            return;
+        }
+
         self.reassembler.prune(now_ms);
 
         let rto_ms = core::cmp::max(self.rtt_ms * 2, 250);
@@ -715,5 +784,19 @@ impl RaknetSession {
         self.flush_retransmissions(now_ms, &mut scratch, outbound);
         self.flush_reliable_queue(now_ms, &mut scratch, outbound);
         self.flush_unreliable_queue(&mut scratch, outbound);
+    }
+
+    pub fn close(&mut self, outbound: &mut VecDeque<(SocketAddr, Bytes)>) {
+        if self.state == SessionState::Disconnected {
+            return;
+        }
+        let notification = Bytes::from_static(&[id::DISCONNECT_NOTIFICATION]);
+        if self
+            .queue_frame(notification, Reliability::Unreliable, 0)
+            .is_ok()
+        {
+            self.produce_outgoing_packets(self.last_recv_ms, outbound);
+        }
+        self.state = SessionState::Disconnected;
     }
 }

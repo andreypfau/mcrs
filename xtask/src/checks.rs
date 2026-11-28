@@ -198,7 +198,11 @@ const NO_BEVY_PACKAGES: [&str; 143] = [
     "mcrs_voxel",
 ];
 
-const WIRE_LAYER_PACKAGES: [&str; 3] = ["mcrs_minecraft_protocol", "mcrs_minecraft_network", "mcrs_raknet"];
+const WIRE_LAYER_PACKAGES: [&str; 3] = [
+    "mcrs_minecraft_protocol",
+    "mcrs_minecraft_network",
+    "mcrs_raknet",
+];
 
 const STANDALONE_BAKE_PACKAGES: [&str; 3] = [
     "mcrs_minecraft_model",

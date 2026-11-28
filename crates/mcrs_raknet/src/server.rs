@@ -13,6 +13,7 @@ use crate::unconnected::{
 };
 
 pub const MAX_SESSIONS: usize = 1024;
+pub const MAX_SERVER_REASSEMBLY_BYTES: usize = 64 * 1024 * 1024;
 
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,6 +40,7 @@ pub struct RaknetServer {
     sessions: BTreeMap<SocketAddr, RaknetSession>,
     events: VecDeque<RaknetEvent>,
     outbound: VecDeque<(SocketAddr, Bytes)>,
+    reassembly_bytes: usize,
 }
 
 impl RaknetServer {
@@ -50,6 +52,7 @@ impl RaknetServer {
             sessions: BTreeMap::new(),
             events: VecDeque::new(),
             outbound: VecDeque::new(),
+            reassembly_bytes: 0,
         }
     }
 
@@ -166,6 +169,7 @@ impl RaknetServer {
             RaknetSession::new(peer_addr, clamped_mtu, self.server_guid, now_ms)
         {
             session.set_client_guid(req.client_guid);
+            self.remove_session(&peer_addr);
             self.sessions.insert(peer_addr, session);
         }
     }
@@ -184,7 +188,11 @@ impl RaknetServer {
         if let Some(session) = self.sessions.get_mut(&peer_addr) {
             let prev_state = session.state();
             let mut received = Vec::new();
+            let held = session.reassembly_bytes();
+            let others = self.reassembly_bytes.saturating_sub(held);
+            session.set_reassembly_limit(MAX_SERVER_REASSEMBLY_BYTES.saturating_sub(others));
             session.handle_packet(buf, now_ms, &mut received);
+            self.reassembly_bytes = others.saturating_add(session.reassembly_bytes());
 
             if prev_state == SessionState::Handshake && session.state() == SessionState::Active {
                 self.events.push_back(RaknetEvent::Connected {
@@ -209,7 +217,7 @@ impl RaknetServer {
         }
 
         if is_disconnected {
-            self.sessions.remove(&peer_addr);
+            self.remove_session(&peer_addr);
             self.events
                 .push_back(RaknetEvent::Disconnected { peer: peer_addr });
         }
@@ -233,8 +241,17 @@ impl RaknetServer {
         }
     }
 
+    fn remove_session(&mut self, peer_addr: &SocketAddr) -> Option<RaknetSession> {
+        let session = self.sessions.remove(peer_addr)?;
+        self.reassembly_bytes = self
+            .reassembly_bytes
+            .saturating_sub(session.reassembly_bytes());
+        Some(session)
+    }
+
     pub fn disconnect(&mut self, peer_addr: SocketAddr) {
-        if self.sessions.remove(&peer_addr).is_some() {
+        if let Some(mut session) = self.remove_session(&peer_addr) {
+            session.close(&mut self.outbound);
             self.events
                 .push_back(RaknetEvent::Disconnected { peer: peer_addr });
         }
@@ -244,7 +261,11 @@ impl RaknetServer {
         let mut disconnected = Vec::new();
 
         for (&addr, session) in &mut self.sessions {
+            let held = session.reassembly_bytes();
             session.tick(now_ms);
+            self.reassembly_bytes = self
+                .reassembly_bytes
+                .saturating_sub(held.saturating_sub(session.reassembly_bytes()));
             session.produce_outgoing_packets(now_ms, &mut self.outbound);
             if session.state() == SessionState::Disconnected {
                 disconnected.push(addr);
@@ -252,7 +273,7 @@ impl RaknetServer {
         }
 
         for addr in disconnected {
-            self.sessions.remove(&addr);
+            self.remove_session(&addr);
             self.events
                 .push_back(RaknetEvent::Disconnected { peer: addr });
         }

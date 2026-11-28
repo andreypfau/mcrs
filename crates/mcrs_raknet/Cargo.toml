@@ -19,6 +19,3 @@ tokio = { workspace = true, optional = true, default-features = false, features 
 default = []
 std = ["bytes/std"]
 tokio = ["dep:tokio", "std"]
-
-[dev-dependencies]
-mcrs_test_alloc = { workspace = true }

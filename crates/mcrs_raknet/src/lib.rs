@@ -8,6 +8,7 @@ mod datagram;
 mod fragment;
 mod frame;
 mod magic;
+mod receive_window;
 mod reliability;
 mod server;
 mod session;
@@ -25,16 +26,18 @@ pub use connected::{
 pub use datagram::Datagram;
 pub use fragment::{
     DEFAULT_SPLIT_TIMEOUT_MS, FragmentError, FragmentReassembler, MAX_ACTIVE_SPLITS,
-    MAX_SPLIT_COUNT, MAX_TOTAL_REASSEMBLY_BYTES,
+    MAX_SPLIT_COUNT, MAX_TOTAL_REASSEMBLY_BYTES, PART_OVERHEAD_BYTES,
 };
 pub use frame::{Frame, MAX_UNSPLIT_PAYLOAD, SplitInfo};
 pub use magic::{RAKNET_MAGIC, is_valid_magic};
 pub use reliability::Reliability;
-pub use server::{MAX_SESSIONS, RaknetEvent, RaknetServer, TransportEvent};
+pub use server::{
+    MAX_SERVER_REASSEMBLY_BYTES, MAX_SESSIONS, RaknetEvent, RaknetServer, TransportEvent,
+};
 pub use session::{
-    MAX_CHANNEL_BUFFER_PER_CHANNEL, MAX_IN_FLIGHT_DATAGRAMS, MAX_MTU, MAX_ORDER_CHANNELS,
-    MAX_ORDER_WINDOW, MAX_PENDING_SEQS, MAX_RETRANSMIT_ATTEMPTS, MIN_MTU, RaknetSession,
-    SessionError, SessionState,
+    HANDSHAKE_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_CHANNEL_BUFFER_PER_CHANNEL, MAX_IN_FLIGHT_DATAGRAMS,
+    MAX_MTU, MAX_ORDER_CHANNELS, MAX_ORDER_WINDOW, MAX_PENDING_SEQS, MAX_RETRANSMIT_ATTEMPTS,
+    MIN_MTU, RaknetSession, SessionError, SessionState,
 };
 pub use unconnected::{
     Motd, OpenConnectionReply1, OpenConnectionReply2, OpenConnectionRequest1,

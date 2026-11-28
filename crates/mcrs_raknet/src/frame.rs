@@ -238,21 +238,21 @@ impl Frame {
         let mut offset = 3;
 
         if self.reliability.is_reliable() {
-            let idx = self.reliable_index.unwrap_or(Uint24::new(0));
+            let idx = self.reliable_index?;
             let target = buf.get_mut(offset..offset + 3)?;
             idx.write_to(target)?;
             offset += 3;
         }
 
         if self.reliability.is_sequenced() {
-            let idx = self.sequence_index.unwrap_or(Uint24::new(0));
+            let idx = self.sequence_index?;
             let target = buf.get_mut(offset..offset + 3)?;
             idx.write_to(target)?;
             offset += 3;
         }
 
         if self.reliability.is_ordered() || self.reliability.is_sequenced() {
-            let idx = self.order_index.unwrap_or(Uint24::new(0));
+            let idx = self.order_index?;
             let target = buf.get_mut(offset..offset + 3)?;
             idx.write_to(target)?;
             offset += 3;

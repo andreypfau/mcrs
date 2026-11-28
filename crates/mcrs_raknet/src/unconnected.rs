@@ -391,9 +391,8 @@ impl OpenConnectionReply2 {
 
         let mtu_target = remaining.get_mut(..2)?;
         mtu_target.copy_from_slice(&self.mtu_size.to_be_bytes());
-        if let Some(slot) = remaining.get_mut(2) {
-            *slot = if self.security { 1 } else { 0 };
-        }
+        let security_slot = remaining.get_mut(2)?;
+        *security_slot = if self.security { 1 } else { 0 };
         let rest_len = remaining.get(3..).map_or(0, |s| s.len());
         Some(total_len - rest_len)
     }

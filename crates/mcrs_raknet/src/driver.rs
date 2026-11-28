@@ -5,11 +5,12 @@ use core::net::SocketAddr;
 use std::io::ErrorKind;
 use std::time::Instant;
 use tokio::net::UdpSocket;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::time::{Duration, interval};
 
 use crate::reliability::Reliability;
 use crate::server::{RaknetEvent, RaknetServer};
+use crate::session::SessionError;
 use crate::unconnected::Motd;
 
 pub const DEFAULT_CHANNEL_CAPACITY: usize = 1024;
@@ -18,6 +19,7 @@ pub const DEFAULT_CHANNEL_CAPACITY: usize = 1024;
 pub enum DriverError {
     ChannelClosed,
     InvalidChannel,
+    Rejected(SessionError),
 }
 
 enum DriverCommand {
@@ -26,6 +28,7 @@ enum DriverCommand {
         payload: Bytes,
         reliability: Reliability,
         channel: u8,
+        reply: oneshot::Sender<Result<(), SessionError>>,
     },
     Disconnect {
         peer: SocketAddr,
@@ -60,8 +63,9 @@ impl RaknetListener {
                             break;
                         };
                         match cmd {
-                            DriverCommand::Send { peer, payload, reliability, channel } => {
-                                let _ = server.send(peer, payload, reliability, channel);
+                            DriverCommand::Send { peer, payload, reliability, channel, reply } => {
+                                let result = server.send(peer, payload, reliability, channel);
+                                let _ = reply.send(result);
                             }
                             DriverCommand::Disconnect { peer } => {
                                 server.disconnect(peer);
@@ -122,15 +126,8 @@ impl RaknetListener {
     }
 
     pub async fn send(&self, peer: SocketAddr, payload: Bytes) -> Result<(), DriverError> {
-        self.cmd_tx
-            .send(DriverCommand::Send {
-                peer,
-                payload,
-                reliability: Reliability::ReliableOrdered,
-                channel: 0,
-            })
+        self.send_with(peer, payload, Reliability::ReliableOrdered, 0)
             .await
-            .map_err(|_| DriverError::ChannelClosed)
     }
 
     pub async fn send_with(
@@ -143,15 +140,21 @@ impl RaknetListener {
         if (channel as usize) >= crate::session::MAX_ORDER_CHANNELS {
             return Err(DriverError::InvalidChannel);
         }
+        let (reply, outcome) = oneshot::channel();
         self.cmd_tx
             .send(DriverCommand::Send {
                 peer,
                 payload,
                 reliability,
                 channel,
+                reply,
             })
             .await
-            .map_err(|_| DriverError::ChannelClosed)
+            .map_err(|_| DriverError::ChannelClosed)?;
+        outcome
+            .await
+            .map_err(|_| DriverError::ChannelClosed)?
+            .map_err(DriverError::Rejected)
     }
 
     pub async fn disconnect(&self, peer: SocketAddr) -> Result<(), DriverError> {

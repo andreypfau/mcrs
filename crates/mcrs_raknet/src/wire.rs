@@ -118,10 +118,10 @@ impl AddressCodec {
             4 => {
                 let ip_bytes = rest.get(..4)?;
                 let octets: [u8; 4] = [
-                    *ip_bytes.first()?,
-                    *ip_bytes.get(1)?,
-                    *ip_bytes.get(2)?,
-                    *ip_bytes.get(3)?,
+                    !*ip_bytes.first()?,
+                    !*ip_bytes.get(1)?,
+                    !*ip_bytes.get(2)?,
+                    !*ip_bytes.get(3)?,
                 ];
                 let port_bytes = rest.get(4..6)?;
                 let port = u16::from_be_bytes([*port_bytes.first()?, *port_bytes.get(1)?]);
@@ -136,16 +136,23 @@ impl AddressCodec {
                 let _family = u16::from_le_bytes([*family_bytes.first()?, *family_bytes.get(1)?]);
                 let port_bytes = rest.get(2..4)?;
                 let port = u16::from_be_bytes([*port_bytes.first()?, *port_bytes.get(1)?]);
-                let _flow_info = rest.get(4..8)?;
+                let flow_slice = rest.get(4..8)?;
+                let flow_info = u32::from_be_bytes(flow_slice.try_into().ok()?);
                 let ip_slice = rest.get(8..24)?;
                 let mut octets = [0u8; 16];
                 for (dst, src) in octets.iter_mut().zip(ip_slice.iter()) {
                     *dst = *src;
                 }
-                let _scope_id = rest.get(24..28)?;
+                let scope_slice = rest.get(24..28)?;
+                let scope_id = u32::from_be_bytes(scope_slice.try_into().ok()?);
                 let remaining = rest.get(28..)?;
                 Some((
-                    SocketAddr::V6(SocketAddrV6::new(Ipv6Addr::from(octets), port, 0, 0)),
+                    SocketAddr::V6(SocketAddrV6::new(
+                        Ipv6Addr::from(octets),
+                        port,
+                        flow_info,
+                        scope_id,
+                    )),
                     remaining,
                 ))
             }
@@ -162,7 +169,7 @@ impl AddressCodec {
                 if let Some(slot) = buf.first_mut() {
                     *slot = 4;
                 }
-                let octets = v4.ip().octets();
+                let octets = v4.ip().octets().map(|octet| !octet);
                 if let Some(dst) = buf.get_mut(1..5) {
                     dst.copy_from_slice(&octets);
                 }
@@ -186,14 +193,14 @@ impl AddressCodec {
                     dst.copy_from_slice(&v6.port().to_be_bytes());
                 }
                 if let Some(dst) = buf.get_mut(5..9) {
-                    dst.copy_from_slice(&[0u8; 4]);
+                    dst.copy_from_slice(&v6.flowinfo().to_be_bytes());
                 }
                 let octets = v6.ip().octets();
                 if let Some(dst) = buf.get_mut(9..25) {
                     dst.copy_from_slice(&octets);
                 }
                 if let Some(dst) = buf.get_mut(25..29) {
-                    dst.copy_from_slice(&[0u8; 4]);
+                    dst.copy_from_slice(&v6.scope_id().to_be_bytes());
                 }
                 Some(29)
             }
