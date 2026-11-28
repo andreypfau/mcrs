@@ -49,6 +49,7 @@ mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
 uuid = { workspace = true, optional = true }
 mcrs_minecraft_client_gui.workspace = true
+mcrs_minecraft_font = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_client_options = { workspace = true, features = ["bevy"] }
 bevy = { version = "0.20.1", default-features = false, features = [
     "std",
@@ -139,6 +140,7 @@ mcrs_minecraft_menu_key.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_lang.workspace = true
 mcrs_minecraft_model = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_resource_pack.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 bytes.workspace = true

@@ -1,8 +1,9 @@
 use mcrs_minecraft_container_click::Clicked;
-use mcrs_minecraft_menu_geometry::CreativeHit;
-use mcrs_minecraft_menu_geometry::CreativeTabIndex;
+use mcrs_minecraft_container_gesture::GestureHit;
+use mcrs_minecraft_menu_geometry::{CreativeHit, CreativeTabIndex};
 
 use crate::creative_clicks;
+use crate::creative_grid::CreativeGrid;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Hover {
@@ -12,35 +13,26 @@ pub(crate) enum Hover {
 }
 
 impl Hover {
-    pub(crate) fn clicked(self) -> Clicked {
+    pub(crate) fn hit(self, grid: Option<CreativeGrid>) -> GestureHit {
         match self {
-            Self::RecipeBookButton => Clicked::Nowhere,
-            Self::Menu(clicked) => clicked,
-            Self::Creative(hit) => creative_clicks::clicked(hit),
-        }
-    }
-
-    pub(crate) fn menu_entry(self) -> Option<u16> {
-        match self {
-            Self::Creative(hit) => hit.menu_index(),
-            Self::RecipeBookButton | Self::Menu(_) => match self.clicked() {
-                Clicked::Entry(index) => Some(index),
-                Clicked::Outside | Clicked::Nowhere => None,
+            Self::RecipeBookButton => GestureHit {
+                clicked: Some(Clicked::Nowhere),
+                entry: None,
+                target: None,
+                takes_left_press: true,
+                permits_drag: true,
             },
-        }
-    }
-
-    pub(crate) fn takes_left_press(self) -> bool {
-        matches!(
-            self,
-            Self::RecipeBookButton | Self::Creative(CreativeHit::Tab(_) | CreativeHit::ScrollBar)
-        )
-    }
-
-    pub(crate) fn permits_drag(self) -> bool {
-        match self {
-            Self::Creative(hit) => creative_clicks::permits_drag(hit),
-            Self::RecipeBookButton | Self::Menu(_) => true,
+            Self::Menu(clicked) => GestureHit {
+                clicked: Some(clicked),
+                entry: match clicked {
+                    Clicked::Entry(index) => Some(index),
+                    Clicked::Outside | Clicked::Nowhere => None,
+                },
+                target: None,
+                takes_left_press: false,
+                permits_drag: true,
+            },
+            Self::Creative(hit) => creative_clicks::hit(hit, grid),
         }
     }
 

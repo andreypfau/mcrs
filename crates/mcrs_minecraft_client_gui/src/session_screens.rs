@@ -15,8 +15,8 @@ use mcrs_minecraft_client_world::world_list::{WorldStoreError, WorldStoreFailed}
 use mcrs_minecraft_network::client::{ConnectionEnd, ConnectionEnded};
 
 use crate::cursor_grab::grab;
-use crate::language::ClientLanguage;
 use crate::title_draw::TitleScreenState;
+use mcrs_minecraft_font::ClientLanguage;
 
 const LOADING_TIMEOUT: Duration = Duration::from_secs(30);
 const CREATED_WORLD_DELAY: Duration = Duration::from_millis(500);
@@ -229,12 +229,14 @@ mod tests {
         use mcrs_minecraft_client_world::player::Player;
 
         use super::super::*;
+        use crate::corpus_font::corpus_font;
+        use crate::corpus_language::corpus_language;
         use crate::disconnected_screen::{self, disconnected_screen};
-        use crate::font::{Span, corpus_font};
-        use crate::item_decorations::WHITE;
+        use crate::gui_quad::WHITE;
         use crate::level_loading_screen::level_loading_screen;
         use crate::menu_test_app::{GUI, advance, caption, click, game_app, grab_mode, screen};
         use crate::message_screen;
+        use mcrs_minecraft_font::Span;
 
         fn join(app: &mut App) -> Entity {
             app.world_mut()
@@ -376,7 +378,7 @@ mod tests {
 
         #[test]
         fn the_session_screens_sit_where_their_rules_place_them() {
-            let language = ClientLanguage::corpus();
+            let language = corpus_language();
             let font = corpus_font();
             let saving = language.get(message_screen::message_key(ScreenMessage::SavingWorld));
             let message = message_screen::message_box(GUI, font.str_width(saving));

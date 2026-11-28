@@ -4,7 +4,7 @@ Version: see `assets/minecraft/version.json`.
 
 This document states how the client draws a player that is not the local player: the model, the
 skin and the pose. It also states the figure of the local player in the inventory screen
-(section 5). The rules of `client-entity-render.md` apply to a player as to each living entity.
+(section 5). The creative screen uses these rules for its figure. The rules of `client-entity-render.md` apply to a player as to each living entity.
 This document gives only what is particular to a player. It does not prescribe an architecture.
 
 ## 0. Conventions
@@ -26,8 +26,10 @@ This document gives only what is particular to a player. It does not prescribe a
   them. The mouse position (`mx`, `my`) is in whole GUI units.
 - **Inventory image**: the background image of the inventory screen of the local player. It is
   176 by 166 GUI units. Its top left corner is the image origin (`ix`, `iy`).
-- **Figure**: the model of the local player that the client draws on the inventory image, right
-  of the armour slots (section 5).
+- **Figure**: the model of the local player that the client draws in a GUI rectangle. The client
+  draws it on the inventory image, right of the armour slots (section 5). It also draws it in the
+  survival inventory tab of the creative screen (`client-creative-inventory.md`, CCI-LAY-007).
+  That rule gives another figure rectangle and another size.
 - **Cursor stack**: the stack that the player carries with the mouse, as `inventory.md` uses the
   term.
 
@@ -388,8 +390,15 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
     mouse position.
   - The figure turns to the mouse at each position in the window, also outside the inventory
     image.
+  - After the pointer leaves the window, the figure uses the mouse position of
+    `client-widget.md`, WID-PTR-005. It does not turn back to face the viewer.
+  - While a mouse button is down, the figure follows the pointer also outside the window. The
+    mouse position can then be negative, or more than W or H.
+  - While no mouse button is down, the figure keeps the pose of the last mouse position in the
+    window. It keeps that pose until the pointer comes back.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. The point that the figure
+keeps after an exit with no button down has the kind unspecified (WID-PTR-005, item 3).
 
 ### CPR-FIG-004: State of the local player in the figure
 
@@ -473,26 +482,29 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ### CPR-DEV-005: No flames on the figure
 
-- **Rule:** CPR-FIG-004, the row "on fire".
+- **Rule:** CPR-FIG-004, the row "on fire", also through `client-creative-inventory.md`,
+  CCI-LAY-007.
 - **Reference:** the reference draws the flames of a burning entity over the figure.
-- **Visible to the client:** yes, while the local player burns and the inventory screen is open.
+- **Visible to the client:** yes, while the local player burns and a screen shows the figure.
 - **Test:** a screenshot test against the reference uses a local player that does not burn.
 
 ### CPR-DEV-006: The eye point with the scale attribute
 
-- **Rule:** CPR-FIG-002, item 3.
+- **Rule:** CPR-FIG-002, item 3, also through `client-creative-inventory.md`, CCI-LAY-007.
 - **Reference:** the reference draws the model with a scale of 1, but it computes the eye point
   with the eye height after the scale attribute. With a scale of 2, the eye point is 48.6 GUI
-  units above the eye of the figure. The figure then does not look at the mouse.
+  units above the eye of the figure. In the creative screen, it is 32.4 GUI units above. The
+  figure then does not look at the mouse.
 - **Visible to the client:** yes, only when the scale attribute of the local player is not 1.
 - **Test:** a screenshot test against the reference uses a scale attribute of 1.
 
 ### CPR-DEV-007: The figure moves in each frame
 
-- **Rule:** CPR-FIG-004, the row "walk".
+- **Rule:** CPR-FIG-004, the row "walk", also through `client-creative-inventory.md`,
+  CCI-LAY-007.
 - **Reference:** the reference draws the figure with the values at the end of the current tick.
   The arms and the legs of the figure move only 20 times each second.
-- **Visible to the client:** yes, while the local player walks with the inventory screen open, at
+- **Visible to the client:** yes, while the local player walks and a screen shows the figure, at
   more than 20 frames each second.
 - **Test:** a screenshot test against the reference uses a local player that stands still.
 

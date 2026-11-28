@@ -53,6 +53,13 @@ architecture.
 - **GUI scale** (`s`): the number of window pixels in one GUI unit. It is an integer ≥ 1
   (MENU-SCALE-001).
 - **Host**: the player whose client runs a local world.
+- **Debug modifier**: the key binding `key.debug.modifier`, "Debug Modifier Key". Its default is
+  F3.
+- **Debug screen**: the text over the world that the key binding `key.debug.overlay`, "Toggle
+  Overlay", shows and hides. Its default key is F3, the same key as the debug modifier.
+- **Pause screen with no menu**: the screen with the title "Game Paused" that the debug modifier
+  and Escape open together (MENU-PAUSE-007). "Pause screen" alone is the pause screen with its
+  menu.
 - **Server view distance** (`V`): the largest view distance that a server gives to a player, in
   columns (MENU-DIST-004).
 - **Render distance of the client** (`r`): the radius in columns in which the client draws the
@@ -98,6 +105,8 @@ Each example uses W = 427 and H = 240, with the window of 854 × 480 pixels and 
 In scope:
 
 - the pause screen with its menu: the key that opens it, the close, the title and the buttons;
+- the pause screen with no menu: the keys that open it, its text, its draw, the pause of the
+  local world and the close;
 - the options screen;
 - the option sub-screens "Video Settings" and "Accessibility Settings", for the order of their
   rows;
@@ -110,8 +119,12 @@ In scope:
 
 Out of scope:
 
-- whether the game pauses while the pause screen is open;
-- the pause screen with no menu (F3 + Escape), and the pause on a loss of the window focus;
+- whether the game pauses while the pause screen with its menu is open;
+- the pause on a loss of the window focus;
+- the debug screen, the other keys of the debug modifier, and the release of the debug modifier
+  in other cases than MENU-PAUSE-007 and MENU-PAUSE-010;
+- the screen of the key binding `key.friends`, "Friends". It can open over each form of the
+  pause screen;
 - the title screen, and the screens between it and a world (`client-title-screen.md`);
 - the form of the options file;
 - the other vanilla options. This document names them only where an order needs them;
@@ -135,6 +148,7 @@ Out of scope:
 | Pause screen: top padding of the first cell | 50 | MENU-PAUSE-003 |
 | Pause screen: alignment of the grid in the screen | (0.5, 0.25) | MENU-PAUSE-003 |
 | Pause screen: icon button, gap of the icon row | 20 × 20, 4 | MENU-PAUSE-003 |
+| Pause screen with no menu: title top | 10 | MENU-PAUSE-008 |
 | Options screen: header height `hh` | 61 | MENU-OPT-002 |
 | Options screen: gap of the header column and of its row | 8, 8 | MENU-OPT-002 |
 | Options screen: padding `pl`, `pr`, `pb` of a grid cell | 4, 4, 4 | MENU-OPT-002 |
@@ -151,6 +165,7 @@ Out of scope:
 | VSync: default | ON | MENU-VAL-010 |
 | Fullscreen: default | OFF | MENU-VAL-011 |
 | Improved Transparency: default | OFF | MENU-VAL-012 |
+| Menu Background Blur: range, default | [0, 10], 5 | MENU-VAL-013 |
 | Draw test of the client: margin | 1 column | MENU-DIST-001 |
 | Render-distance fog: end, length | `16 · r` blocks, `clamp(16 · r / 10, 4, 64)` blocks | MENU-DIST-001 |
 | View of a player on the server: margin | 2 columns | MENU-DIST-003 |
@@ -164,17 +179,18 @@ Out of scope:
 
 ### MENU-PAUSE-001: Open the pause screen
 
-- **Inputs:** a press of Escape in a world, with no screen open.
+- **Inputs:** a press of Escape in a world, with no screen open, while the debug modifier is
+  up.
 - **Behavior:**
   1. The pause screen with its menu opens (`client-widget.md`, WID-SCR-001). It has no parent
      screen.
   2. The key is always Escape. The player cannot bind the action to another key.
   3. While a screen is open, Escape goes to that screen (WID-FOC-003). It does not open the
      pause screen.
+  4. While the debug modifier is down, MENU-PAUSE-007 applies in place of this rule.
 - **Postconditions:** the game releases the mouse pointer. No widget is focused, because the
   screen opens from the game (WID-FOC-002, postconditions).
-- **Edge cases:** the pause screen with no menu, and the pause on a loss of the window focus,
-  are out of scope.
+- **Edge cases:** the pause on a loss of the window focus is out of scope.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
@@ -301,6 +317,78 @@ Confidence: medium.
 Provenance: `design` for the set of widgets and the action of the last button.
 `source_suggested` for the positions. Kind: layout for the positions, semantic for the
 actions. Confidence: medium.
+
+### MENU-PAUSE-007: Open the pause screen with no menu
+
+- **Inputs:** a press of Escape in a world, with no screen open, while the debug modifier is
+  down. Whether the world is a local world, and whether it is open to LAN.
+- **Behavior:**
+  1. In a local world that is not open to LAN, the pause screen with no menu opens
+     (`client-widget.md`, WID-SCR-001). It has no parent screen.
+  2. In each other world, the pause screen with its menu opens, as MENU-PAUSE-001 states.
+  3. The debug modifier must be down at the press of Escape. A press of Escape and then of the
+     debug modifier is a plain Escape (MENU-PAUSE-001).
+  4. The press of Escape counts as a use of the debug modifier (MENU-DEV-015).
+- **Postconditions:** the debug screen keeps its state: shown or hidden. This is the same for
+  both forms of the pause screen.
+- **Edge cases:** when the debug modifier has no key, it is never down. Escape then always
+  opens the pause screen with its menu.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+
+### MENU-PAUSE-008: Text and draw of the pause screen with no menu
+
+- **Inputs:** W, and the font width `tw` of the title.
+- **Behavior:**
+  1. The screen has one widget: the title `menu.paused`, "Game Paused". It is a one-line text
+     widget (WID-TXT-001) of the size `tw` × 9.
+  2. The position of the title is (`W / 2 − tw / 2`, 10), with the integer division.
+  3. The screen draws no background (WID-SCR-008). It draws no gradient, no blur and no menu
+     background texture.
+  4. The title draws over the world and the HUD.
+  5. When the debug screen is shown, it draws over the title.
+  6. A resize or a change of the GUI scale places the title again (WID-SCR-003).
+- **Postconditions:** at W = 427, `tw` is 64, and the title is at (181, 10, 64, 9).
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English text. Kind: layout.
+Confidence: medium.
+
+### MENU-PAUSE-009: Pause of the local world
+
+- **Inputs:** the pause screen with no menu is open. It opens only in a local world that is not
+  open to LAN (MENU-PAUSE-007).
+- **Behavior:**
+  1. The local world pauses. It runs no tick while the screen is open. The time of the world
+     stops, and the entities and the player do not move.
+  2. When the pause starts, each sound pauses, except the music and the sounds of the GUI.
+  3. The game releases the mouse pointer when the screen opens (WID-SCR-001, step 2).
+- **Postconditions:** when the screen closes (MENU-PAUSE-010), the local world runs its ticks
+  again. The paused sounds continue, and the game takes the mouse pointer again.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+
+### MENU-PAUSE-010: Close of the pause screen with no menu, and other input
+
+- **Inputs:** a key or a mouse event while the pause screen with no menu is open.
+- **Behavior:**
+  1. Escape closes the screen, also while the debug modifier is down. The screen has no parent
+     screen, so the player returns to the game (WID-SCR-002, step 3). The close ends the pause
+     (MENU-PAUSE-009, postconditions).
+  2. A press, a release and a wheel event of the mouse do nothing. A press does not take the
+     mouse pointer.
+  3. The key bindings of the game do nothing while the screen is open, except the keys of the
+     edge case below. For example, `key.chat` "Open Chat", `key.command` "Open Command" and
+     `key.inventory` "Open/Close Inventory" open no screen over it. `key.hotbar.1` "Hotbar
+     Slot 1" does not change the selected slot.
+  4. A loss of the window focus does not change the screen.
+  5. When Escape closes the screen while the debug modifier is down, the press counts as a use
+     of the debug modifier (MENU-DEV-015).
+- **Edge cases:** the keys that act while each screen is open are out of scope. Examples are
+  "Toggle Fullscreen" (MENU-DISP-005), `key.screenshot` "Take Screenshot" and the debug keys.
+  They act, and none of them closes the screen.
+
+Provenance: `source_suggested`; `design` for the release of the debug modifier after a close
+with Escape (MENU-DEV-015). Kind: semantic; deviation for step 5. Confidence: medium.
 
 ---
 
@@ -477,7 +565,7 @@ Confidence: medium.
 | 4 | label "Quality & Performance" | 128 | 36 | label box top 148 |
 | 5 | "Render Distance", "Simulation Distance" | 164 | 25 | (58, 166) and (218, 166) |
 | 6 | "Smooth Lighting", "Clouds" | 189 | 25 | (58, 191) and (218, 191) |
-| 7 | "Improved Transparency" | 214 | 25 | (58, 216) |
+| 7 | "Menu Background Blur", "Improved Transparency" | 214 | 25 | (58, 216) and (218, 216) |
 
   - The content height is 208. The list is 174 high, so it scrolls with `M` = 34
     (`client-list.md`, SCRL-AREA-001).
@@ -518,13 +606,15 @@ Confidence: medium.
 - **Behavior:**
   1. The screen keeps the title, the form and the order of MENU-ACC-001.
   2. The list holds two rows. Row 0 holds "Controls..." alone, at the index 0. "Narrator" does
-     not show. Row 1 holds "FOV Effects" alone, at the index 0.
+     not show. Row 1 holds "Menu Background Blur" at the index 0 and "FOV Effects" at the
+     index 1.
   3. "Controls..." keeps the caption, the size and the action of MENU-ACC-001, step 2.
   4. The row of the footer (WID-LAY-006) holds only "Done". "Done" keeps its vanilla size,
      150 × 20. The footer frame places the row with its one child (WID-LAY-011). Escape and
      "Done" act as MENU-SUB-002 states.
 - **Postconditions:** at W = 427 and H = 240:
-  - "Controls..." is at (58, 37). "FOV Effects" is at (58, 62). "Done" is at (138, 214).
+  - "Controls..." is at (58, 37). "Menu Background Blur" is at (58, 62). "FOV Effects" is at
+    (218, 62). "Done" is at (138, 214).
   - The content height is 54, so the list does not scroll.
 
 Provenance: `design` for the set of widgets, as MENU-PAUSE-006 states. "Controls..." is in the
@@ -551,10 +641,12 @@ The options are on these screens:
 | VSync | "Video Settings", section "Display" | MENU-VAL-010 |
 | Fullscreen | "Video Settings", section "Display" | MENU-VAL-011 |
 | Improved Transparency | "Video Settings", section "Quality & Performance" | MENU-VAL-012 |
+| Menu Background Blur | "Video Settings", section "Quality & Performance", and "Accessibility Settings" | MENU-VAL-013 |
 
 The rules MENU-DIST-001 to MENU-DIST-005 state the effect of Render Distance and Simulation
 Distance. The rules MENU-DISP-001 to MENU-DISP-005 state the effect of Max Framerate, VSync and
-Fullscreen. `client-fog.md` states the effect of Improved Transparency.
+Fullscreen. `client-fog.md` states the effect of Improved Transparency. `client-widget.md`,
+WID-SCR-005, states the effect of Menu Background Blur.
 `client-controls.md`, CTRL-VAL-001, states the option Sensitivity.
 
 ### MENU-VAL-001: FOV
@@ -783,6 +875,31 @@ Provenance: `source_suggested`; `black_box_confirmed` for the English texts. The
 has two other tooltip keys of the option, `options.improvedTransparency.oit.tooltip` and
 `options.improvedTransparency.tooltip`. The button shows neither of them. `design` for step 4.
 Kind: semantic. Confidence: medium.
+
+### MENU-VAL-013: Menu Background Blur
+
+- **Behavior:**
+  1. The widget is an option slider over the integer range [0, 10] (WID-SLD-005). The step of a
+     key in change mode is 1. The default is 5.
+  2. When the value is 0, the caption is `options.generic_value` with
+     `options.accessibility.menu_background_blurriness`, "Menu Background Blur", and
+     `options.off`, "OFF". Else the caption is `options.generic_value` with "Menu Background
+     Blur" and the number.
+  3. The tooltip is `options.accessibility.menu_background_blurriness.tooltip`, "Changes the
+     blurriness of menu backgrounds.".
+  4. The option applies at once (WID-SLD-007, step 1).
+  5. Each change writes the options file (MENU-SAVE-001).
+  6. The value is the blur radius `r` of `client-widget.md`, WID-SCR-005.
+  7. The two screens of section 4 show one option. A change on one screen shows on the other
+     screen when it opens.
+- **Postconditions:**
+  - The captions are "Menu Background Blur: OFF", "Menu Background Blur: 5" and "Menu
+    Background Blur: 10".
+  - In the next frame after a change to 0, a screen with the default background shows the world
+    or the panorama sharp (WID-SCR-004).
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: semantic.
+Confidence: medium.
 
 ### MENU-DIST-001: The render distance of the client
 
@@ -1205,13 +1322,15 @@ content after a loss of power.
 | Screen | In-game screen | Own background | Separators | Re-arrange (WID-SCR-003) | Tab order group | Sliders that wait |
 |--------|----------------|----------------|------------|--------------------------|-----------------|-------------------|
 | Pause screen | no | no | none | builds its widgets again | 0 | none |
+| Pause screen with no menu | no | yes | none | builds its widgets again | 0 | none |
 | Options screen | no | no | none | keeps its widgets | 0 | none |
 | "Video Settings" | no | no | of the list (LIST-BG-002) | keeps its widgets | 0 | vanilla: Biome Blend, Render Distance, Simulation Distance |
 | "Accessibility Settings" | no | no | of the list (LIST-BG-002) | keeps its widgets | 0 | none |
 
 - **Postconditions:**
-  - Each screen of this document draws the background of WID-SCR-004, step 2. In a world, that
-    is the blur of WID-SCR-005 and then the texture `inworld_menu_background.png`.
+  - Each screen of this document, except the pause screen with no menu, draws the background of
+    WID-SCR-004, step 3. In a world, that is the blur of WID-SCR-005 and then the texture
+    `inworld_menu_background.png`.
   - The pause screen and the options screen draw no separators of WID-SCR-006.
   - No screen of this document names an initial widget (WID-FOC-002, step 1).
 
@@ -1623,8 +1742,33 @@ Confidence: high.
 Provenance: `design`. Kind: semantic for the image, wire for `client_information`. Confidence:
 high.
 
+### MENU-DEV-015: Escape that closes the pause screen with no menu is a use of the debug modifier
+
+- **Rule:** a press of Escape that opens the pause screen with no menu, or that closes it, while
+  the debug modifier is down, counts as a use of the debug modifier. Thus the next release of
+  the debug modifier does not show or hide the debug screen. MENU-PAUSE-007, step 4, and
+  MENU-PAUSE-010, step 5, apply this rule.
+- **Reference:** a press of Escape that the open screen takes is not a use of the debug
+  modifier. The result depends on the release of the debug modifier between the open and the
+  close:
+  - The player holds the debug modifier, presses Escape two times, and then releases the debug
+    modifier. The debug screen does not change, because the press that opened the screen counts.
+  - The player opens the screen, releases the debug modifier, and then presses the debug
+    modifier and Escape again. At the release after the close, the debug screen shows or hides.
+- **Reason:** the same chord must give the same result. A player who closes the pause with the
+  chord that opened it does not ask for the debug screen.
+- **Visible to the client:** yes. In the second case, the debug screen keeps its state in mcrs.
+  In the reference, it shows or hides.
+- **Bug reference:** none.
+- **Test:** a differential test does not compare the debug screen after a close with the debug
+  modifier down.
+
 ---
 
 ## 10. Unresolved
 
-None.
+1. **The dialog button of the pause screen** (MENU-PAUSE-006; `dialog.md`, DLG-TAG-001). The
+   mcrs subset holds only the children 1, 6 and 8 of MENU-PAUSE-003. DLG-TAG-001 adds child 5,
+   the button that opens a server dialog, to the vanilla grid. Does the mcrs subset show child 5
+   when DLG-TAG-001 chooses a dialog? If it does, which row does it take, and which positions of
+   the postconditions of MENU-PAUSE-006 change?

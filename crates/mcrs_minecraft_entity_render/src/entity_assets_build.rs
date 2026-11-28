@@ -5,11 +5,10 @@ use bevy::log::warn;
 use glam::Vec3;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels};
 use mcrs_minecraft_model::resource_set::ResourceSet;
-use mcrs_minecraft_model_file::resource_id::resource_path;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource_pack::{MISSING_SIZE, RgbaImage, missing_pixels, pack_path};
 use serde::Deserialize;
 
 use crate::entity_assets::{EntityAssets, MISSING_TEXTURE, texture_identifier};
@@ -129,18 +128,25 @@ fn textures(resources: &ResourceSet, identifiers: BTreeSet<String>) -> Vec<Textu
         rgba: missing_pixels(),
     }];
     for identifier in identifiers {
-        let path = resource_path(&identifier, "textures", "png");
+        let location = match ResourceLocation::read(&identifier) {
+            Ok(location) => location,
+            Err(error) => {
+                warn!("{error}");
+                continue;
+            }
+        };
+        let path = pack_path(location, "textures", "png");
         let Some(bytes) = resources.get(&path) else {
             continue;
         };
-        match decode_png(bytes, &path) {
-            Ok((rgba, width, height)) => textures.push(TextureImage {
+        match RgbaImage::decode_png(bytes) {
+            Ok(image) => textures.push(TextureImage {
                 identifier,
-                width,
-                height,
-                rgba,
+                width: image.width,
+                height: image.height,
+                rgba: image.rgba,
             }),
-            Err(error) => warn!("{error}"),
+            Err(error) => warn!("cannot decode {path}: {error}"),
         }
     }
     textures

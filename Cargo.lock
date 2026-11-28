@@ -4403,6 +4403,7 @@ dependencies = [
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_fog",
+ "mcrs_minecraft_font",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_inventory_client",
@@ -4433,6 +4434,7 @@ dependencies = [
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
  "mcrs_minecraft_save",
  "mcrs_minecraft_server",
  "mcrs_minecraft_server_settings",
@@ -4534,6 +4536,7 @@ dependencies = [
  "mcrs_minecraft_client_world",
  "mcrs_minecraft_command",
  "mcrs_minecraft_container_click",
+ "mcrs_minecraft_container_gesture",
  "mcrs_minecraft_core",
  "mcrs_minecraft_creative_content",
  "mcrs_minecraft_creative_report",
@@ -4549,6 +4552,7 @@ dependencies = [
  "mcrs_minecraft_entity_render",
  "mcrs_minecraft_entity_visual",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_font",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_inventory_click",
@@ -4561,7 +4565,6 @@ dependencies = [
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_item_tooltip",
- "mcrs_minecraft_lang",
  "mcrs_minecraft_menu_geometry",
  "mcrs_minecraft_menu_key",
  "mcrs_minecraft_model",
@@ -4576,9 +4579,9 @@ dependencies = [
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
  "mcrs_minecraft_save",
  "mcrs_minecraft_text",
- "mcrs_minecraft_text_flatten",
  "mcrs_minecraft_volume",
  "mcrs_test_alloc",
  "mcrs_voxel",
@@ -4971,6 +4974,14 @@ name = "mcrs_minecraft_container_click"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_wire",
+]
+
+[[package]]
+name = "mcrs_minecraft_container_gesture"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_container_click",
+ "mcrs_minecraft_inventory_click",
 ]
 
 [[package]]
@@ -5587,13 +5598,13 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_model",
- "mcrs_minecraft_model_file",
  "mcrs_minecraft_pack_file",
  "mcrs_minecraft_pose",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_controller",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
  "mcrs_molang",
  "mcrs_molang_wgsl",
  "naga",
@@ -5678,6 +5689,26 @@ name = "mcrs_minecraft_fog"
 version = "0.5.8"
 dependencies = [
  "libm",
+]
+
+[[package]]
+name = "mcrs_minecraft_font"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
+ "bevy_math",
+ "mcrs_minecraft_client_jar",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_lang",
+ "mcrs_minecraft_model",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
+ "mcrs_minecraft_text",
+ "mcrs_minecraft_text_flatten",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -6395,6 +6426,7 @@ dependencies = [
  "mcrs_minecraft_potion",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
  "mcrs_molang",
  "mcrs_voxel",
  "serde",
@@ -6408,6 +6440,8 @@ dependencies = [
  "glam",
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
  "serde",
  "serde_json",
 ]
@@ -6957,6 +6991,14 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_resource_pack"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_resource",
+ "png",
 ]
 
 [[package]]

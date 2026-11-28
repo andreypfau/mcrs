@@ -467,8 +467,10 @@ file. Kind: layout. Confidence: medium.
 
 - **Inputs:** the open screen, and whether the client has a world.
 - **Behavior:**
-  1. With no world, each screen that is not an in-game screen draws the panorama, then the blur
-     of WID-SCR-005, then the menu background texture (WID-SCR-004, step 2).
+  1. With no world, each screen with the default background draws the panorama, then the blur
+     of WID-SCR-005, then the menu background texture (WID-SCR-004, step 3). WID-SCR-008 lists
+     the screens that draw another background, for example the error screen of the saves
+     folder.
   2. The title screen draws only the panorama and its overlay (TITLE-SCR-005, step 2).
   3. The message screens of TITLE-LOAD-001 draw the panorama, the blur and the menu background
      texture, also when the client has a world.

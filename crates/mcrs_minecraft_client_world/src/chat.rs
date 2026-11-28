@@ -30,6 +30,7 @@ use mcrs_minecraft_protocol_game::text::Text;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocation};
 
+use crate::GuiTick;
 use crate::chat_history::{self, CommandHistoryFile};
 use crate::chat_packets;
 use crate::game_mode::PermissionLevel;
@@ -101,7 +102,6 @@ pub struct Chat {
     pub completions: Vec<String>,
     pub abilities: ChatAbilities,
     pub options: ChatOptions,
-    pub tick: u64,
     pub(crate) player_chats: i32,
 }
 
@@ -240,7 +240,6 @@ impl Plugin for ClientChatPlugin {
             .add_message::<ChatMessage>()
             .add_message::<SendChat>()
             .add_message::<ConnectionEnded>()
-            .add_systems(FixedUpdate, advance_tick)
             .add_systems(
                 Update,
                 clear_session_chat
@@ -292,20 +291,11 @@ fn clear_session_chat(
     *input = ChatInput::default();
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        mcrs::missed_set_if_neq,
-        reason = "the chat clock advances on every fixed tick, so each run changes the value"
-    )
-)]
-fn advance_tick(mut chat: ResMut<Chat>) {
-    chat.tick = chat.tick.saturating_add(1);
-    chat.overlay.tick();
-}
-
-pub fn log_messages(mut messages: MessageReader<ChatMessage>, mut chat: ResMut<Chat>) {
+pub fn log_messages(
+    mut messages: MessageReader<ChatMessage>,
+    mut chat: ResMut<Chat>,
+    tick: Res<GuiTick>,
+) {
     let chat = &mut *chat;
     for message in messages.read() {
         let allowed = match message.origin {
@@ -313,7 +303,7 @@ pub fn log_messages(mut messages: MessageReader<ChatMessage>, mut chat: ResMut<C
             MessageOrigin::System => chat.abilities.receive_system_messages,
         };
         if allowed {
-            chat.log.push(message.text.clone(), chat.tick, message.tag);
+            chat.log.push(message.text.clone(), tick.0, message.tag);
         }
     }
 }

@@ -2,12 +2,11 @@ use crate::anim;
 use crate::resource_set::ResourceSet;
 use crate::sprite_atlas::SpriteAtlas;
 use crate::sprite_error::SpriteError;
-use bevy::asset::RenderAssetUsages;
-use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::prelude::*;
 use mcrs_minecraft_mesh::block::Pass;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
-use mcrs_minecraft_model_file::resource_id;
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource_pack::{MISSING_SIZE, RgbaImage, missing_pixels, pack_path};
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::LazyLock;
@@ -71,8 +70,10 @@ struct DirectorySource {
 }
 
 impl ItemAtlasMembers {
-    fn atlas_of(&self, pack: &ResourceSet, id: &str) -> SpriteAtlas {
-        let (namespace, path) = resource_id::split_id(id);
+    fn atlas_of(&self, pack: &ResourceSet, id: &str) -> Result<SpriteAtlas, SpriteError> {
+        let location = ResourceLocation::read(id)?;
+        let namespace = location.namespace();
+        let path = location.path();
         let listed = self.sprites.contains(id)
             || self.directories.iter().any(|directory| {
                 path.strip_prefix(directory.prefix.as_str())
@@ -81,11 +82,11 @@ impl ItemAtlasMembers {
                         pack.get(&file).is_some()
                     })
             });
-        if listed {
+        Ok(if listed {
             SpriteAtlas::Item
         } else {
             SpriteAtlas::Block
-        }
+        })
     }
 }
 
@@ -145,12 +146,14 @@ impl SpriteRegistry {
                     message: error.to_string(),
                 })?;
             let permutations = sources.permutations(pack)?;
-            if resource_id::full_id(&id) == ITEM_ATLAS {
+            if id == ITEM_ATLAS {
                 item_atlas
                     .sprites
                     .extend(permutations.iter().map(|(sprite, _)| sprite.clone()));
                 item_atlas.directories.extend(sources.directories());
-                item_atlas.sprites.extend(sources.singles());
+                for single in sources.singles() {
+                    item_atlas.sprites.insert(single?);
+                }
             }
             loaded.extend(permutations);
         }
@@ -158,37 +161,46 @@ impl SpriteRegistry {
         self.permutations.extend(loaded);
         for (name, &id) in &self.index {
             if let Some(sprite) = self.table.get_mut(usize::from(id)) {
-                sprite.atlas = self.item_atlas.atlas_of(pack, name);
+                sprite.atlas = self.item_atlas.atlas_of(pack, name)?;
             }
         }
         Ok(())
     }
 
     fn source(&self, pack: &ResourceSet, id: &str) -> Result<Source, SpriteError> {
-        let path = resource_id::resource_path(id, "textures", "png");
+        let location = ResourceLocation::read(id)?;
+        let path = pack_path(location, "textures", "png");
         if let Some(bytes) = pack.get(&path) {
-            let (data, width, height) = decode_png(bytes, &path)?;
+            let image = RgbaImage::decode_png(bytes).map_err(|error| SpriteError::Decode {
+                path: path.clone(),
+                error,
+            })?;
             return Ok(Source {
-                data,
-                width,
-                height,
+                data: image.rgba,
+                width: image.width,
+                height: image.height,
                 animation: anim::read(pack, &path)?,
             });
         }
         if let Some((base, mapping)) = self.permutations.get(id) {
-            let base_path = resource_id::resource_path(base, "textures", "png");
-            let (mut data, width, height) = decode_png(pack.read(&base_path)?, &base_path)?;
-            for pixel in data.as_chunks_mut::<4>().0 {
+            let base_path = pack_path(ResourceLocation::read(base)?, "textures", "png");
+            let mut image = RgbaImage::decode_png(pack.read(&base_path)?).map_err(|error| {
+                SpriteError::Decode {
+                    path: base_path.clone(),
+                    error,
+                }
+            })?;
+            for pixel in image.rgba.as_chunks_mut::<4>().0 {
                 *pixel = rgba(mapping.apply(argb(pixel)));
             }
             return Ok(Source {
-                data,
-                width,
-                height,
+                data: image.rgba,
+                width: image.width,
+                height: image.height,
                 animation: anim::read(pack, &base_path)?,
             });
         }
-        if resource_id::split_id(id) == resource_id::split_id(MISSING_SPRITE) {
+        if location == MISSING_SPRITE {
             return Ok(Source {
                 data: missing_pixels(),
                 width: MISSING_SIZE,
@@ -266,7 +278,7 @@ impl SpriteRegistry {
                 limit: MAX_SPRITES,
             });
         }
-        let path = resource_id::resource_path(id, "textures", "png");
+        let path = pack_path(ResourceLocation::read(id)?, "textures", "png");
         let Source {
             data,
             width,
@@ -344,31 +356,11 @@ impl SpriteRegistry {
             array: index as u8,
             layer,
             animation,
-            atlas: self.item_atlas.atlas_of(pack, id),
+            atlas: self.item_atlas.atlas_of(pack, id)?,
         });
         self.index.insert(id.to_string(), sprite);
         Ok(sprite)
     }
-}
-
-pub fn decode_png(bytes: &[u8], path: &str) -> Result<(Vec<u8>, u32, u32), SpriteError> {
-    let image = Image::from_buffer(
-        bytes,
-        ImageType::Extension("png"),
-        CompressedImageFormats::NONE,
-        true,
-        ImageSampler::nearest(),
-        RenderAssetUsages::default(),
-    )
-    .map_err(|error| SpriteError::Decode {
-        path: path.to_owned(),
-        message: error.to_string(),
-    })?;
-    let (width, height) = (image.width(), image.height());
-    let data = image.data.ok_or_else(|| SpriteError::NoPixels {
-        path: path.to_owned(),
-    })?;
-    Ok((data, width, height))
 }
 
 fn argb(rgba: &[u8; 4]) -> u32 {
@@ -379,10 +371,6 @@ pub fn rgba(argb: u32) -> [u8; 4] {
     let [a, r, g, b] = argb.to_be_bytes();
     [r, g, b, a]
 }
-
-pub const MISSING_SIZE: u32 = 16;
-const MAGENTA: [u8; 4] = [0xF8, 0x00, 0xF8, 0xFF];
-const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 
 fn entity_square(id: &str, source: Source) -> Source {
     let entity = id
@@ -411,14 +399,6 @@ fn pad_square(data: &[u8], width: u32, height: u32) -> Vec<u8> {
         }
     }
     out
-}
-
-pub fn missing_pixels() -> Vec<u8> {
-    let half = MISSING_SIZE / 2;
-    (0..MISSING_SIZE)
-        .flat_map(|y| (0..MISSING_SIZE).map(move |x| (x < half) != (y < half)))
-        .flat_map(|magenta| if magenta { MAGENTA } else { BLACK })
-        .collect()
 }
 
 #[derive(Deserialize)]
@@ -469,11 +449,13 @@ impl AtlasSources {
         })
     }
 
-    fn singles(&self) -> impl Iterator<Item = String> + '_ {
+    fn singles(&self) -> impl Iterator<Item = Result<String, SpriteError>> + '_ {
         self.sources.iter().filter_map(|source| match source {
-            AtlasSource::Single { resource, sprite } => {
-                Some(resource_id::full_id(sprite.as_ref().unwrap_or(resource)))
-            }
+            AtlasSource::Single { resource, sprite } => Some(
+                ResourceLocation::read(sprite.as_ref().unwrap_or(resource))
+                    .map(|location| location.to_string())
+                    .map_err(SpriteError::from),
+            ),
             AtlasSource::PalettedPermutations { .. }
             | AtlasSource::Directory { .. }
             | AtlasSource::Other => None,
@@ -511,9 +493,12 @@ struct Palette(Vec<u32>);
 
 impl Palette {
     fn load(pack: &ResourceSet, id: &str) -> Result<Self, SpriteError> {
-        let path = resource_id::resource_path(id, "textures/palettes", "png");
-        let (data, _, _) = decode_png(pack.read(&path)?, &path)?;
-        Ok(Self(data.as_chunks::<4>().0.iter().map(argb).collect()))
+        let path = pack_path(ResourceLocation::read(id)?, "textures/palettes", "png");
+        let image = RgbaImage::decode_png(pack.read(&path)?)
+            .map_err(|error| SpriteError::Decode { path, error })?;
+        Ok(Self(
+            image.rgba.as_chunks::<4>().0.iter().map(argb).collect(),
+        ))
     }
 }
 
@@ -918,44 +903,30 @@ mod tests {
         assert_eq!(array.layers(), 32);
         let stride = (array.size * array.size * 4) as usize;
         let image = ResourceSet::corpus()
-            .read(&resource_id::resource_path(
-                "minecraft:block/fire_0",
+            .read(&pack_path(
+                ResourceLocation::read("minecraft:block/fire_0").unwrap(),
                 "textures",
                 "png",
             ))
             .unwrap();
-        let image = Image::from_buffer(
-            image,
-            ImageType::Extension("png"),
-            CompressedImageFormats::NONE,
-            true,
-            ImageSampler::nearest(),
-            RenderAssetUsages::default(),
-        )
-        .unwrap();
-        let data = image.data.unwrap();
+        let data = RgbaImage::decode_png(image).unwrap().rgba;
         assert_eq!(layer(array, 0), &data[16 * stride..17 * stride]);
         assert_eq!(layer(array, 16), &data[..stride]);
     }
 
     fn source_frames(id: &str) -> Vec<Vec<u8>> {
         let bytes = ResourceSet::corpus()
-            .read(&resource_id::resource_path(id, "textures", "png"))
+            .read(&pack_path(
+                ResourceLocation::read(id).unwrap(),
+                "textures",
+                "png",
+            ))
             .unwrap();
-        let image = Image::from_buffer(
-            bytes,
-            ImageType::Extension("png"),
-            CompressedImageFormats::NONE,
-            true,
-            ImageSampler::nearest(),
-            RenderAssetUsages::default(),
-        )
-        .unwrap();
-        let side = image.width() as usize;
+        let image = RgbaImage::decode_png(bytes).unwrap();
+        let side = image.width as usize;
         let stride = side * side * 4;
         image
-            .data
-            .unwrap()
+            .rgba
             .chunks_exact(stride)
             .map(<[u8]>::to_vec)
             .collect()

@@ -3,11 +3,13 @@ use bevy::input::common_conditions::input_just_released;
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::{ExtractSchedule, RenderApp};
+use bevy::text::{FontSize, Justify, LineBreak};
 use bevy::ui::UiSystems;
 use bevy::ui_render::RenderUiSystems;
 
 use crate::chunk_map::ChunkMap;
-use crate::debug_screen_overlay;
+use crate::debug_chord::{DebugModifier, DebugOverlay, DebugOverlayToggle, toggle_overlay};
+use crate::debug_displayer::DebugScreenDisplayer;
 use crate::light_levels::LightLevels;
 
 #[derive(Resource, Clone, Copy, Default, ExtractResource)]
@@ -63,8 +65,6 @@ fn update_ui_needed(
     }
 }
 
-use crate::debug_displayer::DebugScreenDisplayer;
-
 #[derive(Resource)]
 pub struct Refresh {
     active: bool,
@@ -89,9 +89,6 @@ impl Refresh {
         }
     }
 }
-
-#[derive(Resource, Default, Deref, DerefMut)]
-pub struct DebugOverlay(bool);
 
 #[derive(SystemSet, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DebugScreenSet {
@@ -141,25 +138,23 @@ impl Plugin for DebugScreenPlugin {
                     DebugScreenSet::Render,
                 )
                     .chain()
-                    .run_if(|refresh: Res<Refresh>| refresh.active),
+                    .run_if(refresh_active),
             )
-            .init_resource::<debug_screen_overlay::DebugModifier>()
-            .add_systems(Startup, debug_screen_overlay::spawn)
+            .init_resource::<DebugModifier>()
+            .add_systems(Startup, spawn)
             .add_systems(
                 Update,
                 (
                     (
-                        debug_screen_overlay::toggle_overlay
-                            .run_if(input_just_released(KeyCode::F3)),
+                        toggle_overlay
+                            .run_if(input_just_released(KeyCode::F3))
+                            .in_set(DebugOverlayToggle),
                         schedule_refresh.run_if(refresh_scheduled),
                     )
                         .chain()
                         .before(DebugScreenSet::Clear),
                     clear_displayer.in_set(DebugScreenSet::Clear),
-                    (
-                        debug_screen_overlay::render,
-                        log_debug_screen.run_if(|refresh: Res<Refresh>| refresh.logging),
-                    )
+                    (render, log_debug_screen.run_if(refresh_logging))
                         .in_set(DebugScreenSet::Render),
                 ),
             );
@@ -236,14 +231,16 @@ fn schedule_refresh(
     refresh.active = shown || refresh.logging || overlay.is_changed();
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "runs only when the stats log interval is due"
-    )
-)]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+fn refresh_active(refresh: Res<Refresh>) -> bool {
+    refresh.active
+}
+
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+fn refresh_logging(refresh: Res<Refresh>) -> bool {
+    refresh.logging
+}
+
 fn log_debug_screen(displayer: Res<DebugScreenDisplayer>) {
     let (left, right) = displayer.columns();
     let line = left
@@ -257,6 +254,80 @@ fn log_debug_screen(displayer: Res<DebugScreenDisplayer>) {
 
 fn clear_displayer(mut displayer: ResMut<DebugScreenDisplayer>) {
     displayer.clear();
+}
+
+const MARGIN: f32 = 2.0;
+const BACKGROUND: Color = Color::srgba(0.314, 0.314, 0.314, 0.565);
+const TEXT: Color = Color::srgb(0.878, 0.878, 0.878);
+const FONT_SIZE: f32 = 16.0;
+
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+pub enum DebugScreenColumn {
+    Left,
+    Right,
+}
+
+pub fn spawn(mut commands: Commands) {
+    for column in [DebugScreenColumn::Left, DebugScreenColumn::Right] {
+        let (left, right) = match column {
+            DebugScreenColumn::Left => (Val::Px(MARGIN), Val::Auto),
+            DebugScreenColumn::Right => (Val::Auto, Val::Px(MARGIN)),
+        };
+        let justify = match column {
+            DebugScreenColumn::Left => Justify::Left,
+            DebugScreenColumn::Right => Justify::Right,
+        };
+        commands.spawn((
+            column,
+            Text::new(""),
+            TextFont {
+                font_size: FontSize::Px(FONT_SIZE),
+                ..default()
+            },
+            TextLayout::new(justify, LineBreak::NoWrap),
+            TextColor(TEXT),
+            BackgroundColor(BACKGROUND),
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(MARGIN),
+                left,
+                right,
+                ..default()
+            },
+            Visibility::Hidden,
+        ));
+    }
+}
+
+pub fn render(
+    displayer: Res<DebugScreenDisplayer>,
+    overlay: Res<DebugOverlay>,
+    mut columns: Query<(&DebugScreenColumn, &mut Text, &mut Visibility)>,
+) {
+    let (left, right) = displayer.columns();
+    for (column, mut text, mut visibility) in &mut columns {
+        let lines = match column {
+            DebugScreenColumn::Left => &left,
+            DebugScreenColumn::Right => &right,
+        };
+        let end = lines
+            .iter()
+            .rposition(|line| !line.is_empty())
+            .map_or(0, |last| last + 1);
+        let wanted = if end == 0 || !**overlay {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        };
+        visibility.set_if_neq(wanted);
+        if wanted == Visibility::Hidden {
+            continue;
+        }
+        let block = lines.get(..end).unwrap_or(lines).join("\n");
+        if text.0 != block {
+            text.0 = block;
+        }
+    }
 }
 
 #[cfg(test)]

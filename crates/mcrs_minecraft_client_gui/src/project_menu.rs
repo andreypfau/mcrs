@@ -3,9 +3,7 @@ use bevy::prelude::*;
 use bevy::time::Real;
 use bevy::window::PrimaryWindow;
 use mcrs_minecraft_client_options::ClientOptions;
-use mcrs_minecraft_client_widget::{
-    GuiExtent, GuiInput, GuiPoint, Widget, WidgetEvent, WidgetId, Widgets,
-};
+use mcrs_minecraft_client_widget::{GuiExtent, GuiInput, Widget, WidgetEvent, WidgetId, Widgets};
 use mcrs_minecraft_client_world::hardcore_mode::HardcoreMode;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
@@ -21,21 +19,23 @@ use crate::death_screen::DeathScreen;
 use crate::delete_world_screen::delete_world_screen;
 use crate::disconnected_screen::disconnected_screen;
 use crate::follow_menu_events::DeleteTarget;
-use crate::font::Span;
-use crate::item_decorations::WHITE;
-use crate::language::ClientLanguage;
+use crate::gui_pointer::GuiPointer;
+use crate::gui_quad::WHITE;
+use crate::gui_size::GuiSize;
+use crate::gui_size::window_framebuffer;
+use crate::layer_due::gui_clock;
 use crate::level_loading_screen::level_loading_screen;
 use crate::menu::{Menu, MenuBackground};
-use crate::menu_input::menu_clock;
 use crate::mouse_settings_screen::mouse_settings_screen;
 use crate::options_screen::{self, options_screen};
 use crate::pause_screen::pause_screen;
-use crate::scene::{GuiAtlas, GuiScene, GuiSize, window_framebuffer};
 use crate::select_world_screen::{self, select_world_screen};
 use crate::session_screens::{DisconnectReason, Reason};
 use crate::title_screen::{self, accessibility_tooltip, title_screen};
 use crate::video_settings_screen::{self, video_settings_screen};
 use crate::world_list_error_screen::world_list_error_screen;
+use crate::world_presence::world_presence;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 #[derive(Resource)]
 pub(crate) struct SingleplayerActive(pub(crate) bool);
 
@@ -73,10 +73,11 @@ fn kept_focus(left: Screen, screen: Screen) -> Option<WidgetId> {
 #[derive(SystemParam)]
 pub(crate) struct MenuSource<'w, 's> {
     screen: Res<'w, Screen>,
-    scene: Res<'w, GuiScene>,
+    size: Res<'w, GuiSize>,
+    pointer: Res<'w, GuiPointer>,
     options: Res<'w, ClientOptions>,
     language: Res<'w, ClientLanguage>,
-    atlas: Res<'w, GuiAtlas>,
+    font: Res<'w, Font>,
     local_server: Option<Res<'w, LocalServer>>,
     singleplayer: Res<'w, SingleplayerActive>,
     reason: Res<'w, DisconnectReason>,
@@ -88,6 +89,7 @@ pub(crate) struct MenuSource<'w, 's> {
     window: Single<'w, 's, &'static Window, With<PrimaryWindow>>,
     death: Option<Res<'w, DeathScreen>>,
     hardcore: Query<'w, 's, &'static HardcoreMode, With<Player>>,
+    players: Query<'w, 's, (), With<Player>>,
 }
 
 pub(crate) fn max_gui_scale(window: &Window) -> u32 {
@@ -105,7 +107,7 @@ fn screen_menu(
     source: &MenuSource,
 ) -> Option<Menu> {
     let language = &*source.language;
-    let font = &source.atlas.0.font;
+    let font = &source.font;
     let options = &*source.options;
     let (widgets, tooltips) = match screen {
         Screen::Title => {
@@ -242,7 +244,7 @@ fn screen_menu(
 }
 
 fn select_world_menu(extent: GuiExtent, input: GuiInput, source: &MenuSource) -> Option<Menu> {
-    let (widgets, hint) = select_world_screen(extent, &source.language, &source.atlas.0.font)?;
+    let (widgets, hint) = select_world_screen(extent, &source.language, &source.font)?;
     let mut menu = Menu::new(widgets_of(extent, input, widgets)?, MenuBackground::Texture);
     menu.hints = vec![hint];
     Some(menu)
@@ -258,7 +260,7 @@ fn create_world_screen_menu(
             extent,
             input,
             &source.language,
-            &source.atlas.0.font,
+            &source.font,
             types,
             &source.form,
         ),
@@ -312,9 +314,6 @@ pub(crate) fn widgets_of(
     Some(widgets)
 }
 
-#[derive(Resource, Default, PartialEq, Eq)]
-pub(crate) struct MenuExtent(pub(crate) GuiExtent);
-
 pub(crate) fn project_menu(
     source: MenuSource,
     menu: Option<ResMut<Menu>>,
@@ -323,15 +322,16 @@ pub(crate) fn project_menu(
     mut events: Local<Vec<WidgetEvent>>,
 ) {
     let screen = *source.screen;
+    let world = world_presence(&source.players);
     let left = std::mem::replace(&mut *shown, screen);
-    let extent = GuiExtent::new(source.scene.size.width, source.scene.size.height);
+    let extent = GuiExtent::new(source.size.width, source.size.height);
     let Some(mut menu) = menu else {
-        let cursor = source.scene.cursor;
-        let input = GuiInput::new(GuiPoint::new(cursor.x, cursor.y));
+        let input = GuiInput::new(source.pointer.point());
         if let Some(mut built) = screen_menu(screen, extent, input, &source) {
+            built.world = world;
             built
                 .widgets
-                .focus_initial(None, menu_clock(&source.time), &mut events);
+                .focus_initial(None, gui_clock(&source.time), &mut events);
             commands.insert_resource(built);
         }
         events.clear();
@@ -342,7 +342,8 @@ pub(crate) fn project_menu(
     let rearranged = menu.widgets.screen() != extent
         || source.options.is_changed()
         || source.language.is_changed()
-        || source.form.is_changed();
+        || source.form.is_changed()
+        || menu.world != world;
     if !reopened && !rearranged {
         return;
     }
@@ -350,16 +351,18 @@ pub(crate) fn project_menu(
         commands.remove_resource::<Menu>();
         return;
     };
+    built.world = world;
     if reopened || !keeps_widgets(screen) {
         built.widgets.focus_initial(
             kept_focus(left, screen),
-            menu_clock(&source.time),
+            gui_clock(&source.time),
             &mut events,
         );
         events.clear();
         *menu = built;
         return;
     }
+    menu.world = world;
     menu.widgets.set_screen(extent);
     for placed in built.widgets.iter() {
         menu.widgets.set_rect(placed.id(), placed.rect());

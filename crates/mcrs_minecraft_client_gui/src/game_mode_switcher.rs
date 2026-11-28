@@ -16,15 +16,20 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundChangeGameMode;
 use mcrs_minecraft_protocol_game::text::{Color, IntoText, Text};
 
 use crate::cursor_grab::grab;
-use crate::debug_screen_overlay::{DebugModifier, toggle_overlay};
-use crate::font::{Span, draw_centered_text};
+use crate::debug_chord::{DebugModifier, DebugOverlayToggle};
+use crate::draw_gate::{item_icons_changed, layer_stale};
+use crate::gui_band::GuiBand;
+use crate::gui_layer::{GuiLayer, spawn_layer};
+use crate::gui_phase::GuiPhase;
+use crate::gui_quad::sprite;
+use crate::gui_size::GuiSize;
 use crate::item_icons::ItemIcons;
-use crate::language::ClientLanguage;
-use crate::scene::{GuiAtlas, GuiScene, sprite};
+use crate::text_draw::draw_centered_text;
 use mcrs_minecraft_client_world::chat::ChatMessage;
 use mcrs_minecraft_client_world::game_mode::PermissionLevel;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 
 const MODIFIER: KeyCode = KeyCode::F3;
 const SWITCH: KeyCode = KeyCode::F4;
@@ -94,13 +99,34 @@ pub struct GameModeSwitcherPlugin;
 
 impl Plugin for GameModeSwitcherPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<ChatMessage>().add_systems(
-            Update,
-            switch_game_mode
-                .after(ClientNetworkSystems::Receive)
-                .before(ClientNetworkSystems::Flush)
-                .before(toggle_overlay),
-        );
+        app.add_message::<ChatMessage>()
+            .init_resource::<SwitcherText>()
+            .add_systems(
+                Update,
+                switch_game_mode
+                    .after(ClientNetworkSystems::Receive)
+                    .before(ClientNetworkSystems::Flush)
+                    .before(DebugOverlayToggle),
+            )
+            .add_systems(
+                PostUpdate,
+                (
+                    rebuild_switcher_text
+                        .before(draw)
+                        .run_if(resource_exists_and_changed::<ClientLanguage>),
+                    draw,
+                )
+                    .chain()
+                    .in_set(GuiPhase::Draw)
+                    .run_if(
+                        layer_stale::<SwitcherLayer>()
+                            .or_else(resource_changed::<Screen>)
+                            .or_else(resource_exists_and_changed::<ClientLanguage>)
+                            .or_else(item_icons_changed())
+                            .or_else(resource_changed::<SwitcherText>),
+                    ),
+            )
+            .add_systems(Startup, spawn_layer::<SwitcherLayer>);
     }
 }
 
@@ -165,31 +191,33 @@ fn icon_stacks(table: &ItemTable) -> IconStacks {
     })
 }
 
-pub(crate) fn switcher_shown(screen: Res<Screen>) -> bool {
-    matches!(*screen, Screen::GameModeSwitcher(_))
-}
-
 pub fn draw(
     screen: Res<Screen>,
-    atlas: Option<Res<GuiAtlas>>,
+    font: Option<Res<Font>>,
     language: Option<Res<ClientLanguage>>,
     table: Option<Res<ItemTable>>,
     icons: ItemIcons,
     mut stacks: Local<IconStacks>,
     text: Res<SwitcherText>,
-    mut scene: ResMut<GuiScene>,
+    size: Res<GuiSize>,
+    mut layer: Single<&mut GuiLayer, With<SwitcherLayer>>,
 ) {
+    layer.redraw();
     if let Some(table) = table.filter(DetectChanges::is_changed) {
         *stacks = icon_stacks(&table);
     }
     let Screen::GameModeSwitcher(selected) = *screen else {
         return;
     };
-    let (Some(atlas), Some(_)) = (atlas, language) else {
+    let (Some(font), Some(_)) = (font, language) else {
         return;
     };
-    switcher(&mut scene, selected, &atlas, &text, &icons, &stacks);
+    switcher(&mut layer, *size, selected, &font, &text, &icons, &stacks);
 }
+
+#[derive(Component, Default)]
+#[require(GuiLayer = GuiLayer::new(GuiBand::Screen, 5))]
+pub struct SwitcherLayer;
 
 #[derive(Resource, Default)]
 pub struct SwitcherText {
@@ -209,16 +237,17 @@ pub fn rebuild_switcher_text(language: Res<ClientLanguage>, mut text: ResMut<Swi
 }
 
 fn switcher(
-    scene: &mut GuiScene,
+    layer: &mut GuiLayer,
+    size: GuiSize,
     selected: GameMode,
-    atlas: &GuiAtlas,
+    font: &Font,
     text: &SwitcherText,
     icons: &ItemIcons,
     stacks: &IconStacks,
 ) {
-    let font = &atlas.0.font;
-    let (cx, cy) = (scene.size.width / 2, scene.size.height / 2);
-    scene.quads.push(sprite(
+    let (cx, cy) = (size.width / 2, size.height / 2);
+    let out = layer.redraw();
+    out.push(sprite(
         IVec2::new(cx - 62, cy - SLOT_AREA_PADDED - 27),
         IVec2::new(125, 75),
         "container/gamemode_switcher",
@@ -228,27 +257,27 @@ fn switcher(
         .iter()
         .find(|(mode, _)| *mode == selected)
         .map_or(&[][..], |(_, name)| name.as_slice());
-    draw_centered_text(font, cx, cy - SLOT_AREA_PADDED - 20, name, &mut scene.quads);
-    draw_centered_text(font, cx, cy + 5, &text.hint, &mut scene.quads);
+    draw_centered_text(font, cx, cy - SLOT_AREA_PADDED - 20, name, out);
+    draw_centered_text(font, cx, cy + 5, &text.hint, out);
     for (index, (&mode, stack)) in ICONS.iter().zip(stacks).enumerate() {
         let at = IVec2::new(
             cx - ALL_SLOTS_WIDTH / 2 + index as i32 * SLOT_AREA_PADDED,
             cy - SLOT_AREA_PADDED,
         );
-        scene.quads.push(sprite(
+        layer.push(sprite(
             at,
             IVec2::splat(SLOT_SIZE),
             "gamemode_switcher/slot",
         ));
         if mode == selected {
-            scene.quads.push(sprite(
+            layer.push(sprite(
                 at,
                 IVec2::splat(SLOT_SIZE),
                 "gamemode_switcher/selection",
             ));
         }
         if let Some(stack) = stack {
-            icons.draw_stack(scene, at + ICON_INSET, stack, Overlays::None);
+            icons.draw_stack(layer, at + ICON_INSET, stack, Overlays::None);
         }
     }
 }
@@ -256,8 +285,7 @@ fn switcher(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::debug_screen::DebugOverlay;
-    use crate::debug_screen_overlay::DebugModifier;
+    use crate::debug_chord::{DebugOverlay, toggle_overlay};
     use bevy::input::common_conditions::input_just_released;
     use bevy::window::CursorGrabMode;
 
@@ -272,7 +300,9 @@ mod tests {
                 Update,
                 (
                     switch_game_mode,
-                    toggle_overlay.run_if(input_just_released(KeyCode::F3)),
+                    toggle_overlay
+                        .run_if(input_just_released(KeyCode::F3))
+                        .in_set(DebugOverlayToggle),
                 )
                     .chain(),
             );
@@ -361,7 +391,6 @@ mod tests {
     }
 
     mod jar {
-        use std::sync::Arc;
 
         use mcrs_minecraft_item_icon::{IconSources, StackOverlay, resolve};
         use mcrs_minecraft_model::item_model_asset::DisplayContext;
@@ -371,8 +400,10 @@ mod tests {
         use mcrs_minecraft_resource::ResourceLocation;
 
         use super::*;
-        use crate::menu_test_app::{ATLAS, MODELS, TABLE};
-        use crate::scene::{GuiQuad, GuiSize, SceneIcon};
+        use crate::gui_quad::GuiQuad;
+        use crate::gui_size::GuiSize;
+        use crate::menu_test_app::{MODELS, TABLE, insert_gui_assets};
+        use crate::scene_icon::SceneIcon;
 
         fn expected_icon(name: &str) -> SceneIcon {
             let location = ResourceLocation::read(name).unwrap();
@@ -399,17 +430,14 @@ mod tests {
         #[test]
         fn the_switcher_draws_the_icon_stack_of_each_entry_over_its_slot() {
             let mut app = App::new();
+            insert_gui_assets(app.world_mut());
             app.insert_resource(Screen::GameModeSwitcher(GameMode::Survival))
-                .insert_resource(GuiScene {
-                    size: GuiSize {
-                        width: 427,
-                        height: 240,
-                        scale: 1,
-                    },
-                    ..GuiScene::default()
+                .insert_resource(GuiSize {
+                    width: 427,
+                    height: 240,
+                    scale: 1,
                 })
-                .insert_resource(GuiAtlas(Arc::clone(&ATLAS)))
-                .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+                .insert_resource(ClientLanguage::load(ResourceSet::corpus().files()).unwrap())
                 .insert_resource(*TABLE)
                 .insert_resource(MODELS.clone())
                 .init_resource::<SwitcherText>()
@@ -417,27 +445,29 @@ mod tests {
                     Update,
                     (
                         rebuild_switcher_text.run_if(resource_exists_and_changed::<ClientLanguage>),
-                        draw.run_if(switcher_shown),
+                        draw,
                     )
                         .chain(),
                 );
+            app.world_mut().spawn(SwitcherLayer);
             app.update();
 
-            let scene = app.world().resource::<GuiScene>();
+            let world = app.world_mut();
+            let layer = world.query::<&GuiLayer>().single(world).unwrap();
             let items = [
                 "minecraft:grass_block",
                 "minecraft:iron_sword",
                 "minecraft:buried_treasure_map",
                 "minecraft:ender_eye",
             ];
-            assert_eq!(scene.icons, items.map(expected_icon));
+            assert_eq!(layer.icons(), items.map(expected_icon));
             let slot = |x: i32, region| sprite(IVec2::new(x, 89), IVec2::splat(26), region);
             let icon = |x: i32, index| GuiQuad::Icon {
                 origin: IVec2::new(x + 5, 94),
                 index,
             };
-            let drawn: Vec<GuiQuad> = scene
-                .quads
+            let drawn: Vec<GuiQuad> = layer
+                .quads()
                 .iter()
                 .copied()
                 .filter(|quad| match quad {

@@ -1,12 +1,14 @@
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use mcrs_minecraft_container_click::{Click, Clicked, StackPresence};
+use mcrs_minecraft_container_gesture::GestureHit;
 use mcrs_minecraft_inventory_client::{CreativeArea, CreativeClick, MenuAction};
 use mcrs_minecraft_menu_geometry::CreativeHit;
 
 use crate::creative_grid::CreativeGrid;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
+use crate::creative_target::CreativeTarget;
 
 const DESTROY_SLOT_ENTRY: u16 = 46;
 
@@ -25,17 +27,42 @@ impl CreativeClicks<'_> {
     }
 }
 
-pub(crate) fn clicked(hit: CreativeHit) -> Clicked {
+pub(crate) fn hit(hit: CreativeHit, grid: Option<CreativeGrid>) -> GestureHit {
+    GestureHit {
+        clicked: target_of(hit, grid).map(|target| target.clicked),
+        entry: hit.menu_index(),
+        target: target(hit, grid),
+        takes_left_press: matches!(hit, CreativeHit::Tab(_) | CreativeHit::ScrollBar),
+        permits_drag: !matches!(hit, CreativeHit::GridSlot(_) | CreativeHit::DestroySlot),
+    }
+}
+
+pub(crate) fn target_of(hit: CreativeHit, grid: Option<CreativeGrid>) -> Option<CreativeTarget> {
     match hit {
-        CreativeHit::GridSlot(slot) => Clicked::Entry(slot),
-        CreativeHit::DestroySlot => Clicked::Entry(DESTROY_SLOT_ENTRY),
-        CreativeHit::Outside => Clicked::Outside,
-        CreativeHit::HotbarSlot(_)
-        | CreativeHit::InventoryEntry(_)
-        | CreativeHit::Tab(_)
+        CreativeHit::GridSlot(slot) => Some(CreativeTarget {
+            clicked: Clicked::Entry(slot),
+            area: CreativeArea::Grid(grid.and_then(|grid| grid.stack(slot)).cloned()),
+        }),
+        CreativeHit::DestroySlot => Some(CreativeTarget {
+            clicked: Clicked::Entry(DESTROY_SLOT_ENTRY),
+            area: CreativeArea::Destroy,
+        }),
+        CreativeHit::Outside => Some(CreativeTarget {
+            clicked: Clicked::Outside,
+            area: CreativeArea::Inventory,
+        }),
+        CreativeHit::HotbarSlot(_) => Some(CreativeTarget {
+            clicked: hit.menu_index().map_or(Clicked::Nowhere, Clicked::Entry),
+            area: CreativeArea::Hotbar,
+        }),
+        CreativeHit::InventoryEntry(_) => Some(CreativeTarget {
+            clicked: hit.menu_index().map_or(Clicked::Nowhere, Clicked::Entry),
+            area: CreativeArea::Inventory,
+        }),
+        CreativeHit::Tab(_)
         | CreativeHit::ScrollBar
         | CreativeHit::SearchBox
-        | CreativeHit::Empty => hit.menu_index().map_or(Clicked::Nowhere, Clicked::Entry),
+        | CreativeHit::Empty => None,
     }
 }
 
@@ -46,11 +73,7 @@ pub(crate) fn entry_click(click: Click) -> MenuAction {
     })
 }
 
-pub(crate) fn permits_drag(hit: CreativeHit) -> bool {
-    !matches!(hit, CreativeHit::GridSlot(_) | CreativeHit::DestroySlot)
-}
-
-pub(crate) fn target(hit: CreativeHit, grid: Option<CreativeGrid>) -> Option<StackPresence> {
+fn target(hit: CreativeHit, grid: Option<CreativeGrid>) -> Option<StackPresence> {
     match hit {
         CreativeHit::GridSlot(slot) => Some(match grid.and_then(|grid| grid.stack(slot)) {
             Some(_) => StackPresence::Stack,
@@ -64,20 +87,5 @@ pub(crate) fn target(hit: CreativeHit, grid: Option<CreativeGrid>) -> Option<Sta
         | CreativeHit::SearchBox
         | CreativeHit::Empty
         | CreativeHit::Outside => None,
-    }
-}
-
-pub(crate) fn area(hit: CreativeHit, grid: Option<CreativeGrid>) -> Option<CreativeArea> {
-    match hit {
-        CreativeHit::GridSlot(slot) => Some(CreativeArea::Grid(
-            grid.and_then(|grid| grid.stack(slot)).cloned(),
-        )),
-        CreativeHit::HotbarSlot(_) => Some(CreativeArea::Hotbar),
-        CreativeHit::InventoryEntry(_) | CreativeHit::Outside => Some(CreativeArea::Inventory),
-        CreativeHit::DestroySlot => Some(CreativeArea::Destroy),
-        CreativeHit::Tab(_)
-        | CreativeHit::ScrollBar
-        | CreativeHit::SearchBox
-        | CreativeHit::Empty => None,
     }
 }

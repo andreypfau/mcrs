@@ -27,8 +27,11 @@ architecture.
   keyboard. It draws a background and a list of widgets. At most one screen is open.
 - **Parent screen**: the screen that a screen opens when it closes. A screen can have no parent
   screen.
-- **In-game screen**: a screen that draws over the world with a gradient (WID-SCR-004). Each
-  screen states if it is an in-game screen. `client-menu.md` lists them.
+- **In-game screen**: a screen that draws the gradient of WID-SCR-004, step 2, in place of the
+  panorama, the blur and the menu background texture. WID-SCR-008 lists the in-game screens.
+- **Default background**: the background of WID-SCR-004, step 3.
+- **HUD**: the parts of the GUI that the client draws over the world when no screen is open,
+  for example the hotbar, the health and the chat lines.
 - **Widget**: a part of a screen that has bounds, draws itself and can take input.
 - **Bounds**: the rectangle (`x`, `y`, `w`, `h`) of a widget in GUI units. The left edge `x`
   and the top edge `y` are in the rectangle. The right edge `x + w` and the bottom edge `y + h`
@@ -72,6 +75,21 @@ architecture.
 - **Alignment**: the two real numbers `ax` and `ay` of a cell, each from 0 to 1. 0 is the left
   or the top, 0.5 is the centre, and 1 is the right or the bottom.
 - **Gap**: the empty space between two neighbour rows or two neighbour columns, in GUI units.
+- **Multi-line edit box**: a widget that holds text with line breaks that the player can
+  change (section 14). In section 14, "the box" is a multi-line edit box.
+- **Value**, **length**, **position**, **`value[a..b]`**, **cursor**, **anchor**,
+  **selection**, **head**, **edit modifier**, **shortcut**, **focus time**, **double click**,
+  **character**, **code unit**: as `client-edit-box.md`, section 0.1, defines them. The value
+  of a multi-line edit box can hold U+000A. Its length is in code units.
+- **Display line**: a part of the value of the box that draws as one row (WID-MLE-002). Display
+  line `i`, from 0, begins at the position `begin(i)` and ends at `end(i)`. `n` is the number
+  of display lines.
+- **Character limit** `m`, **line limit** `k`: the optional limits of the box (WID-MLE-001).
+- **Scroll offset** `s`, **content height** `C`, **maximum offset** `M`: as `client-list.md`
+  defines them.
+- **Test box**: in an experiment, the multi-line edit box of a dialog `text` input with
+  `multiline`, `width` 108 and `max_length` 100 (`dialog.md`, DLG-CTL-005). The experiment
+  states the other fields. Its wrap width is 100.
 
 ### 0.2 Provenance and confidence
 
@@ -118,6 +136,8 @@ section "Semantics, not accidents". No experiment ran.
 | `WID-CHK` | the checkbox |
 | `WID-TXT` | the one-line and the multi-line text widgets |
 | `WID-LAY` | the layout arithmetic and the standard sizes |
+| `WID-MLE` | the multi-line edit box |
+| `WID-DEV` | the intentional deviations |
 
 ### 0.5 Scope
 
@@ -128,7 +148,8 @@ In scope:
 - the common state of a widget, the click sound and the tooltip of a widget;
 - the button, the icon button, the image button, the cycle button, the slider and the checkbox;
 - the text widgets;
-- the layouts: row, column, grid, frame, equal gaps, spacer, and header, content and footer.
+- the layouts: row, column, grid, frame, equal gaps, spacer, and header, content and footer;
+- the multi-line edit box.
 
 Out of scope, with the document that states it:
 
@@ -136,6 +157,7 @@ Out of scope, with the document that states it:
 - the scroll area, the scroll bar, the lists and the tab bar: `client-list.md`;
 - the pause screen, the options screens and the other menus: `client-menu.md`;
 - the narrator and the other accessibility features;
+- the text of an input method that is not yet committed, in each edit box;
 - the title screen and the panorama: `client-title-screen.md`;
 - the toasts and the HUD;
 - a button that shows a load animation in place of its caption.
@@ -197,19 +219,31 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 - **Inputs:** the screen, W, H, and whether the client is in a world.
 - **Behavior:**
-  1. An in-game screen fills (0, 0, W, H) with a vertical gradient. The top colour is
-     `C0101010` and the bottom colour is `D0101010`.
-  2. Each other screen draws these parts, in this order:
+  1. The kind of the screen selects its background. WID-SCR-008 states the background of each
+     screen. Whether the client is in a world changes only the parts of step 3 and the texture
+     of step 4.
+  2. An in-game screen fills (0, 0, W, H) with a vertical gradient. The top colour is
+     `C0101010` and the bottom colour is `D0101010`. It draws no panorama, no blur and no menu
+     background texture.
+  3. Each screen that is not an in-game screen and has no own background in WID-SCR-008 draws
+     the default background. It has these parts, in this order:
      1. with no world, the panorama (`client-title-screen.md`, TITLE-PAN-002);
      2. the blur, when WID-SCR-005 asks for it;
      3. the menu background texture over (0, 0, W, H).
-  3. The menu background texture is `minecraft:textures/gui/menu_background.png` with no world,
+  4. The menu background texture is `minecraft:textures/gui/menu_background.png` with no world,
      and `minecraft:textures/gui/inworld_menu_background.png` in a world.
-  4. The texture tiles from the point (0, 0). One tile is the full texture over 32 × 32 GUI
+  5. The texture tiles from the point (0, 0). One tile is the full texture over 32 × 32 GUI
      units.
-- **Postconditions:** in the vanilla resource pack, each pixel of the two textures is
-  `40000000`. The texture darkens the content behind it by the alpha 64/255.
-- **Edge cases:** a screen can draw its own background. `client-menu.md` lists such screens.
+  6. In a world, the client draws the world and then the HUD before the background of the
+     screen. Each background of this rule and of WID-SCR-008 draws over them. The exception is
+     the level loading screen: the HUD does not draw (WID-SCR-008).
+- **Postconditions:**
+  - in the vanilla resource pack, each pixel of the two textures is `40000000`. The texture
+    darkens the content behind it by the alpha 64/255;
+  - in a world, the default background shows the world and the HUD blurred and darkened. With
+    no world, it shows the panorama blurred and darkened;
+  - with the blur radius 0, the default background shows the world, the HUD or the panorama
+    sharp and darkened.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the pixel values of
 `assets/minecraft/textures/gui/menu_background.png` and
@@ -220,12 +254,13 @@ each `40000000`). Kind: layout. Confidence: medium.
 
 - **Inputs:** the blur radius `r`, an integer from 0 to 10. In the game, `r` is the option
   "Menu Background Blur" (`options.accessibility.menu_background_blurriness`). Its default is 5.
-  The image `P` is the content that the client drew before the menu background texture, in
-  pixels of the window. `P` has the size of the window framebuffer.
+  The image `P` is the content that the client drew before the background of the screen, in
+  pixels of the window. `P` has the size of the window framebuffer. In a world, `P` holds the
+  world and the HUD. With no world, `P` holds the panorama.
 - **Behavior:**
   1. When `r` is 0, there is no blur.
-  2. When `r` is 1 or more, the client blurs `P`, for example the world or the panorama. The
-     menu background texture and the widgets do not blur.
+  2. When `r` is 1 or more, the client blurs `P`. The parts of the background that the screen
+     draws, for example the menu background texture, do not blur. The widgets do not blur.
   3. The blur is six passes, in this order: horizontal, vertical, horizontal, vertical,
      horizontal, vertical. Each pass reads the result of the previous pass. The first pass reads
      `P`. The result of the sixth pass replaces `P`.
@@ -253,16 +288,16 @@ each `40000000`). Kind: layout. Confidence: medium.
   - a pass of the vanilla post effect has its own radius value 0. A value of 0.5 or more replaces
     `r` for that pass, rounded to the nearest integer. A resource pack can set it. The vanilla
     pack does not.
-- **mcrs:** mcrs has no option "Menu Background Blur". `r` is 5, the default of the game
-  (WID-DEV-001).
+- **mcrs:** `r` is the option "Menu Background Blur" of `client-menu.md`, MENU-VAL-013. No
+  graphics preset sets `r` (WID-DEV-001).
 
 Provenance: `black_box_confirmed` for the six passes, their order and their directions, by
 `assets/minecraft/post_effect/blur.json` of the client jar. `black_box_confirmed` for the sample
 offsets, the weights, the division and the linear filter of each input, by
 `assets/minecraft/shaders/post/box_blur.fsh` and `blur.json` of the client jar. The mean of step
 5 is the arithmetic of these samples. `source_suggested` for the option as the source of `r`, for
-the size of the image in pixels of the window and for the edge of step 6. `design` for the radius
-of mcrs. Kind: layout. Confidence: medium.
+the content and the size of `P` and for the edge of step 6. `design` for the absence of a
+graphics preset in mcrs. Kind: layout. Confidence: medium.
 
 ### WID-SCR-006: Separators of a screen with no list
 
@@ -301,6 +336,41 @@ the client jar (32 × 2 pixels each). Kind: layout. Confidence: medium.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
+### WID-SCR-008: Background of each screen
+
+- **Inputs:** the open screen, its state, and whether the client is in a world.
+- **Behavior:** each screen draws the background of its row. "Default" is the default
+  background and "in-game" is the background of an in-game screen (section 0.1). A dash shows
+  that the screen does not open in that state.
+
+| Screen | No world | In a world | Rule |
+|--------|----------|------------|------|
+| Title screen | the panorama and its overlay; no blur, no menu background texture | — | `client-title-screen.md`, TITLE-SCR-005 |
+| Options screen, "Video Settings", "Accessibility Settings", "Controls", "Mouse Settings", "Key Binds" and each other options screen | default | default | `client-menu.md`, MENU-PROP-001; `client-controls.md` |
+| Select World, confirmation of a delete | default | — | `client-world-screens.md` |
+| Create New World | default, and the tab header texture over the header | — | `client-list.md`, TAB-AREA-001, step 6 |
+| Error screen of the saves folder | a vertical gradient from `FF402020` to `FF501010`; no panorama, no blur, no menu background texture | — | `client-world-screens.md`, WORLD-LIST-007 |
+| Connect screen, disconnected screen | default | — | `client-title-screen.md`, TITLE-PAN-004, step 5 |
+| Message screen | the panorama, the blur, `menu_background.png` | the panorama, the blur, `inworld_menu_background.png`; the panorama covers the world | TITLE-PAN-004, step 3 |
+| Level loading screen, not for a portal | as the message screen | as the message screen; the HUD does not draw | TITLE-PAN-004, step 4 |
+| Pause screen with its menu | — | default | `client-menu.md`, MENU-PAUSE-001 |
+| Pause screen with no menu | — | no background; the world and the HUD show unchanged | `client-menu.md`, MENU-PAUSE-008 |
+| Death screen, and the confirmation of its title screen button | — | a vertical gradient from `60500000` to `A0803030`; no blur, no menu background texture | `player-death.md`, PLD-SCR-004 |
+| Chat screen | — | no background; the world and the HUD show unchanged | `client-chat.md` |
+| Game mode switcher | — | its own texture only | `client-game-mode-switcher.md`, CGMS-LAY-001 |
+| Each container screen, for example the inventory, the creative inventory and a chest | — | in-game, then the window image of the screen | `client-container-screen.md`, `client-inventory.md` |
+| Sign edit, book view, book edit, book sign, and the edit screens of a command block, a structure block, a jigsaw block and a test block | — | in-game, then the image of the screen | — |
+| Server dialog | default | default | `dialog.md` |
+
+- **Edge cases:**
+  - the death gradient has the alpha `60` at the top and `A0` at the bottom. Thus the world
+    is more red and more dark at the bottom of the window;
+  - a level loading screen for a nether portal or an end portal draws an image of the portal
+    over the full window. It is out of scope;
+  - the screen of the end poem and the credits is out of scope.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium.
+
 ---
 
 ## 2. Input device and pointer
@@ -321,7 +391,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
   1. The anchor is the mouse position at the last change of the last input device. The
      distance is the straight distance between the two points.
   2. An arrow key and an activation key have no effect on the device while the focused widget
-     takes text input (`client-edit-box.md`).
+     takes text input (`client-edit-box.md`, WID-MLE-011).
   3. A press and a wheel event set the device before the screen looks for a widget
      (WID-PTR-002).
 - **Postconditions:** after a key moves the focus, no widget is hovered. A move of more than
@@ -354,7 +424,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   4. The widget accepts the press when the button is the left button. Each widget of this
      document accepts only the left button.
   5. When the widget accepts the press, it plays the click sound, then it starts its
-     activation (WID-SND-001). The slider is an exception (WID-SLD-002).
+     activation (WID-SND-001). The slider and the multi-line edit box are exceptions
+     (WID-SLD-002, WID-MLE-012).
   6. Then the widget becomes the focused widget. The screen starts a drag with it.
   7. When the widget does not accept the press, nothing else occurs. The press does not go to
      a widget below.
@@ -374,8 +445,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   2. A release of the left button ends the drag. When the screen dragged, the release goes to
      the focused widget.
   3. A release of another button goes to no widget.
-- **Postconditions:** of the widgets of this document, only the slider uses the drag and the
-  release (WID-SLD-002).
+- **Postconditions:** of the widgets of this document, only the slider and the multi-line edit
+  box use the drag and the release (WID-SLD-002, WID-MLE-013).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
@@ -389,11 +460,41 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
   2. The event goes to the first widget in the order of addition that the point is over
      (WID-PTR-001).
   3. The kind of the widget selects the effect. Of the widgets of this document, only the cycle
-     button uses the wheel (WID-CYC-002).
+     button and the multi-line edit box use the wheel (WID-CYC-002, WID-MLE-016).
 - **Postconditions:** the wheel does not change the focus. A wheel event over no widget has no
   effect.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
+
+### WID-PTR-005: The mouse outside the window
+
+- **Observer:** a player: the hovered widget, a tooltip and the figure of the inventory screen
+  after the mouse pointer leaves the window.
+- **Inputs:** the moves of the mouse pointer that the platform reports, and the down state of
+  the mouse buttons.
+- **Behavior:**
+  1. The client keeps the point (`px`, `py`) of the last move that the platform reported. The
+     mouse position and the event position come from that point. The client has no state "no
+     mouse position", and the exit of the pointer from the window does not clear the point.
+  2. While a mouse button is down, the platform reports each move, also outside the window.
+     `px` and `py` can then be negative, or more than the width or the height of the window.
+     The mouse position uses the floor of the term "Mouse position" also for a negative value.
+  3. While no mouse button is down, the last move before the exit is at a point in the window.
+     That point is the point where the pointer left, moved to the nearest pixel of the window,
+     or the last point of the pointer in the window. The platform selects which.
+  4. Each user of the mouse position in a frame uses the point of item 1. Examples are the
+     hovered state (WID-STATE-002), the tooltip of a widget (section 6), the slot under the
+     mouse and the figure (`client-player-render.md`, CPR-FIG-003).
+  5. When the pointer comes back into the window, its first move sets the point again.
+- **Postconditions:**
+  - While a button is down and the pointer is outside the window, the mouse position is outside
+    the screen. No widget is hovered, and no tooltip of a widget shows.
+  - While no button is down and the pointer is outside the window, the hovered widget and its
+    tooltip are those of the last mouse position. They stay until the pointer comes back.
+
+Provenance: `source_suggested`. Kind: semantic. Item 3 has the kind unspecified: a parity test
+must not compare a frame after the pointer left the window with no button down. Confidence:
+medium.
 
 ---
 
@@ -611,9 +712,10 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 | checkbox | as a button |
 | slider | the release of the left button that ends a drag of the slider (WID-SLD-002); not on the press, and not on a key |
 | text widget | never |
+| multi-line edit box | never (WID-MLE-012) |
 
-- **Postconditions:** each accepted press plays one click sound, also the second press of a
-  double click.
+- **Postconditions:** each accepted press of a widget that has a click sound plays one click
+  sound, also the second press of a double click.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
@@ -1304,20 +1406,619 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
 
 ---
 
+## 14. Multi-line edit box
+
+The experiments of this section use the test box (section 0.1). In the default font, `a`, `b`
+and `W` are 6 GUI units wide, `i` is 2 wide and U+0020 is 4 wide.
+
+### WID-MLE-001: Options of the box
+
+- **Inputs:** a use of the box sets these options:
+
+| Option | Default |
+|--------|---------|
+| bounds (`x`, `y`, `w`, `h`) | none |
+| placeholder: a text component | empty |
+| text colour | `FFE0E0E0` |
+| cursor colour | `FFD0D0D0` |
+| text shadow | on |
+| frame | on |
+| counter | on |
+| character limit `m` | none |
+| line limit `k`, an integer ≥ 0 | none |
+| value notification | none |
+
+- **Behavior:**
+  1. The inner left is `ix = x + 4`. The inner top is `iy = y + 4`.
+  2. The wrap width is `ww = w − 8`. A wrap width less than 1 counts as 1.
+  3. The use gets the value notification after each change of the value
+     (`client-edit-box.md`, EDIT-API-001).
+- **Postconditions:** a dialog sets the options as `dialog.md`, DLG-CTL-005 and DLG-CTL-007,
+  state.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: show the test box
+with no `height`. The box is 108 × 44, and the text starts 4 GUI units right of the left edge.
+
+### WID-MLE-002: Wrap into display lines
+
+- **Inputs:** the value and `ww`. The advance of a character is that of `client-font.md`,
+  FONT-WID-001, step 3.
+- **Behavior:**
+  1. The first display line begins at position 0.
+  2. From the begin `b` of a display line, examine the characters in order. Keep the sum of
+     their advances, and the position of the last U+0020 of the line.
+  3. A U+000A ends the line before it. The next line begins after it.
+  4. Another character adds its advance to the sum. A U+0020 is the last U+0020 also when it
+     is the current character.
+  5. The line breaks when the sum is more than `ww`. An earlier character of the line must
+     have an advance that is not 0. At a break:
+     - when the line has a last U+0020, the line ends before it, and the next line begins
+       after it;
+     - else the line ends before the current character, and the next line begins at it.
+  6. At the end of the value, the current line ends at the end.
+  7. When the value ends with U+000A, one more display line follows. It begins and ends at the
+     end.
+- **Postconditions:**
+  - An empty value has one display line, from 0 to 0. `n` ≥ 1.
+  - The U+0020 at a break is in no display line. Each other U+0020 stays in its line.
+  - When a line breaks inside a word, its end is the begin of the next line.
+- **Edge cases:** when the break of step 5 is at a U+0020 that is the last character, no line
+  follows. The end of the value is then in no display line (WID-MLE-003).
+- **Example:** with `ww` = 100, `aaaaaaaaaaaaaaa bb` (15 `a`) has the lines `aaaaaaaaaaaaaaa` and
+  `bb`. 20 `a` have a line of 16 `a` and a line of 4 `a`.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: in the test box,
+type 15 `a`, a space and `bb`. The second row shows `bb` at the left edge. Clear the box and type
+20 `a`. The first row holds 16 `a`.
+
+### WID-MLE-003: The line of a position
+
+- **Inputs:** a position `p` and the display lines.
+- **Behavior:**
+  1. The line of `p` is the first display line `i` with `begin(i) ≤ p ≤ end(i)`.
+  2. When no display line holds `p`, the line of `p` is the last display line.
+- **Postconditions:**
+  - A position at a break inside a word is in the upper of the two lines. The cursor shows at
+    the end of that line.
+  - Home on a line that begins inside a word puts the cursor at the end of the line above. A
+    second Home goes to the begin of that line.
+- **Edge cases:** step 2 applies only to the end of a value that the edge case of
+  WID-MLE-002 breaks. Step 2 is `design` (WID-DEV-011).
+
+Provenance: `source_suggested`; step 2 is `design`. Kind: semantic. Confidence: medium.
+Experiment: in the test box, type 20 `a`. Press Home. The cursor shows at the end of the first
+row. Press Home again. The cursor shows at the start of the first row.
+
+### WID-MLE-004: Allowed characters and the insert
+
+- **Inputs:** the value, the selection, a text `t` to insert, and `m`. The length is in code
+  units.
+- **Behavior:**
+  1. Remove from `t` each character below U+0020 except U+000A. Remove each U+007F and U+00A7.
+     Do not put a character in the place of a removed one.
+  2. With `m`, let `free = m − length + (the length of the selected text)`. Keep the longest
+     start of `t` with at most `free` code units. The kept text never ends inside a character.
+  3. The new value is the value with the kept text in place of the selection.
+  4. The line limit tests the new value (WID-MLE-005). When it refuses the new value, the
+     value, the cursor and the anchor do not change.
+  5. Else the value becomes the new value. The cursor and the anchor go to the end of the kept
+     text.
+- **Postconditions:**
+  - A typed character, Enter, keypad Enter and a paste are inserts.
+  - After an edit of the player, the length is never more than `m`.
+  - A pasted U+000D U+000A becomes U+000A. A pasted tab is removed.
+  - A typed character over a selection in a full box replaces the selection.
+- **Edge cases:** a character outside the Basic Multilingual Plane counts two code units. When
+  one code unit is free, such a character does not go in.
+
+Provenance: `source_suggested`; the part of step 2 that counts the selection and the last
+sentence of step 2 are `design` (WID-DEV-003, WID-DEV-004). Kind: semantic. Confidence: medium.
+Experiment: show the test box with `max_length` 5. Paste `a`, a tab, `b`, U+000D U+000A, `c`, `§`
+and `xyz123`. The value is `ab`, U+000A, `cx`, and the counter shows `5/5`.
+
+### WID-MLE-005: Line limit
+
+- **Inputs:** a new value of an edit and the line limit `k`.
+- **Behavior:**
+  1. The line count of a value is the number of its display lines (WID-MLE-002). The empty
+     value has the line count 0.
+  2. With `k`, the box refuses each new value with a line count more than `k`.
+  3. The test applies to each edit of the player: an insert, a delete and a cut.
+- **Postconditions:**
+  - A value that ends with U+000A counts its last empty line.
+  - A long line that wraps counts each of its display lines.
+  - A paste that passes `k` has no effect. The box does not cut it.
+  - With `k` = 0, the box holds only the empty value.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: show the test box
+with `max_lines` 2. Type `a`, Enter and `b`. Press Enter. The value stays `a`, U+000A, `b`. Type
+`c`. The value is `a`, U+000A, `bc`.
+
+### WID-MLE-006: Set by the use
+
+- **Inputs:** a text `t` that the use sets, and a flag "allow overflow" of the use, default off.
+- **Behavior:**
+  1. With `m`, cut `t` to its longest start with at most `m` code units. The cut never ends
+     inside a character.
+  2. When the flag is off and the line count of the result is more than `k`, the value does not
+     change. Stop.
+  3. Else the value becomes the result. The cursor and the anchor go to the end.
+  4. The box scrolls to the cursor (WID-MLE-015).
+- **Postconditions:** the set does not remove characters. A `§` in a set value changes the style
+  of the draw, as for a plain string (`client-font.md`, FONT-WID-001).
+- **Edge cases:** an initial value that passes `k` leaves a new box empty (`dialog.md`,
+  DLG-CTL-005).
+
+Provenance: `source_suggested`; the last sentence of step 1 is `design` (WID-DEV-003). Kind:
+semantic. Confidence: medium. Experiment: show the test box with `max_lines` 1 and the
+`initial` `a`, U+000A, `b`. The box is empty.
+
+### WID-MLE-007: Edit keys
+
+- **Inputs:** a key press or a key repeat that the screen gives to the focused box. The
+  modifiers Shift, Alt and the edit modifier.
+- **Behavior:**
+  1. The box acts on these keys:
+
+| Key | Effect |
+|-----|--------|
+| Backspace | When the selection is not empty, delete it. Else delete the character before the cursor. With the edit modifier, delete from the backward word position to the cursor. |
+| Delete | When the selection is not empty, delete it. Else delete the character after the cursor. With the edit modifier, delete from the cursor to the forward word position. |
+| Enter, keypad Enter | Insert U+000A (WID-MLE-004). |
+| Left | Move the cursor to the position before it. With the edit modifier, move it to the backward word position. |
+| Right | Move the cursor to the position after it. With the edit modifier, move it to the forward word position. |
+| Up, Down | Move the cursor one display line (WID-MLE-008). With the edit modifier, nothing changes. |
+| Home | Move the cursor to the begin of its line (WID-MLE-003). With the edit modifier, move it to 0. |
+| End | Move the cursor to the end of its line. With the edit modifier, move it to the end. |
+| Page Up | Move the cursor to 0. |
+| Page Down | Move the cursor to the end. |
+| shortcut A | Select all: the cursor goes to the end and the anchor goes to 0. |
+| shortcut C, X, V | Copy, cut, paste (WID-MLE-010). |
+
+  2. A shortcut acts only when Shift and Alt are not held.
+  3. A move starts at the cursor, also when the selection is not empty. A move never goes
+     before 0 or past the end.
+  4. Without Shift, a move also puts the anchor at the new cursor. With Shift, the anchor
+     stays.
+  5. A delete is an edit. The line limit tests it (WID-MLE-005).
+  6. After each move and each edit, the box scrolls to the cursor (WID-MLE-015). Select all
+     does not scroll.
+  7. The box uses each key of the table, also when nothing changes. It does not use another
+     key. For example, Tab and Escape go to the screen (WID-FOC-003).
+- **Postconditions:**
+  - An arrow key never starts an arrow navigation while the box is focused. Only Tab moves
+    the focus out of the box.
+  - Left and Right cross a line break as one character.
+- **Example:** in `foo bar baz` with the cursor at the end, Ctrl+Left puts the cursor before
+  `baz`. Then Ctrl+Backspace gives `foo baz`.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: in the test box,
+type `ab`, Enter and `cd`. Press Home, then Shift+Page Up. Press Ctrl+C, Page Down and Ctrl+V.
+The value is `ab`, U+000A, `cdab`, U+000A.
+
+### WID-MLE-008: Up and Down
+
+- **Inputs:** the cursor, its line `L` (WID-MLE-003), and the key Up or Down.
+- **Behavior:**
+  1. Let `x0 = width(value[begin(L)..cursor]) + 2`.
+  2. The target line `T` is `L − 1` for Up and `L + 1` for Down.
+  3. When `T` is not a display line, nothing changes.
+  4. Else the cursor goes to `begin(T)` plus the number of characters of the head of
+     `value[begin(T)..end(T)]` for the width `x0`.
+- **Postconditions:**
+  - The box keeps no column. Each move starts from the current cursor.
+  - A move to a short line puts the cursor at the end of that line.
+- **Example:** in `abcdef`, U+000A, `ab`, U+000A, `abcdef` with the cursor at 5, Down gives 9.
+  A second Down gives 12, not 15.
+
+Provenance: `source_suggested`; step 3 is `design` (WID-DEV-007). Kind: semantic. Confidence:
+medium. Experiment: type the value of the example in the test box. Press Ctrl+Home, then Right
+five times. Press Down two times and type `x`. The last line is `abxcdef`.
+
+### WID-MLE-009: Word positions
+
+- **Inputs:** the value and a position `p`.
+- **Behavior:**
+  1. A separator is one of these characters: U+0009 to U+000D, U+001C to U+001F, and each
+     character of the Unicode categories Zs, Zl and Zp except U+00A0, U+2007 and U+202F.
+  2. The backward word position from `p`: move back one position while the character before
+     the current position is a separator. Then move back while it is not a separator.
+  3. The forward word position from `p`: move forward one position while the character after
+     the current position is not a separator. Then move forward while it is a separator.
+- **Postconditions:**
+  - A line break separates words. Ctrl+Left at the begin of a line goes to the previous line.
+  - Punctuation does not separate words.
+  - This is not the set of the one-line edit box (`client-edit-box.md`, EDIT-KEY-002).
+- **Example:** in `foo  bar baz`, the forward word position from 0 is 5. Ctrl+Delete at 5 gives
+  `foo  baz`.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: in the test box,
+type `foo  bar baz`. Press Ctrl+Home, Ctrl+Right and Ctrl+Delete. The value is `foo  baz`. Press
+Enter, then Ctrl+Left. The cursor is before `foo`.
+
+### WID-MLE-010: Clipboard
+
+- **Behavior:**
+  1. Copy: when the selection is not empty, the system clipboard gets the selected text, with
+     its line breaks.
+  2. Cut: copy as step 1. Then delete the selection as an edit (WID-MLE-005).
+  3. Paste: insert the clipboard text (WID-MLE-004).
+  4. When the selection is empty, a copy and a cut do not change the clipboard and do not
+     change the value.
+- **Postconditions:** a copy never changes the value. A paste of more lines than the line limit
+  allows has no effect.
+
+Provenance: `source_suggested`; step 4 is `design` (WID-DEV-009). Kind: semantic. Confidence:
+medium. Experiment: show the test box with `max_lines` 2. Copy the three lines `x`, `y` and `z`
+to the clipboard. Type `a` and press Ctrl+V. The value stays `a`.
+
+### WID-MLE-011: Focus, typed characters and the keyboard
+
+- **Behavior:**
+  1. The box has no edit mode. While it is visible and focused, it takes typed characters.
+  2. A typed character goes in as an insert (WID-MLE-004).
+  3. While the box is visible and focused, it captures the keyboard as `client-edit-box.md`,
+     EDIT-KEY-005, states.
+  4. While the box is visible and focused, an arrow key and an activation key do not change
+     the last input device (WID-IN-001, step 2).
+  5. The focus time is the time when the box last got the focus (WID-MLE-020).
+- **Postconditions:** a box that gets the focus by Tab takes typed characters at once.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: show a dialog
+with a button and the test box. Press Tab until the box is focused. Type `e`. The value is `e`.
+
+### WID-MLE-012: Pointer area and press
+
+- **Inputs:** a press of a mouse button at the event position (`ex`, `ey`), the Shift key.
+- **Behavior:**
+  1. For a press and a wheel event, the box is under the point when WID-PTR-001 is true with
+     the width `w + 6`. The extra column of 6 is the place of the scrollbar.
+  2. The box takes only a press of the left button.
+  3. The press is on the scrollbar when the box is scrollable (WID-MLE-015),
+     `x + w ≤ ex ≤ x + w + 6` and `y ≤ ey < y + h`. Such a press starts a scrollbar drag
+     (WID-MLE-017). The cursor and the anchor do not change.
+  4. Else, on a press that is not a double click, compute the click position:
+     - the line is `L = clamp(floor((ey − iy + s) / 9), 0, n − 1)`;
+     - let `d = floor(ex − ix)`. The click position is `begin(L)` plus the number of
+       characters of the head of `value[begin(L)..end(L)]` for the width `d`. When `d` < 0,
+       it is `begin(L)`.
+  5. Without Shift, the cursor and the anchor go to the click position. With Shift, the cursor
+     goes there and the anchor stays.
+  6. A double click selects a word (WID-MLE-014).
+  7. The box gets the focus. It plays no click sound.
+- **Postconditions:**
+  - A click on the right half of a character puts the cursor before that character.
+  - A click right of a line puts the cursor at the end of that line.
+  - A click in the column right of a box with no scrollbar moves the cursor to the end of a
+    line.
+
+Provenance: `source_suggested`; the last sentence of step 3 is `design` (WID-DEV-008). Kind:
+semantic. Confidence: medium. Experiment: at a GUI scale of 1, type `abc` in the test box. Click
+at x = `ix + 10`, on the right half of `b`. Type `x`. The value is `axbc`.
+
+### WID-MLE-013: Drag
+
+- **Behavior:**
+  1. While the screen drags the box, each drag event moves the cursor to the click position
+     of WID-MLE-012, step 4. The anchor stays. A scrollbar drag is an exception.
+  2. The box scrolls to the cursor after each drag event (WID-MLE-015).
+- **Postconditions:** a drag above or below the box moves the cursor to a line out of view.
+  The box then scrolls, and each further drag event can scroll further.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: in the test box,
+type 8 lines `a`. Press Ctrl+End. Press the left button on the last row and drag above the box.
+The view scrolls to the top, and the selection grows to position 0.
+
+### WID-MLE-014: Double click
+
+- **Inputs:** a double click with the left button, and the click position `p` of the second
+  press (WID-MLE-012, step 4).
+- **Behavior:**
+  1. Let `c` be the character after `p`. When `c` exists and is not a separator
+     (WID-MLE-009), the word is the longest run of non-separators that holds `c`.
+  2. Else the word begins at the backward word position from `p`. It ends at the first
+     separator after its begin, or at the end.
+  3. The anchor goes to the begin of the word. The cursor goes to its end.
+- **Postconditions:**
+  - The selection holds the word, with no separator after it.
+  - Shift does not change the result.
+- **Example:** a double click on `b` in `foo bar` selects `bar`. A double click on the spaces
+  of `foo  bar` selects `foo`.
+
+Provenance: `design` (WID-DEV-006). Kind: deviation. Confidence: medium.
+
+### WID-MLE-015: Scroll offset and scroll to the cursor
+
+- **Inputs:** the scroll offset `s`, `h`, `n`, the cursor and its line `Lc`.
+- **Behavior:**
+  1. The content height is `C = 9·n + 8`. `M` and the clamp of `s` are as `client-list.md`,
+     SCRL-AREA-001, states. The box is scrollable when `M` > 0.
+  2. To scroll to the cursor: let `f = clamp(floor(s / 9), 0, n − 1)`. When
+     cursor ≤ `begin(f)`, `s` becomes `9·Lc`.
+  3. Else let `g = clamp(floor((s + h) / 9) − 1, 0, n − 1)`. When cursor > `end(g)`, `s`
+     becomes `9·Lc + 17 − h`.
+  4. Else `s` does not change.
+  5. After each change of the value, `M` changes, and `s` is clamped (`client-list.md`,
+     SCRL-AREA-004).
+- **Postconditions:** after a move or an edit, the line of the cursor shows in the box.
+- **Example:** in the test box with no `height` (`h` = 44), the fifth line starts after the
+  fourth Enter. Then `C` = 53, and `s` becomes 9.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: in the test box,
+type `a` and Enter four times. The text moves up 9 GUI units. Press Ctrl+Home. The text moves
+down 9 GUI units.
+
+### WID-MLE-016: Wheel
+
+- **Inputs:** a wheel event with the wheel value `v` (`client-list.md`, SCRL-AREA-002) that the
+  screen gives to the box.
+- **Behavior:**
+  1. `s` becomes `s − v · 4` (SCRL-AREA-001).
+  2. The box keeps the event, also when it is not scrollable.
+- **Postconditions:** the wheel does not move the cursor.
+- **Edge cases:** a container that holds the box can take the event first. `dialog.md`,
+  DLG-CTL-008, states the dialog.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: open a screen
+that holds the box outside a scroll area, for example the comment box of a chat report. Type
+lines until the box scrolls, and press Ctrl+Home. Turn the wheel one notch toward the player. The
+text moves up 4 GUI units.
+
+### WID-MLE-017: Scrollbar
+
+- **Behavior:**
+  1. The scrollbar shows only when the box is scrollable. It draws as `client-list.md`,
+     SCRL-BAR-001 and SCRL-BAR-002, state, with `SX = x + w`, `t = y` and `b = y + h`.
+  2. The scrollbar is outside the bounds of the box, right of it.
+  3. A press on the scrollbar starts the scrollbar drag of SCRL-BAR-003 (WID-MLE-012,
+     step 3).
+  4. The pointer shape over the scrollbar is that of SCRL-BAR-001, step 5.
+- **Postconditions:** a box of width `w` uses `w + 6` GUI units across.
+
+Provenance: `source_suggested`; `black_box_confirmed` for the sprite names. Kind: layout.
+Confidence: medium. Artefact: the client jar holds `widget/scroller` and
+`widget/scroller_background`. Experiment: in the test box, type 6 lines. A track of 6 × 44
+draws right of the box, and its thumb is 32 high.
+
+### WID-MLE-018: Frame, clip and draw order
+
+- **Behavior:**
+  1. With the frame option, the frame draws the GUI sprite `widget/text_field_highlighted`
+     into the bounds while the box is highlighted (WID-STATE-002). Else it draws
+     `widget/text_field`. The active state does not change the sprite.
+  2. The clip rectangle is from (`x + 1`, `y + 1`) to (`x + w − 1`, `y + h − 1`). Inside
+     it, these draw in order:
+     - the text or the placeholder (WID-MLE-019);
+     - the cursor (WID-MLE-020);
+     - the selection highlight (WID-MLE-021).
+  3. The content inside the clip draws `s` GUI units above its position at `s = 0`.
+  4. Then the scrollbar draws (WID-MLE-017). Then the counter draws (WID-MLE-022). Neither is
+     clipped.
+- **Postconditions:**
+  - After a click, the last input device is mouse, so the frame is highlighted only while the
+    mouse is on the box. Typing does not change this.
+  - After a Tab, the frame is highlighted while the box is focused.
+- **Edge cases:** when `s` is not an integer, the rounding of the content to pixels is of the
+  kind unspecified. A parity test must not compare such a frame.
+
+Provenance: `source_suggested`; `black_box_confirmed` for the sprite names. Kind: layout.
+Confidence: medium. Artefact: the client jar holds both sprites. Experiment: show the test box.
+Click on it and move the mouse off it. The frame is `widget/text_field`. Press Tab until the box
+is focused. The frame is `widget/text_field_highlighted`.
+
+### WID-MLE-019: Text and placeholder
+
+- **Behavior:**
+  1. When the value is empty and the box is not focused, the placeholder shows. It wraps at
+     `ww` (section 0.3) and starts at (`ix`, `iy`). Its colour is `CCE0E0E0`, with the drop
+     shadow.
+  2. Else display line `i`, from 0, draws as a plain string at (`ix`, `iy + 9·i`), with
+     `s = 0`. It has the text colour, and the drop shadow when the text shadow option is on.
+  3. A U+0020 at a break and a U+000A do not draw.
+- **Postconditions:** a focused empty box shows no placeholder.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: in the test box,
+type `a`, Enter and `a`. The second `a` is 9 GUI units below the first.
+
+### WID-MLE-020: Cursor
+
+- **Inputs:** the cursor, its line `Lc`, the focus time, the wall-clock time `now`.
+- **Behavior:**
+  1. The cursor shows only when the box is focused and `floor((now − focus time) / 300)` is
+     even.
+  2. Let `top = iy + 9·Lc`, with `s = 0`.
+  3. When the cursor is before the end, it is a bar. Let
+     `cx = ix + width(value[begin(Lc)..cursor])`. The bar is a fill from (`cx`, `top − 1`) to
+     (`cx + 1`, `top + 10`) in the cursor colour.
+  4. When the cursor is at the end, it is the text `_` in the cursor colour. It draws at
+     (`ix + width(value[begin(Lc)..end(Lc)])`, `top`), with the drop shadow when the text
+     shadow option is on.
+- **Postconditions:**
+  - The `_` touches the last character. It has no gap of 1, as the one-line edit box has.
+  - A full box shows `_` at the end, not a bar.
+  - When the value ends with U+000A, the `_` shows at `ix` on the last empty line.
+- **Edge cases:** the focus time changes only when the box gets the focus. An edit does not
+  restart the blink.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: at a GUI scale of
+1, type `ab` in the test box and press Left. Take a screenshot in the on phase. A bar of
+`FFD0D0D0` covers x = `ix + 6` from y = `iy − 1` to y = `iy + 9`.
+
+### WID-MLE-021: Selection highlight
+
+- **Inputs:** the selection from `sb` to `se` (`sb` < `se`), the display lines.
+- **Behavior:**
+  1. For each display line `i` with `sb ≤ end(i)` and `begin(i) ≤ se`, a highlight draws.
+  2. Its left edge is `ix + width(value[begin(i)..max(sb, begin(i))])`.
+  3. Its right edge is `ix + width(value[begin(i)..se])` when `se ≤ end(i)`. Else it is
+     `x + w`.
+  4. It covers the rows from `iy + 9·i` to `iy + 9·i + 9`, with `s = 0`.
+  5. In the highlight, the colours change as `client-edit-box.md`, EDIT-SEL-001, step 6,
+     states with the invert option on.
+- **Postconditions:** a line that the selection passes is highlighted to the right edge of the
+  box. The highlight is 9 high, not 11 as in the one-line edit box.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: at a GUI scale of
+1, type `ab`, Enter and `cd` in the test box. Press Shift+Up. Take a screenshot. The first row is
+inverted from x = `ix + 12` to `x + w − 1`. The second row is inverted from `ix` to `ix + 12`.
+
+### WID-MLE-022: Counter
+
+- **Behavior:**
+  1. The counter shows only when the counter option is on and the use sets `m`.
+  2. Its text is the translation `gui.multiLineEditBox.character_limit` with the length in
+     code units and `m`.
+  3. It draws at (`x + w − width(counter)`, `y + h + 4`) in `FFA0A0A0`, with the drop shadow.
+- **Postconditions:** the counter is right-aligned to the right edge of the box, below it. It is
+  outside the bounds.
+
+Provenance: `source_suggested`; `black_box_confirmed` for the translation. Kind: layout.
+Confidence: medium. Artefact: the `en_us` language file of the client jar gives
+`gui.multiLineEditBox.character_limit` the text `%s/%s`. Experiment: show the test box with
+`max_length` 100. Paste U+1F600. The counter shows `2/100`.
+
+### WID-MLE-023: Pointer shape
+
+- **Behavior:**
+  1. While the box is hovered, the pointer is the text pointer (I-beam).
+  2. Over the scrollbar, the pointer is that of WID-MLE-017, step 4.
+
+Provenance: `source_suggested`; step 1 for an empty box that is not focused is `design`
+(WID-DEV-010). Kind: semantic. Confidence: medium. Experiment: type `a` in the test box and put
+the mouse on it. The pointer is the I-beam.
+
+---
+
 ## 15. Intentional deviations
 
-### WID-DEV-001: The blur has the default radius
+### WID-DEV-001: No graphics preset sets the blur radius
 
-- **Rule:** WID-SCR-005, the paragraph "mcrs". `design`, as `client-title-screen.md`,
-  TITLE-DEV-006, does for the panorama speed.
-- **Reference:** the radius follows "Menu Background Blur", from 0 to 10. The value 0 shows no
-  blur. A graphics preset can change the value, for example to 2.
-- **Reason:** mcrs has no option "Menu Background Blur" and no graphics preset. The default radius
-  is the value that a player sees when the player changes nothing.
-- **Visible to the client:** only for a player who changed that option or chose such a preset
-  in the vanilla client.
+- **Rule:** WID-SCR-005, the paragraph "mcrs". `design`.
+- **Reference:** the radius follows "Menu Background Blur", from 0 to 10. A graphics preset can
+  also set the value, for example to 2. A change of the option sets the preset to "Custom".
+- **Reason:** mcrs has no graphics preset. Only the option sets the radius.
+- **Visible to the client:** only for a player who chose a graphics preset in the vanilla client.
 - **Bug reference:** `none`.
-- **Test:** a differential test sets the vanilla option to 5.
+- **Test:** a differential test sets the vanilla option and the option of mcrs to one value
+  from 0 to 10, and compares the blur of WID-SCR-005.
+
+### WID-DEV-002: A negative mouse position
+
+- **Rule:** WID-PTR-005, item 2.
+- **Reference:** the reference converts the point to the mouse position with a cut toward 0, not
+  with the floor. A point less than one GUI unit left of the window or above it gives 0, not −1.
+- **Reason:** the floor gives each GUI unit the same width. A point outside the window then
+  never hovers a widget at the edge 0.
+- **Visible to the client:** yes, only while a button is down and the pointer is less than one
+  GUI unit left of the window or above it. A widget at the left or top edge of the GUI stays
+  hovered in the reference.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not drag the pointer out of the window at the left or the
+  top edge.
+
+### WID-DEV-003: A position of the multi-line edit box is between characters
+
+- **Rule:** WID-MLE-004, step 2; WID-MLE-006, step 1; WID-MLE-007 (Left, Right, Backspace,
+  Delete).
+- **Reference:** the box counts its positions in code units. Left from the end of `a` U+1F600
+  puts the cursor between the two code units, and Backspace then leaves a lone low surrogate. An
+  insert of U+1F600 with one free code unit inserts a lone high surrogate.
+- **Reason:** a lone surrogate is not text. The value notification and the dialog action must
+  get valid text.
+- **Visible to the client:** yes, only with a character outside the Basic Multilingual Plane.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not use a character outside the Basic Multilingual Plane
+  with a move, a delete or the limit.
+
+### WID-DEV-004: The free space of an insert counts the selection
+
+- **Rule:** WID-MLE-004, step 2.
+- **Reference:** the free space is `m − length`. In a full box, a typed character over a
+  selection only deletes the selection. With `m` = 5, `x` typed over `bc` of `abcde` gives
+  `ade`.
+- **Reason:** the one-line edit box counts the selection (`client-edit-box.md`, EDIT-LEN-002).
+  A player expects that a typed character replaces the selection.
+- **Visible to the client:** yes, in a box that is full or almost full.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not insert over a selection when the insert passes
+  `m − length`.
+
+### WID-DEV-005: A word position at the end of the value
+
+- **Rule:** WID-MLE-009.
+- **Reference:** a word position from the end starts one code unit before the end. Ctrl+Left at
+  the end of `a b` goes to 0. Ctrl+Backspace at the end of `hello a` deletes the whole value.
+- **Reason:** a word position from the end must be that of each other position. A player can
+  lose text by one key.
+- **Visible to the client:** yes, when the value ends with a word of one character after a
+  separator.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not press Ctrl+Left, Ctrl+Backspace or a double click with
+  the cursor at the end.
+
+### WID-DEV-006: A double click selects the word under the mouse
+
+- **Rule:** WID-MLE-014.
+- **Reference:** the second press does not move the cursor. The box selects the word before the
+  cursor that the first press set. A double click on the first character of a word selects the
+  word before it. In `foo bar`, a double click on `b` selects `foo`.
+- **Reason:** a double click must select the word that the player clicks.
+- **Visible to the client:** yes, on the first character of a word and on a separator.
+- **Bug reference:** `none`.
+- **Test:** a differential test double-clicks only inside a word, not on its first character.
+
+### WID-DEV-007: Up on the first line and Down on the last line
+
+- **Rule:** WID-MLE-008, step 3.
+- **Reference:** the box uses the same line. Because of the 2 of step 1, the cursor can move to
+  the right over narrow characters. In `abiiii` with the cursor at 2, each Up moves the cursor
+  one `i` to the right.
+- **Reason:** Up and Down must not move the cursor along the line.
+- **Visible to the client:** yes, only next to characters of a width of 2 or less.
+- **Bug reference:** `none`.
+- **Test:** a differential test ignores the cursor after Up on the first line or Down on the last
+  line.
+
+### WID-DEV-008: A press on the scrollbar keeps the cursor
+
+- **Rule:** WID-MLE-012, step 3.
+- **Reference:** a press on the scrollbar also moves the cursor to the end of the line at the
+  height of the press. Without Shift, it clears the selection.
+- **Reason:** a player who moves the view with the scrollbar must not lose the selection.
+- **Visible to the client:** yes, the cursor and the selection after a press on the scrollbar.
+- **Bug reference:** `none`.
+- **Test:** a differential test ignores the cursor and the selection after a press on the
+  scrollbar.
+
+### WID-DEV-009: Copy and cut with an empty selection in the multi-line edit box
+
+- **Rule:** WID-MLE-010, step 4.
+- **Reference:** the clipboard gets the empty text.
+- **Reason:** the one-line edit box keeps the clipboard (`client-edit-box.md`, EDIT-DEV-002).
+  One shortcut must have one effect.
+- **Visible to the client:** yes, the clipboard after the shortcut.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not press shortcut C or X with an empty selection.
+
+### WID-DEV-010: The text pointer over an empty box
+
+- **Rule:** WID-MLE-023, step 1.
+- **Reference:** while the placeholder shows, the pointer has its normal shape.
+- **Reason:** the box takes a press at each point, also when it is empty. The pointer must show
+  this.
+- **Visible to the client:** yes, the pointer over an empty box that is not focused.
+- **Bug reference:** `none`.
+- **Test:** a differential test ignores the pointer shape over an empty box.
+
+### WID-DEV-011: The end of the value after a break at a final space
+
+- **Rule:** WID-MLE-003, step 2.
+- **Reference:** the end is in no line. The scroll to the cursor then scrolls to the top of the
+  box, and Up stays on the last line.
+- **Reason:** the cursor must show after a typed space. The view must not jump.
+- **Visible to the client:** yes, when a typed space at the end breaks the last line.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not end the value with a space that breaks the last line.
 
 ---
 
@@ -1330,7 +2031,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium.
    defect?
 3. An inactive checkbox has the same sprite and a white label (WID-CHK-002). Is that the
    intent?
-4. The list of in-game screens, of screens with their own background, and of option sliders
-   that wait 600 ms belongs to `client-menu.md`.
+4. The list of option sliders that wait 600 ms belongs to `client-menu.md`. WID-SCR-008 lists
+   the in-game screens and the screens with their own background.
 5. The tab order groups that the vanilla screens use are not stated. Each widget of this
    document uses the group 0.

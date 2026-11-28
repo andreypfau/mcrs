@@ -1,0 +1,128 @@
+use crate::font::Span;
+use crate::language_error::LanguageError;
+use mcrs_minecraft_lang::{EN_US, FormatError, Language, Piece, template_pieces};
+use mcrs_minecraft_resource_pack::PackFiles;
+use mcrs_minecraft_text::{Text, TextTypes};
+use mcrs_minecraft_text_flatten::TextHost;
+
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
+#[derive(Debug, Default)]
+pub struct ClientLanguage(Language);
+
+impl ClientLanguage {
+    pub fn load(pack: &PackFiles) -> Result<Self, LanguageError> {
+        Language::from_json(pack.read(EN_US).map_err(LanguageError::Pack)?)
+            .map(Self)
+            .map_err(|error| LanguageError::Json {
+                file: EN_US.to_owned(),
+                reason: error.to_string(),
+            })
+    }
+
+    pub fn contains(&self, key: &str) -> bool {
+        self.0.contains(key)
+    }
+
+    pub fn get<'a>(&'a self, key: &'a str) -> &'a str {
+        self.0.get(key)
+    }
+
+    pub fn plain_text<I: TextTypes>(&self, text: &Text<I>) -> String {
+        mcrs_minecraft_text_flatten::plain_text(self, text)
+    }
+
+    pub fn translate(&self, key: &str, color: u32, args: &[Vec<Span>]) -> Vec<Span> {
+        let mut spans = Vec::new();
+        let mut literal = String::new();
+        let template = self.get(key);
+        let pieces = match template_pieces(template, args.len()) {
+            Ok(pieces) => pieces,
+            Err(FormatError) => return vec![Span::new(template.to_owned(), color)],
+        };
+        for piece in pieces {
+            match piece {
+                Piece::Literal(text) => literal.push_str(text),
+                Piece::Argument(index) => {
+                    if !literal.is_empty() {
+                        spans.push(Span::new(std::mem::take(&mut literal), color));
+                    }
+                    if let Some(arg) = args.get(index) {
+                        spans.extend(arg.iter().cloned());
+                    }
+                }
+            }
+        }
+        if !literal.is_empty() {
+            spans.push(Span::new(literal, color));
+        }
+        spans
+    }
+}
+
+impl TextHost for ClientLanguage {
+    fn translation<'a>(&'a self, key: &'a str) -> Option<&'a str> {
+        self.0.translation(key)
+    }
+
+    fn translates_keybind_name(&self) -> bool {
+        true
+    }
+}
+
+#[cfg(test)]
+impl ClientLanguage {
+    pub(crate) fn from_json(bytes: &[u8]) -> Self {
+        Self(Language::from_json(bytes).unwrap())
+    }
+
+    pub(crate) fn corpus() -> &'static ClientLanguage {
+        use mcrs_minecraft_model::resource_set::ResourceSet;
+
+        static LANGUAGE: std::sync::LazyLock<ClientLanguage> = std::sync::LazyLock::new(|| {
+            ClientLanguage::load(ResourceSet::corpus().files()).unwrap()
+        });
+        &LANGUAGE
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const WHITE: u32 = 0xFFFF_FFFF;
+    const AQUA: u32 = 0xFF55_FFFF;
+
+    mod jar {
+        use super::*;
+
+        #[test]
+        fn a_placeholder_takes_the_argument_spans() {
+            let key = vec![Span::new("F4", AQUA)];
+            assert_eq!(
+                ClientLanguage::corpus().translate("debug.gamemodes.select_next", WHITE, &[key]),
+                [Span::new("F4", AQUA), Span::new(" Next", WHITE)]
+            );
+        }
+    }
+
+    #[test]
+    fn positional_and_escaped_placeholders() {
+        let language = ClientLanguage(
+            Language::from_json(br#"{"k":"%2$s then %1$s at 100%%"}"#).expect("valid JSON"),
+        );
+        assert_eq!(
+            language.translate(
+                "k",
+                WHITE,
+                &[vec![Span::new("a", AQUA)], vec![Span::new("b", AQUA)]]
+            ),
+            [
+                Span::new("b", AQUA),
+                Span::new(" then ", WHITE),
+                Span::new("a", AQUA),
+                Span::new(" at 100%", WHITE),
+            ]
+        );
+        assert_eq!(language.get("missing.key"), "missing.key");
+    }
+}

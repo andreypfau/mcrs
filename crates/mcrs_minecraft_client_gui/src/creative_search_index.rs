@@ -15,9 +15,9 @@ use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_text::Text;
 
-use crate::language::ClientLanguage;
 use crate::menu_item_tooltip;
 use crate::menu_item_tooltip::prototype_components;
+use mcrs_minecraft_font::ClientLanguage;
 
 #[derive(Clone, Debug, Default)]
 pub struct CreativeSearchIndex {

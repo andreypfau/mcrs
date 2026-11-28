@@ -5,12 +5,11 @@ use mcrs_minecraft_client_widget::{WidgetKind, Widgets};
 use mcrs_minecraft_client_world::world_list::WorldList;
 use mcrs_minecraft_save::WorldSummary;
 
-use crate::language::ClientLanguage;
+use crate::layer_due::gui_clock;
 use crate::menu::{Menu, RowContent};
-use crate::menu_input::menu_clock;
-use crate::scene::GuiAtlas;
 use crate::select_world_screen::{DELETE, LIST, PLAY, search_query, shown_worlds};
 use crate::world_entry::{DOTS_FRAME_MS, LocalOffset, loading_entry, world_entry};
+use mcrs_minecraft_font::{ClientLanguage, Font};
 
 const ROW_INSET: i32 = 2;
 
@@ -31,12 +30,12 @@ pub(crate) struct ShownRows {
         reason = "rebuilds the rows only when the world list, the language or the search text changes, or the loading dots advance; the search text lives in the menu widgets, and the dots follow the wall clock, so no event announces them"
     )
 )]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(26))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(21))]
 pub(crate) fn project_world_rows(
     mut menu: ResMut<Menu>,
     worlds: Res<WorldList>,
     language: Res<ClientLanguage>,
-    atlas: Res<GuiAtlas>,
+    font: Res<Font>,
     (time, offset): (Res<Time<Real>>, Res<LocalOffset>),
     mut preselected: ResMut<PreselectedWorld>,
     mut shown: Local<ShownRows>,
@@ -46,7 +45,7 @@ pub(crate) fn project_world_rows(
     };
     let reading = matches!(*worlds, WorldList::Reading);
     let expected = if reading { 1 } else { shown.worlds.len() };
-    let dots_frame = menu_clock(&time) / DOTS_FRAME_MS;
+    let dots_frame = gui_clock(&time) / DOTS_FRAME_MS;
     let stale = worlds.is_changed()
         || language.is_changed()
         || rows != expected
@@ -68,13 +67,13 @@ pub(crate) fn project_world_rows(
             menu.widgets.set_rows(LIST, 1);
             shown.dots_frame = dots_frame;
             menu.rows
-                .push(loading(&menu.widgets, &language, &atlas, &time));
+                .push(loading(&menu.widgets, &language, &font, &time));
         } else {
             menu.widgets.set_rows(LIST, shown.worlds.len());
             let entries = shown.worlds.iter().enumerate();
             let list = ready(&worlds);
             for (row, world) in entries.filter_map(|(row, &index)| Some((row, list.get(index)?))) {
-                let entry = world_entry(LIST, row, world, &language, &atlas.0.font, offset.0);
+                let entry = world_entry(LIST, row, world, &language, &font, offset.0);
                 menu.rows.push(entry);
             }
             let mut select =
@@ -96,7 +95,7 @@ pub(crate) fn project_world_rows(
         }
         if shown.dots_frame != dots_frame {
             shown.dots_frame = dots_frame;
-            let entry = loading(&menu.widgets, &language, &atlas, &time);
+            let entry = loading(&menu.widgets, &language, &font, &time);
             let menu = &mut *menu;
             menu.rows.clear();
             menu.rows.push(entry);
@@ -136,7 +135,7 @@ fn ready(worlds: &WorldList) -> &[WorldSummary] {
 fn loading(
     widgets: &Widgets,
     language: &ClientLanguage,
-    atlas: &GuiAtlas,
+    font: &Font,
     time: &Time<Real>,
 ) -> RowContent {
     let inner = widgets
@@ -154,7 +153,7 @@ fn loading(
         inner,
         widgets.screen().width,
         language,
-        &atlas.0.font,
-        menu_clock(time),
+        font,
+        gui_clock(time),
     )
 }

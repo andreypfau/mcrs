@@ -28,6 +28,7 @@ use crate::anchors::adt_of;
 use crate::config_node::ConfigNode;
 use crate::config_node::Placement;
 
+const HELPER_DEPTH: u8 = 8;
 const CONDITION_CRATES: [&str; 3] = ["bevy_ecs", "bevy_input", "bevy_state"];
 const EVENT_CONDITIONS: [&str; 11] = [
     "on_message",
@@ -112,6 +113,17 @@ pub fn key(tcx: TyCtxt<'_>, def: DefId) -> String {
     format!("{:016x}{:016x}", high.as_u64(), low.as_u64())
 }
 
+#[derive(Clone, Copy)]
+struct Scan<'tcx> {
+    typeck: &'tcx TypeckResults<'tcx>,
+    depth: u8,
+}
+
+struct Helper<'tcx> {
+    scan: Scan<'tcx>,
+    returned: &'tcx Expr<'tcx>,
+}
+
 struct Collector<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     typeck: &'tcx TypeckResults<'tcx>,
@@ -185,7 +197,8 @@ impl<'tcx> Collector<'_, 'tcx> {
             && (name.as_str().starts_with("run_if") || name.as_str() == "distributive_run_if")
             && let Some(condition) = call.args.get(1).copied()
         {
-            self.note_condition_uses(condition);
+            let scan = self.root_scan();
+            self.note_condition_uses(scan, condition);
         }
         if self
             .anchors
@@ -311,11 +324,13 @@ impl<'tcx> Collector<'_, 'tcx> {
                     _ => Vec::new(),
                 };
                 let run_if = name.starts_with("run_if") || name == "distributive_run_if";
+                let scan = self.root_scan();
                 ConfigNode::Configured {
                     inner: Box::new(self.config_node(receiver, leaf)),
                     placement: Placement {
                         run_if,
-                        on_event: run_if && args.first().is_some_and(|cond| self.on_event(cond)),
+                        on_event: run_if
+                            && args.first().is_some_and(|cond| self.on_event(scan, cond)),
                         sets,
                     },
                 }
@@ -324,41 +339,96 @@ impl<'tcx> Collector<'_, 'tcx> {
         }
     }
 
-    fn on_event(&self, condition: &'tcx Expr<'tcx>) -> bool {
+    fn root_scan(&self) -> Scan<'tcx> {
+        Scan {
+            typeck: self.typeck,
+            depth: 0,
+        }
+    }
+
+    fn helper(&self, scan: Scan<'tcx>, callee: &'tcx Expr<'tcx>) -> Option<Helper<'tcx>> {
+        let tcx = self.tcx;
+        let TyKind::FnDef(def, _) = *scan.typeck.expr_ty(callee).kind() else {
+            return None;
+        };
+        let local = def.as_local()?;
+        if scan.depth >= HELPER_DEPTH
+            || !matches!(tcx.def_kind(def), DefKind::Fn | DefKind::AssocFn)
+            || tcx
+                .fn_sig(def)
+                .instantiate_identity()
+                .skip_normalization()
+                .skip_binder()
+                .output()
+                .is_bool()
+        {
+            return None;
+        }
+        let mut returned = tcx.hir_maybe_body_owned_by(local)?.value;
+        while let ExprKind::Block(block, _) = returned.kind {
+            if !block.stmts.is_empty() {
+                return None;
+            }
+            returned = block.expr?;
+        }
+        Some(Helper {
+            scan: Scan {
+                typeck: tcx.typeck(local),
+                depth: scan.depth + 1,
+            },
+            returned,
+        })
+    }
+
+    fn on_event(&self, scan: Scan<'tcx>, condition: &'tcx Expr<'tcx>) -> bool {
         match condition.kind {
             ExprKind::MethodCall(segment, receiver, [other], _) => {
                 match segment.ident.name.as_str() {
-                    "and_then" | "and_eager" => self.on_event(receiver) || self.on_event(other),
-                    "or_else" | "or_eager" => self.on_event(receiver) && self.on_event(other),
+                    "and_then" | "and_eager" => {
+                        self.on_event(scan, receiver) || self.on_event(scan, other)
+                    }
+                    "or_else" | "or_eager" => {
+                        self.on_event(scan, receiver) && self.on_event(scan, other)
+                    }
                     _ => false,
                 }
             }
-            ExprKind::Call(callee, [inner]) if self.condition_name(callee) == Some(sym::not) => {
+            ExprKind::Call(callee, [inner])
+                if self.condition_name(scan, callee) == Some(sym::not) =>
+            {
                 matches!(inner.kind, ExprKind::Path(..))
-                    && self.condition_name(inner) == Some(Symbol::intern("resource_exists"))
+                    && self.condition_name(scan, inner) == Some(Symbol::intern("resource_exists"))
             }
-            ExprKind::Call(callee, _) => self.is_event_condition(callee),
-            ExprKind::Path(..) => self.is_event_condition(condition),
+            ExprKind::Call(callee, _) => {
+                self.is_event_condition(scan, callee)
+                    || self
+                        .helper(scan, callee)
+                        .is_some_and(|helper| self.on_event(helper.scan, helper.returned))
+            }
+            ExprKind::Path(..) => self.is_event_condition(scan, condition),
             _ => false,
         }
     }
 
-    fn note_condition_uses(&mut self, condition: &'tcx Expr<'tcx>) {
+    fn note_condition_uses(&mut self, scan: Scan<'tcx>, condition: &'tcx Expr<'tcx>) {
         match condition.kind {
             ExprKind::MethodCall(_, receiver, args, _) => {
-                self.note_condition_uses(receiver);
+                self.note_condition_uses(scan, receiver);
                 for arg in args {
-                    self.note_condition_uses(arg);
+                    self.note_condition_uses(scan, arg);
                 }
             }
             ExprKind::Call(callee, args) => {
-                self.note_condition_uses(callee);
+                self.note_condition_uses(scan, callee);
                 for arg in args {
-                    self.note_condition_uses(arg);
+                    self.note_condition_uses(scan, arg);
+                }
+                if let Some(helper) = self.helper(scan, callee) {
+                    self.note_condition_uses(helper.scan, helper.returned);
                 }
             }
             ExprKind::Path(..) => {
-                if let TyKind::FnDef(def, _) = *self.typeck.expr_ty(condition).kind() {
+                if let TyKind::FnDef(def, _) = *scan.typeck.expr_ty(condition).kind() {
                     self.out.condition_uses.insert(def);
                 }
             }
@@ -366,8 +436,8 @@ impl<'tcx> Collector<'_, 'tcx> {
         }
     }
 
-    fn is_event_condition(&self, expr: &'tcx Expr<'tcx>) -> bool {
-        let TyKind::FnDef(def, generics) = *self.typeck.expr_ty(expr).kind() else {
+    fn is_event_condition(&self, scan: Scan<'tcx>, expr: &'tcx Expr<'tcx>) -> bool {
+        let TyKind::FnDef(def, generics) = *scan.typeck.expr_ty(expr).kind() else {
             return false;
         };
         if !CONDITION_CRATES.contains(&self.tcx.crate_name(def.krate).as_str()) {
@@ -382,8 +452,8 @@ impl<'tcx> Collector<'_, 'tcx> {
                     .any(|ty| self.anchors.mentions_change(ty)))
     }
 
-    fn condition_name(&self, expr: &'tcx Expr<'tcx>) -> Option<Symbol> {
-        let TyKind::FnDef(def, _) = *self.typeck.expr_ty(expr).kind() else {
+    fn condition_name(&self, scan: Scan<'tcx>, expr: &'tcx Expr<'tcx>) -> Option<Symbol> {
+        let TyKind::FnDef(def, _) = *scan.typeck.expr_ty(expr).kind() else {
             return None;
         };
         CONDITION_CRATES

@@ -3,9 +3,8 @@ use mcrs_minecraft_client_widget::{
     Widget, WidgetId, WidgetKind, text_line_extent, text_lines_extent,
 };
 
-use crate::font::{Font, Span};
-use crate::language::ClientLanguage;
-use crate::text::{self, Wrap};
+use mcrs_minecraft_font::{ClientLanguage, Wrap, wrap};
+use mcrs_minecraft_font::{Font, Span};
 
 pub(crate) const TITLE: WidgetId = WidgetId(0);
 pub(crate) const REASON: WidgetId = WidgetId(1);
@@ -25,7 +24,7 @@ pub(crate) fn disconnected_screen(
 ) -> Option<[Widget; 3]> {
     let title = language.get(title_key);
     let mut rows = Vec::new();
-    text::wrap(
+    wrap(
         reason,
         screen.width - REASON_MARGIN,
         Wrap::Tooltip,

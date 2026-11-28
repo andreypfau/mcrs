@@ -1,7 +1,8 @@
 use std::error::Error;
 use std::fmt;
 
-use mcrs_minecraft_model_file::pack_files::PackError;
+use mcrs_minecraft_resource::InvalidResourceLocation;
+use mcrs_minecraft_resource_pack::{PackError, PngError};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -17,10 +18,7 @@ pub enum SpriteError {
     },
     Decode {
         path: String,
-        message: String,
-    },
-    NoPixels {
-        path: String,
+        error: PngError,
     },
     NotInPack {
         path: String,
@@ -56,6 +54,7 @@ pub enum SpriteError {
         width: u32,
         height: u32,
     },
+    Location(InvalidResourceLocation),
 }
 
 impl fmt::Display for SpriteError {
@@ -66,8 +65,7 @@ impl fmt::Display for SpriteError {
             SpriteError::Animation { path, message } => {
                 write!(f, "cannot parse {path}: {message}")
             }
-            SpriteError::Decode { path, message } => write!(f, "cannot decode {path}: {message}"),
-            SpriteError::NoPixels { path } => write!(f, "{path} decoded without pixel data"),
+            SpriteError::Decode { path, error } => write!(f, "cannot decode {path}: {error}"),
             SpriteError::NotInPack { path } => write!(f, "{path} is not in the resource pack"),
             SpriteError::TooManySprites { id, limit } => {
                 write!(f, "{id} would be sprite {limit}, past what a face can name")
@@ -102,11 +100,22 @@ impl fmt::Display for SpriteError {
                 f,
                 "{path} is {width}x{height}, and a colormap is sampled as a 256x256 grid"
             ),
+            SpriteError::Location(error) => write!(
+                f,
+                "the resource location `{}`: {}",
+                error.input, error.reason
+            ),
         }
     }
 }
 
 impl Error for SpriteError {}
+
+impl From<InvalidResourceLocation> for SpriteError {
+    fn from(error: InvalidResourceLocation) -> Self {
+        SpriteError::Location(error)
+    }
+}
 
 impl From<PackError> for SpriteError {
     fn from(error: PackError) -> Self {

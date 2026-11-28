@@ -32,6 +32,7 @@ use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::rl;
 
+use crate::corpus_language::corpus_language;
 use crate::creative_screen_plugin::CreativeContentSystems;
 use crate::creative_screen_plugin::CreativeScreenPlugin;
 use crate::creative_screen_state::CreativeScreenState;
@@ -39,11 +40,11 @@ use crate::creative_search_edit;
 use crate::creative_search_index::CreativeSearchIndex;
 use crate::creative_tab_content::CreativeInputs;
 use crate::creative_tab_content::CreativeTabContent;
-use crate::language::ClientLanguage;
 use crate::loaded_creative_report::LoadedCreativeReport;
 use crate::mark_creative_screen::mark_creative_screen;
 use crate::menu_test_app::TABLE;
 use crate::search_input::SearchInput;
+use mcrs_minecraft_font::ClientLanguage;
 
 const BUILDING_BLOCKS: CreativeTabIndex = tab(0);
 const COLORED_BLOCKS: CreativeTabIndex = tab(1);
@@ -74,7 +75,7 @@ fn vanilla(operator: OperatorCondition) -> CreativeTabContent {
         ),
         registries: test_registries(),
         items: &TABLE,
-        language: Some(ClientLanguage::corpus()),
+        language: Some(corpus_language()),
         operator,
     })
 }
@@ -119,7 +120,7 @@ fn sized(building_blocks: usize) -> CreativeTabContent {
         report: Some(&report),
         registries: test_registries(),
         items: &TABLE,
-        language: Some(ClientLanguage::corpus()),
+        language: Some(corpus_language()),
         operator: OperatorCondition::NotMet,
     })
 }
@@ -457,7 +458,7 @@ fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
                     edit,
                     &input,
                     CreativeGeometry::SEARCH_BOX,
-                    None,
+                    0.0,
                     &width,
                     || None,
                 )
@@ -606,7 +607,7 @@ fn the_search_finds_a_player_head_by_the_name_of_its_player() {
         &[named, head],
         &TABLE,
         test_registries(),
-        Some(ClientLanguage::corpus()),
+        Some(corpus_language()),
     );
     let query = SearchQuery::new("steve");
     assert!(index.matches(0, &query), "the named head is found");
@@ -635,7 +636,7 @@ fn the_plugin_shows_the_operator_tab_only_with_the_permission_and_the_option() {
     app.add_plugins(CreativeScreenPlugin)
         .insert_resource(CurrentRegistries::new(test_registries().clone()))
         .insert_resource::<ItemTable>(*TABLE)
-        .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+        .insert_resource(ClientLanguage::load(ResourceSet::corpus().files()).unwrap())
         .insert_resource(Screen::Menu)
         .init_resource::<ClientOptions>()
         .add_systems(Update, mark_creative_screen.after(CreativeContentSystems));

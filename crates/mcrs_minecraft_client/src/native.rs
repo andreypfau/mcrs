@@ -206,10 +206,11 @@ pub fn run() -> AppExit {
             .add_before::<sky::SkyPlugin>(knobs.gui())
             .add(screenshot::ScreenshotPlugin),
     )
+    .insert_resource(knobs.start_screen())
     .add_systems(
         Update,
         mcrs_minecraft_client::stream::load_gui_atlas.run_if(not(resource_exists::<
-            mcrs_minecraft_client_gui::scene::GuiAtlas,
+            mcrs_minecraft_client_gui::scene::GuiAtlasLayout,
         >)),
     )
     .add_systems(
@@ -296,9 +297,15 @@ pub fn run() -> AppExit {
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
     app.add_plugins(game_mode_switcher::GameModeSwitcherPlugin);
     app.add_plugins(health_hud::HealthHudPlugin);
+    app.add_plugins(mcrs_minecraft_client_gui::hotbar::HotbarPlugin);
     app.add_plugins(death_screen_plugin::DeathScreenPlugin);
     app.add_plugins(mcrs_minecraft_client_gui::inventory_clicks::InventoryClicksPlugin);
+    app.add_plugins((
+        mcrs_minecraft_client_gui::creative_screen_plugin::CreativeScreenPlugin,
+        mcrs_minecraft_client_gui::inventory_figure::InventoryFigurePlugin,
+    ));
     app.add_plugins(chat_input::ChatScreenPlugin);
+    app.add_plugins(mcrs_minecraft_client_gui::chat::ChatDrawPlugin);
     let preselected = world
         .as_deref()
         .filter(|_| local_world)

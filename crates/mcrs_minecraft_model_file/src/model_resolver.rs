@@ -1,12 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource_pack::{PackFiles, pack_path};
+
 use crate::block_state_file::MISSING_MODEL;
 use crate::content_error::{ContentError, ContentErrorKind};
 use crate::model_file::{
     DisplayContext, DisplayTransform, Element, GuiLight, ModelFile, SlotValue, TextureValue,
 };
-use crate::pack_files::PackFiles;
-use crate::resource_id::{full_id, resource_path};
 
 pub const GENERATED_MODEL: &str = "minecraft:builtin/generated";
 pub const MISSING_TEXTURE: &str = "minecraft:missingno";
@@ -110,7 +111,8 @@ impl<'a> ModelResolver<'a> {
     }
 
     pub fn resolve(&mut self, id: &str) -> &MergedModel {
-        let id = full_id(id);
+        let id = ResourceLocation::read(id)
+            .map_or_else(|_| id.to_owned(), |location| location.to_string());
         if !self.merged.contains_key(&id) {
             let chain = self
                 .chain(&id)
@@ -125,7 +127,18 @@ impl<'a> ModelResolver<'a> {
         if let Some(file) = self.files.get(id) {
             return file.is_some();
         }
-        let path = resource_path(id, "models", "json");
+        let location = match ResourceLocation::read(id) {
+            Ok(location) => location,
+            Err(error) => {
+                self.errors.push(ContentError {
+                    path: id.to_owned(),
+                    kind: ContentErrorKind::Location(error),
+                });
+                self.files.insert(id.to_owned(), None);
+                return false;
+            }
+        };
+        let path = pack_path(location, "models", "json");
         let file = match self.pack.get(&path) {
             None => {
                 self.errors.push(ContentError {

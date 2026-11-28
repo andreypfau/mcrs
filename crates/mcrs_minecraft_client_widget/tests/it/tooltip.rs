@@ -112,3 +112,12 @@ fn the_tooltip_of_a_widget_sits_by_the_mouse_or_by_the_focused_widget() {
         assert_eq!(request.origin(CONTENT), expected, "{request:?}");
     }
 }
+
+#[test]
+fn the_next_tooltip_frame_is_one_past_the_delay_of_the_pending_want() {
+    let mut screen = screen_of([with_tooltip(1, 500)]);
+    screen.mouse_move(GuiPoint::new(110, 110));
+    assert!(screen.tooltip(1000).is_none());
+    assert_eq!(screen.next_tooltip_ms(1000), Some(1501));
+    assert_eq!(screen.next_tooltip_ms(1501), None);
+}

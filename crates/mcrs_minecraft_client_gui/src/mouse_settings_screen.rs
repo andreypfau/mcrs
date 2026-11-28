@@ -4,10 +4,9 @@ use mcrs_minecraft_client_widget::{
     WidgetValue,
 };
 
-use crate::font::Font;
-use crate::language::ClientLanguage;
 use crate::option_caption::option_caption;
 use crate::option_sub_screen::{OptionList, option_sub_screen};
+use mcrs_minecraft_font::{ClientLanguage, Font};
 
 pub(crate) const SENSITIVITY: WidgetId = WidgetId(3);
 

@@ -6,6 +6,4 @@ pub mod face_bake_error;
 pub mod model_file;
 pub mod model_file_error;
 pub mod model_resolver;
-pub mod pack_files;
 pub mod property_table;
-pub mod resource_id;

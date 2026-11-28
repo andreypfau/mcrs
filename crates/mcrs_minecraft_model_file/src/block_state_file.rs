@@ -1,12 +1,12 @@
 use std::fmt;
 use std::marker::PhantomData;
 
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::Deserialize;
 use serde::de::{Deserializer, MapAccess, Visitor};
 
 use crate::block_state_file_error::BlockStateFileError;
 use crate::property_table::PropertyTable;
-use crate::resource_id::full_id;
 
 pub const MISSING_MODEL: &str = "minecraft:builtin/missing";
 
@@ -362,7 +362,7 @@ impl RawVariant {
             .filter(|weight| *weight >= 1)
             .ok_or(BlockStateFileError::Weight { weight })?;
         Ok(Variant {
-            model: full_id(&self.model),
+            model: ResourceLocation::read(&self.model)?.to_string(),
             x: turn(self.x)?,
             y: turn(self.y)?,
             z: turn(self.z)?,

@@ -3,7 +3,8 @@ use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_model_file::face_bake::{ElementFace, VariantTransform, bake_elements};
 use mcrs_minecraft_model_file::model_file::{ModelFile, direction_named};
-use mcrs_minecraft_model_file::resource_id::resource_path;
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource_pack::pack_path;
 use serde::Deserialize;
 
 use crate::client_pack::client_pack;
@@ -86,7 +87,11 @@ fn baked_faces_agree_with_the_reference_client() {
             "{} x={} y={} z={} uvlock={}",
             case.model, case.x, case.y, case.z, case.uvlock
         );
-        let path = resource_path(&case.model, "models", "json");
+        let path = pack_path(
+            ResourceLocation::read(&case.model).unwrap(),
+            "models",
+            "json",
+        );
         let file = ModelFile::parse(client_pack().read(&path).unwrap()).unwrap();
         let elements = file.elements.unwrap_or_default();
         let transform = VariantTransform {

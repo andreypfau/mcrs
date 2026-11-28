@@ -276,8 +276,12 @@ The pass selects calls by the crate of the callee.
 - Combinators follow these rules: `a.and_then(b)` and `a.and_eager(b)` are events when `a` or `b`
   is an event. `a.or_else(b)` and `a.or_eager(b)` are events when `a` and `b` are events.
   `not(a)` is an event only for `resource_exists`; `not` of a marked function is not an event.
-- A condition that is a closure, or a function that returns a condition, is not an event
-  condition, also when it calls a marked function.
+- A closure is not an event condition, also when it calls a marked function.
+- A function of the same crate that returns a condition is an event condition when the
+  expression that it returns is one. The body of the function must be one tail expression.
+  The conditions in that expression count as used by a `run_if`. The lint follows such calls
+  to a depth of 8. A function of another crate is not an event condition, because the facts
+  file does not describe its body.
 - An `if` on `is_changed` or `is_added` of a Bevy value, or on `Ref::is_changed`, is an event
   path in the body of a system. A negated check is an event path when the code after an early
   `return`, `continue` or `break` on it runs. `a && b` is an event path when `a` or `b` is a

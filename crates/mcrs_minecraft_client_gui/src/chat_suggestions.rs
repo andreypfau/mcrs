@@ -2,12 +2,13 @@ use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_chat_client::{ChatScreen, Hint, LIST_ROWS, SuggestionMenu};
 use mcrs_minecraft_item::ItemHoverMap;
 
-use crate::chat::{GRAY, RED};
-use crate::font::{self, Font, Span};
-use crate::item_decorations::WHITE;
-use crate::language::ClientLanguage;
-use crate::scene::{GuiQuad, GuiSize};
-use crate::text;
+use crate::chat_view::{GRAY, RED};
+use crate::gui_quad::GuiQuad;
+use crate::gui_quad::WHITE;
+use crate::gui_size::GuiSize;
+use crate::text_draw;
+use mcrs_minecraft_font::text_spans;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span};
 
 const ROW: i32 = 12;
 const ROW_FILL: u32 = 0xD000_0000;
@@ -88,7 +89,7 @@ pub(super) fn suggestion_list(
         } else {
             GRAY
         };
-        font::draw_text(
+        text_draw::draw_text(
             font,
             IVec2::new(rect.min.x + 1, top + 2),
             &[Span::new(text, colour)],
@@ -134,7 +135,7 @@ pub(super) fn hint_lines(
         let at = IVec2::new(x, top + 2);
         match hint {
             Hint::Error(_) => {
-                font::draw_text(
+                text_draw::draw_text(
                     font,
                     at,
                     &error_spans(commands.input(), hint, language),
@@ -142,7 +143,7 @@ pub(super) fn hint_lines(
                 );
             }
             Hint::Usage(range) => {
-                font::draw_str(
+                text_draw::draw_str(
                     font,
                     at.as_vec2(),
                     commands.usage_text(range.clone()),
@@ -152,7 +153,7 @@ pub(super) fn hint_lines(
                 );
             }
             Hint::Restriction(key) => {
-                font::draw_str(font, at.as_vec2(), language.get(key), RED, false, out);
+                text_draw::draw_str(font, at.as_vec2(), language.get(key), RED, false, out);
             }
         }
     }
@@ -165,7 +166,7 @@ fn error_spans(input: &str, hint: &Hint, language: &ClientLanguage) -> Vec<Span>
     let Ok(line) = mcrs_minecraft_command::parse_error_line(input, error).map(&ItemHoverMap) else {
         return Vec::new();
     };
-    text::text_spans(&line, language, ERROR_LINE)
+    text_spans(&line, language, ERROR_LINE)
 }
 
 #[cfg(test)]

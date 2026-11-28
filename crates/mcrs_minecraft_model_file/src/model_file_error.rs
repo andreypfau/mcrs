@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::fmt;
 
+use mcrs_minecraft_resource::InvalidResourceLocation;
+
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ModelFileError {
@@ -17,6 +19,7 @@ pub enum ModelFileError {
     RotationIncomplete,
     RotationAxis { axis: String },
     RotationEmpty,
+    Location(InvalidResourceLocation),
 }
 
 impl fmt::Display for ModelFileError {
@@ -43,8 +46,19 @@ impl fmt::Display for ModelFileError {
             }
             ModelFileError::RotationAxis { axis } => write!(f, "the rotation axis `{axis}`"),
             ModelFileError::RotationEmpty => f.write_str("a rotation with no axis and no angle"),
+            ModelFileError::Location(error) => write!(
+                f,
+                "the resource location `{}`: {}",
+                error.input, error.reason
+            ),
         }
     }
 }
 
 impl Error for ModelFileError {}
+
+impl From<InvalidResourceLocation> for ModelFileError {
+    fn from(error: InvalidResourceLocation) -> Self {
+        ModelFileError::Location(error)
+    }
+}

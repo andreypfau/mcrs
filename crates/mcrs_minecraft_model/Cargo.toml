@@ -28,6 +28,7 @@ mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_potion.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_resource_pack.workspace = true
 mcrs_molang.workspace = true
 mcrs_voxel.workspace = true
 serde.workspace = true
@@ -37,7 +38,6 @@ bevy = { version = "0.20.1", default-features = false, features = [
     "async_executor",
     "bevy_asset",
     "bevy_image",
-    "png",
 ] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]

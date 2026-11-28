@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use mcrs_minecraft_client::local_server::LocalServerPlugin;
 use mcrs_minecraft_client::test_support::{self, ServerAnswers};
 use mcrs_minecraft_client_entity::ClientEntityPlugin;
+use mcrs_minecraft_client_world::GuiTickPlugin;
 use mcrs_minecraft_client_world::chat::ClientChatPlugin;
 use mcrs_minecraft_client_world::columns::ColumnCachePlugin;
 use mcrs_minecraft_client_world::game_mode::GameModePlugin;
@@ -36,6 +37,7 @@ fn local_client(extend_server: fn(&mut App), extra: impl FnOnce(&mut App)) -> Ap
             ColumnCachePlugin::default(),
             GameModePlugin,
             ClientEntityPlugin,
+            GuiTickPlugin,
             ClientChatPlugin {
                 command_history: None,
             },

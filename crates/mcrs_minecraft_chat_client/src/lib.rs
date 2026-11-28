@@ -28,7 +28,7 @@ pub use history::History;
 pub use history_change::HistoryChange;
 pub use input_style::InputStyle;
 pub use key::Key;
-pub use log::{ChatLines, ChatLog, Line, Tag, fade};
+pub use log::{ChatLines, ChatLog, Line, Tag, fade, fades_at};
 pub use outcome::Outcome;
 pub use outgoing::Outgoing;
 pub use overlay::Overlay;

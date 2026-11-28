@@ -4,27 +4,28 @@ use bevy::prelude::*;
 use bevy::time::Real;
 use mcrs_minecraft_menu_geometry::{CreativeTabIndex, CreativeTabKind};
 
-use crate::chat_input;
-use crate::creative_screen_input::CreativePointer;
+use crate::creative_pointer::CreativePointer;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_search_edit;
 use crate::creative_tab_content::CreativeTabContent;
+use crate::edit_input;
+use crate::layer_due;
 use crate::menu_input;
-use crate::scene::GuiAtlas;
 use crate::search_input::SearchInput;
+use mcrs_minecraft_font::Font;
 
 #[derive(SystemParam)]
 pub(crate) struct CreativeScreenEdit<'w> {
     screen: Option<ResMut<'w, CreativeScreenState>>,
     content: Option<Res<'w, CreativeTabContent>>,
     clipboard: Option<ResMut<'w, Clipboard>>,
-    atlas: Option<Res<'w, GuiAtlas>>,
+    font: Option<Res<'w, Font>>,
     time: Option<Res<'w, Time<Real>>>,
 }
 
 impl CreativeScreenEdit<'_> {
     pub(crate) fn select(&mut self, tab: CreativeTabIndex) {
-        let now_ms = self.time.as_deref().map(menu_input::menu_clock);
+        let now_ms = self.time.as_deref().map(layer_due::gui_clock);
         self.with(|screen, content| {
             screen.select(tab, content);
             if let Some(now_ms) = now_ms
@@ -49,28 +50,25 @@ impl CreativeScreenEdit<'_> {
         }
     }
 
-    pub(crate) fn edit_search(&mut self, input: &SearchInput, at: Option<CreativePointer>) {
-        let (Some(screen), Some(content), Some(at)) =
-            (self.screen.as_mut(), self.content.as_deref(), at)
-        else {
+    pub(crate) fn edit_search(&mut self, input: &SearchInput, at: CreativePointer) {
+        let (Some(screen), Some(content)) = (self.screen.as_mut(), self.content.as_deref()) else {
             return;
         };
         let mut clipboard = self.clipboard.as_deref_mut();
-        let width = menu_input::text_width(self.atlas.as_deref());
+        let width = menu_input::text_width(self.font.as_deref());
         let mut copied = None;
         screen.edit_search(content, |edit| {
-            let mouse_x = at.mouse.map(|mouse| mouse.x);
             copied = creative_search_edit::apply_search(
                 edit,
                 input,
                 at.search_box,
-                mouse_x,
+                at.mouse.x,
                 &width,
-                || chat_input::clipboard_text(clipboard.as_deref_mut()),
+                || edit_input::clipboard_text(clipboard.as_deref_mut()),
             );
         });
         if let Some(text) = copied {
-            chat_input::copy_text(clipboard, &text);
+            edit_input::copy_text(clipboard, &text);
         }
     }
 }

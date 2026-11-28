@@ -58,6 +58,11 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_command_vanilla`: The vanilla commands execute, gamemode, teleport, locate, summon and time, and the command effects they write
 - `mcrs_minecraft_command_world`: The commands that change the world and the server: fill, forceload, gamerule, weather clear, and tick query and sprint
 
+## container
+
+- `mcrs_minecraft_container_click`: The content of a container click as a plain value: the click kind, the button and the clicked menu entry, with its wire codec
+- `mcrs_minecraft_container_gesture`: The gesture state machine of a container screen without Bevy: press, drag, release, quick move and the double click, with the drag preview
+
 ## creative
 
 - `mcrs_minecraft_creative_content`: The tab lists and the search list of the creative screen, built from the creative report and the session
@@ -180,6 +185,11 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_render_controller`: Render controllers of a client entity: the layers, their geometry, texture and visible bones in a frame
 - `mcrs_minecraft_render_probe`: GPU pass timings, CPU stage timings, draw counters and GPU warm-up for the terrain renderer
 
+## resource
+
+- `mcrs_minecraft_resource`: Resource locations, resource keys, tag keys, registry keys and registry ids
+- `mcrs_minecraft_resource_pack`: The files of a resource pack, its PNG decoder and the missing texture, with no Bevy
+
 ## server
 
 - `mcrs_minecraft_server`: The vanilla server plugin group MinecraftServerPlugins: it adds the engine, the vanilla gameplay plugins and the commands to an app
@@ -233,7 +243,6 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_chunk`: Chunk storage: PalettedContainer, voxel palettes, section light storage and nibbles, column heights, and the chunk status keys
 - `mcrs_minecraft_collision_table`: Builds the collision table of the physics kernel from the block definitions and the block tags
 - `mcrs_minecraft_console`: The server console: command lines from the standard input, run as the server, and their answers in the log in English
-- `mcrs_minecraft_container_click`: The content of a container click as a plain value: the click kind, the button and the clicked menu entry, with its wire codec
 - `mcrs_minecraft_core`: Directions and axes, bounding boxes, voxel shapes, rotation and mirror, heightmap names, codec helpers such as is_default, and the game version
 - `mcrs_minecraft_damage`: The hit procedure of a living entity without Bevy: the damage cooldown, the reductions, the absorption, the health change, the start of the death and the hit record
 - `mcrs_minecraft_datapack`: The data pack stack: pack selection, pack.mcmeta, overlays, filters and the files each pack contributes
@@ -242,6 +251,7 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_environment`: Environment attributes, timelines and world clocks
 - `mcrs_minecraft_falling_block`: The rules of a falling block: which blocks fall, the start, the tick and the landing
 - `mcrs_minecraft_fog`: The fog parameters of one frame of the client: the fog colour and the fog distances
+- `mcrs_minecraft_font`: The fonts, glyphs, text layout and client translations of a resource pack, on bevy_math without the Bevy app
 - `mcrs_minecraft_goal_world`: The read-only block world of the goals of mobs: the ground cell of a block position, the build height, the line of sight and the straight route on walkable ground
 - `mcrs_minecraft_goals`: The goals of passive mobs for the AI stage: float, panic, random stroll, look at a player and look around, the random position searches, the goal list of the pig and the brain of each mob type with goals
 - `mcrs_minecraft_heightmap`: The four column heightmaps, the block state predicates they test, and the descent that builds them
@@ -270,7 +280,6 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_region_disk`: The region disk layer: a column of the data layer as the anvil files under one dimension, with quarantine of damaged regions
 - `mcrs_minecraft_registry_catalog`: The STATIC_REGISTRIES table: the entry locations of every static registry
 - `mcrs_minecraft_replication`: The Minecraft side of entity replication: the muxer codec for players and mobs, mob trackers, delta bases for moves, spawn bundles, profile entries and the player list policy, as encoded packets
-- `mcrs_minecraft_resource`: Resource locations, resource keys, tag keys, registry keys and registry ids
 - `mcrs_minecraft_save`: The files of a world save other than its regions: the level, its world generation settings and each player's file
 - `mcrs_minecraft_simulation`: Block simulation kernels: the step and update chain over a volume, their queues and ordering policies
 - `mcrs_minecraft_snbt`: The read and the write of stringified NBT as the game reads and writes it

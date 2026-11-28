@@ -5,9 +5,8 @@ use mcrs_minecraft_client_widget::{
     WidgetKind, WidgetValue, text_line_extent,
 };
 
-use crate::font::Font;
-use crate::language::ClientLanguage;
 use crate::option_caption::option_caption;
+use mcrs_minecraft_font::{ClientLanguage, Font};
 
 pub(crate) const TITLE: WidgetId = WidgetId(0);
 pub(crate) const FOV: WidgetId = WidgetId(1);

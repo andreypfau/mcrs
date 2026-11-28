@@ -3,10 +3,8 @@ use mcrs_minecraft_client_widget::{
     text_lines_extent,
 };
 
-use crate::font::{Font, Span};
-use crate::item_decorations::WHITE;
-use crate::language::ClientLanguage;
-use crate::text::{self, Wrap};
+use crate::gui_quad::WHITE;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span, Wrap, wrap};
 
 const TITLE: WidgetId = WidgetId(0);
 const REASON: WidgetId = WidgetId(1);
@@ -30,7 +28,7 @@ pub(crate) fn world_list_error_screen(
     )];
     let width = screen.width - REASON_MARGIN;
     let mut rows = Vec::new();
-    text::wrap(&reason, width, Wrap::Tooltip, font, &mut rows);
+    wrap(&reason, width, Wrap::Tooltip, font, &mut rows);
     let lines: Vec<String> = rows
         .iter()
         .map(|row| row.iter().map(|span| span.text.as_str()).collect())

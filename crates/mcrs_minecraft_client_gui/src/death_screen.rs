@@ -5,8 +5,8 @@ use mcrs_minecraft_client_widget::{
 use mcrs_minecraft_client_world::hardcore_mode::HardcoreMode;
 use mcrs_minecraft_protocol_game::text::Text;
 
-use crate::font::Font;
-use crate::language::ClientLanguage;
+use mcrs_minecraft_font::ClientLanguage;
+use mcrs_minecraft_font::Font;
 
 pub(crate) const TITLE: WidgetId = WidgetId(0);
 pub(crate) const MESSAGE: WidgetId = WidgetId(1);

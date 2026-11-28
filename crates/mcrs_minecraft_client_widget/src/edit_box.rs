@@ -136,6 +136,16 @@ impl EditBox {
     }
 
     #[must_use]
+    pub fn next_blink_ms(&self, now_ms: u64) -> Option<u64> {
+        let elapsed = now_ms.saturating_sub(self.focus_ms);
+        self.editing.then(|| {
+            self.focus_ms
+                .saturating_add(elapsed - elapsed % BLINK_MS)
+                .saturating_add(BLINK_MS)
+        })
+    }
+
+    #[must_use]
     pub const fn is_editing(&self) -> bool {
         self.editing
     }

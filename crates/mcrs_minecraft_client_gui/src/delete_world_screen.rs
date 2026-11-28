@@ -3,10 +3,8 @@ use mcrs_minecraft_client_widget::{
     Padding, Stack, Widget, WidgetId, WidgetKind, text_line_extent, text_lines_extent,
 };
 
-use crate::font::{Font, Span};
-use crate::item_decorations::WHITE;
-use crate::language::ClientLanguage;
-use crate::text::{self, Wrap};
+use crate::gui_quad::WHITE;
+use mcrs_minecraft_font::{ClientLanguage, Font, Span, Wrap, wrap};
 
 const TITLE: WidgetId = WidgetId(0);
 const MESSAGE: WidgetId = WidgetId(1);
@@ -33,7 +31,7 @@ pub(crate) fn delete_world_screen(
     );
     let width = screen.width - MESSAGE_MARGIN;
     let mut rows = Vec::new();
-    text::wrap(&warning, width, Wrap::Tooltip, font, &mut rows);
+    wrap(&warning, width, Wrap::Tooltip, font, &mut rows);
     rows.truncate(MESSAGE_ROWS);
     let lines: Vec<String> = rows
         .iter()

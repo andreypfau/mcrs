@@ -370,7 +370,7 @@ mcrs deviates: CTRL-DEV-002.
 | "Mouse Settings" | no | no | of the list (LIST-BG-002) | keeps its widgets | 0 | none |
 
 - **Postconditions:**
-  - Each screen draws the background of WID-SCR-004, step 2. The screen draws no separators of
+  - Each screen draws the background of WID-SCR-004, step 3. The screen draws no separators of
     WID-SCR-006.
   - No screen names an initial widget (WID-FOC-002, step 1).
   - In vanilla, Sprint Window, Sensitivity and Scroll Sensitivity apply at once. No slider of

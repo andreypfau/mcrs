@@ -2,6 +2,7 @@ use bevy::app::PluginGroupBuilder;
 use bevy::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_client_entity::ClientEntityPlugin;
+use mcrs_minecraft_client_world::GuiTickPlugin;
 use mcrs_minecraft_client_world::block_breaking::BlockBreakingPlugin;
 use mcrs_minecraft_client_world::chat::ClientChatPlugin;
 use mcrs_minecraft_client_world::columns::ColumnCachePlugin;
@@ -29,6 +30,7 @@ impl PluginGroup for ClientCorePlugins {
             .add(ColumnCachePlugin::default())
             .add(GameModePlugin)
             .add(ClientEntityPlugin)
+            .add(GuiTickPlugin)
             .add(ClientChatPlugin {
                 command_history: None,
             })

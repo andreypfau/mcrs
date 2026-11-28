@@ -24,12 +24,16 @@ use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_text::Text;
 
-use crate::font::{Font, Span};
-use crate::item_decorations::WHITE;
-use crate::language::ClientLanguage;
-use crate::scene::{GuiAtlas, GuiConfig, GuiScene, GuiSize};
-use crate::text::{self, Wrap};
-use crate::tooltip::LineGap;
+use crate::container_draw::ContainerLayer;
+use crate::gui_atlas_layout::GuiAtlasLayout;
+use crate::gui_config::GuiConfig;
+use crate::gui_layer::GuiLayer;
+use crate::gui_pointer::GuiPointer;
+use crate::gui_quad::WHITE;
+use crate::gui_size::GuiSize;
+use crate::layer_due;
+use crate::tooltip::{LineGap, Tooltip};
+use mcrs_minecraft_font::{ClientLanguage, Font, Span, Wrap, text_spans, wrap};
 
 const GRID_WIDGETS: u32 = 1 << 16;
 
@@ -179,13 +183,13 @@ impl MenuItemTooltip {
             match part.map(&ItemHoverMap) {
                 Ok(part) => self
                     .spans
-                    .extend(text::text_spans(&part, sources.language, WHITE)),
+                    .extend(text_spans(&part, sources.language, WHITE)),
                 Err(_) => self
                     .spans
                     .push(Span::new(sources.language.plain_text(part), WHITE)),
             }
         }
-        text::wrap(
+        wrap(
             &self.spans,
             TOOLTIP_WRAP_WIDTH,
             Wrap::Tooltip,
@@ -199,11 +203,12 @@ impl MenuItemTooltip {
         hovered: HoveredItem,
         now_ms: u64,
         pointer: GuiPoint,
-        scene: &mut GuiScene,
-    ) {
+        size: GuiSize,
+        request: &mut Tooltip,
+    ) -> Option<u64> {
         if self.lines.is_empty() {
             self.start = None;
-            return;
+            return None;
         }
         let start = match self.start {
             Some(start) if start.menu == hovered.menu && start.slot == hovered.slot => start,
@@ -214,10 +219,10 @@ impl MenuItemTooltip {
             }),
         };
         if now_ms <= start.millis {
-            return;
+            return start.millis.checked_add(1);
         }
-        let screen = GuiExtent::new(scene.size.width, scene.size.height);
-        scene.tooltip.request_widget_lines(
+        let screen = GuiExtent::new(size.width, size.height);
+        request.request_widget_lines(
             TooltipRequest {
                 widget: hovered.slot.widget(),
                 bounds: hovered.bounds,
@@ -228,6 +233,7 @@ impl MenuItemTooltip {
             LineGap::AfterFirst,
             &self.lines,
         );
+        None
     }
 }
 
@@ -290,13 +296,6 @@ fn hovered_entry<'a>(
     })
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "the tooltip caches its lines, so it allocates only when the hovered stack or the tooltip style changes"
-    )
-)]
 #[cfg_attr(mcrs_lint, mcrs::alloc_sites(12))]
 pub(crate) fn request_menu_item_tooltip(
     player: Query<(&PlayerHolders, &Menus, Option<&AttributeInstances>)>,
@@ -306,25 +305,32 @@ pub(crate) fn request_menu_item_tooltip(
     items: Res<ItemTable>,
     registries: Option<Res<CurrentRegistries>>,
     language: Option<Res<ClientLanguage>>,
-    atlas: Option<Res<GuiAtlas>>,
+    atlas: Option<Res<GuiAtlasLayout>>,
+    font: Option<Res<Font>>,
     config: Res<GuiConfig>,
     screen: Res<Screen>,
     time: Res<Time<Real>>,
-    mut scene: ResMut<GuiScene>,
+    size: Res<GuiSize>,
+    pointer: Res<GuiPointer>,
+    mut container: Single<(&mut Tooltip, &mut GuiLayer), With<ContainerLayer>>,
     mut tooltip: Local<MenuItemTooltip>,
 ) {
-    let (Some(language), Some(atlas), Some(registries), Screen::Menu) =
-        (language, atlas, registries, *screen)
+    let (Some(language), Some(atlas), Some(font), Some(registries), Screen::Menu) =
+        (language, atlas, font, registries, *screen)
     else {
         tooltip.leave();
         return;
     };
-    if language.is_changed() || items.is_changed() || registries.is_changed() || atlas.is_changed()
+    if language.is_changed()
+        || items.is_changed()
+        || registries.is_changed()
+        || atlas.is_changed()
+        || font.is_changed()
     {
         tooltip.forget();
     }
     let occupant = |slot: SlotRef| holders.get(slot.holder).ok()?.get(usize::from(slot.index));
-    let pointer = GuiPoint::new(scene.cursor.x, scene.cursor.y);
+    let pointer = pointer.point();
     let player = player.single().ok();
     let attack = player_attack_bases(player.and_then(|(_, _, instances)| instances));
     let hovered = player.and_then(|(player, player_menus, _)| {
@@ -337,7 +343,7 @@ pub(crate) fn request_menu_item_tooltip(
         }
         let menu = player_menus.open()?;
         let (layout, parts) = menus.get(menu).ok()?;
-        hovered_entry(scene.size, pointer, menu, layout, parts, occupant)
+        hovered_entry(*size, pointer, menu, layout, parts, occupant)
     });
     let Some(hovered) = hovered else {
         tooltip.leave();
@@ -352,16 +358,18 @@ pub(crate) fn request_menu_item_tooltip(
         items: &items,
         registries: &registries,
         language: &language,
-        font: &atlas.0.font,
+        font: &font,
     };
     tooltip.follow(hovered, style, &mut stacks, &sources, |_, _| {});
-    let now_ms = u64::try_from(time.elapsed().as_millis()).unwrap_or(u64::MAX);
-    tooltip.request(hovered, now_ms, pointer, &mut scene);
+    let now_ms = layer_due::gui_clock(&time);
+    let (request, layer) = &mut *container;
+    if let Some(at) = tooltip.request(hovered, now_ms, pointer, *size, request) {
+        layer.redraw_at(at);
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::time::Duration;
 
     use mcrs_minecraft_engine_inventory_menu::{MenuButtons, MenuCommandsExt};
@@ -378,7 +386,7 @@ mod tests {
     use mcrs_test_alloc::CountingAllocator;
 
     use super::*;
-    use crate::menu_test_app::{ATLAS, GUI};
+    use crate::menu_test_app::{GUI, insert_gui_assets};
 
     fn stack(items: &ItemTable, item: &str) -> ItemStack {
         let name = ResourceLocation::read(item).unwrap();
@@ -391,37 +399,40 @@ mod tests {
         let renamed = stack(&items, "minecraft:stone").set(CustomName(Text::text("Rock")));
         let plain = stack(&items, "minecraft:stone");
         let mut app = App::new();
+        insert_gui_assets(app.world_mut());
         app.insert_resource(items)
             .insert_resource(CurrentRegistries::new(test_registries().clone()))
-            .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
-            .insert_resource(GuiAtlas(Arc::clone(&ATLAS)))
+            .insert_resource(ClientLanguage::load(ResourceSet::corpus().files()).unwrap())
             .insert_resource(GuiConfig {
                 scale: 1,
                 cursor: None,
                 frozen_ticks: None,
                 advanced_tooltips: false,
             })
-            .insert_resource(GuiScene {
-                size: GuiSize {
-                    width: GUI.width,
-                    height: GUI.height,
-                    scale: 1,
-                },
-                ..GuiScene::default()
+            .insert_resource(GuiSize {
+                width: GUI.width,
+                height: GUI.height,
+                scale: 1,
             })
+            .insert_resource(GuiPointer::default())
             .insert_resource(Screen::Menu)
             .init_resource::<Time<Real>>()
             .add_plugins((ItemPlugin::default(), PlayerHoldersPlugin))
             .add_systems(
                 Update,
                 (
-                    |mut scene: ResMut<GuiScene>| scene.tooltip.clear(),
+                    |mut tooltips: Query<&mut Tooltip>| {
+                        for mut tooltip in &mut tooltips {
+                            tooltip.clear();
+                        }
+                    },
                     request_menu_item_tooltip,
                 )
                     .chain()
                     .run_if(resource_exists::<ItemTable>),
             );
         let world = app.world_mut();
+        world.spawn(ContainerLayer);
         let player = world.spawn_empty().id();
         world
             .run_system_cached_with(restore_holders, (player, PlayerItems::default()))
@@ -451,8 +462,13 @@ mod tests {
     }
 
     fn shown_lines(app: &App) -> Vec<String> {
-        let scene = app.world().resource::<GuiScene>();
-        let lines = scene.tooltip.lines().unwrap_or_default();
+        let request = app
+            .world()
+            .try_query::<&Tooltip>()
+            .unwrap()
+            .single(app.world())
+            .unwrap();
+        let lines = request.lines().unwrap_or_default();
         lines
             .iter()
             .map(|line| line.iter().map(|span| span.text.as_str()).collect())
@@ -465,9 +481,10 @@ mod tests {
         let corner = geometry.window(GUI.width, GUI.height);
         let at = geometry.entry(entry).unwrap();
         app.world_mut()
-            .resource_mut::<GuiScene>()
-            .map_unchanged(|scene| &mut scene.cursor)
-            .set_if_neq(IVec2::new(corner.x + at.x + 8, corner.y + at.y + 8));
+            .resource_mut::<GuiPointer>()
+            .set_if_neq(GuiPointer::new(
+                IVec2::new(corner.x + at.x + 8, corner.y + at.y + 8).as_dvec2(),
+            ));
         frame(app);
         frame(app);
         shown_lines(app).into_iter().next()
@@ -539,8 +556,11 @@ mod tests {
         assert_eq!(hover(&mut app, 0).as_deref(), Some("Rock"));
         let world = app.world_mut();
         let system = world.register_system(request_menu_item_tooltip);
-        let run = |world: &mut World| {
-            world.resource_mut::<GuiScene>().tooltip.clear();
+        let mut tooltips = world.query::<&mut Tooltip>();
+        let mut run = |world: &mut World| {
+            for mut tooltip in tooltips.iter_mut(world) {
+                tooltip.clear();
+            }
             world
                 .resource_mut::<Time<Real>>()
                 .update_with_duration(Duration::from_millis(5));

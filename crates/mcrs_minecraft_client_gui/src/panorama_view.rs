@@ -9,6 +9,10 @@ const LONG_FRAME: f32 = 7.0;
 const LONG_FRAME_STEP: f32 = 0.5;
 const DEGREES_PER_STEP: f32 = 0.1;
 
+pub(crate) fn panorama_shows(view: Res<PanoramaView>) -> bool {
+    view.draw != PanoramaDraw::Hidden
+}
+
 pub(crate) fn project_panorama_view(
     screen: Res<Screen>,
     players: Query<(), With<Player>>,

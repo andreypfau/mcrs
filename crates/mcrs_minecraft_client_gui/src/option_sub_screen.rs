@@ -4,8 +4,8 @@ use mcrs_minecraft_client_widget::{
     text_line_extent,
 };
 
-use crate::font::Font;
-use crate::language::ClientLanguage;
+use mcrs_minecraft_font::ClientLanguage;
+use mcrs_minecraft_font::Font;
 
 pub(crate) const TITLE: WidgetId = WidgetId(0);
 pub(crate) const DONE: WidgetId = WidgetId(1);

@@ -1,4 +1,4 @@
-use bevy::clipboard::{Clipboard, ClipboardRead};
+use bevy::clipboard::Clipboard;
 use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
@@ -6,14 +6,16 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::math::DVec2;
 use bevy::prelude::*;
 use bevy::time::Real;
-use bevy::window::PrimaryWindow;
 use mcrs_minecraft_client_widget::{
     GuiKey, GuiPoint, KeyModifiers, PointerButton, PointerPress, WidgetEvent, Widgets,
 };
 
+use crate::edit_input::clipboard_text;
+use crate::gui_pointer::GuiPointer;
+use crate::layer_due::gui_clock;
 use crate::menu::Menu;
 use crate::menu_event::MenuEvent;
-use crate::scene::{self, GuiAtlas, GuiConfig, GuiScene};
+use mcrs_minecraft_font::Font;
 
 const BUTTONS: [(MouseButton, PointerButton); 3] = [
     (MouseButton::Left, PointerButton::Left),
@@ -23,81 +25,81 @@ const BUTTONS: [(MouseButton, PointerButton); 3] = [
 
 const CAPTURE_EXEMPT: [KeyCode; 3] = [KeyCode::Escape, KeyCode::F2, KeyCode::F11];
 
-pub(crate) fn menu_clock(time: &Time<Real>) -> u64 {
-    u64::try_from(time.elapsed().as_millis()).unwrap_or(u64::MAX)
-}
-
-pub(crate) fn text_width(atlas: Option<&GuiAtlas>) -> impl Fn(&str) -> i32 + '_ {
-    move |text| atlas.map_or(0, |atlas| atlas.0.font.str_width(text))
+pub(crate) fn text_width(font: Option<&Font>) -> impl Fn(&str) -> i32 + '_ {
+    move |text| font.map_or(0, |font| font.str_width(text))
 }
 
 #[derive(SystemParam)]
 pub(crate) struct Pointer<'w, 's> {
-    window: Single<'w, 's, &'static Window, With<PrimaryWindow>>,
-    config: Res<'w, GuiConfig>,
-    scene: Res<'w, GuiScene>,
-    buttons: Res<'w, ButtonInput<MouseButton>>,
-    scroll: Res<'w, AccumulatedMouseScroll>,
+    pointer: Res<'w, GuiPointer>,
     last: Local<'s, Option<DVec2>>,
 }
 
 impl Pointer<'_, '_> {
-    fn is_idle(&mut self, at: Option<DVec2>, mouse: GuiPoint) -> bool {
-        let moved = std::mem::replace(&mut *self.last, at) != at
-            || at.is_some_and(|at| scene::gui_point(at) != mouse);
-        let acted = BUTTONS.iter().any(|&(button, _)| {
-            self.buttons.just_pressed(button) || self.buttons.just_released(button)
-        });
-        !moved && !acted && self.scroll.delta.y == 0.0
+    fn is_idle(
+        &mut self,
+        mouse: GuiPoint,
+        buttons: &ButtonInput<MouseButton>,
+        scroll: &AccumulatedMouseScroll,
+    ) -> bool {
+        let at = self.position();
+        let moved = self.last.replace(at) != Some(at) || self.point() != mouse;
+        let acted = BUTTONS
+            .iter()
+            .any(|&(button, _)| buttons.just_pressed(button) || buttons.just_released(button));
+        !moved && !acted && scroll.delta.y == 0.0
     }
 
-    fn position(&self) -> Option<DVec2> {
-        scene::gui_pointer(&self.window, &self.config, self.scene.size.scale)
+    fn position(&self) -> DVec2 {
+        self.pointer.at()
+    }
+
+    fn point(&self) -> GuiPoint {
+        self.pointer.point()
     }
 }
 
 pub(crate) fn menu_pointer(
     mut menu: ResMut<Menu>,
     mut pointer: Pointer,
+    buttons: Res<ButtonInput<MouseButton>>,
+    scroll: Res<AccumulatedMouseScroll>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time<Real>>,
-    atlas: Option<Res<GuiAtlas>>,
+    font: Option<Res<Font>>,
     mut out: MessageWriter<MenuEvent>,
     mut events: Local<Vec<WidgetEvent>>,
 ) {
     let at = pointer.position();
-    if pointer.is_idle(at, menu.widgets.input().mouse()) {
+    if pointer.is_idle(menu.widgets.input().mouse(), &buttons, &scroll) {
         return;
     }
-    let now_ms = menu_clock(&time);
+    let now_ms = gui_clock(&time);
     let modifiers = modifiers(&keys);
-    let width = text_width(atlas.as_deref());
+    let width = text_width(font.as_deref());
     let widgets = &mut menu.widgets;
-    let buttons = &*pointer.buttons;
-    if let Some(at) = at {
-        widgets.mouse_move(scene::gui_point(at));
-        if buttons.pressed(MouseButton::Left) && !buttons.just_pressed(MouseButton::Left) {
-            widgets.mouse_drag(at.x, now_ms, &width, &mut events);
+    widgets.mouse_move(pointer.point());
+    if buttons.pressed(MouseButton::Left) && !buttons.just_pressed(MouseButton::Left) {
+        widgets.mouse_drag(at.x, now_ms, &width, &mut events);
+    }
+    for (button, pressed) in BUTTONS {
+        if buttons.just_pressed(button) {
+            widgets.mouse_press(
+                PointerPress {
+                    x: at.x,
+                    y: at.y,
+                    button: pressed,
+                    modifiers,
+                    now_ms,
+                },
+                &width,
+                &mut events,
+            );
         }
-        for (button, pressed) in BUTTONS {
-            if buttons.just_pressed(button) {
-                widgets.mouse_press(
-                    PointerPress {
-                        x: at.x,
-                        y: at.y,
-                        button: pressed,
-                        modifiers,
-                        now_ms,
-                    },
-                    &width,
-                    &mut events,
-                );
-            }
-        }
-        let down = f64::from(pointer.scroll.delta.y);
-        if down != 0.0 {
-            widgets.mouse_wheel(at.x, at.y, down, &mut events);
-        }
+    }
+    let down = f64::from(scroll.delta.y);
+    if down != 0.0 {
+        widgets.mouse_wheel(at.x, at.y, down, &mut events);
     }
     for (button, released) in BUTTONS {
         if buttons.just_released(button) {
@@ -118,7 +120,7 @@ pub(crate) fn menu_keys(
     mut menu: ResMut<Menu>,
     mut input: MenuKeys,
     time: Res<Time<Real>>,
-    atlas: Option<Res<GuiAtlas>>,
+    font: Option<Res<Font>>,
     mut out: MessageWriter<MenuEvent>,
     mut events: Local<Vec<WidgetEvent>>,
 ) {
@@ -126,9 +128,9 @@ pub(crate) fn menu_keys(
         input.keyboard.clear();
         return;
     }
-    let now_ms = menu_clock(&time);
+    let now_ms = gui_clock(&time);
     let modifiers = modifiers(&input.keys);
-    let width = text_width(atlas.as_deref());
+    let width = text_width(font.as_deref());
     for key in input.keyboard.read() {
         if key.state != ButtonState::Pressed {
             continue;
@@ -144,7 +146,7 @@ pub(crate) fn menu_keys(
         if modifiers.is_shortcut()
             && let Some(shortcut) = Shortcut::of(&key.logical_key)
         {
-            let read = || input.clipboard.as_deref_mut().and_then(clipboard_text);
+            let read = || clipboard_text(input.clipboard.as_deref_mut());
             let copied = shortcut.apply(widgets, read, &width, &mut events);
             if let (Some(text), Some(clipboard)) = (copied, input.clipboard.as_deref_mut()) {
                 let _ = clipboard.set_text(text);
@@ -221,13 +223,6 @@ impl Shortcut {
     }
 }
 
-fn clipboard_text(clipboard: &mut Clipboard) -> Option<String> {
-    match clipboard.fetch_text() {
-        ClipboardRead::Ready(Ok(text)) => Some(text),
-        _ => None,
-    }
-}
-
 pub(crate) fn menu_deferred(
     mut menu: ResMut<Menu>,
     time: Res<Time<Real>>,
@@ -236,7 +231,7 @@ pub(crate) fn menu_deferred(
 ) {
     menu.bypass_change_detection()
         .widgets
-        .apply_deferred(menu_clock(&time), &mut events);
+        .apply_deferred(gui_clock(&time), &mut events);
     if !events.is_empty() {
         menu.set_changed();
     }

@@ -114,7 +114,6 @@ fn project_slot_icons(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
 
     use bevy::app::App;
     use bevy::prelude::DetectChanges;
@@ -144,8 +143,13 @@ mod tests {
     use mcrs_minecraft_resource::ResourceLocation;
 
     use super::*;
-    use crate::menu_test_app::{self, ATLAS, MODELS, TABLE};
-    use crate::scene::{GuiAtlas, GuiScene, GuiSize, draw_screens};
+    use crate::container_draw::{ContainerLayer, container_draw};
+    use crate::gui_layer::GuiLayer;
+    use crate::gui_pointer::GuiPointer;
+    use crate::gui_size::GuiSize;
+    use crate::hotbar::{HotbarLayer, hotbar_draw};
+    use crate::menu_test_app::{self, MODELS, TABLE};
+    use crate::scene_icon::SceneIcon;
 
     fn stack(path: &str, count: u8) -> ItemStack {
         let name = format!("minecraft:{path}");
@@ -273,18 +277,18 @@ mod tests {
         #[test]
         fn a_steady_frame_draws_the_slot_icons_of_full_holders_without_allocation() {
             let mut app = icon_app();
-            app.insert_resource(GuiAtlas(Arc::clone(&ATLAS)))
-                .insert_resource(GuiScene {
-                    size: GuiSize {
-                        width: menu_test_app::GUI.width,
-                        height: menu_test_app::GUI.height,
-                        scale: 1,
-                    },
-                    ..GuiScene::default()
-                })
-                .insert_resource(Screen::Menu)
-                .add_plugins(PlayerHoldersPlugin);
+            menu_test_app::insert_gui_assets(app.world_mut());
+            app.insert_resource(GuiSize {
+                width: menu_test_app::GUI.width,
+                height: menu_test_app::GUI.height,
+                scale: 1,
+            })
+            .insert_resource(GuiPointer::new(bevy::math::DVec2::ZERO))
+            .insert_resource(Screen::Menu)
+            .add_plugins(PlayerHoldersPlugin);
             let world = app.world_mut();
+            world.spawn(HotbarLayer);
+            world.spawn(ContainerLayer);
             let player = world.spawn_empty().id();
             world
                 .run_system_cached_with(restore_holders, (player, PlayerItems::default()))
@@ -309,26 +313,32 @@ mod tests {
             app.update();
 
             let world = app.world_mut();
-            let draw = world.register_system(draw_screens);
-            let frame = |world: &mut World| {
-                let mut scene = world.resource_mut::<GuiScene>();
-                scene.quads.clear();
-                scene.icons.clear();
-                world.run_system(draw).unwrap();
+            let draw_hotbar = world.register_system(hotbar_draw);
+            let draw_container = world.register_system(container_draw);
+            let mut layers = world.query::<&mut GuiLayer>();
+            let mut frame = |world: &mut World| {
+                for mut layer in layers.iter_mut(world) {
+                    layer.redraw();
+                }
+                world.run_system(draw_hotbar).unwrap();
+                world.run_system(draw_container).unwrap();
             };
             frame(world);
             frame(world);
             let before = mcrs_test_alloc::allocations();
             frame(world);
             let allocations = mcrs_test_alloc::allocations() - before;
-            let scene = world.resource::<GuiScene>();
+            let icons: Vec<SceneIcon> = layers
+                .iter(world)
+                .flat_map(|layer| layer.icons().iter().copied())
+                .collect();
             assert_eq!(
-                scene.icons.len(),
+                icons.len(),
                 9 + 27 + 36 + 1,
                 "the hotbar, the chest, the player inventory and the carried stack"
             );
             assert!(
-                scene.icons.iter().all(|icon| icon.overlay.count == 5),
+                icons.iter().all(|icon| icon.overlay.count == 5),
                 "each icon carries the count of its stack"
             );
             assert_eq!(allocations, 0, "no slot changed since the last frame");

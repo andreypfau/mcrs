@@ -1,19 +1,26 @@
-use crate::atlas::decode_png;
 use crate::resource_set::ResourceSet;
 use crate::sprite_error::SpriteError;
-use mcrs_minecraft_model_file::resource_id::resource_path;
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource_pack::{RgbaImage, pack_path};
 
 pub fn load_colormap(pack: &ResourceSet, name: &str) -> Result<Vec<u8>, SpriteError> {
-    let path = resource_path(&format!("minecraft:colormap/{name}"), "textures", "png");
-    let (data, width, height) = decode_png(pack.read(&path)?, &path)?;
-    if width != 256 || height != 256 {
+    let path = pack_path(
+        ResourceLocation::new("minecraft", &format!("colormap/{name}"))?,
+        "textures",
+        "png",
+    );
+    let image = RgbaImage::decode_png(pack.read(&path)?).map_err(|error| SpriteError::Decode {
+        path: path.clone(),
+        error,
+    })?;
+    if image.width != 256 || image.height != 256 {
         return Err(SpriteError::ColormapSize {
             path,
-            width,
-            height,
+            width: image.width,
+            height: image.height,
         });
     }
-    Ok(data)
+    Ok(image.rgba)
 }
 
 pub fn colormap_rgba(map: Option<&[u8]>, temperature: f32, downfall: f32) -> Option<[f32; 4]> {

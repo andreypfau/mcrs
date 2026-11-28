@@ -1,0 +1,16 @@
+[package]
+name = "mcrs_minecraft_resource_pack"
+description = "The files of a resource pack, its PNG decoder and the missing texture, with no Bevy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_resource.workspace = true
+png.workspace = true

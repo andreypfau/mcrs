@@ -1,7 +1,6 @@
 use std::fmt;
 
-use mcrs_minecraft_model::atlas::decode_png;
-use mcrs_minecraft_model::sprite_error::SpriteError;
+use mcrs_minecraft_resource_pack::{PngError, RgbaImage};
 
 pub const SKIN_SIDE: u32 = 64;
 const ROW: usize = SKIN_SIDE as usize * 4;
@@ -26,7 +25,7 @@ pub struct SkinImage(Vec<u8>);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SkinError {
-    Decode(SpriteError),
+    Decode(PngError),
     Size { width: u32, height: u32 },
     Length { expected: usize, found: usize },
 }
@@ -77,8 +76,8 @@ impl SkinImage {
         {
             return Err(SkinError::Size { width, height });
         }
-        let (rgba, width, height) = decode_png(bytes, "skin").map_err(SkinError::Decode)?;
-        Self::from_rgba(width, height, rgba)
+        let image = RgbaImage::decode_png(bytes).map_err(SkinError::Decode)?;
+        Self::from_rgba(image.width, image.height, image.rgba)
     }
 
     pub fn from_rgba(width: u32, height: u32, rgba: Vec<u8>) -> Result<Self, SkinError> {

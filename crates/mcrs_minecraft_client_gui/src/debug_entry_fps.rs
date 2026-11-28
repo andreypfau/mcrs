@@ -16,14 +16,6 @@ pub const HISTORY: usize = CPU_WINDOW;
         reason = "frame time measurements carry wall-clock instants, so the one-second window compares them with the wall clock"
     )
 )]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "runs only on a debug screen refresh, at most ten times a second while the F3 overlay shows or when the stats log is due"
-    )
-)]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     diagnostics: Res<DiagnosticsStore>,
@@ -72,14 +64,6 @@ pub fn display(
 
 const BRAND: &str = "mcrs";
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "runs only on a debug screen refresh, at most ten times a second while the F3 overlay shows or when the stats log is due, and the displayer takes owned lines"
-    )
-)]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 pub fn display_version(mut displayer: ResMut<DebugScreenDisplayer>) {
     displayer.add_priority_line(format!(
         "Minecraft {} ({}/{BRAND})",

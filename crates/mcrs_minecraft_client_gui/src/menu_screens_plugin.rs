@@ -4,48 +4,48 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_client_options::ClientOptions;
-use mcrs_minecraft_client_widget::{WidgetEvent, WidgetId};
+use mcrs_minecraft_client_widget::WidgetEvent;
 use mcrs_minecraft_client_world::player::Player;
-use mcrs_minecraft_client_world::screen::{
-    AccessibilityParent, ControlsParent, CreateWorldParent, Screen,
-};
+use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_client_world::session::{LocalServerStopped, OpenLocalWorld};
 use mcrs_minecraft_client_world::world_list::{
     CreateWorld, DeleteWorld, PlayWorld, ReadWorldList, WorldList, WorldStoreFailed, WorldTypes,
 };
 use mcrs_minecraft_network::client::{ConnectionEnded, LeaveRequest};
+use mcrs_minecraft_render::PanoramaView;
 use time::UtcOffset;
 
 use crate::accessibility_settings_screen;
-use crate::controls_screen;
-use crate::create_world_screen::{self, NewWorldForm};
+use crate::create_world_screen::NewWorldForm;
 use crate::cursor_grab::grab;
-use crate::delete_world_screen;
-use crate::disconnected_screen;
+use crate::draw_gate::layer_stale;
 use crate::follow_create_world::{follow_create_world, on_create_world};
 use crate::follow_list_answer::follow_list_answer;
 use crate::follow_menu_events::{DeleteTarget, follow_menu_events};
-use crate::language::ClientLanguage;
+use crate::gui_atlas_layout::GuiAtlasLayout;
+use crate::gui_layer::spawn_layer;
+use crate::gui_phase::GuiPhase;
+use crate::gui_size::GuiSize;
 use crate::menu::Menu;
-use crate::menu_draw::WorldPresence;
+use crate::menu_draw::MenuLayer;
 use crate::menu_event::MenuEvent;
 use crate::menu_input::modifiers;
 use crate::menu_input_systems::MenuInputSystems;
 use crate::menu_options_systems::MenuOptionsSystems;
+use crate::message_screen::MessageLayer;
 use crate::mouse_settings_screen;
+use crate::next_screen::next_screen;
 use crate::option_sub_screen;
 use crate::options_screen;
-use crate::pause_screen;
-use crate::project_menu::{MenuExtent, SingleplayerActive, max_gui_scale, project_menu};
-use crate::scene::GuiAtlas;
-use crate::select_world_screen;
+use crate::panorama_view;
+use crate::project_menu::{SingleplayerActive, max_gui_scale, project_menu};
 use crate::session_screens::{DisconnectReason, follow_session, show_failed_start};
-use crate::title_draw::TitleScreenState;
-use crate::title_screen;
+use crate::title_draw::{TitleLayer, TitleScreenState};
 use crate::video_settings_screen::{self, wheel_gui_scale};
 use crate::world_entry::LocalOffset;
-use crate::world_list_error_screen;
+use crate::world_presence::world_presence;
 use crate::world_rows::{PreselectedWorld, project_world_rows};
+use mcrs_minecraft_font::ClientLanguage;
 
 pub struct MenuScreensPlugin {
     pub preselected_world: Option<String>,
@@ -58,12 +58,12 @@ impl Plugin for MenuScreensPlugin {
         app.insert_resource(PreselectedWorld(self.preselected_world.clone()))
             .insert_resource(LocalOffset(self.utc_offset))
             .insert_resource(SingleplayerActive(self.singleplayer))
-            .init_resource::<MenuExtent>()
             .init_resource::<DeleteTarget>()
             .init_resource::<WorldList>()
             .init_resource::<WorldTypes>()
             .init_resource::<NewWorldForm>()
             .init_resource::<TitleScreenState>()
+            .init_resource::<crate::gui_fade::GuiFade>()
             .init_resource::<DisconnectReason>()
             .add_message::<OpenLocalWorld>()
             .add_message::<LocalServerStopped>()
@@ -91,16 +91,18 @@ impl Plugin for MenuScreensPlugin {
                                 .or_else(on_message::<LocalServerStopped>),
                         ),
                         project_menu.run_if(
-                            resource_exists::<GuiAtlas>
+                            resource_exists::<GuiAtlasLayout>
                                 .and_then(resource_exists::<ClientLanguage>)
                                 .and_then(
                                     resource_changed::<Screen>
-                                        .or_else(resource_changed::<MenuExtent>)
+                                        .or_else(resource_changed::<GuiSize>)
                                         .or_else(resource_changed::<ClientOptions>)
                                         .or_else(resource_changed::<ClientLanguage>)
                                         .or_else(resource_changed::<NewWorldForm>)
                                         .or_else(resource_changed::<WorldTypes>)
-                                        .or_else(not(resource_exists::<Menu>)),
+                                        .or_else(not(resource_exists::<Menu>))
+                                        .or_else(any_component_removed::<Player>)
+                                        .or_else(any_match_filter::<Added<Player>>),
                                 ),
                         ),
                     )
@@ -111,7 +113,7 @@ impl Plugin for MenuScreensPlugin {
                         follow_list_answer.run_if(resource_equals(Screen::SelectWorld)),
                         project_world_rows.run_if(
                             resource_equals(Screen::SelectWorld)
-                                .and_then(resource_exists::<GuiAtlas>)
+                                .and_then(resource_exists::<GuiAtlasLayout>)
                                 .and_then(resource_exists::<ClientLanguage>),
                         ),
                         write_menu_options.in_set(MenuOptionsSystems),
@@ -123,116 +125,54 @@ impl Plugin for MenuScreensPlugin {
                         .after(MenuInputSystems)
                         .run_if(resource_exists::<Menu>),
                 ),
+            )
+            .add_systems(
+                Startup,
+                (
+                    spawn_layer::<MenuLayer>,
+                    spawn_layer::<MessageLayer>,
+                    spawn_layer::<TitleLayer>,
+                ),
+            )
+            .add_systems(
+                PostUpdate,
+                panorama_view::project_panorama_view.run_if(
+                    resource_exists::<PanoramaView>.and_then(
+                        resource_changed::<Screen>
+                            .or_else(any_match_filter::<Added<Player>>)
+                            .or_else(any_component_removed::<Player>)
+                            .or_else(panorama_view::panorama_shows),
+                    ),
+                ),
             );
+        add_screen_draws(app);
     }
 }
 
-fn parent(screen: Screen, world: WorldPresence) -> Screen {
-    match screen {
-        Screen::Options => match world {
-            WorldPresence::InWorld => Screen::Pause,
-            WorldPresence::NoWorld => Screen::Title,
-        },
-        Screen::AccessibilitySettings(AccessibilityParent::Title) => Screen::Title,
-        Screen::VideoSettings
-        | Screen::AccessibilitySettings(AccessibilityParent::Options)
-        | Screen::Controls(ControlsParent::Options) => Screen::Options,
-        Screen::Controls(ControlsParent::AccessibilitySettings(parent)) => {
-            Screen::AccessibilitySettings(parent)
-        }
-        Screen::MouseSettings(parent) => Screen::Controls(parent),
-        Screen::SelectWorld | Screen::CreateWorld(CreateWorldParent::Title) => Screen::Title,
-        Screen::DeleteWorldConfirmation | Screen::CreateWorld(CreateWorldParent::SelectWorld) => {
-            Screen::SelectWorld
-        }
-        Screen::None
-        | Screen::Title
-        | Screen::Menu
-        | Screen::GameModeSwitcher(_)
-        | Screen::Chat
-        | Screen::Pause
-        | Screen::Death
-        | Screen::Message(_)
-        | Screen::LevelLoading
-        | Screen::Disconnected
-        | Screen::WorldListError => Screen::None,
-    }
-}
-
-fn target(shown: Screen, widget: WidgetId, world: WorldPresence) -> Option<Screen> {
-    match (shown, widget) {
-        (Screen::Pause, pause_screen::OPTIONS) | (Screen::Title, title_screen::OPTIONS) => {
-            Some(Screen::Options)
-        }
-        (Screen::Title, title_screen::ACCESSIBILITY) => {
-            Some(Screen::AccessibilitySettings(AccessibilityParent::Title))
-        }
-        (Screen::Options, options_screen::VIDEO) => Some(Screen::VideoSettings),
-        (Screen::Options, options_screen::ACCESSIBILITY) => {
-            Some(Screen::AccessibilitySettings(AccessibilityParent::Options))
-        }
-        (Screen::Options, options_screen::CONTROLS) => {
-            Some(Screen::Controls(ControlsParent::Options))
-        }
-        (Screen::AccessibilitySettings(parent), accessibility_settings_screen::CONTROLS) => Some(
-            Screen::Controls(ControlsParent::AccessibilitySettings(parent)),
-        ),
-        (Screen::Controls(parent), controls_screen::MOUSE_SETTINGS) => {
-            Some(Screen::MouseSettings(parent))
-        }
-        (Screen::Disconnected, disconnected_screen::BACK)
-        | (Screen::WorldListError, world_list_error_screen::CANCEL)
-        | (Screen::SelectWorld, select_world_screen::BACK) => Some(Screen::Title),
-        (Screen::Title, title_screen::SINGLEPLAYER) => Some(Screen::SelectWorld),
-        (Screen::SelectWorld, select_world_screen::DELETE) => Some(Screen::DeleteWorldConfirmation),
-        (Screen::SelectWorld, select_world_screen::CREATE) => {
-            Some(Screen::CreateWorld(CreateWorldParent::SelectWorld))
-        }
+fn add_screen_draws(app: &mut App) {
+    app.add_systems(
+        PostUpdate,
         (
-            Screen::DeleteWorldConfirmation,
-            delete_world_screen::DELETE | delete_world_screen::CANCEL,
-        ) => Some(Screen::SelectWorld),
-        (Screen::Pause, pause_screen::BACK_TO_GAME)
-        | (Screen::Options, options_screen::DONE)
-        | (Screen::CreateWorld(_), create_world_screen::CANCEL)
-        | (
-            Screen::VideoSettings
-            | Screen::AccessibilitySettings(_)
-            | Screen::Controls(_)
-            | Screen::MouseSettings(_),
-            option_sub_screen::DONE,
-        ) => Some(parent(shown, world)),
-        _ => None,
-    }
-}
-
-pub(crate) fn next_screen(shown: Screen, event: MenuEvent, world: WorldPresence) -> Option<Screen> {
-    match event {
-        MenuEvent::CloseRequested
-            if matches!(
-                shown,
-                Screen::Title
-                    | Screen::Death
-                    | Screen::Message(_)
-                    | Screen::LevelLoading
-                    | Screen::Disconnected
-                    | Screen::WorldListError
-            ) =>
-        {
-            None
-        }
-        MenuEvent::CloseRequested => Some(parent(shown, world)),
-        MenuEvent::Widget(WidgetEvent::Activated { widget, .. }) => target(shown, widget, world),
-        MenuEvent::Widget(_) | MenuEvent::Confirmed => None,
-    }
-}
-
-pub(crate) fn world_presence(players: &Query<(), With<Player>>) -> WorldPresence {
-    if players.is_empty() {
-        WorldPresence::NoWorld
-    } else {
-        WorldPresence::InWorld
-    }
+            (
+                crate::menu_draw::draw.run_if(
+                    layer_stale::<MenuLayer>().or_else(resource_changed_or_removed::<Menu>),
+                ),
+                crate::message_screen::draw.run_if(
+                    layer_stale::<MessageLayer>()
+                        .or_else(resource_changed::<Screen>)
+                        .or_else(resource_exists_and_changed::<WorldTypes>)
+                        .or_else(resource_exists_and_changed::<ClientLanguage>),
+                ),
+                crate::title_draw::draw
+                    .run_if(layer_stale::<TitleLayer>().or_else(resource_changed::<Screen>)),
+            )
+                .chain()
+                .in_set(GuiPhase::Draw),
+            crate::title_draw::project_title_fade
+                .in_set(GuiPhase::Draw)
+                .run_if(|screen: Res<Screen>| *screen == Screen::Title || screen.is_changed()),
+        ),
+    );
 }
 
 fn open_pause_screen(
@@ -332,7 +272,6 @@ fn write_menu_options(
 #[cfg(test)]
 mod tests {
     mod jar {
-        use std::sync::Arc;
 
         use bevy::input::keyboard::{Key, KeyboardInput};
         use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
@@ -347,18 +286,24 @@ mod tests {
         use mcrs_minecraft_model::resource_set::ResourceSet;
         use time::UtcOffset;
 
+        use mcrs_minecraft_client_widget::WidgetId;
+        use mcrs_minecraft_client_world::screen::{AccessibilityParent, ControlsParent};
+
         use super::super::*;
         use crate::accessibility_settings_screen::accessibility_settings_screen;
         use crate::controls_screen::controls_screen;
-        use crate::font::corpus_font;
+        use crate::corpus_font::corpus_font;
+        use crate::corpus_language::corpus_language;
+        use crate::gui_config::GuiConfig;
+        use crate::gui_pointer::GuiPointer;
+        use crate::gui_size::GuiSize;
         use crate::menu_plugin::MenuPlugin;
         use crate::menu_test_app::{
-            ATLAS, GUI, caption, click, game_app, grab_mode, screen, tap_escape,
+            GUI, caption, click, game_app, grab_mode, insert_gui_assets, screen, tap_escape,
         };
         use crate::mouse_settings_screen::mouse_settings_screen;
         use crate::options_screen::options_screen;
         use crate::pause_screen::pause_screen;
-        use crate::scene::{GuiConfig, GuiScene, GuiSize};
         use crate::video_settings_screen::video_settings_screen;
 
         #[test]
@@ -389,31 +334,29 @@ mod tests {
             ))
             .insert_resource(GuiConfig {
                 scale: 1,
-                cursor: Some(IVec2::ZERO),
+                cursor: None,
                 frozen_ticks: None,
                 advanced_tooltips: false,
             })
-            .insert_resource(GuiScene {
-                size: GuiSize {
-                    width: GUI.width,
-                    height: GUI.height,
-                    scale: 1,
-                },
-                ..GuiScene::default()
+            .insert_resource(GuiSize {
+                width: GUI.width,
+                height: GUI.height,
+                scale: 1,
             })
+            .insert_resource(GuiPointer::default())
             .init_resource::<ClientOptions>()
             .init_resource::<Screen>()
             .init_resource::<Time<Real>>();
             app.world_mut().spawn((Window::default(), PrimaryWindow));
             app.world_mut().spawn(Player);
             app.update();
-            let atlas = GuiAtlas(Arc::clone(&ATLAS));
-            let language = ClientLanguage::load(ResourceSet::corpus()).unwrap();
+            let language = ClientLanguage::load(ResourceSet::corpus().files()).unwrap();
             tap_escape(&mut app);
             assert_eq!(screen(&app), Screen::Pause);
             assert!(!app.world().contains_resource::<Menu>());
 
-            app.insert_resource(atlas).insert_resource(language);
+            insert_gui_assets(app.world_mut());
+            app.insert_resource(language);
             app.update();
             assert!(app.world().contains_resource::<Menu>());
         }
@@ -448,17 +391,20 @@ mod tests {
                 origin: LocalWorldOrigin::Opened,
             });
             tap_escape(&mut app);
-            assert_eq!(caption(&app, pause_screen::LAST), "Save and Quit to Title");
+            assert_eq!(
+                caption(&app, crate::pause_screen::LAST),
+                "Save and Quit to Title"
+            );
             click(&mut app, 150, 135);
             assert_eq!(app.should_exit(), None);
             assert!(!app.world().resource::<Messages<LeaveRequest>>().is_empty());
             let menu = app.world().resource::<Menu>();
-            assert!(!menu.widgets.get(pause_screen::LAST).unwrap().active);
+            assert!(!menu.widgets.get(crate::pause_screen::LAST).unwrap().active);
         }
 
         #[test]
         fn the_widgets_sit_where_the_screens_place_them() {
-            let language = ClientLanguage::corpus();
+            let language = corpus_language();
             let font = corpus_font();
             let pause = pause_screen(GUI, language, font, "menu.returnToMenu").unwrap();
             let options = options_screen(GUI, language, font, 70).unwrap();
@@ -763,8 +709,7 @@ mod tests {
 
             resize_window(&mut app, 1920, 1080);
             app.world_mut()
-                .resource_mut::<GuiScene>()
-                .map_unchanged(|scene| &mut scene.size)
+                .resource_mut::<GuiSize>()
                 .set_if_neq(GuiSize {
                     width: GUI.width,
                     height: 150,
@@ -793,8 +738,7 @@ mod tests {
             open_sub_screen(&mut app, &[VIDEO_BUTTON]);
             click(&mut app, 100, 85);
             app.world_mut()
-                .resource_mut::<GuiScene>()
-                .map_unchanged(|scene| &mut scene.size)
+                .resource_mut::<GuiSize>()
                 .set_if_neq(GuiSize {
                     width: 854,
                     height: 480,
@@ -857,7 +801,7 @@ mod tests {
                     step(&mut app);
                     seen.push(shown(&app));
                 }
-                let mouse_settings = Some(controls_screen::MOUSE_SETTINGS);
+                let mouse_settings = Some(crate::controls_screen::MOUSE_SETTINGS);
                 assert_eq!(
                     seen,
                     [

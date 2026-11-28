@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 
 use glam::{DVec3, Vec3};
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_resource::ResourceLocation;
 use serde::Deserialize;
 
 use crate::model_file_error::ModelFileError;
-use crate::resource_id::full_id;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum GuiLight {
@@ -174,13 +174,15 @@ impl ModelFile {
             .textures
             .unwrap_or_default()
             .into_iter()
-            .map(|(slot, value)| (slot, value.compile()))
-            .collect();
+            .map(|(slot, value)| Ok((slot, value.compile()?)))
+            .collect::<Result<_, ModelFileError>>()?;
+        let parent = raw
+            .parent
+            .filter(|parent| !parent.is_empty())
+            .map(|parent| normalized(&parent))
+            .transpose()?;
         Ok(Self {
-            parent: raw
-                .parent
-                .filter(|parent| !parent.is_empty())
-                .map(|p| full_id(&p)),
+            parent,
             elements,
             textures,
             ambient_occlusion: raw.ambientocclusion,
@@ -225,6 +227,10 @@ fn display_table(
     Ok(table)
 }
 
+fn normalized(id: &str) -> Result<String, ModelFileError> {
+    Ok(ResourceLocation::read(id)?.to_string())
+}
+
 #[must_use]
 pub fn direction_named(name: &str) -> Option<Direction> {
     Direction::all()
@@ -254,12 +260,12 @@ enum RawSlot {
 }
 
 impl RawSlot {
-    fn compile(self) -> SlotValue {
-        match self {
+    fn compile(self) -> Result<SlotValue, ModelFileError> {
+        Ok(match self {
             RawSlot::Text(text) => match text.strip_prefix('#') {
                 Some(slot) => SlotValue::Reference(slot.to_owned()),
                 None => SlotValue::Texture(TextureValue {
-                    sprite: full_id(&text),
+                    sprite: normalized(&text)?,
                     force_translucent: false,
                 }),
             },
@@ -267,10 +273,10 @@ impl RawSlot {
                 sprite,
                 force_translucent,
             } => SlotValue::Texture(TextureValue {
-                sprite: full_id(&sprite),
+                sprite: normalized(&sprite)?,
                 force_translucent,
             }),
-        }
+        })
     }
 }
 

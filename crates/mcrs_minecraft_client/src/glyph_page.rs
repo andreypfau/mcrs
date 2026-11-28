@@ -5,14 +5,12 @@ use bevy::image::ImageSampler;
 use bevy::math::{Rect, UVec2, Vec2};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use mcrs_minecraft_client_gui::font::Font;
-use mcrs_minecraft_client_gui::font_definition::FontOptions;
-use mcrs_minecraft_client_gui::font_glyph::{
-    ImageSource, MISSING_GLYPH_SIZE, missing_glyph_pixels,
-};
-use mcrs_minecraft_client_gui::glyph_cache::{self, CELL, COLUMNS, ROWS, SLOTS};
-use mcrs_minecraft_client_gui::language::ClientLanguage;
+use mcrs_minecraft_client_gui::inflate_zip::inflate_zip;
 use mcrs_minecraft_client_gui::sign_text::SignQuad;
+use mcrs_minecraft_font::{
+    CELL, COLUMNS, ClientLanguage, Font, FontOptions, ImageSource, MISSING_GLYPH_SIZE, ROWS, SLOTS,
+    cell_origin, missing_glyph_pixels,
+};
 
 use crate::stream::BlockCatalog;
 
@@ -116,7 +114,7 @@ impl GlyphPage {
                     }
                     None => return None,
                 };
-                let (x, y) = glyph_cache::cell_origin(cell);
+                let (x, y) = cell_origin(cell);
                 (
                     self.unifont + Vec2::new(x as f32, y as f32),
                     Vec2::new(columns.min(CELL as u32) as f32, CELL as f32),
@@ -131,7 +129,7 @@ impl GlyphPage {
             let Some(cell_pixels) = font.unifont_cell(glyph) else {
                 continue;
             };
-            let (x, y) = glyph_cache::cell_origin(cell);
+            let (x, y) = cell_origin(cell);
             let at = self.unifont.as_uvec2() + UVec2::new(x, y);
             blit(pixels, self.width, at, &cell_pixels, CELL as u32);
         }
@@ -161,7 +159,17 @@ fn load_assets(
         return;
     };
     let loaded = (|| {
-        let font = Font::load(pack, FontOptions::default())?;
+        let loaded =
+            Font::load(pack.files(), FontOptions::default(), inflate_zip).map_err(|failure| {
+                for notice in &failure.notices {
+                    warn!("{notice}");
+                }
+                failure.error.to_string()
+            })?;
+        for notice in &loaded.notices {
+            warn!("{notice}");
+        }
+        let font = loaded.font;
         let (page, pixels, height) = GlyphPage::new(&font);
         let mut image = Image::new(
             Extent3d {
@@ -175,7 +183,7 @@ fn load_assets(
             RenderAssetUsages::default(),
         );
         image.sampler = ImageSampler::nearest();
-        let language = ClientLanguage::load(pack)?;
+        let language = ClientLanguage::load(pack.files()).map_err(|error| error.to_string())?;
         Ok::<_, String>(TextAssets {
             font,
             language,

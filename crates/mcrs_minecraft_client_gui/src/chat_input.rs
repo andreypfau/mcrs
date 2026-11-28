@@ -1,35 +1,40 @@
-use bevy::clipboard::{Clipboard, ClipboardRead};
+use bevy::clipboard::Clipboard;
 use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::InputSystems;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::AccumulatedMouseScroll;
+use bevy::math::DVec2;
 use bevy::prelude::*;
 use bevy::time::Real;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_chat_client::{
     ChatScreen, ClickMode, Closed, Context, History, HistoryChange, InputStyle, Key, Outcome,
-    StyleClick, TabDirection, Tag, UnsentDraft,
+    StyleClick, Tag, UnsentDraft,
 };
-use mcrs_minecraft_client_widget::{Anchor, DOUBLE_CLICK_MS, GuiPoint, KeyModifiers, Step};
+use mcrs_minecraft_client_widget::{Anchor, DOUBLE_CLICK_MS, GuiPoint, KeyModifiers};
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_protocol_game::text::Text;
 
-use crate::chat::{self as chat_view, ChatFocus};
 use crate::chat_suggestions;
+use crate::chat_view::{self, ChatFocus};
 use crate::cursor_grab::grab;
-use crate::font::{Font, Span};
-use crate::item_decorations::WHITE;
-use crate::language::ClientLanguage;
+use crate::edit_input::{clipboard_text, copy_text, pastes, screen_key};
+use crate::gui_atlas_layout::GuiAtlasLayout;
+use crate::gui_pointer::GuiPointer;
+use crate::gui_quad::WHITE;
+use crate::gui_size::GuiSize;
+use crate::irect;
+use crate::layer_due;
 use crate::menu_input;
-use crate::scene::{GuiAtlas, GuiScene};
-use crate::span_events::SpanEvents;
-use crate::text::{self, Wrap};
 use mcrs_minecraft_client_world::chat::{
     self, Chat, ChatInput, ClientLookup, CommandWorld, SendChat,
 };
 use mcrs_minecraft_client_world::chat_history::CommandHistoryFile;
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_font::{
+    ClientLanguage, Font, Span, SpanEvents, Wrap, text_spans_with_events, wrap,
+};
 
 #[derive(Resource, Default)]
 pub struct ChatLines {
@@ -50,7 +55,7 @@ impl Plugin for ChatScreenPlugin {
                     .run_if(
                         resource_exists_and_changed::<Chat>
                             .or_else(resource_exists_and_changed::<ClientLanguage>)
-                            .or_else(resource_exists_and_changed::<GuiAtlas>),
+                            .or_else(resource_exists_and_changed::<GuiAtlasLayout>),
                     ),
             );
     }
@@ -60,18 +65,19 @@ fn project_lines(
     chat: Res<Chat>,
     screen: Res<Screen>,
     language: Option<Res<ClientLanguage>>,
-    atlas: Option<Res<GuiAtlas>>,
+    atlas: Option<Res<GuiAtlasLayout>>,
+    font: Option<Res<Font>>,
     mut lines: ResMut<ChatLines>,
 ) {
-    let (Some(language), Some(atlas)) = (language, atlas) else {
+    let (Some(language), Some(atlas), Some(font)) = (language, atlas, font) else {
         return;
     };
-    let changed = language.is_changed() || atlas.is_changed();
+    let changed = language.is_changed() || atlas.is_changed() || font.is_changed();
     if !changed && !chat.is_changed() {
         return;
     }
     let open = (*screen == Screen::Chat).then(|| chat_view::per_page(ChatFocus::Focused));
-    project(&chat, open, &language, &atlas.0.font, changed, &mut lines);
+    project(&chat, open, &language, &font, changed, &mut lines);
 }
 
 fn project(
@@ -87,8 +93,8 @@ fn project(
         events.clear();
     }
     let wrap_message = |text: &Text, tag: Option<Tag>, rows: &mut Vec<Vec<Span>>| {
-        let spans = text::text_spans_with_events(text, language, WHITE, events);
-        text::wrap(
+        let spans = text_spans_with_events(text, language, WHITE, events);
+        wrap(
             &spans,
             chat_view::wrap_width(tag),
             Wrap::ChatLog,
@@ -126,62 +132,7 @@ fn capture_keys(keys: &mut ButtonInput<KeyCode>) {
     keys.clear();
 }
 
-pub(crate) fn screen_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Key> {
-    let step = if modifiers.control {
-        Step::Word
-    } else {
-        Step::Char
-    };
-    let anchor = if modifiers.shift {
-        Anchor::Keep
-    } else {
-        Anchor::Move
-    };
-    Some(match code {
-        KeyCode::ArrowUp => Key::Up,
-        KeyCode::ArrowDown => Key::Down,
-        KeyCode::Tab => Key::Tab {
-            direction: if modifiers.shift {
-                TabDirection::Backward
-            } else {
-                TabDirection::Forward
-            },
-        },
-        KeyCode::Escape => Key::Escape,
-        KeyCode::Enter | KeyCode::NumpadEnter => Key::Enter,
-        KeyCode::Backspace => Key::Backspace { step },
-        KeyCode::Delete => Key::Delete { step },
-        KeyCode::ArrowLeft => Key::Left { step, anchor },
-        KeyCode::ArrowRight => Key::Right { step, anchor },
-        KeyCode::Home => Key::Home { anchor },
-        KeyCode::End => Key::End { anchor },
-        KeyCode::PageUp => Key::PageUp,
-        KeyCode::PageDown => Key::PageDown,
-        KeyCode::KeyA if modifiers.is_shortcut() => Key::SelectAll,
-        KeyCode::KeyC if modifiers.is_shortcut() => Key::Copy,
-        KeyCode::KeyX if modifiers.is_shortcut() => Key::Cut,
-        _ => return None,
-    })
-}
-
 pub(crate) const CHAT: KeyCode = KeyCode::KeyT;
-
-pub(crate) fn pastes(code: KeyCode, modifiers: KeyModifiers) -> bool {
-    modifiers.is_shortcut() && code == KeyCode::KeyV
-}
-
-pub(crate) fn clipboard_text(clipboard: Option<&mut Clipboard>) -> Option<String> {
-    match clipboard?.fetch_text() {
-        ClipboardRead::Ready(Ok(text)) => Some(text),
-        _ => None,
-    }
-}
-
-pub(crate) fn copy_text(clipboard: Option<&mut Clipboard>, text: &str) {
-    if let Some(clipboard) = clipboard {
-        let _ = clipboard.set_text(text);
-    }
-}
 
 #[derive(SystemParam)]
 struct ChatKeys<'w, 's> {
@@ -190,8 +141,9 @@ struct ChatKeys<'w, 's> {
     buttons: Res<'w, ButtonInput<MouseButton>>,
     scroll: Res<'w, AccumulatedMouseScroll>,
     clipboard: Option<ResMut<'w, Clipboard>>,
-    scene: Res<'w, GuiScene>,
-    last_cursor: Local<'s, IVec2>,
+    size: Res<'w, GuiSize>,
+    pointer: Res<'w, GuiPointer>,
+    last_cursor: Local<'s, DVec2>,
     input_dragging: Local<'s, bool>,
     last_input_click: Local<'s, Option<u64>>,
 }
@@ -247,7 +199,7 @@ fn chat_keys(
     mut keys: ChatKeys,
     mut state: ChatState,
     world: CommandWorld,
-    atlas: Option<Res<GuiAtlas>>,
+    font: Option<Res<Font>>,
     time: Res<Time<Real>>,
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
     mut sends: MessageWriter<SendChat>,
@@ -260,7 +212,7 @@ fn chat_keys(
     } else {
         return;
     };
-    let now_ms = menu_input::menu_clock(&time);
+    let now_ms = layer_due::gui_clock(&time);
     let lookup = world.lookup();
     let source = Source::new(world.level(), &lookup);
     let cx = chat::context(
@@ -270,12 +222,8 @@ fn chat_keys(
         chat.options,
         &chat.completions,
     );
-    let width = |text: &str| {
-        atlas
-            .as_deref()
-            .map_or(0, |atlas| atlas.0.font.str_width(text))
-    };
-    let rect = chat_view::input_bounds(keys.scene.size);
+    let width = menu_input::text_width(font.as_deref());
+    let rect = chat_view::input_bounds(*keys.size);
     if let Some((initial, style)) = opened {
         state.input.0.open(&initial, style, now_ms, &cx);
         state.input.0.scroll_input(rect, &width);
@@ -293,17 +241,16 @@ fn chat_keys(
     if typed.scroll {
         screen.scroll_input(rect, &width);
     }
-    let moved = *keys.last_cursor != keys.scene.cursor;
-    *keys.last_cursor = keys.scene.cursor;
-    if let Some(atlas) = atlas.as_deref() {
-        let font = &atlas.0.font;
+    let moved = *keys.last_cursor != keys.pointer.at();
+    *keys.last_cursor = keys.pointer.at();
+    if let Some(font) = font.as_deref() {
         input_mouse(
             &mut keys,
             screen,
             moved,
             modifiers.shift,
             font,
-            menu_input::menu_clock(&time),
+            layer_due::gui_clock(&time),
         );
         let changed = mouse(
             &keys,
@@ -416,8 +363,8 @@ fn input_mouse(
     font: &Font,
     now_ms: u64,
 ) {
-    let cursor = keys.scene.cursor;
-    let size = keys.scene.size;
+    let cursor = irect::point(keys.pointer.point());
+    let size = *keys.size;
     let rect = chat_view::input_bounds(size);
     let width = |text: &str| font.str_width(text);
     if !keys.buttons.pressed(MouseButton::Left) {
@@ -454,15 +401,14 @@ fn mouse(
     font: &Font,
     cx: &Context<'_, ClientLookup<'_>>,
 ) -> bool {
-    let scene = &*keys.scene;
+    let (size, cursor) = (*keys.size, irect::point(keys.pointer.point()));
     let left = keys.buttons.just_pressed(MouseButton::Left) && !*keys.input_dragging;
-    let rows = chat_suggestions::list_rows(scene.size, font, screen);
+    let rows = chat_suggestions::list_rows(size, font, screen);
     let over = rows.as_ref().and_then(|rows| {
-        chat_suggestions::row_under(rows.rect, scene.cursor).map(|row| rows.first + row)
+        chat_suggestions::row_under(rows.rect, cursor).map(|row| rows.first + row)
     });
-    let hovered = rows.and_then(|rows| {
-        chat_suggestions::row_at(rows.rect, scene.cursor).map(|row| rows.first + row)
-    });
+    let hovered = rows
+        .and_then(|rows| chat_suggestions::row_at(rows.rect, cursor).map(|row| rows.first + row));
     let step = keys.scroll.delta.y.clamp(-1.0, 1.0);
     match (over, screen.commands.list_mut()) {
         (Some(_), Some(list)) => {
@@ -500,8 +446,7 @@ fn mouse(
     if over.is_some() || !left {
         return false;
     }
-    let Some(span) = chat_view::open_chat_span_at(scene.size, &log.lines, scene.cursor, font)
-    else {
+    let Some(span) = chat_view::open_chat_span_at(size, &log.lines, cursor, font) else {
         return false;
     };
     let style = StyleClick {
@@ -519,6 +464,7 @@ fn mouse(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_client_widget::Step;
     use mcrs_minecraft_text::IntoText;
 
     #[test]

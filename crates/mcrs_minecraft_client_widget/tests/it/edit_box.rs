@@ -599,3 +599,14 @@ fn a_suggestion_follows_the_text_only_while_the_cursor_is_an_underscore() {
         assert_eq!(drawn, expected, "{name}");
     }
 }
+
+#[test]
+fn the_next_redraw_of_a_blinking_box_is_the_next_phase_edge() {
+    let mut screen = screen_of([widget(1, BOX, WidgetKind::EditBox(EditBox::default()))]);
+    assert_eq!(screen.next_redraw_ms(0), None);
+    screen.focus_initial(Some(ID), 1000, &mut Vec::new());
+    let cases = [(1000, 1300), (1300, 1600)];
+    for (now_ms, next) in cases {
+        assert_eq!(screen.next_redraw_ms(now_ms), Some(next), "at {now_ms}");
+    }
+}
