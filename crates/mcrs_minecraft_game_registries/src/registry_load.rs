@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use mcrs_minecraft_datapack::{
-    AvailablePack, Features, PackSelection, PackSource, ReadError, RootPacks, pack_stack,
-    read_vanilla,
-};
+use mcrs_minecraft_datapack::{PackSource, ReadError, RootPacks, read_vanilla};
 use mcrs_minecraft_registries::{
     ContentPaths, Diagnostic, Diagnostics, Received, Registries, RegistryAdditions,
 };
@@ -11,8 +8,6 @@ use mcrs_minecraft_registries::{
 use crate::packs::DATAPACK_REPORT;
 use crate::registries::declarations;
 pub use crate::registry_load_error::RegistryLoadError;
-
-const FILE_PREFIX: &str = "file/";
 
 pub fn load_registries(
     source: &dyn PackSource,
@@ -27,55 +22,11 @@ pub fn load_registries(
     let packs = RootPacks::read(source)?;
     let declarations = declarations(&source.read(DATAPACK_REPORT)?, extra)?;
 
-    let standard_packs = source.standard_packs();
-    if let Some(name) = standard_packs
-        .iter()
-        .find(|name| local_packs.contains(name))
-    {
-        return Err(RegistryLoadError::Declarations(format!(
-            "the extra pack {name} has the name of a local pack"
-        )));
-    }
-    let standard = |name: &str| standard_packs.iter().any(|standard| standard == name);
-    let local = |name: &str| local_packs.iter().any(|local| local == name);
-    let mut selection = PackSelection::default();
-    let mut available: Vec<AvailablePack> = packs
-        .available()
-        .iter()
-        .filter(|pack| {
-            (pack.id().strip_prefix(FILE_PREFIX)).is_none_or(|name| local(name) || standard(name))
-        })
-        .cloned()
-        .collect();
-    for id in embedded_packs {
-        if available.iter().any(|pack| pack.id() == id) {
-            return Err(RegistryLoadError::Declarations(format!(
-                "the embedded pack {id} has the id of another pack"
-            )));
-        }
-        selection.enabled.push(id.clone());
-        available.push(AvailablePack::embedded(id));
-    }
-    if !standard_packs.is_empty() {
-        let mut local_ids: Vec<&str> = (available.iter())
-            .map(AvailablePack::id)
-            .filter(|id| {
-                id.strip_prefix(FILE_PREFIX)
-                    .is_some_and(|name| !standard(name))
-            })
-            .collect();
-        local_ids.sort_unstable();
-        let standard_ids = standard_packs
-            .iter()
-            .map(|name| format!("{FILE_PREFIX}{name}"))
-            .filter(|id| available.iter().any(|pack| pack.id() == id));
-        let enabled = local_ids.into_iter().map(str::to_owned).chain(standard_ids);
-        selection.enabled.extend(enabled);
-    }
-    let (stack, found) = pack_stack(&selection, &available, &Features::vanilla(), false);
+    let (stack, found) = packs
+        .stack(source.standard_packs(), &local_packs, embedded_packs)
+        .map_err(|conflict| RegistryLoadError::Declarations(conflict.to_string()))?;
     let mut diagnostics = Diagnostics::default();
-    let unavailable = packs.unavailable().iter().cloned();
-    diagnostics.extend(found.into_iter().chain(unavailable).map(Diagnostic::Pack));
+    diagnostics.extend(found.into_iter().map(Diagnostic::Pack));
     let content = ContentPaths::new(&declarations);
     packs.read_files(source, &stack, &mut files, ".json", |path| {
         content.needs(path)
@@ -201,12 +152,9 @@ pub fn sent_by(registries: &Registries, known: bool) -> Received {
 pub fn registries_declaring(
     declarations: Vec<mcrs_minecraft_registries::Declaration>,
 ) -> Registries {
-    let (stack, _) = pack_stack(
-        &PackSelection::default(),
-        RootPacks::vanilla().available(),
-        &Features::vanilla(),
-        false,
-    );
+    let (stack, _) = RootPacks::vanilla()
+        .stack(&[], &[], Vec::new())
+        .unwrap_or_else(|conflict| panic!("{conflict}"));
     Registries::load(
         declarations,
         Arc::new(stack),
