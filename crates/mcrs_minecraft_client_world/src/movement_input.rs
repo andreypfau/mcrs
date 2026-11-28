@@ -23,6 +23,19 @@ impl MovementInput {
         sprint: false,
     };
 
+    #[must_use]
+    pub fn or(self, other: MovementInput) -> MovementInput {
+        MovementInput {
+            forward: self.forward || other.forward,
+            backward: self.backward || other.backward,
+            left: self.left || other.left,
+            right: self.right || other.right,
+            jump: self.jump || other.jump,
+            shift: self.shift || other.shift,
+            sprint: self.sprint || other.sprint,
+        }
+    }
+
     pub fn move_vector(self) -> DVec2 {
         DVec2::new(
             impulse(self.left, self.right),

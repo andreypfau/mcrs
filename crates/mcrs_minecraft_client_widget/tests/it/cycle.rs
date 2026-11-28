@@ -12,7 +12,7 @@ enum Input {
 }
 
 fn index(screen: &Widgets) -> Option<usize> {
-    match screen.get(WidgetId(1)).map(|widget| &widget.kind) {
+    match screen.get(WidgetId(1)).map(|widget| widget.kind()) {
         Some(WidgetKind::CycleButton(cycle)) => Some(cycle.index()),
         _ => None,
     }
@@ -79,7 +79,7 @@ fn a_boolean_cycle_button_starts_with_true() {
     screen.mouse_wheel(10.0, 10.0, -1.0, &mut Vec::new());
     let cycle = screen
         .get(WidgetId(1))
-        .and_then(|widget| match &widget.kind {
+        .and_then(|widget| match widget.kind() {
             WidgetKind::CycleButton(cycle) => Some(cycle),
             _ => None,
         });

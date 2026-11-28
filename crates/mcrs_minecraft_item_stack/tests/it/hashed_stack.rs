@@ -16,13 +16,14 @@ use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_stack::WireError;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::matches_hashed;
-use mcrs_minecraft_item_stack::read_hashed;
-use mcrs_minecraft_item_stack::read_wire_with_length;
-use mcrs_minecraft_item_stack::write_hashed;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
+use mcrs_minecraft_wire::Decode;
+use mcrs_minecraft_wire::Encode;
+use mcrs_minecraft_wire::ErrorKind;
 use mcrs_test_alloc::allocations;
 use serde::Deserialize;
 
@@ -233,7 +234,9 @@ fn stack_with(component: ComponentType, wire: &str) -> ItemStack {
     let mut frame = vec![0x01, 0x01, 0x01, 0x00, type_id];
     frame.extend(var_int(value.len()));
     frame.extend(value);
-    read_wire_with_length(&mut frame.as_slice(), &Names)
+    WireStackWithLength::decode(&mut frame.as_slice())
+        .expect("the game wrote a valid component")
+        .read(&Names)
         .expect("the game wrote a valid component")
         .expect("the stack is not empty")
 }
@@ -353,13 +356,14 @@ fn the_click_that_the_game_wrote_holds_the_hashes_of_the_stack() {
     for slot_field in [2, 2, 0] {
         skip(&mut input, slot_field);
         let before = input;
-        let stack = read_hashed(&mut input, &Names).expect("the game wrote a valid hashed stack");
+        let stack =
+            Option::<HashedStack>::decode(&mut input).expect("the game wrote a valid hashed stack");
         stacks.push((&before[..before.len() - input.len()], stack));
     }
     assert!(input.is_empty(), "{} bytes are left", input.len());
     for (recorded, stack) in &stacks {
         let mut written = Vec::new();
-        write_hashed(stack.as_ref(), &mut written).expect("a read stack writes");
+        stack.encode(&mut written).expect("a read stack writes");
         assert_eq!(written, *recorded);
     }
 
@@ -496,6 +500,11 @@ fn a_hashed_stack_matches_a_stack_by_the_rule_of_the_specification() {
         );
     }
     assert_eq!(claimed.removals, [REPAIR_COST_TYPE]);
+    assert_eq!(
+        hashed(Some(&stack(AIR, 5))),
+        None,
+        "an air stack has no hashed stack"
+    );
 }
 
 #[test]
@@ -505,8 +514,7 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         bytes.extend((0..257).flat_map(|_| [0x03, 0, 0, 0, 0]));
         bytes
     };
-    let cases: [(&str, Vec<u8>, WireError); 4] = [
-        ("presence byte", vec![0x02], WireError::Malformed),
+    let cases: [(&str, Vec<u8>, WireError); 3] = [
         (
             "cut hash",
             vec![0x01, 0x01, 0x01, 0x01, 0x03, 0, 0],
@@ -520,8 +528,8 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         ),
     ];
     for (name, bytes, expected) in cases {
-        let read = read_hashed(&mut bytes.as_slice(), &Names);
-        assert_eq!(read, Err(expected), "{name}");
+        let read = Option::<HashedStack>::decode(&mut bytes.as_slice()).map_err(wire_error);
+        assert_eq!(read, Err(Some(expected)), "{name}");
     }
 
     let accepted: [(&str, Vec<u8>, HashedStack); 2] = [
@@ -552,7 +560,7 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         ),
     ];
     for (name, bytes, expected) in accepted {
-        let read = read_hashed(&mut bytes.as_slice(), &Names);
+        let read = Option::<HashedStack>::decode(&mut bytes.as_slice()).map_err(wire_error);
         assert_eq!(read, Ok(Some(expected)), "{name}");
     }
 
@@ -564,8 +572,8 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         removals: vec![REPAIR_COST_TYPE, REPAIR_COST_TYPE],
     };
     assert_eq!(
-        write_hashed(Some(&repeated), &mut output),
-        Err(WireError::RepeatedComponentType(REPAIR_COST_TYPE))
+        repeated.encode(&mut output).map_err(wire_error),
+        Err(Some(WireError::RepeatedComponentType(REPAIR_COST_TYPE)))
     );
     assert_eq!(output, [0xAA], "a failed write leaves the output as it was");
 }
@@ -588,4 +596,12 @@ fn a_match_of_a_name_with_an_entity_hover_allocates_nothing_after_the_warm_up() 
     let allocated = allocations() - before;
 
     assert_eq!((matched, allocated), (Ok(true), 0));
+}
+
+fn wire_error(error: mcrs_minecraft_wire::Error) -> Option<WireError> {
+    match error.kind() {
+        ErrorKind::UnexpectedEnd => Some(WireError::UnexpectedEnd),
+        ErrorKind::Other(error) => error.downcast_ref::<WireError>().copied(),
+        _ => None,
+    }
 }

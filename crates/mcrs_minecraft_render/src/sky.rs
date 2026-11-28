@@ -149,8 +149,14 @@ impl Plugin for SkyRenderPlugin {
         render_app.add_systems(RenderStartup, init_sky).add_systems(
             Render,
             (
-                (prepare_sky, write_sky).in_set(RenderSystems::Prepare),
-                prepare_sky_bind_groups.in_set(RenderSystems::PrepareBindGroups),
+                (prepare_sky, write_sky)
+                    .in_set(RenderSystems::Prepare)
+                    .run_if(resource_exists::<Sky>)
+                    .run_if(resource_exists::<ExtractedSky>),
+                prepare_sky_bind_groups
+                    .in_set(RenderSystems::PrepareBindGroups)
+                    .run_if(resource_exists::<Sky>)
+                    .run_if(resource_exists::<ExtractedSky>),
             ),
         );
     }
@@ -182,7 +188,7 @@ pub struct ExtractedSky {
     pub clouds: AssetId<Image>,
 }
 
-#[derive(Resource)]
+#[derive(Resource, PartialEq)]
 pub(crate) struct SkyBindGroups {
     view: BindGroup,
     textures: BindGroup,
@@ -208,6 +214,21 @@ fn write_sky(sky: Option<Res<Sky>>, extracted: Option<Res<ExtractedSky>>, queue:
     queue.write_buffer(&sky.uniform, 0, bytemuck::bytes_of(&extracted.uniform));
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the pipelines are queued only when the sky effects or the transparency mode change"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(5))]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the system writes a cached pipeline only after it finds the entry missing or stale, so each write is a change"
+    )
+)]
 fn prepare_sky(
     sky: Option<ResMut<Sky>>,
     extracted: Option<Res<ExtractedSky>>,
@@ -277,8 +298,16 @@ fn sky_pipeline(sky: &Sky, draw: &SkyDraw) -> RenderPipelineDescriptor {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the system writes a cached bind group only after it finds the entry missing or stale, so each write is a change"
+    )
+)]
 fn prepare_sky_bind_groups(
     mut commands: Commands,
+    binds: Option<ResMut<SkyBindGroups>>,
     sky: Option<ResMut<Sky>>,
     extracted: Option<Res<ExtractedSky>>,
     images: Res<RenderAssets<GpuImage>>,
@@ -333,7 +362,13 @@ fn prepare_sky_bind_groups(
             bind_group
         }
     };
-    commands.insert_resource(SkyBindGroups { view, textures });
+    let next = SkyBindGroups { view, textures };
+    match binds {
+        Some(mut binds) => {
+            binds.set_if_neq(next);
+        }
+        None => commands.insert_resource(next),
+    }
 }
 
 #[derive(SystemParam)]

@@ -568,6 +568,7 @@ pub struct ClientboundRespawn {
 
 impl ClientboundRespawn {
     pub const KEEP_ATTRIBUTE_MODIFIERS: u8 = 0x01;
+    pub const KEEP_ENTITY_DATA: u8 = 0x02;
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -642,6 +643,13 @@ impl mcrs_minecraft_protocol::Decode<'_> for ClientboundSetEquipment {
             }
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundSetHealth {
+    pub health: f32,
+    pub food: VarInt,
+    pub saturation: f32,
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -789,6 +797,12 @@ pub struct ClientboundDisguisedChat<'a> {
     pub chat_type: ChatTypeId,
     pub sender_name: RawText<'a>,
     pub target_name: Option<RawText<'a>>,
+}
+
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct ClientboundPlayerCombatKill<'a> {
+    pub player_id: VarInt,
+    pub message: RawText<'a>,
 }
 
 #[derive(Clone, Debug, Encode, Decode)]

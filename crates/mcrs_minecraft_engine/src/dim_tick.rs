@@ -32,6 +32,7 @@ use crate::coordinator::ops::{EditOps, OpList};
 use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::{Departure, PlayerTransfer};
 use crate::dim_mail::DimMail;
+use crate::held_joins::HeldJoins;
 use crate::hot_ticket::RemoteTicket;
 use crate::persistence;
 use crate::persistence::PlayerSaveQueue;
@@ -158,6 +159,9 @@ fn is_idle(world: &mut World) -> bool {
         && world
             .get_resource::<PlayerSaveQueue>()
             .is_none_or(PlayerSaveQueue::is_idle)
+        && world
+            .get_resource::<HeldJoins>()
+            .is_none_or(|held| held.0.is_empty())
 }
 
 fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
@@ -192,8 +196,10 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     if let Some(dimensions) = input.dimensions {
         world.insert_resource(dimensions);
     }
-    if let Some(mut foreign) = world.get_resource_mut::<ForeignPlayers>() {
-        foreign.0 = input.players.unwrap_or_default();
+    if let Some(foreign) = world.get_resource_mut::<ForeignPlayers>() {
+        foreign
+            .map_unchanged(|foreign| &mut foreign.0)
+            .set_if_neq(input.players.unwrap_or_default());
     }
     if let Some(range) = input.entity_id_grant
         && let Some(mut ids) = world.get_resource_mut::<CellEntityIds>()
@@ -286,8 +292,13 @@ fn drain_into<M: Message>(world: &mut World, out: &mut Vec<M>) {
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn drain_dim_inbox(
     mut inbox: ResMut<DimInbox>,
+    mut held: Option<ResMut<HeldJoins>>,
     mut spawns: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawns: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound: ResMut<Messages<InboundPlayerPacket>>,
@@ -298,9 +309,12 @@ pub(crate) fn drain_dim_inbox(
     let inbox = &mut *inbox;
     for message in inbox.control.drain(..) {
         match message {
-            ToDim::Spawn(spawn) => {
-                spawns.write(spawn);
-            }
+            ToDim::Spawn(spawn) => match held.as_deref_mut() {
+                Some(held) if matches!(spawn.snapshot.pos(), Ok(None)) => held.0.push(spawn),
+                _ => {
+                    spawns.write(spawn);
+                }
+            },
             ToDim::Despawn(despawn) => {
                 despawns.write(despawn);
             }

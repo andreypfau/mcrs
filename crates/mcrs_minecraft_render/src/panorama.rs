@@ -271,6 +271,13 @@ fn write_ray(
     queue.write_buffer(&panorama.ray, 0, bytemuck::bytes_of(&ray));
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the system returns early while the cached bind group matches the images, so each write is a change"
+    )
+)]
 fn prepare_bind_group(
     panorama: Option<ResMut<Panorama>>,
     images: Res<PanoramaImages>,

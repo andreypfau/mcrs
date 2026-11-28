@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_item_stack"
-description = "Item stack values: the kind, the count, the component patch and the item component types"
+description = "The item stack value of kind, count and typed component patch, with every item component type and its saved and hashed forms"
 version.workspace = true
 edition.workspace = true
 
@@ -12,12 +12,16 @@ workspace = true
 
 [dependencies]
 bevy_ecs = { workspace = true, optional = true }
+mcrs_minecraft_banner_pattern.workspace = true
 mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_snbt.workspace = true
+mcrs_minecraft_static_registry.workspace = true
+mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_text.workspace = true
+mcrs_minecraft_trim.workspace = true
 mcrs_minecraft_wire = { workspace = true, features = ["resource", "voxel"] }
 mcrs_voxel.workspace = true
 serde.workspace = true
@@ -30,3 +34,4 @@ serde_json = { workspace = true, features = ["unbounded_depth"] }
 [features]
 default = []
 bevy = ["dep:bevy_ecs", "mcrs_minecraft_profile/bevy"]
+std = ["mcrs_minecraft_static_registry/std"]

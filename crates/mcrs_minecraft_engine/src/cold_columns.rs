@@ -1,7 +1,7 @@
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Commands, Component, Has, Query, Ref, Res, ResMut, With};
+use bevy_ecs::prelude::{Commands, Component, Has, Populated, Query, Ref, Res, ResMut, With};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
@@ -62,7 +62,7 @@ pub(crate) fn mark_changed_sections(
 }
 
 pub(crate) fn mark_changed_block_entities(
-    changed: Query<(&InSection, Ref<BlockEntity>), bevy_ecs::prelude::Changed<BlockEntity>>,
+    changed: Populated<(&InSection, Ref<BlockEntity>), bevy_ecs::prelude::Changed<BlockEntity>>,
     unmarked: Query<(), bevy_ecs::prelude::Without<SectionChanged>>,
     mut commands: Commands,
 ) {
@@ -89,10 +89,18 @@ enum Origin {
     Generated,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the write reads the marks, the content and the ticks of each column that cools"
+pub(crate) fn columns_cooling(dims: Query<&ColumnLoading>) -> bool {
+    dims.iter().any(|loading| !loading.cooling().is_empty())
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "each snapshot is built only for a column that cools in this tick, and it moves into the column store"
+    )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(6))]
 pub(crate) fn write_cold_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     columns: Query<ColumnMarks>,
@@ -147,10 +155,14 @@ pub(crate) fn write_cold_columns(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on a save request, and each snapshot moves into the column store"
+    )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(8))]
 pub(crate) fn save_dirty_loaded_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     columns: Query<ColumnMarks>,
@@ -219,10 +231,14 @@ fn dirty_sections(column: &ColumnSections, marks: &Query<SectionMarks>) -> Vec<E
         .collect()
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on a save request, and each snapshot moves into the column store"
+    )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(6))]
 pub(crate) fn save_all_loaded_columns(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     snapshots: ColumnSnapshots,
@@ -296,6 +312,7 @@ fn origin(column: &ColumnSections, marks: &Query<SectionMarks>) -> Option<Origin
 mod tests {
     use super::*;
     use bevy_app::App;
+    use bevy_ecs::change_detection::DetectChangesMut;
     use mcrs_minecraft_block_entity::{ContainerData, GeneratedBlockEntity};
     use mcrs_voxel::BlockPos;
 
@@ -349,12 +366,15 @@ mod tests {
         app.update();
         assert!(!app.world().entity(section).contains::<SectionChanged>());
 
-        app.world_mut().get_mut::<BlockEntity>(entity).unwrap().0 =
-            GeneratedBlockEntity::Chest(ContainerData::looted(
+        app.world_mut()
+            .get_mut::<BlockEntity>(entity)
+            .unwrap()
+            .map_unchanged(|entity| &mut entity.0)
+            .set_if_neq(GeneratedBlockEntity::Chest(ContainerData::looted(
                 BlockPos::new(0, 0, 0),
                 "minecraft:chests/abandoned_mineshaft".to_string(),
                 1,
-            ));
+            )));
         app.update();
         assert!(app.world().entity(section).contains::<SectionChanged>());
     }

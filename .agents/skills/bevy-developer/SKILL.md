@@ -71,10 +71,11 @@ Do not:
 
 A `SubApp` has its own `World` and schedules, for example one world per level.
 Build it with an `AppLabel`, `SubApp::new()`, `set_extract(|main, sub| ..)` and
-`app.insert_sub_app(label, sub)`.
+`app.insert_sub_app(label, sub)`. Dimension sub-apps in mcrs do not use `set_extract`:
+main-to-sub data is a field of `DimInput` and sub-to-main data is a field of `DimOutput`.
 
 - Global mutable state has one writer, in the main app. A sub-app receives a
-  read-only copy through `set_extract` and never advances its own copy.
+  read-only copy and never advances its own copy.
 - Keep a version next to the value. Extraction copies only on a version change.
   Re-inserting a clone every update allocates and makes `resource_changed` always true.
 - Move or copy immutable data (tables, configuration) in once when the sub-app is built.

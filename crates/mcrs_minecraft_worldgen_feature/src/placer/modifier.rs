@@ -34,7 +34,7 @@ impl PlacementModifier<Predicate> {
         volume: &W,
         rng: &mut R,
         origin: BlockPos,
-        carries: &dyn Fn(u16) -> bool,
+        carries: &impl Fn(u16) -> bool,
         out: &mut Vec<BlockPos>,
     ) {
         use PlacementModifier::*;

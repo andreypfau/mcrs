@@ -8,6 +8,7 @@ use crate::fixture::STONE;
 use crate::fixture::app;
 use crate::fixture::capture;
 use crate::fixture::capture_file;
+use crate::fixture::depart;
 use crate::fixture::dropped;
 use crate::fixture::holders;
 use crate::fixture::put;
@@ -36,6 +37,7 @@ fn inv_cls_003_a_leave_folds_the_cursor_and_the_craft_grid_into_the_inventory() 
         put(world, holders.craft_grid, 1, STONE, 1);
         put(world, holders.craft_grid, 2, DIRT, 5);
 
+        depart(world, player, reason);
         let written = capture(world, player, reason);
 
         let inventory = written
@@ -105,6 +107,7 @@ fn inv_slt_002_a_cell_crossing_carries_the_cursor_and_the_craft_grid() {
     assert_eq!(stacks(to, entered.cursor), [(0, STONE, 7)]);
     assert_eq!(stacks(to, entered.craft_grid), [(3, DIRT, 2)]);
 
+    depart(to, arrived, CaptureCause::Leave);
     let mut written = capture(to, arrived, CaptureCause::Leave);
     assert_eq!(
         stacks(to, arrived),

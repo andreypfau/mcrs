@@ -42,7 +42,7 @@ pub fn place_vegetation_patch<W>(
     volume: &mut W,
     rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_vegetation: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    mut place_vegetation: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -52,7 +52,7 @@ where
     let surface = place_ground_patch(config, volume, rng, origin, x_radius, z_radius);
     for position in &surface {
         if config.vegetation_chance > 0.0 && rng.next_f32() < config.vegetation_chance {
-            grow(config, volume, rng, *position, place_vegetation);
+            grow(config, volume, rng, *position, &mut place_vegetation);
         }
     }
     !surface.is_empty()
@@ -182,7 +182,7 @@ fn grow<W>(
     volume: &mut W,
     rng: &mut WorldgenRandom,
     position: BlockPos,
-    place_vegetation: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    mut place_vegetation: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) where
     W: WorldGenVolume,
 {
@@ -269,7 +269,7 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |_, _, at| {
+            |_, _, at| {
                 seeded.push(at);
                 true
             }
@@ -323,7 +323,7 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |_, _, _| true
+            |_, _, _| true
         ));
 
         let mut replay = WorldgenRandom::new(SEED);
@@ -366,7 +366,7 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |_, _, _| panic!("nothing was seeded")
+            |_, _, _| panic!("nothing was seeded")
         ));
 
         let mut replay = WorldgenRandom::new(SEED);
@@ -393,7 +393,7 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |_, _, _| true
+            |_, _, _| true
         ));
         assert!(volume.writes.is_empty(), "{:?}", volume.writes);
     }
@@ -421,7 +421,7 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |volume: &mut FakeVolume, _: &mut WorldgenRandom, at: BlockPos| {
+            |volume: &mut FakeVolume, _: &mut WorldgenRandom, at: BlockPos| {
                 seeded.push(at);
                 volume.set(at, DRY);
                 true
@@ -476,7 +476,7 @@ mod tests {
             &mut volume,
             &mut rng,
             BlockPos::new(0, ROOF - 4, 0),
-            &mut |_, _, _| true
+            |_, _, _| true
         ));
         assert!(
             volume

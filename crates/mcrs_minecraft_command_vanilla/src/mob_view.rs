@@ -9,7 +9,7 @@ use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceLocationBuf;
-use mcrs_minecraft_text::{HoverEvent, IntoText, Text};
+use mcrs_minecraft_text::{IntoText, Text};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct MobView<'a> {
@@ -69,11 +69,10 @@ pub(crate) fn display_name(entity_type: EntityType, uuid: Uuid, custom_name: Opt
         Some(name) => name.to_owned().into_text(),
         None => type_name.clone(),
     };
-    let mut text = name.insertion(uuid.hyphenated().to_string());
-    text.style.hover_event = Some(HoverEvent::ShowEntity {
-        id: ResourceLocationBuf::from(location),
-        uuid,
-        name: Some(custom_name.map_or(type_name, |name| name.to_owned().into_text())),
-    });
-    text
+    name.insertion(uuid.hyphenated().to_string())
+        .on_hover_show_entity(
+            ResourceLocationBuf::from(location),
+            uuid,
+            Some(custom_name.map_or(type_name, |name| name.to_owned().into_text())),
+        )
 }

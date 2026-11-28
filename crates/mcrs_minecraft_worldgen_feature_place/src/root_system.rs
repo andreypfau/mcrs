@@ -39,7 +39,7 @@ pub fn place_root_system<W>(
     volume: &mut W,
     rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_tree: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    place_tree: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -58,7 +58,7 @@ fn place_dirt_and_tree<W>(
     volume: &mut W,
     rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_tree: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    mut place_tree: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -229,7 +229,7 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |_, _, at| {
+            |_, _, at| {
                 planted = Some(at);
                 true
             }
@@ -287,7 +287,7 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |_, _, _| panic!("no tree is planted")
+            |_, _, _| panic!("no tree is planted")
         ));
         assert!(volume.writes.is_empty());
         assert_eq!(rng, before, "and it draws nothing");
@@ -303,7 +303,7 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |_, _, _| {
+            |_, _, _| {
                 attempts += 1;
                 false
             }

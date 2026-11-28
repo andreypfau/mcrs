@@ -248,7 +248,7 @@ impl PlayerInventories<'_, '_> {
 | Name | Contract |
 |-|-|
 | `VanillaInventoryPlugin` | Gives each new player its holders and their `SlotPolicy`. At the player spawn, it opens the inventory menu. It launches each dropped stack. |
-| `InventoryPersistencePlugin` | Bevy glue over `inventory_file`. It replaces `PlayerItemFilePlugin`; an app adds one of the two. |
+| `InventoryPersistencePlugin` | Bevy glue over `inventory_file`. It saves the whole player inventory. |
 | `InventorySet::Input` | An edge applies the intents of the players here, in the order of arrival. It is in `TickSet::ClientInput`. |
 | `InventorySet::Drops` | Makes an item entity from each `RequestDrop` of a player holder. |
 | `hand_action` | The request of INV-SEL-004 or INV-SEL-005. A spectator and an empty hand give no request. |

@@ -1,3 +1,5 @@
+use core::iter;
+
 use glam::DVec3;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
@@ -13,55 +15,107 @@ use crate::item_subject::ItemSubject;
 pub trait EntityView {
     type Entity: Copy + PartialEq;
 
-    fn entity_type(&self, entity: Self::Entity) -> Option<Id<EntityType>>;
+    fn entity_type(&self, _entity: Self::Entity) -> Option<Id<EntityType>> {
+        None
+    }
 
-    fn position(&self, entity: Self::Entity) -> Option<DVec3>;
+    fn position(&self, _entity: Self::Entity) -> Option<DVec3> {
+        None
+    }
 
-    fn is_on_ground(&self, entity: Self::Entity) -> Option<bool>;
+    fn is_on_ground(&self, _entity: Self::Entity) -> Option<bool> {
+        None
+    }
 
-    fn support_position(&self, entity: Self::Entity) -> Option<BlockPos>;
+    fn support_position(&self, _entity: Self::Entity) -> Option<BlockPos> {
+        None
+    }
 
-    fn movement_position(&self, entity: Self::Entity) -> Option<BlockPos>;
+    fn movement_position(&self, _entity: Self::Entity) -> Option<BlockPos> {
+        None
+    }
 
-    fn reported_movement(&self, entity: Self::Entity) -> Option<DVec3>;
+    fn reported_movement(&self, _entity: Self::Entity) -> Option<DVec3> {
+        None
+    }
 
-    fn fall_distance(&self, entity: Self::Entity) -> Option<f64>;
+    fn fall_distance(&self, _entity: Self::Entity) -> Option<f64> {
+        None
+    }
 
-    fn saved_data(&self, entity: Self::Entity, data: &mut NbtCompound) -> bool;
+    fn saved_data(&self, _entity: Self::Entity, _data: &mut NbtCompound) -> bool {
+        false
+    }
 
-    fn is_burning(&self, entity: Self::Entity) -> Option<bool>;
+    fn is_burning(&self, _entity: Self::Entity) -> Option<bool> {
+        None
+    }
 
-    fn pose(&self, entity: Self::Entity) -> Option<Pose>;
+    fn pose(&self, _entity: Self::Entity) -> Option<Pose> {
+        None
+    }
 
-    fn is_sprinting(&self, entity: Self::Entity) -> Option<bool>;
+    fn is_sprinting(&self, _entity: Self::Entity) -> Option<bool> {
+        None
+    }
 
-    fn is_swimming(&self, entity: Self::Entity) -> Option<bool>;
+    fn is_swimming(&self, _entity: Self::Entity) -> Option<bool> {
+        None
+    }
 
-    fn is_in_water(&self, entity: Self::Entity) -> Option<bool>;
+    fn is_in_water(&self, _entity: Self::Entity) -> Option<bool> {
+        None
+    }
 
-    fn is_living(&self, entity: Self::Entity) -> Option<bool>;
+    fn is_living(&self, _entity: Self::Entity) -> Option<bool> {
+        None
+    }
 
-    fn is_fall_flying(&self, entity: Self::Entity) -> Option<bool>;
+    fn is_fall_flying(&self, _entity: Self::Entity) -> Option<bool> {
+        None
+    }
 
-    fn has_flying_ability(&self, entity: Self::Entity) -> Option<bool>;
+    fn has_flying_ability(&self, _entity: Self::Entity) -> Option<bool> {
+        None
+    }
 
-    fn is_baby(&self, entity: Self::Entity) -> Option<bool>;
+    fn is_baby(&self, _entity: Self::Entity) -> Option<bool> {
+        None
+    }
 
-    fn active_effect(&self, entity: Self::Entity, effect: Id<MobEffect>) -> Option<ActiveEffect>;
+    fn active_effect(&self, _entity: Self::Entity, _effect: Id<MobEffect>) -> Option<ActiveEffect> {
+        None
+    }
 
-    fn equipment(&self, entity: Self::Entity, slot: EquipmentSlot) -> Option<ItemSubject<'_>>;
+    fn equipment(&self, _entity: Self::Entity, _slot: EquipmentSlot) -> Option<ItemSubject<'_>> {
+        None
+    }
 
-    fn slot(&self, entity: Self::Entity, slot: u16) -> Option<ItemSubject<'_>>;
+    fn slot(&self, _entity: Self::Entity, _slot: u16) -> Option<ItemSubject<'_>> {
+        None
+    }
 
-    fn tick_count(&self, entity: Self::Entity) -> Option<u32>;
+    fn tick_count(&self, _entity: Self::Entity) -> Option<u32> {
+        None
+    }
 
-    fn vehicle(&self, entity: Self::Entity) -> Option<Self::Entity>;
+    fn vehicle(&self, _entity: Self::Entity) -> Option<Self::Entity> {
+        None
+    }
 
-    fn passengers(&self, entity: Self::Entity) -> Option<impl Iterator<Item = Self::Entity>>;
+    fn passengers(&self, _entity: Self::Entity) -> Option<impl Iterator<Item = Self::Entity>> {
+        None::<iter::Empty<Self::Entity>>
+    }
 
-    fn attack_target(&self, entity: Self::Entity) -> Option<Self::Entity>;
+    fn attack_target(&self, _entity: Self::Entity) -> Option<Self::Entity> {
+        None
+    }
 
-    fn team(&self, entity: Self::Entity) -> Option<&str>;
+    fn team(&self, _entity: Self::Entity) -> Option<&str> {
+        None
+    }
 
-    fn has_scoreboard_tag(&self, entity: Self::Entity, tag: &str) -> Option<bool>;
+    fn has_scoreboard_tag(&self, _entity: Self::Entity, _tag: &str) -> Option<bool> {
+        None
+    }
 }

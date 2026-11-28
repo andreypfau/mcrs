@@ -41,6 +41,13 @@ impl Plugin for BirthClockPlugin {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "runs once at startup to seed the clock from the save, before any reader of its change"
+    )
+)]
 fn load_birth_clock(
     save: Option<Res<WorldSave>>,
     mut clock: ResMut<BirthClock>,
@@ -63,6 +70,20 @@ fn load_birth_clock(
     clock.0 = saved.unwrap_or_default();
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "advances the birth clock by one on every fixed tick"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the counter changes on every write, so a comparison never skips one"
+    )
+)]
 pub(crate) fn advance_birth_clock(mut clock: ResMut<BirthClock>) {
     clock.0 = clock.0.saturating_add(1);
 }

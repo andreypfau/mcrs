@@ -57,8 +57,13 @@ impl Plugin for WorldTextPlugin {
                 (
                     prepare_text
                         .in_set(RenderSystems::Prepare)
-                        .after(write_frame_view),
-                    prepare_text_bind_groups.in_set(RenderSystems::PrepareBindGroups),
+                        .after(write_frame_view)
+                        .run_if(resource_exists::<TextPass>)
+                        .run_if(resource_exists::<WorldText>),
+                    prepare_text_bind_groups
+                        .in_set(RenderSystems::PrepareBindGroups)
+                        .run_if(resource_exists::<TextPass>)
+                        .run_if(resource_exists::<WorldText>),
                 ),
             )
             .add_systems(Core3d, draw_world_text.in_set(WorldPass::Overlay));
@@ -69,8 +74,7 @@ impl Plugin for WorldTextPlugin {
 pub(crate) struct TextPass {
     view_layout: BindGroupLayoutDescriptor,
     texture_layout: BindGroupLayoutDescriptor,
-    shader: Handle<Shader>,
-    pipeline: Option<CachedRenderPipelineId>,
+    pipeline: CachedRenderPipelineId,
     buffer: Option<Buffer>,
     capacity: u64,
     revision: Option<u64>,
@@ -80,18 +84,26 @@ pub(crate) struct TextPass {
     texture: Option<(AssetId<Image>, TextureViewId, BindGroup)>,
 }
 
-fn init_text(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<RenderDevice>) {
+fn init_text(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    device: Res<RenderDevice>,
+    cache: Res<PipelineCache>,
+) {
+    let view_layout = world_text_view::layout();
+    let texture_layout = world_text_textures::layout();
+    let shader = asset_server.load("embedded://mcrs_minecraft_render/shaders/world_text.wesl");
+    let pipeline = queue_pipeline(&view_layout, &texture_layout, &shader, &cache);
     commands.insert_resource(TextPass {
-        view_layout: world_text_view::layout(),
-        texture_layout: world_text_textures::layout(),
+        view_layout,
+        texture_layout,
         view_buffer: device.create_buffer(&BufferDescriptor {
             label: Some("world text view"),
             size: TEXT_FRAME_SIZE,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }),
-        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/world_text.wesl"),
-        pipeline: None,
+        pipeline,
         buffer: None,
         capacity: 0,
         revision: None,
@@ -103,11 +115,77 @@ fn init_text(mut commands: Commands, asset_server: Res<AssetServer>, device: Res
 
 const VERTEX_BYTES: u64 = size_of::<TextVertex>() as u64;
 
+fn queue_pipeline(
+    view_layout: &BindGroupLayoutDescriptor,
+    texture_layout: &BindGroupLayoutDescriptor,
+    shader: &Handle<Shader>,
+    cache: &PipelineCache,
+) -> CachedRenderPipelineId {
+    let layout = vec![view_layout.clone(), texture_layout.clone()];
+    let descriptor = descriptor(
+        "world text".into(),
+        layout,
+        shader,
+        "vertex".into(),
+        "fragment".into(),
+        WORLD_IMAGE_FORMAT,
+        None,
+    );
+    cache.queue_render_pipeline(RenderPipelineDescriptor {
+        vertex: VertexState {
+            buffers: vec![VertexBufferLayout {
+                array_stride: VERTEX_BYTES,
+                step_mode: VertexStepMode::Vertex,
+                attributes: vec![
+                    VertexAttribute {
+                        format: VertexFormat::Sint32x3,
+                        offset: 0,
+                        shader_location: 0,
+                    },
+                    VertexAttribute {
+                        format: VertexFormat::Float32x3,
+                        offset: 12,
+                        shader_location: 1,
+                    },
+                    VertexAttribute {
+                        format: VertexFormat::Float32x2,
+                        offset: 24,
+                        shader_location: 2,
+                    },
+                    VertexAttribute {
+                        format: VertexFormat::Float32x3,
+                        offset: 32,
+                        shader_location: 3,
+                    },
+                    VertexAttribute {
+                        format: VertexFormat::Float32x2,
+                        offset: 44,
+                        shader_location: 4,
+                    },
+                ],
+            }],
+            ..descriptor.vertex
+        },
+        primitive: PrimitiveState {
+            topology: PrimitiveTopology::TriangleList,
+            cull_mode: Some(Face::Back),
+            ..default()
+        },
+        depth_stencil: Some(DepthStencilState {
+            format: CORE_3D_DEPTH_FORMAT,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(DEPTH_COMPARE),
+            stencil: default(),
+            bias: default(),
+        }),
+        ..descriptor
+    })
+}
+
 fn prepare_text(
     pass: Option<ResMut<TextPass>>,
     text: Option<Res<WorldText>>,
     frame_view: Option<Res<FrameView>>,
-    cache: Res<PipelineCache>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
@@ -124,67 +202,6 @@ fn prepare_text(
                 _pad_76: 0,
             }),
         );
-    }
-    if pass.pipeline.is_none() {
-        let layout = vec![pass.view_layout.clone(), pass.texture_layout.clone()];
-        let descriptor = descriptor(
-            "world text".into(),
-            layout,
-            &pass.shader,
-            "vertex".into(),
-            "fragment".into(),
-            WORLD_IMAGE_FORMAT,
-            None,
-        );
-        pass.pipeline = Some(cache.queue_render_pipeline(RenderPipelineDescriptor {
-            vertex: VertexState {
-                buffers: vec![VertexBufferLayout {
-                    array_stride: VERTEX_BYTES,
-                    step_mode: VertexStepMode::Vertex,
-                    attributes: vec![
-                        VertexAttribute {
-                            format: VertexFormat::Sint32x3,
-                            offset: 0,
-                            shader_location: 0,
-                        },
-                        VertexAttribute {
-                            format: VertexFormat::Float32x3,
-                            offset: 12,
-                            shader_location: 1,
-                        },
-                        VertexAttribute {
-                            format: VertexFormat::Float32x2,
-                            offset: 24,
-                            shader_location: 2,
-                        },
-                        VertexAttribute {
-                            format: VertexFormat::Float32x3,
-                            offset: 32,
-                            shader_location: 3,
-                        },
-                        VertexAttribute {
-                            format: VertexFormat::Float32x2,
-                            offset: 44,
-                            shader_location: 4,
-                        },
-                    ],
-                }],
-                ..descriptor.vertex
-            },
-            primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleList,
-                cull_mode: Some(Face::Back),
-                ..default()
-            },
-            depth_stencil: Some(DepthStencilState {
-                format: CORE_3D_DEPTH_FORMAT,
-                depth_write_enabled: Some(true),
-                depth_compare: Some(DEPTH_COMPARE),
-                stencil: default(),
-                bias: default(),
-            }),
-            ..descriptor
-        }));
     }
     if pass.revision == Some(text.revision) {
         return;
@@ -210,6 +227,13 @@ fn prepare_text(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the system writes a cached bind group only after it finds the entry missing or stale, so each write is a change"
+    )
+)]
 fn prepare_text_bind_groups(
     pass: Option<ResMut<TextPass>>,
     text: Option<Res<WorldText>>,
@@ -268,7 +292,7 @@ pub(crate) fn draw_world_text(
 ) {
     let (Some(frame), Some(id), Some(buffer), Some(view_group), Some((_, _, texture_group))) = (
         frame,
-        pass.pipeline,
+        Some(pass.pipeline),
         pass.buffer.as_ref(),
         pass.view.as_ref(),
         pass.texture.as_ref(),

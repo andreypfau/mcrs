@@ -1,0 +1,308 @@
+{
+  "target": {
+    "operators": [
+      "reachplacer1",
+      "reachplacer2",
+      "reachplacer3",
+      "reachplacer4",
+      "reachplacer5"
+    ]
+  },
+  "observe": {
+    "swing": true
+  },
+  "steps": [
+    {
+      "id": "join_first",
+      "join": "reachplacer1"
+    },
+    {
+      "id": "prepare",
+      "console": {
+        "lines": [
+          "difficulty peaceful",
+          "gamerule spawn_mobs false",
+          "kill @e[type=!minecraft:player]",
+          "fill -5 -60 -5 5 -55 8 minecraft:air",
+          "fill -5 -61 -5 5 -61 8 minecraft:stone"
+        ]
+      }
+    },
+    {
+      "id": "setup_survival_5_4",
+      "console": {
+        "lines": [
+          "gamemode survival reachplacer1",
+          "clear reachplacer1",
+          "item replace entity reachplacer1 weapon.mainhand with minecraft:dirt",
+          "setblock 0 -59 6 minecraft:stone",
+          "setblock 0 -58 6 minecraft:air",
+          "tp reachplacer1 0.5 -60 0.6 0 0"
+        ]
+      }
+    },
+    {
+      "id": "sync_survival_5_4",
+      "sync_position": "reachplacer1"
+    },
+    {
+      "id": "position_survival_5_4",
+      "console": {
+        "lines": [
+          "data get entity reachplacer1 Pos",
+          "attribute reachplacer1 minecraft:block_interaction_range get"
+        ]
+      }
+    },
+    {
+      "id": "place_survival_5_4",
+      "use_item_on": {
+        "client": "reachplacer1",
+        "hand": "main",
+        "position": [
+          0,
+          -59,
+          6
+        ],
+        "face": "up",
+        "sequence": 1
+      }
+    },
+    {
+      "id": "read_survival_5_4",
+      "console": {
+        "lines": [
+          "execute if block 0 -58 6 minecraft:dirt"
+        ]
+      }
+    },
+    {
+      "id": "leave_survival_5_4",
+      "leave": "reachplacer1"
+    },
+    {
+      "id": "join_survival_5_5",
+      "join": "reachplacer2"
+    },
+    {
+      "id": "setup_survival_5_5",
+      "console": {
+        "lines": [
+          "gamemode survival reachplacer2",
+          "clear reachplacer2",
+          "item replace entity reachplacer2 weapon.mainhand with minecraft:dirt",
+          "setblock 0 -59 6 minecraft:stone",
+          "setblock 0 -58 6 minecraft:air",
+          "tp reachplacer2 0.5 -60 0.5 0 0"
+        ]
+      }
+    },
+    {
+      "id": "sync_survival_5_5",
+      "sync_position": "reachplacer2"
+    },
+    {
+      "id": "position_survival_5_5",
+      "console": {
+        "lines": [
+          "data get entity reachplacer2 Pos",
+          "attribute reachplacer2 minecraft:block_interaction_range get"
+        ]
+      }
+    },
+    {
+      "id": "place_survival_5_5",
+      "use_item_on": {
+        "client": "reachplacer2",
+        "hand": "main",
+        "position": [
+          0,
+          -59,
+          6
+        ],
+        "face": "up",
+        "sequence": 1
+      }
+    },
+    {
+      "id": "read_survival_5_5",
+      "console": {
+        "lines": [
+          "execute if block 0 -58 6 minecraft:dirt"
+        ]
+      }
+    },
+    {
+      "id": "leave_survival_5_5",
+      "leave": "reachplacer2"
+    },
+    {
+      "id": "join_survival_5_6",
+      "join": "reachplacer3"
+    },
+    {
+      "id": "setup_survival_5_6",
+      "console": {
+        "lines": [
+          "gamemode survival reachplacer3",
+          "clear reachplacer3",
+          "item replace entity reachplacer3 weapon.mainhand with minecraft:dirt",
+          "setblock 0 -59 6 minecraft:stone",
+          "setblock 0 -58 6 minecraft:air",
+          "tp reachplacer3 0.5 -60 0.4 0 0"
+        ]
+      }
+    },
+    {
+      "id": "sync_survival_5_6",
+      "sync_position": "reachplacer3"
+    },
+    {
+      "id": "position_survival_5_6",
+      "console": {
+        "lines": [
+          "data get entity reachplacer3 Pos",
+          "attribute reachplacer3 minecraft:block_interaction_range get"
+        ]
+      }
+    },
+    {
+      "id": "place_survival_5_6",
+      "use_item_on": {
+        "client": "reachplacer3",
+        "hand": "main",
+        "position": [
+          0,
+          -59,
+          6
+        ],
+        "face": "up",
+        "sequence": 1
+      }
+    },
+    {
+      "id": "read_survival_5_6",
+      "console": {
+        "lines": [
+          "execute if block 0 -58 6 minecraft:dirt"
+        ]
+      }
+    },
+    {
+      "id": "leave_survival_5_6",
+      "leave": "reachplacer3"
+    },
+    {
+      "id": "join_creative_5_9",
+      "join": "reachplacer4"
+    },
+    {
+      "id": "setup_creative_5_9",
+      "console": {
+        "lines": [
+          "gamemode creative reachplacer4",
+          "clear reachplacer4",
+          "item replace entity reachplacer4 weapon.mainhand with minecraft:dirt",
+          "setblock 0 -59 6 minecraft:stone",
+          "setblock 0 -58 6 minecraft:air",
+          "tp reachplacer4 0.5 -60 0.1 0 0"
+        ]
+      }
+    },
+    {
+      "id": "sync_creative_5_9",
+      "sync_position": "reachplacer4"
+    },
+    {
+      "id": "position_creative_5_9",
+      "console": {
+        "lines": [
+          "data get entity reachplacer4 Pos",
+          "attribute reachplacer4 minecraft:block_interaction_range get"
+        ]
+      }
+    },
+    {
+      "id": "place_creative_5_9",
+      "use_item_on": {
+        "client": "reachplacer4",
+        "hand": "main",
+        "position": [
+          0,
+          -59,
+          6
+        ],
+        "face": "up",
+        "sequence": 1
+      }
+    },
+    {
+      "id": "read_creative_5_9",
+      "console": {
+        "lines": [
+          "execute if block 0 -58 6 minecraft:dirt"
+        ]
+      }
+    },
+    {
+      "id": "leave_creative_5_9",
+      "leave": "reachplacer4"
+    },
+    {
+      "id": "join_creative_6_0",
+      "join": "reachplacer5"
+    },
+    {
+      "id": "setup_creative_6_0",
+      "console": {
+        "lines": [
+          "gamemode creative reachplacer5",
+          "clear reachplacer5",
+          "item replace entity reachplacer5 weapon.mainhand with minecraft:dirt",
+          "setblock 0 -59 6 minecraft:stone",
+          "setblock 0 -58 6 minecraft:air",
+          "tp reachplacer5 0.5 -60 0.0 0 0"
+        ]
+      }
+    },
+    {
+      "id": "sync_creative_6_0",
+      "sync_position": "reachplacer5"
+    },
+    {
+      "id": "position_creative_6_0",
+      "console": {
+        "lines": [
+          "data get entity reachplacer5 Pos",
+          "attribute reachplacer5 minecraft:block_interaction_range get"
+        ]
+      }
+    },
+    {
+      "id": "place_creative_6_0",
+      "use_item_on": {
+        "client": "reachplacer5",
+        "hand": "main",
+        "position": [
+          0,
+          -59,
+          6
+        ],
+        "face": "up",
+        "sequence": 1
+      }
+    },
+    {
+      "id": "read_creative_6_0",
+      "console": {
+        "lines": [
+          "execute if block 0 -58 6 minecraft:dirt"
+        ]
+      }
+    },
+    {
+      "id": "leave_creative_6_0",
+      "leave": "reachplacer5"
+    }
+  ]
+}

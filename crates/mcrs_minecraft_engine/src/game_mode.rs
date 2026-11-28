@@ -80,7 +80,7 @@ pub(crate) fn abilities(mode: GameMode, flying: PlayerFlying) -> ClientboundPlay
 }
 
 pub(crate) fn send_game_mode(
-    mut players: Query<
+    mut players: Populated<
         (
             &PlayerGameMode,
             &mut ListedGameMode,
@@ -91,11 +91,13 @@ pub(crate) fn send_game_mode(
     >,
     mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    for (mode, mut listed, mut flying, &Owner(session)) in &mut players {
-        if listed.0 == mode.0 {
+    for (mode, listed, mut flying, &Owner(session)) in &mut players {
+        if !listed
+            .map_unchanged(|listed| &mut listed.0)
+            .set_if_neq(mode.0)
+        {
             continue;
         }
-        listed.0 = mode.0;
         let abilities = abilities(mode.0, *flying);
         flying.set_if_neq(PlayerFlying(abilities.flying));
         writer.write(to(

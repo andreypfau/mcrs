@@ -35,6 +35,7 @@ use crate::glyph_cache::{self, GlyphCache};
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
+use crate::hud_systems::HudSystems;
 use crate::inventory_figure::{pose_inventory_figure, spawn_inventory_figure};
 use crate::item_decorations::{CountLabel, Decorated, WHITE, decorations};
 use crate::item_icons::{ItemIcons, build_icon_meshes};
@@ -45,10 +46,11 @@ use crate::menu_screen::{
     MenuContents, background_extent, background_region, menu_backgrounds, menu_screen,
 };
 use crate::menu_stacks::MenuStacks;
+use crate::project_menu::MenuExtent;
 use crate::slot_icon::SlotIcon;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
-use mcrs_minecraft_client_widget::GuiPoint;
+use mcrs_minecraft_client_widget::{GuiExtent, GuiPoint};
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_entity_render::{EntitySlotSystems, FigureView};
 use mcrs_minecraft_game_mode::GameMode;
@@ -160,10 +162,19 @@ const MISSING_GLYPH: &str = "font/missing";
 const GLYPH_CACHE: &str = "glyph cache";
 const CELL: usize = crate::font_unihex::CELL;
 
-const GUI_TEXTURES: [&str; 17] = [
+const GUI_TEXTURES: [&str; 26] = [
     "hud/hotbar",
     "hud/hotbar_selection",
     "hud/hotbar_offhand_left",
+    "hud/heart/container",
+    "hud/heart/container_hardcore",
+    "hud/heart/full",
+    "hud/heart/half",
+    "hud/heart/hardcore_full",
+    "hud/heart/hardcore_half",
+    "hud/food_empty",
+    "hud/food_full",
+    "hud/food_half",
     "container/slot_highlight_back",
     "container/slot_highlight_front",
     "container/slot/helmet",
@@ -585,12 +596,24 @@ pub(crate) fn gui_point(at: DVec2) -> GuiPoint {
     GuiPoint::new(at.x.floor() as i32, at.y.floor() as i32)
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "the frame clears the quads, icons and tooltip of the scene, so the scene changes on every frame anyway"
+    )
+)]
 fn begin_gui_frame(
     window: Single<&Window, With<PrimaryWindow>>,
     config: Res<GuiConfig>,
     mut scene: ResMut<GuiScene>,
+    mut extent: ResMut<MenuExtent>,
 ) {
     scene.size = GuiSize::of(window_framebuffer(&window), config.scale);
+    extent.set_if_neq(MenuExtent(GuiExtent::new(
+        scene.size.width,
+        scene.size.height,
+    )));
     scene.cursor = gui_pointer(&window, &config, scene.size.scale)
         .map(gui_point)
         .map_or(IVec2::new(-1, -1), menu_draw::point);
@@ -614,10 +637,21 @@ pub(crate) struct ScreenStacks {
     labels: MenuLabelText,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each access is its own parameter"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "begin_gui_frame clears the scene on each frame, so the hotbar and the open menu draw on each frame"
+    )
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "caches the menu stacks and labels, so it allocates only when the open menu, its title or the language changes"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(14))]
 pub(crate) fn draw_screens(
     screen: Res<Screen>,
     player: Query<(
@@ -682,7 +716,7 @@ pub(crate) fn draw_screens(
     );
 }
 
-pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(), String> {
+pub fn load_gui_atlas(pack: &ResourceSet, mut commands: Commands) -> Result<(), String> {
     let atlas = GuiAtlasData::load(pack).map_err(|reason| format!("the GUI textures: {reason}"))?;
     let language =
         ClientLanguage::load(pack).map_err(|reason| format!("the translations: {reason}"))?;
@@ -692,9 +726,15 @@ pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(),
 }
 
 #[expect(
-    clippy::too_many_arguments,
     clippy::too_many_lines,
     reason = "a Bevy system: each access is its own parameter"
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "begin_gui_frame clears the scene on each frame, so the batch rebuilds from it on each frame"
+    )
 )]
 fn build_gui_batch(
     scene: Res<GuiScene>,
@@ -705,6 +745,7 @@ fn build_gui_batch(
     mut cache: ResMut<GlyphCache>,
     mut batch: ResMut<GuiBatch>,
     mut clips: Local<Vec<IRect>>,
+    mut expanded: Local<Vec<GuiQuad>>,
 ) {
     let batch = &mut *batch;
     cache.begin_frame();
@@ -721,7 +762,7 @@ fn build_gui_batch(
     };
     let atlas = &*atlas.0;
     let blank = atlas.uv(atlas.region(BLANK));
-    let mut expanded = Vec::with_capacity(scene.quads.len() * 2);
+    expanded.clear();
     for quad in &scene.quads {
         match *quad {
             GuiQuad::Icon { origin, index } => {
@@ -744,7 +785,7 @@ fn build_gui_batch(
         }
     }
     let mut flat_start = None;
-    for quad in expanded {
+    for quad in expanded.drain(..) {
         let vertices = &mut batch.vertices;
         match quad {
             GuiQuad::Icon { origin, index } => {
@@ -950,11 +991,18 @@ impl Plugin for GuiPlugin {
             .add_plugins(crate::creative_screen_plugin::CreativeScreenPlugin)
             .add_observer(spawn_inventory_figure)
             .init_resource::<crate::title_draw::TitleScreenState>()
+            .init_resource::<MenuExtent>()
+            .init_resource::<crate::creative_screen_draw::CreativeTextTooltip>()
+            .init_resource::<crate::game_mode_switcher::SwitcherText>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
             .add_systems(
                 Update,
                 build_icon_meshes.run_if(resource_exists_and_changed::<ItemModels>),
+            )
+            .configure_sets(
+                PostUpdate,
+                HudSystems.after(begin_gui_frame).before(draw_screens),
             )
             .add_systems(
                 PostUpdate,
@@ -964,18 +1012,23 @@ impl Plugin for GuiPlugin {
                     crate::menu_item_tooltip::request_menu_item_tooltip
                         .run_if(resource_exists::<ItemTable>)
                         .run_if(not(creative_screen_shown)),
+                    crate::creative_screen_draw::rebuild_creative_text
+                        .run_if(resource_exists_and_changed::<ClientLanguage>),
                     draw_creative_screen.run_if(creative_screen_shown),
                     request_creative_item_tooltip
                         .run_if(resource_exists::<ItemTable>)
                         .run_if(creative_screen_shown),
                     crate::chat::draw,
-                    crate::game_mode_switcher::draw,
+                    crate::game_mode_switcher::rebuild_switcher_text
+                        .run_if(resource_exists_and_changed::<ClientLanguage>),
+                    crate::game_mode_switcher::draw
+                        .run_if(crate::game_mode_switcher::switcher_shown),
                     crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),
                     crate::message_screen::draw.run_if(|screen: Res<Screen>| {
                         matches!(*screen, Screen::Message(_) | Screen::CreateWorld(_))
                     }),
                     crate::title_draw::draw.run_if(resource_equals(Screen::Title)),
-                    draw_tooltip,
+                    draw_tooltip.run_if(|scene: Res<GuiScene>| scene.tooltip.lines().is_some()),
                     crate::title_draw::fade_title.run_if(resource_equals(Screen::Title)),
                     build_gui_batch,
                 )

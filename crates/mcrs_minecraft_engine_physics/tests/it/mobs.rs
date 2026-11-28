@@ -277,3 +277,77 @@ fn a_spawn_request_makes_one_mob_per_uuid_and_a_death_despawns_it() {
         "a mob despawned from outside the pass frees its UUID too"
     );
 }
+
+#[test]
+fn ord_016_017_a_mob_with_no_ai_keeps_its_position_and_its_birth_flag() {
+    struct Row {
+        name: &'static str,
+        height: f64,
+        on_ground: bool,
+    }
+    let rows = [
+        Row {
+            name: "on the floor without OnGround",
+            height: 0.0,
+            on_ground: false,
+        },
+        Row {
+            name: "on the floor with OnGround",
+            height: 0.0,
+            on_ground: true,
+        },
+        Row {
+            name: "two blocks above the floor",
+            height: 2.0,
+            on_ground: false,
+        },
+    ];
+    let mut scene = TestScene::new(1, 0, 0, 1);
+    let ids = EntityIdRange::starting_at(100).expect("the range fits");
+    scene
+        .app
+        .world_mut()
+        .resource_mut::<CellEntityIds>()
+        .add(ids);
+    let starts: Vec<DVec3> = (0..rows.len())
+        .map(|index| DVec3::new(4.5 + 3.0 * index as f64, f64::from(FLOOR), 5.5))
+        .collect();
+    for ((uuid, row), start) in (1..).zip(&rows).zip(&starts) {
+        scene.app.world_mut().write_message(MobSpawnRequest {
+            kind: &EntityTypeData::PIG,
+            position: *start + DVec3::Y * row.height,
+            uuid,
+            setup: SpawnSetup::None,
+            extras: MobExtras {
+                no_ai: true,
+                on_ground: row.on_ground,
+                ..MobExtras::default()
+            },
+        });
+    }
+    for _ in 0..21 {
+        scene.step();
+    }
+    let index = scene.app.world().resource::<MobIndex>();
+    let entities: Vec<Entity> = (1..=rows.len() as u128)
+        .map(|uuid| {
+            index
+                .get(EntityUuid::from_u128(uuid))
+                .expect("the mob is indexed by its UUID")
+        })
+        .collect();
+    for ((row, start), entity) in rows.iter().zip(&starts).zip(entities) {
+        let body = scene.state(entity).expect("the pig stays").body;
+        assert_eq!(
+            body.position,
+            *start + DVec3::Y * row.height,
+            "{}: the pig does no travel step",
+            row.name
+        );
+        assert_eq!(
+            body.flags.on_ground, row.on_ground,
+            "{}: the flag of the birth stays",
+            row.name
+        );
+    }
+}

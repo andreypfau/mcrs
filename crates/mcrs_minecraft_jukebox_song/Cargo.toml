@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_jukebox_song"
-description = "The value of the jukebox song registry"
+description = "The JukeboxSong value of the jukebox song registry: its sound event, description, length in seconds and comparator output."
 version.workspace = true
 edition.workspace = true
 
@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_registries.workspace = true
-mcrs_minecraft_sound.workspace = true
+mcrs_minecraft_sound = { workspace = true, features = ["registry"] }
 mcrs_minecraft_text.workspace = true
 serde = { workspace = true, features = ["derive"] }
 

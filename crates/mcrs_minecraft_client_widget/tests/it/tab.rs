@@ -116,7 +116,7 @@ fn tab_screen(active: &[bool], current: usize) -> Widgets {
 }
 
 fn current(screen: &Widgets) -> Option<usize> {
-    match screen.get(BAR).map(|bar| &bar.kind) {
+    match screen.get(BAR).map(|bar| bar.kind()) {
         Some(WidgetKind::TabBar(bar)) => Some(bar.current()),
         _ => None,
     }

@@ -42,10 +42,6 @@ pub(crate) struct WorldPresetName(pub String);
 #[derive(Resource, Clone, Copy)]
 pub(crate) struct WorldHost(pub Uuid);
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource it reads or sets is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn bake_dimensions(
     mut commands: Commands,
     registries: Res<CurrentRegistries>,

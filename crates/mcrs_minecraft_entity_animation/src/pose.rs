@@ -120,7 +120,10 @@ impl EntityAnimation {
         self.set_number(rig.queries.key_frame_lerp_time, 0.0);
     }
 
-    #[expect(clippy::too_many_arguments, reason = "one clip of one frame")]
+    #[cfg_attr(
+        mcrs_lint,
+        expect(mcrs::too_many_arguments, reason = "one clip of one frame")
+    )]
     fn apply_clip(
         &mut self,
         rig: &Rig,

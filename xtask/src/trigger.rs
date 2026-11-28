@@ -4,6 +4,7 @@ pub enum Check {
     Parity,
     Fmt,
     Clippy,
+    EcsLint,
     Test,
     NoBevy,
     Layers,
@@ -11,6 +12,7 @@ pub enum Check {
     Wasm32,
     NoStd,
     Keys,
+    CrateMap,
 }
 
 impl Check {
@@ -20,6 +22,7 @@ impl Check {
             Check::Parity => "parity",
             Check::Fmt => "fmt",
             Check::Clippy => "clippy",
+            Check::EcsLint => "ecs-lint",
             Check::Test => "test",
             Check::NoBevy => "no-bevy",
             Check::Layers => "layers",
@@ -27,6 +30,7 @@ impl Check {
             Check::Wasm32 => "wasm32",
             Check::NoStd => "no-std",
             Check::Keys => "keys",
+            Check::CrateMap => "crate-map",
         }
     }
 
@@ -83,10 +87,10 @@ impl Trigger {
                 "before a commit: no comments outside examples, fixture parity, formatting"
             }
             Trigger::Push => {
-                "before a push: the commit checks; ci runs clippy, the tests and the builds"
+                "before a push: the commit checks and the ECS lints of the workspace; ci runs clippy, the tests and the builds"
             }
             Trigger::Lint => {
-                "in CI on every pull request and every push to main: the commit checks over the whole branch, then the key sources regenerated when an input of the generator changed"
+                "in CI on every pull request and every push to main: the commit checks over the whole branch, the crate map, the key sources regenerated when an input of the generator changed, then the ECS lints of the workspace"
             }
             Trigger::Clippy => "in CI on every pull request and every push to main: clippy",
             Trigger::Test => {
@@ -129,8 +133,9 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
         Trigger::Edit => &[Fmt],
-        Trigger::Commit | Trigger::Push => &[Comments, Parity, Fmt],
-        Trigger::Lint => &[Comments, Parity, Fmt, Keys],
+        Trigger::Commit => &[Comments, Parity, Fmt],
+        Trigger::Push => &[Comments, Parity, Fmt, EcsLint],
+        Trigger::Lint => &[Comments, Parity, Fmt, Keys, CrateMap, EcsLint],
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
         Trigger::Portability => &[NoBevy, Layers, ExampleDependencies, Wasm32, NoStd],

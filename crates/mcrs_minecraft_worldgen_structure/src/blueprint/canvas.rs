@@ -208,22 +208,6 @@ impl Canvas {
         }
     }
 
-    pub fn gable_roof(
-        &mut self,
-        gable: Gable,
-        stairs: &str,
-        lining: Option<&Cell>,
-        top: Option<&Cell>,
-    ) {
-        let (low, high) = if gable.ridge == Axis::Z {
-            (Direction::East, Direction::West)
-        } else {
-            (Direction::South, Direction::North)
-        };
-        let (low, high) = (super::stairs(stairs, low), super::stairs(stairs, high));
-        self.gable(&gable, &low, &high, [lining, top]);
-    }
-
     pub fn stepped_gable(
         &mut self,
         gable: Gable,
@@ -268,17 +252,6 @@ impl Canvas {
             .filter(|(_, cell)| *cell != Cell::Void)
             .collect();
         self.copied(cells, turn, shift);
-    }
-
-    pub fn copy_columns(&mut self, min: [i32; 2], max: [i32; 2], turn: Turn, shift: [i32; 2]) {
-        let top = self.size.1 - 1;
-        let cells = boxed([min[0], 0, min[1]], [max[0], top, max[1]])
-            .filter(|(x, _, z)| {
-                (0..=top).any(|y| self.world.get(&(*x, y, *z)) != Some(&Cell::Void))
-            })
-            .filter_map(|pos| Some((pos, self.world.get(&pos)?.clone())))
-            .collect();
-        self.copied(cells, turn, [shift[0], 0, shift[1]]);
     }
 
     pub fn variant_of(&mut self, size: [i32; 3], turn: Turn, paint: impl FnOnce(&mut Canvas)) {

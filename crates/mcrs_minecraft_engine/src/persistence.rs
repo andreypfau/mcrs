@@ -4,6 +4,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Component, Res, ResMut, Resource, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
@@ -26,10 +27,12 @@ use crate::background_writer::{BackgroundWriter, WriteJob};
 use crate::bus::OutboundPlayerReleased;
 use crate::carried_attributes::CarriedAttributes;
 use crate::client_info::ClientInfo;
+use crate::client_on_ground::ClientOnGround;
 use crate::cold_columns::SaveRequest;
 use crate::coordinator::clock::GameTime;
 use crate::game_mode::ListedGameMode;
 use crate::game_profile::GameProfile;
+use crate::max_health::max_health;
 use crate::op_level::AnnouncedOpLevel;
 use crate::persisted_registry::{
     CaptureCause, PersistScope, PersistedAppExt, PersistedError, PersistedForm, PersistedRegistry,
@@ -60,6 +63,9 @@ const CARRIED_ATTRIBUTES_KEYS: &[&str] = &["mcrs:attributes"];
 const SPRINTING_KEYS: &[&str] = &["mcrs:sprinting"];
 const SHIFT_KEY_KEYS: &[&str] = &["mcrs:shift_key"];
 const UUID_KEYS: &[&str] = &["UUID"];
+const ON_GROUND_KEYS: &[&str] = &["OnGround"];
+const HEALTH_KEY: &str = "Health";
+const VITALS_KEYS: &[&str] = &[HEALTH_KEY, "AbsorptionAmount", "HurtTime", "DeathTime"];
 
 pub struct PlayerPersistencePlugin;
 
@@ -68,6 +74,7 @@ impl Plugin for PlayerPersistencePlugin {
         app.register_persisted_codec(POSE_KEYS, PersistScope::Persisted, capture_pose, apply_pose)
             .register_persisted_codec(UUID_KEYS, PersistScope::Persisted, capture_uuid, apply_uuid)
             .register_persisted::<PlayerFileState>(player_state_keys(), PersistScope::Persisted)
+            .register_persisted::<ClientOnGround>(ON_GROUND_KEYS, PersistScope::Persisted)
             .register_persisted_as::<PlayerGameMode, GameType>(
                 GAME_TYPE_KEYS,
                 PersistScope::Persisted,
@@ -105,6 +112,12 @@ impl Plugin for PlayerPersistencePlugin {
                 CARRIED_ATTRIBUTES_KEYS,
                 PersistScope::TravelOnly,
             )
+            .register_persisted_codec(
+                VITALS_KEYS,
+                PersistScope::Persisted,
+                capture_vitals,
+                apply_vitals,
+            )
             .register_persisted::<PlayerSprinting>(SPRINTING_KEYS, PersistScope::TravelOnly)
             .register_persisted::<ShiftKey>(SHIFT_KEY_KEYS, PersistScope::TravelOnly);
     }
@@ -136,7 +149,7 @@ impl PersistedForm<Transform> for Pose {
 }
 
 fn capture_pose(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -176,7 +189,7 @@ fn apply_pose(world: &mut World, player: Entity, tag: &NbtTag) -> Result<(), Per
 }
 
 fn capture_uuid(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -198,6 +211,74 @@ fn apply_uuid(_: &mut World, _: Entity, tag: &NbtTag) -> Result<(), PersistedErr
             key: "UUID",
             source,
         })
+}
+
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct SavedVitals {
+    #[serde(rename = "Health")]
+    health: Option<f32>,
+    #[serde(rename = "AbsorptionAmount")]
+    absorption: f32,
+    #[serde(rename = "HurtTime")]
+    hurt_time: i16,
+    #[serde(rename = "DeathTime")]
+    death_time: i16,
+}
+
+fn ticks(saved: i16) -> u8 {
+    u8::try_from(saved.max(0)).unwrap_or(u8::MAX)
+}
+
+fn capture_vitals(
+    world: &World,
+    player: Entity,
+    _: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError> {
+    let Some(vitals) = world.get::<Vitals>(player) else {
+        return Ok(None);
+    };
+    mcrs_minecraft_nbt::tag_serializer::to_nbt_tag(&SavedVitals {
+        health: Some(vitals.health),
+        absorption: vitals.absorption,
+        hurt_time: i16::from(vitals.hurt_time),
+        death_time: vitals.death_time.map_or(0, i16::from),
+    })
+    .map(Some)
+    .map_err(|source| PersistedError::Encode {
+        key: HEALTH_KEY,
+        source,
+    })
+}
+
+fn apply_vitals(world: &mut World, player: Entity, tag: &NbtTag) -> Result<(), PersistedError> {
+    let saved: SavedVitals =
+        mcrs_minecraft_nbt::tag_deserializer::from_tag(tag.clone()).map_err(|source| {
+            PersistedError::Decode {
+                key: HEALTH_KEY,
+                source,
+            }
+        })?;
+    let max_health = max_health(world.get::<AttributeInstances>(player));
+    let mut vitals = world
+        .get::<Vitals>(player)
+        .copied()
+        .unwrap_or(Vitals::new(max_health));
+    if let Some(health) = saved.health {
+        vitals.health = if health.is_finite() {
+            health.max(0.0).min(max_health)
+        } else {
+            max_health
+        };
+    }
+    vitals.absorption = saved.absorption;
+    vitals.hurt_time = ticks(saved.hurt_time);
+    vitals.death_time = (vitals.health <= 0.0).then(|| ticks(saved.death_time));
+    world
+        .get_entity_mut(player)
+        .map_err(|_| PersistedError::NoEntity(player))?
+        .insert(vitals);
+    Ok(())
 }
 
 pub(crate) mod transform_serde {
@@ -307,7 +388,7 @@ struct ReadAbilities {
 }
 
 fn capture_abilities(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -358,7 +439,7 @@ fn apply_abilities(world: &mut World, player: Entity, tag: &NbtTag) -> Result<()
 }
 
 fn capture_dimension(
-    world: &mut World,
+    world: &World,
     player: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
@@ -388,10 +469,18 @@ impl AutosaveCadence {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "counts every fixed tick toward the next autosave"
+    )
+)]
 pub(crate) fn advance_autosave_cadence(mut cadence: ResMut<AutosaveCadence>) {
     cadence.advance();
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 pub(crate) fn autosave_due(cadence: Res<AutosaveCadence>) -> bool {
     cadence.is_due()
 }
@@ -609,6 +698,16 @@ impl PersistedSnapshot {
         self.put_logged(POSE_KEYS, &Pose::from_value(&transform));
     }
 
+    pub fn insert_rotation(&mut self, rotation: Rotation) {
+        self.put_logged(
+            POSE_KEYS,
+            &Pose {
+                pos: None,
+                rotation: Some([rotation.yaw(), rotation.pitch()]),
+            },
+        );
+    }
+
     pub fn profile(&self) -> Option<GameProfile> {
         self.get_logged(PROFILE_KEYS)
     }
@@ -722,15 +821,14 @@ pub fn apply_join_snapshot(world: &mut World, player: Entity, snapshot: &Persist
 }
 
 pub fn save_player(
-    world: &mut World,
+    world: &World,
     player: Entity,
     cause: CaptureCause,
 ) -> Result<PlayerDat, PersistedError> {
-    let Some(registry) = world.remove_resource::<PersistedRegistry>() else {
+    let Some(registry) = world.get_resource::<PersistedRegistry>() else {
         return Err(PersistedError::NoRegistry);
     };
     let snapshot = registry.capture_file(world, player, cause);
-    world.insert_resource(registry);
     let mut root = mcrs_minecraft_nbt::compound::NbtCompound::new();
     for (key, tag) in snapshot? {
         root.put(key, tag);
@@ -744,7 +842,7 @@ pub fn save_player(
 }
 
 fn player_file(
-    world: &mut World,
+    world: &World,
     player: Entity,
     cause: CaptureCause,
 ) -> Option<(PathBuf, Uuid, PlayerDat)> {
@@ -804,6 +902,21 @@ pub fn write_player(world: &mut World, player: Entity, cause: CaptureCause) {
     flush_player_saves(world);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "captures every persisted component of each player through the persisted registry, which needs the whole world"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on a save request, and each player file moves into the save queue"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 pub fn autosave_players(world: &mut World) {
     let players: Vec<Entity> = world
         .query_filtered::<Entity, With<Player>>()
@@ -822,6 +935,13 @@ pub(crate) fn player_saves_pending(queue: Res<PlayerSaveQueue>) -> bool {
     !queue.is_idle()
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "waits for the player files only on a save-all request, which must finish every write before the server stops"
+    )
+)]
 pub fn finish_player_saves(
     mut queue: ResMut<PlayerSaveQueue>,
     request: Option<Res<SaveRequest>>,
@@ -848,6 +968,7 @@ pub fn flush_player_saves(world: &mut World) {
 pub(crate) mod tests {
     use super::*;
     use bevy_ecs::component::Component;
+    use bevy_ecs::schedule::IntoScheduleConfigs;
     use mcrs_minecraft_protocol::setting::ChatMode;
     use serde::{Deserialize, Serialize};
 
@@ -963,6 +1084,26 @@ pub(crate) mod tests {
             keys.iter().all(|key| !key.starts_with("mcrs:")),
             "session state in the file: {keys:?}"
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_player_file_holds_the_live_ground_flag() {
+        let dir = temp_world();
+        let mut app = app(&dir);
+        let player = app
+            .world_mut()
+            .spawn((
+                profile(),
+                Transform::default(),
+                PlayerFileState::default(),
+                ClientOnGround(true),
+            ))
+            .id();
+
+        let dat = save_player(app.world_mut(), player, CaptureCause::Autosave).unwrap();
+
+        assert_eq!(dat.get("OnGround"), Some(&NbtTag::Byte(1)));
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -1171,7 +1312,10 @@ pub(crate) mod tests {
             writer: BackgroundWriter::running(task),
             ..Default::default()
         });
-        app.add_systems(bevy_app::Update, finish_player_saves);
+        app.add_systems(
+            bevy_app::Update,
+            finish_player_saves.run_if(player_saves_pending),
+        );
         app
     }
 
@@ -1251,5 +1395,47 @@ pub(crate) mod tests {
         let player = app.world_mut().spawn(profile()).id();
         apply_join_snapshot(app.world_mut(), player, &PersistedSnapshot::unreadable());
         assert!(app.world().get::<UnreadablePlayerDat>(player).is_some());
+    }
+
+    #[test]
+    fn a_dimension_change_keeps_a_health_above_the_base_maximum_from_a_transient_modifier() {
+        use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+        use mcrs_minecraft_entity_attribute::{
+            InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
+        };
+        use mcrs_minecraft_resource::ResourceLocationBuf;
+
+        let mut app = app(&temp_world());
+        let bases = mcrs_minecraft_entity::attribute_bases(EntityType::Player).unwrap();
+        let mut attributes = AttributeInstances::new(bases);
+        let _ = attributes.apply(
+            Attribute::MaxHealth,
+            &InstanceEdit::Put(InstanceModifier::new(
+                ResourceLocationBuf::new("mcrs", "test_boost").unwrap(),
+                20.0,
+                ModifierOperation::AddValue,
+                ModifierKind::Transient,
+            )),
+        );
+        let mut vitals = Vitals::new(40.0);
+        vitals.health = 30.0;
+        let traveller = app.world_mut().spawn((profile(), attributes, vitals)).id();
+        let registry = app
+            .world_mut()
+            .remove_resource::<PersistedRegistry>()
+            .unwrap();
+        let snapshot = registry
+            .capture(app.world_mut(), traveller, CaptureCause::DimensionChange)
+            .unwrap();
+        let arrival = app.world_mut().spawn(profile()).id();
+        registry.apply(app.world_mut(), arrival, &snapshot).unwrap();
+
+        assert_eq!(
+            app.world()
+                .get::<Vitals>(arrival)
+                .map(|vitals| vitals.health),
+            Some(30.0),
+            "the arrival clamps the health to the maximum that the carried modifiers give"
+        );
     }
 }

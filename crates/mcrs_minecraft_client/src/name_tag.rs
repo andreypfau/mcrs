@@ -213,10 +213,14 @@ fn publish<T: DerefMut<Target = NameTags>>(
     tags.revision += 1;
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and reader is its own parameter"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the spans and the pieces are built only for the few named entities that show a tag near the camera"
+    )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 fn sync_name_tags(
     mut assets: ResMut<TextAssets>,
     mut images: ResMut<Assets<Image>>,

@@ -23,6 +23,7 @@ pub(crate) fn project_panorama_view(
         | Screen::Menu
         | Screen::GameModeSwitcher(_)
         | Screen::Chat
+        | Screen::Death
         | Screen::WorldListError => PanoramaDraw::Hidden,
         Screen::Pause
         | Screen::Options

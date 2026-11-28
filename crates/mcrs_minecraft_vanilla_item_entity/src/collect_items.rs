@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::query::With;
@@ -186,14 +187,14 @@ fn pick_up(
             && let Ok(mut held_count) = counts.get_mut(held)
             && let Some(next) = held_count.get().checked_add(moved).and_then(Count::new)
         {
-            *held_count = next;
+            held_count.set_if_neq(next);
         }
     }
     let filled = end.empty.zip(Count::new(end.filled));
     match (filled, Count::new(end.rest)) {
         (Some((index, filled)), None) => {
             if let Ok(mut own) = counts.get_mut(offer.stack) {
-                *own = filled;
+                own.set_if_neq(filled);
             }
             commands.entity(offer.stack).put_at(offer.collector, index);
         }
@@ -203,8 +204,8 @@ fn pick_up(
                 commands.spawn_stack(value).put_at(offer.collector, index);
             }
             keep_or_destroy(
-                &mut commands,
-                &mut stacks.p1(),
+                commands.reborrow(),
+                stacks.p1(),
                 offer.stack,
                 rest,
                 collector.mode,
@@ -212,8 +213,8 @@ fn pick_up(
         }
         (None, Some(rest)) => {
             keep_or_destroy(
-                &mut commands,
-                &mut counts,
+                commands.reborrow(),
+                counts.reborrow(),
                 offer.stack,
                 rest,
                 collector.mode,
@@ -231,8 +232,8 @@ fn pick_up(
 }
 
 fn keep_or_destroy(
-    commands: &mut Commands,
-    counts: &mut Query<&mut Count>,
+    mut commands: Commands<'_, '_>,
+    mut counts: Query<'_, '_, &mut Count>,
     stack: Entity,
     rest: Count,
     mode: Collect,

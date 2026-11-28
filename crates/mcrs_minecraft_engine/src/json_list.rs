@@ -45,7 +45,3 @@ pub(crate) fn parse_json_list<T: DeserializeOwned>(
         })
         .collect())
 }
-
-pub(crate) fn write_atomic(path: &Path, contents: &str) -> std::io::Result<()> {
-    mcrs_minecraft_save::write_atomic(path, contents.as_bytes())
-}

@@ -1,11 +1,14 @@
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::clipboard::Clipboard;
+use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
+use bevy::time::common_conditions::on_timer;
 
 use mcrs_minecraft_render_probe::probe::{self, CpuTimings, GpuTimings};
 
@@ -43,7 +46,13 @@ impl Plugin for ScreenshotPlugin {
             .unwrap_or_else(|| PathBuf::from(DEFAULT_DIR));
         app.insert_resource(ScreenshotDir(dir))
             .add_systems(Startup, prepare_dir)
-            .add_systems(Update, capture);
+            .add_systems(
+                Update,
+                capture.run_if(
+                    on_timer(Duration::from_secs_f32(TRIGGER_POLL_SECONDS))
+                        .or_else(input_just_pressed(KeyCode::F2)),
+                ),
+            );
         if let Some(path) = knobs.capture_path() {
             app.insert_resource(SceneCapture(path))
                 .add_message::<Unsettled>()
@@ -63,20 +72,24 @@ fn prepare_dir(dir: Res<ScreenshotDir>) {
 
 const TRIGGER_POLL_SECONDS: f32 = 0.25;
 
-fn capture(
-    mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
-    dir: Res<ScreenshotDir>,
-    time: Res<Time>,
-    mut due: Local<f32>,
-) {
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the file name of a screenshot carries the wall-clock time"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "polled by timer; it builds the file name only on the frame that finds the trigger file"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn capture(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>, dir: Res<ScreenshotDir>) {
     let trigger = dir.trigger();
-    let now = time.elapsed_secs();
-    let poll = now >= *due;
-    if poll {
-        *due = now + TRIGGER_POLL_SECONDS;
-    }
-    if poll && trigger.exists() {
+    if trigger.exists() {
         remove_trigger(&trigger);
         let shot = dir.next_shot();
         info!(path = %shot.display(), "capturing screenshot");
@@ -111,10 +124,22 @@ struct Settling {
     requested: bool,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "watches the scene settle on each frame until the capture, and only when the capture knob is set"
+    )
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        mcrs::blocking_in_system,
+        reason = "allocates and writes the timing table only on the timeout and on the one frame that captures the scene"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 fn capture_scene(
     mut commands: Commands,
     capture: Res<SceneCapture>,

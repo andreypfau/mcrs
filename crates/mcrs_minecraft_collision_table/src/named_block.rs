@@ -35,7 +35,8 @@ impl NamedBlock {
             "cobweb" => named.inside = InsideEffect::Cobweb,
             "sweet_berry_bush" => named.inside = InsideEffect::SweetBerryBush,
             "powder_snow" => named.inside = InsideEffect::PowderSnow,
-            "water" => named.flags |= BlockFlags::OWN_SPEED_FACTOR,
+            "water" => named.flags |= BlockFlags::OWN_SPEED_FACTOR | BlockFlags::LIQUID_BLOCK,
+            "lava" => named.flags |= BlockFlags::LIQUID_BLOCK,
             "bubble_column" => {
                 named.flags |= BlockFlags::OWN_SPEED_FACTOR | BlockFlags::COARSE_BUBBLE_COLUMN;
             }

@@ -51,7 +51,7 @@ const NO_STD_PACKAGES: [&str; 20] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 142] = [
+const NO_BEVY_PACKAGES: [&str; 143] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -85,7 +85,6 @@ const NO_BEVY_PACKAGES: [&str; 142] = [
     "mcrs_minecraft_goal_world",
     "mcrs_minecraft_goals",
     "mcrs_minecraft_mob_control",
-    "mcrs_minecraft_server_bench",
     "mcrs_mob_bench",
     "mcrs_minecraft_client_ticks",
     "mcrs_minecraft_collision_table",
@@ -135,6 +134,7 @@ const NO_BEVY_PACKAGES: [&str; 142] = [
     "mcrs_minecraft_loot",
     "mcrs_minecraft_loot_condition",
     "mcrs_minecraft_map_decoration",
+    "mcrs_minecraft_mcp",
     "mcrs_minecraft_menu_geometry",
     "mcrs_minecraft_menu_key",
     "mcrs_minecraft_mesh",
@@ -149,6 +149,7 @@ const NO_BEVY_PACKAGES: [&str; 142] = [
     "mcrs_minecraft_painting_variant",
     "mcrs_minecraft_numeric",
     "mcrs_minecraft_particle",
+    "mcrs_minecraft_pathfind",
     "mcrs_minecraft_physics",
     "mcrs_minecraft_pose",
     "mcrs_minecraft_potion",
@@ -348,16 +349,27 @@ impl Context {
     }
 
     fn exec(&self, program: &str, args: &[&str]) -> Result<bool, String> {
+        self.exec_in(&self.root, program, args, |_| {})
+    }
+
+    fn exec_in(
+        &self,
+        dir: &Path,
+        program: &str,
+        args: &[&str],
+        configure: impl FnOnce(&mut Command),
+    ) -> Result<bool, String> {
         let shown = format!("{program} {}", args.join(" "));
         println!("$ {}", shown.trim_end());
-        let resolved = if program.contains('/') {
-            self.root.join(program)
+        let mut command = if program.contains('/') {
+            Command::new(self.root.join(program))
         } else {
-            PathBuf::from(program)
+            Command::new(program)
         };
-        Command::new(&resolved)
+        configure(&mut command);
+        command
             .args(args)
-            .current_dir(&self.root)
+            .current_dir(dir)
             .status()
             .map(|status| status.success())
             .map_err(|e| format!("could not run {program}: {e}; install it and put it on PATH"))
@@ -384,10 +396,12 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
             || ctx.exec("cargo", &keys::GENERATE),
         ),
         Check::Clippy => clippy(ctx),
+        Check::EcsLint => ecs_lint(ctx),
         Check::Test => test(ctx),
         Check::NoBevy => no_bevy(ctx),
         Check::Layers => layers(ctx),
         Check::ExampleDependencies => crate::example_dependencies::check(&ctx.root),
+        Check::CrateMap => crate::crate_map::check(&ctx.root),
         Check::NoStd => build_for(
             ctx,
             "wasm32v1-none",
@@ -401,7 +415,8 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
 
 const OWN_FEATURES: [&str; 2] = ["--config", "resolver.feature-unification=\"selected\""];
 
-const WASM32_CLIENT_FEATURES: [&[&str]; 2] = [&[], &["--no-default-features"]];
+const WASM32_CLIENT_FEATURES: [&[&str]; 3] =
+    [&[], &["--no-default-features"], &["--features", "dev"]];
 
 fn wasm32(ctx: &Context) -> Outcome {
     build_for(
@@ -703,6 +718,96 @@ fn clippy(ctx: &Context) -> Outcome {
         ctx.exec("cargo", &args)?,
         "clippy reported diagnostics",
         "resolve the diagnostics above",
+    )?;
+    verdict(
+        ctx.exec(
+            "cargo",
+            &[
+                "clippy",
+                "--workspace",
+                "--all-targets",
+                "--locked",
+                "--features",
+                "mcrs_minecraft_client/dev",
+                "--",
+                "-D",
+                "warnings",
+            ],
+        )?,
+        "clippy reported diagnostics for the client with its dev feature",
+        "resolve the diagnostics above",
+    )
+}
+
+fn ecs_lint(ctx: &Context) -> Outcome {
+    let lints = ctx.root.join("lints");
+    let channel = |dir: &Path| {
+        std::fs::read_to_string(dir.join("rust-toolchain.toml"))
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find_map(|line| line.trim().strip_prefix("channel = ").map(str::to_owned))
+            })
+    };
+    verdict(
+        channel(&ctx.root).is_some() && channel(&ctx.root) == channel(&lints),
+        "rust-toolchain.toml and lints/rust-toolchain.toml name different channels, so the driver would fall back to plain rustc",
+        "set the same channel in both files",
+    )?;
+    let target = lints.join("target");
+    let target = target.to_string_lossy();
+    let own_toolchain = |command: &mut Command| {
+        command.env_remove("RUSTUP_TOOLCHAIN");
+    };
+    let built = ctx.exec_in(&lints, "rustup", &["toolchain", "install"], own_toolchain)?
+        && ctx.exec_in(
+            &lints,
+            "cargo",
+            &["build", "--release", "--locked", "--target-dir", &target],
+            own_toolchain,
+        )?;
+    verdict(
+        built,
+        "the ECS lint driver does not build",
+        "fix the errors above in lints/",
+    )?;
+    verdict(
+        ctx.exec_in(
+            &lints.join("fixture"),
+            "cargo",
+            &[
+                "check",
+                "--all-targets",
+                "--locked",
+                "--config",
+                "build.warnings=\"deny\"",
+            ],
+            own_toolchain,
+        )?,
+        "lints/fixture has a missing or an extra ECS lint",
+        "make the lints of the driver match the expectations of the fixture",
+    )?;
+    verdict(
+        ctx.exec_in(
+            &ctx.root,
+            "cargo",
+            &[
+                "check",
+                "--workspace",
+                "--all-targets",
+                "--locked",
+                "--config",
+                "build.warnings=\"deny\"",
+            ],
+            |command| {
+                command.env(
+                    "RUSTC_WORKSPACE_WRAPPER",
+                    lints.join("target/release/mcrs-lint-driver"),
+                );
+            },
+        )?,
+        "the ECS lints or rustc reported diagnostics",
+        "fix the code, or add an expectation with a reason as docs/ecs-lint.md describes",
     )
 }
 
@@ -849,6 +954,7 @@ mod tests {
                 name: "x".to_owned(),
                 dir: "crates/x".to_owned(),
                 edition: "2024".to_owned(),
+                description: None,
                 dependencies: Vec::new(),
             }],
         };

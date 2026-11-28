@@ -27,8 +27,8 @@ pub(crate) fn container_close(
         return;
     }
     if shows_inventory_menu(menus) {
-        clear_first_slot(player_holders.craft_result, &holders, &mut commands);
+        clear_first_slot(player_holders.craft_result, &holders, commands.reborrow());
     } else {
-        leave_container_menu(viewer, player_holders, &holders, &mut commands);
+        leave_container_menu(viewer, player_holders, &holders, commands.reborrow());
     }
 }

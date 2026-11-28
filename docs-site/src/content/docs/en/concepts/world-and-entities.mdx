@@ -6,22 +6,41 @@ sidebar:
 kind: explanation
 audience: [rust, contributor, jvm]
 stability: wip
-tracking: [486, 324]
+tracking: [324]
 sources:
+  - crates/mcrs_minecraft_engine_world/src/world_cells.rs
+  - crates/mcrs_minecraft_engine_brain/src/mob_brain_plugin.rs
   - crates/mcrs_minecraft_volume/src/lib.rs
   - crates/mcrs_minecraft_engine_entity_motion/src/lib.rs
   - docs/physics-architecture.md
+  - crates/mcrs_minecraft_engine_world/src/world/dimension.rs
+  - crates/mcrs_minecraft_engine_world/src/world/storage/section.rs
+  - crates/mcrs_minecraft_engine_world/src/world/storage/column.rs
+  - crates/mcrs_minecraft_engine_world/src/world/lifecycle/ticket.rs
+  - crates/mcrs_voxel/src/lib.rs
+  - crates/mcrs_minecraft_volume/src/access.rs
+  - crates/mcrs_minecraft_engine/src/coordinator/sub_app_builder.rs
+  - crates/mcrs_minecraft_engine_physics/src/mob_spawn.rs
+  - crates/mcrs_minecraft_engine_brain/src/brain_state.rs
+  - crates/mcrs_minecraft_engine_brain/src/player_table.rs
+  - crates/mcrs_minecraft_engine/src/publish_player_tiles.rs
+  - crates/mcrs_minecraft_engine/src/consume_inbound_player_spawn.rs
+  - crates/mcrs_minecraft_physics/src/body_grid.rs
+  - crates/mcrs_minecraft_damage/src/vitals.rs
   - issue:486
   - issue:324
+  - crates/mcrs_minecraft_engine/src/hot_ticket.rs
+  - crates/mcrs_minecraft_engine_world/src/world/storage/view.rs
+  - crates/mcrs_minecraft_client_world/src/columns.rs
+  - crates/mcrs_minecraft_volume/src/columns.rs
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import Status from '~/components/Status.astro';
-import { Aside } from '@astrojs/starlight/components';
 
-This page shows how mcrs lays out a world in memory: blocks in sections and columns, and mobs as ECS entities. The layout is settled for blocks and still moving for entities and for the world-access API, so the page is short. If you know Paper, expect two changes. A "chunk" is two different things here, and a mob is not an object.
+This page shows how mcrs lays out a world in memory: blocks in sections and columns, and mobs as ECS entities. The layout is settled for blocks and still moving for entities and for the world-access API. If you know Paper, expect two changes. A "chunk" is two different things here, and a mob is not an object.
 
 ## A dimension holds columns, and a column holds sections
 
@@ -33,35 +52,31 @@ This page shows how mcrs lays out a world in memory: blocks in sections and colu
 
 mcrs says "section" and "column" and avoids a bare "chunk", because "chunk" does not say which of the two it means. The [glossary](/docs/en/reference/glossary/) defines both terms.
 
-In the engine, each of the three levels is an ECS entity with a marker component that tags what the entity is. The markers are `Section`, `Column` and `Dimension` in `mcrs_minecraft_engine_world`. The position types `BlockPos`, `SectionPos` and `ColumnPos` are plain coordinate math in `mcrs_minecraft_core` and carry no ECS state. Block data inside a section is a `PalettedContainer`-style palette, as in the game.
+In the engine, each of the three levels is an ECS entity with a marker component that tags what the entity is. The markers are `Section`, `Column` and `Dimension` in `mcrs_minecraft_engine_world`. The position types `BlockPos`, `SectionPos` and `ColumnPos` are coordinate types in `mcrs_voxel`. Block data inside a section uses a palette.
 
-Each dimension is a separate Bevy world and has its own tick. [Cells and the road to many nodes](/docs/en/concepts/scaling/) builds on this, and so do the dimension plugins you write in [Dimensions are separate worlds](/docs/en/plugins/dimensions/).
+By default, each dimension has one cell with its own Bevy world and tick. With several static cells, each cell has its own world, and a local query sees only that cell's entities. [Cells and the road to many nodes](/docs/en/concepts/scaling/) builds on this, and so do the dimension plugins you write in [Dimensions are separate worlds](/docs/en/plugins/dimensions/).
 
 ## Tickets decide what is hot
 
-Space ticks only when a ticket covers it. A ticket comes from a player's simulation area, the spawn area or a chunk loader. The code keeps the loading tickets on columns, the 3D simulation areas of players and the stage of each section in `lifecycle/` in the world module. Cold space is data that does not tick. This split is what lets an untouched section cost nothing.
+Player tickets keep columns loaded and supply simulation coverage. Loading tickets live on columns; simulation coverage and section stages live in the world module's `lifecycle/` code. Cold space stays outside the active simulation.
 
 ## Volumes become the one API for reading the world
 
-Today several code paths read blocks, and each uses a view of its own: the chunk crate, the world generator, the light engine, the mesher and the client. Each answers "section not loaded" in its own way. One layer-3 crate called `mcrs_minecraft_volume` replaces them, in steps.[^486]
+Several code paths read blocks: the chunk crate, the world generator, the light engine, the mesher and the client. Each of them had a view of its own and answered "section not loaded" in its own way. One layer-3 crate called `mcrs_minecraft_volume` now gives them one API.[^486]
 
 A volume has bounds. For each section it says whether the section may be written, is read-only, belongs to another owner, is not loaded, or is outside. Nothing loads on access, and errors are types you can match.
 
-Capabilities are separate traits for blocks, biomes, heights, light and block entities, plus mutable forms of them. The traits are generic, so there is no dynamic dispatch per block. The main path works per section and per palette, and access per block is a cursor over that path.
+Capabilities are separate traits for blocks, biomes, heights, light and block entities, with mutable forms for blocks and block entities. The traits are generic, so there is no dynamic dispatch per block. The main path works per section and per palette, and access per block is a cursor over that path.
 
-The crate exists and exports these types. The callers move to it in seven steps listed in the issue, such as the engine dimension view, heights and biomes, snapshots and light, and meshing and the client store. Until the steps are done, some code still uses the old views.
-
-<Aside type="caution" title="WIP">
-Treat the volume API as the direction. The migration is in progress and the traits may still change.[^486]
-</Aside>
+The engine dimension view, heights and biomes, snapshots and light, meshing and the client store have moved to it. A saved Anvil chunk is not read as a volume, and structure templates keep their own placement, block by block in the order of the template.
 
 ## Mobs are ECS entities
 
-Each mob, item, falling block and experience orb that the server simulates is a Bevy entity. Its motion is in components of the crate `mcrs_minecraft_engine_entity_motion` (`MotionState`, `MotionKind`, `MotionId`), and the attributes and the brain of a mob are components too. Players are the exception: they stay rows by tile. Each tick, one pass steps every moving entity in parallel against a frozen snapshot of the previous tick. Effects on another entity go into a queue that one system applies in a fixed order. [How a tick runs in parallel](/docs/en/concepts/parallel-tick/) explains why that gives one result on any thread count.
+Mobs, items and falling blocks are Bevy entities. Their motion lives in the components `MotionState`, `MotionKind` and `MotionId` from `mcrs_minecraft_engine_entity_motion`. A mob also has attributes. A mob with an installed, supported brain has the AI component `BrainState`; it is absent when AI is disabled or no brain is available for that type. The motion pass updates their components in parallel against a frozen body grid; [How a tick runs in parallel](/docs/en/concepts/parallel-tick/) explains the order.
 
-An earlier design kept mobs as rows in a store by tile. The rows were deleted, so a mob is a normal entity that your own system can query.
+A player is also a Bevy entity, tagged `Player`, with components such as `Transform`, `PlayerGameMode` and `Vitals`. Its movement follows a separate path. The AI player table is built from these components, and `publish_player_tiles` queries them to emit replication events. Body-grid rows and AI table rows are projections used by those consumers. They do not replace the entity or own another copy of its health.
 
-The exact shape of the API for reading and changing mobs from your own plugin is not settled. There is no decision on it yet, so no stable page can describe it. The memory cost per section and per entity component is not measured either.[^324]
+Your systems can query mob components in the dimension world. Players and mobs share `Vitals`; the damage queue applies hits to both, as [Read player data](/docs/en/plugins/players/#health-damage-and-death) describes. The library API can still change. A complete accounting of memory per section and entity remains unfinished.[^324]
 
 Next: [Cells and the road to many nodes](/docs/en/concepts/scaling/).
 

@@ -1,8 +1,10 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::query::{Changed, Or};
-use bevy_ecs::system::{Query, ResMut};
+use bevy_ecs::system::{Populated, ResMut};
 use mcrs_engine_muxer::EntityEvent;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol::VarInt;
@@ -18,18 +20,24 @@ use crate::replicated::Replicated;
 use crate::shift_key::ShiftKey;
 use crate::tile_events::TileEvents;
 
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct OwnPoseEntries(PlayerEntries);
 
-type PoseInputsChanged = Or<(Changed<Pose>, Changed<ShiftKey>, Changed<PlayerSprinting>)>;
+type PoseInputsChanged = Or<(
+    Changed<Pose>,
+    Changed<ShiftKey>,
+    Changed<PlayerSprinting>,
+    Changed<Vitals>,
+)>;
 
 pub(crate) fn publish_pose(
-    mut players: Query<
+    mut players: Populated<
         (
             &Owner,
             &Pose,
             &ShiftKey,
             &PlayerSprinting,
+            Option<&Vitals>,
             &mut OwnPoseEntries,
             Option<&Replicated>,
         ),
@@ -38,8 +46,8 @@ pub(crate) fn publish_pose(
     mut writer: MessageWriter<OutboundPlayerPacket>,
     mut events: Option<ResMut<TileEvents>>,
 ) {
-    for (&Owner(session), &pose, &shift, &sprinting, mut own, replicated) in &mut players {
-        let entries = pose_entries(pose, shift, sprinting);
+    for (&Owner(session), &pose, &shift, &sprinting, vitals, mut own, replicated) in &mut players {
+        let entries = pose_entries(pose, shift, sprinting, vitals);
         let changed = entries.changed_from(&own.0);
         if changed.is_empty() {
             continue;
@@ -51,7 +59,7 @@ pub(crate) fn publish_pose(
                 EntityEvent::Data(PlayerData::Entries(entries).into()),
             );
         }
-        own.0 = entries;
+        own.set_if_neq(OwnPoseEntries(entries));
         let packet = ClientboundSetEntityData {
             entity_id: VarInt(player_network_id(session)),
             metadata: Metadata(changed),
@@ -65,13 +73,23 @@ pub(crate) fn pose_entries(
     pose: Pose,
     shift: ShiftKey,
     sprinting: PlayerSprinting,
+    vitals: Option<&Vitals>,
 ) -> PlayerEntries {
-    let mut shared_flags = 0;
+    let mut entries = PlayerEntries {
+        pose,
+        ..PlayerEntries::default()
+    };
     if shift.0 {
-        shared_flags |= SHARED_FLAG_SHIFT;
+        entries.shared_flags |= SHARED_FLAG_SHIFT;
     }
     if sprinting.0 {
-        shared_flags |= SHARED_FLAG_SPRINT;
+        entries.shared_flags |= SHARED_FLAG_SPRINT;
     }
-    PlayerEntries { shared_flags, pose }
+    if let Some(vitals) = vitals {
+        entries.health = vitals.health;
+        if !vitals.is_alive() {
+            entries.pose = Pose::Dying;
+        }
+    }
+    entries
 }

@@ -2,7 +2,7 @@ use mcrs_minecraft_client_options::{ClientOptions, FOV_RANGE};
 use mcrs_minecraft_client_widget::{
     Alignment, BUTTON_GAP, BUTTON_HEIGHT, BUTTON_WIDTH, Child, DONE_BUTTON_WIDTH, Grid, GuiExtent,
     HeaderContentFooter, LayoutCell, Overflow, Padding, RowFill, Slider, Stack, Widget, WidgetId,
-    WidgetKind, text_line_extent,
+    WidgetKind, WidgetValue, text_line_extent,
 };
 
 use crate::font::Font;
@@ -123,8 +123,8 @@ fn fov_caption(language: &ClientLanguage, fov: u8) -> String {
 
 pub(crate) fn write_option(options: &mut ClientOptions, widget: &Widget) {
     if widget.id() == FOV
-        && let WidgetKind::Slider(slider) = widget.kind
-        && let Some(fov) = slider.value().and_then(|fov| u8::try_from(fov).ok())
+        && let Some(WidgetValue::Int(fov)) = widget.value()
+        && let Some(fov) = u8::try_from(fov).ok()
     {
         options.fov = fov;
     }

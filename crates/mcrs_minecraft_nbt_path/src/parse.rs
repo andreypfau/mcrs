@@ -15,11 +15,14 @@ impl FromStr for NbtPath {
     fn from_str(text: &str) -> Result<NbtPath, NbtPathError> {
         let mut parser = Parser { text, position: 0 };
         let mut nodes: Vec<Node> = Vec::new();
+        let mut ends: Vec<usize> = Vec::new();
         nodes.push(parser.first()?);
+        ends.push(parser.position);
         while parser.peek().is_some() {
             nodes.push(parser.next()?);
+            ends.push(parser.position);
         }
-        Ok(NbtPath::new(nodes))
+        Ok(NbtPath::new(nodes, ends))
     }
 }
 

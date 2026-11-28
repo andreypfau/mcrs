@@ -14,6 +14,7 @@
 )]
 
 mod anvil_block_states;
+mod attribute_command;
 mod ban;
 mod block_break;
 mod block_entities;
@@ -33,6 +34,8 @@ mod configuration_registries;
 mod configuration_start;
 mod configuration_tags;
 mod cross_player_isolation;
+mod death_drops;
+mod death_messages;
 mod dimension_change;
 mod dimension_list;
 mod dimension_plugins;
@@ -58,10 +61,12 @@ mod op_level;
 mod own_attributes;
 mod persistence;
 mod play_state_delivery;
+mod player_attack;
 mod player_file;
 mod player_pose;
 mod probe_bans;
 mod proxy_forwarding;
+mod respawn;
 mod run_server_loop_exit;
 mod schedule_ambiguity;
 mod session_lifecycle;
@@ -71,6 +76,7 @@ mod support;
 mod swing;
 mod teleport_confirmation;
 mod tick_determinism;
+mod tick_freeze;
 mod view_distance;
 mod whitelist;
 mod world_cells;

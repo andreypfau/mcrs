@@ -34,7 +34,7 @@ fn relative_move(
     rotation: Option<Rotation>,
     on_ground: bool,
     entities: &NetworkEntities,
-    query: &mut Query<MovedEntity>,
+    mut query: Query<'_, '_, MovedEntity>,
 ) {
     let Some(entity) = entities.get(network_id) else {
         return;
@@ -44,7 +44,9 @@ fn relative_move(
     };
     let path =
         motion_delta.map(|motion_delta| delta::motion_path(moved.motion.delta_base, motion_delta));
-    if let Some(end) = path.as_ref().and_then(PacketPath::end) {
+    if let Some(end) = path.as_ref().and_then(PacketPath::end)
+        && moved.motion.delta_base != end
+    {
         moved.motion.delta_base = end;
     }
     moved.update(path, rotation);
@@ -63,7 +65,7 @@ fn on_move_entity_pos(
             None,
             packet.on_ground,
             &entities,
-            &mut query,
+            query.reborrow(),
         );
     }
 }
@@ -84,7 +86,7 @@ fn on_move_entity_pos_rot(
             Some(rotation),
             packet.on_ground,
             &entities,
-            &mut query,
+            query.reborrow(),
         );
     }
 }
@@ -105,7 +107,7 @@ fn on_move_entity_rot(
             Some(rotation),
             packet.on_ground,
             &entities,
-            &mut query,
+            query.reborrow(),
         );
     }
 }
@@ -133,7 +135,9 @@ fn on_position_sync(
     let Some(end) = path.end() else {
         return;
     };
-    moved.motion.delta_base = end;
+    if moved.motion.delta_base != end {
+        moved.motion.delta_base = end;
+    }
     let rotation = Rotation {
         yaw: packet.look.yaw,
         pitch: packet.look.pitch,

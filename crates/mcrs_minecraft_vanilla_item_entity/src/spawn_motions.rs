@@ -3,7 +3,7 @@ use bevy_ecs::query::With;
 use bevy_ecs::query::Without;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::Local;
-use bevy_ecs::system::Query;
+use bevy_ecs::system::Populated;
 use bevy_ecs::system::Res;
 use glam::DVec3;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
@@ -40,7 +40,7 @@ fn motion_row() -> MotionRow {
 
 pub(crate) fn spawn_motions(
     mut commands: Commands,
-    pending: Query<
+    pending: Populated<
         (Entity, &Dropped, Option<&Launching>, Option<&FixedKey>),
         (With<Kind>, Without<MotionState>),
     >,
@@ -48,9 +48,10 @@ pub(crate) fn spawn_motions(
     mut sequences: Local<BirthSequences>,
     mut stacks: Stacks,
     table: Res<ItemTable>,
+    mut bytes: Local<Vec<u8>>,
 ) {
     for (stack, dropped, launching, fixed) in &pending {
-        let Some(wire) = wire_stack_of(&mut stacks, &table, stack) else {
+        let Some(wire) = wire_stack_of(&mut stacks, &table, stack, &mut bytes) else {
             commands.entity(stack).despawn();
             continue;
         };

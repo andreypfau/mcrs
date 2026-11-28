@@ -1,10 +1,12 @@
 use std::time::{Duration, Instant};
 
 use bevy_app::App;
+use bevy_ecs::entity::Entity;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
+use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::client_info::ClientInfo;
 use mcrs_minecraft_engine_registries::install_registries;
 use mcrs_minecraft_engine_registries::test_corpus;
@@ -12,10 +14,13 @@ use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_game_registries::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
-use mcrs_minecraft_item::Items;
+use mcrs_minecraft_item::{ItemHoverMap, Items};
 use mcrs_minecraft_protocol::setting::ChatMode;
+use mcrs_minecraft_protocol_game::text::Text;
 use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
+
+use crate::host_app::PlayServer;
 
 pub fn standalone_corpus() -> &'static (Blocks, Items) {
     test_corpus()
@@ -135,4 +140,31 @@ pub fn saved_block_entities(
         })
         .map(mcrs_minecraft_block_entity::GeneratedBlockEntity::from_compound)
         .collect()
+}
+
+pub fn chats(packets: &[PacketPayload]) -> Vec<Text> {
+    packets
+        .iter()
+        .filter_map(|packet| match packet {
+            PacketPayload::SystemChat(chat) => {
+                Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+pub fn chats_to(server: &mut PlayServer, anchor: Entity) -> Vec<Text> {
+    let session = server.session_of(anchor).unwrap();
+    let packets: Vec<PacketPayload> = server
+        .ticks_all(2)
+        .into_iter()
+        .filter(|packet| matches!(&packet.target, PacketTarget::PlayerSet(set) if set.contains(&session)))
+        .map(|packet| packet.data)
+        .collect();
+    chats(&packets)
+}
+
+pub fn reply(key: &'static str) -> Text {
+    Text::translate(key, Vec::<Text>::new())
 }

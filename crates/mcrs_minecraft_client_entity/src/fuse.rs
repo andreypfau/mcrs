@@ -15,10 +15,10 @@ impl Default for Fuse {
     }
 }
 
-pub(crate) fn burn_fuses(tick: Res<MotionTick>, mut fuses: Query<(&StepOutcome, &mut Fuse)>) {
+pub(crate) fn burn_fuses(tick: Res<MotionTick>, mut fuses: Populated<(&StepOutcome, &mut Fuse)>) {
     for (outcome, mut fuse) in &mut fuses {
         if outcome.is_of(tick.0) {
-            fuse.0 = fuse.0.saturating_sub(1);
+            fuse.set_if_neq(Fuse(fuse.0.saturating_sub(1)));
         }
     }
 }

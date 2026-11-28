@@ -142,7 +142,7 @@ impl SectionSimulation {
         self.entity_ticking.contains(pos)
     }
 
-    pub(crate) fn mark_spawned(&self, section: &mut EntityCommands, pos: SectionPos) {
+    pub(crate) fn mark_spawned(&self, mut section: EntityCommands<'_>, pos: SectionPos) {
         if self.is_block_ticking(pos) {
             section.insert(BlockTicking);
         }
@@ -195,7 +195,7 @@ fn shift_coverage(
 }
 
 fn mark(
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     index: &SectionIndex,
     pos: SectionPos,
     ticking: Ticking,
@@ -237,8 +237,8 @@ type Dimensions<'w, 's> = Query<
 >;
 
 fn shift_in(
-    dims: &mut Dimensions,
-    commands: &mut Commands,
+    mut dims: Dimensions<'_, '_>,
+    mut commands: Commands<'_, '_>,
     owned: Option<&OwnedColumns>,
     dim: Entity,
     old: Option<SimulationArea>,
@@ -253,14 +253,14 @@ fn shift_in(
         &loading.section_y,
         owned,
         |pos, ticking, change| {
-            mark(commands, index, pos, ticking, change);
+            mark(commands.reborrow(), index, pos, ticking, change);
         },
     );
 }
 
 pub(crate) fn track_simulation_tickets(
     distance: Res<SimulationDistance>,
-    mut players: Query<
+    mut players: Populated<
         (
             Entity,
             &Transform,
@@ -279,7 +279,14 @@ pub(crate) fn track_simulation_tickets(
             dim: in_dim.0,
             area: SimulationArea::around(SectionPos::from(transform.translation), *distance),
         };
-        follow(&mut dims, &mut commands, owned, player, wanted, held);
+        follow(
+            dims.reborrow(),
+            commands.reborrow(),
+            owned,
+            player,
+            wanted,
+            held,
+        );
     }
 }
 
@@ -294,7 +301,7 @@ impl HeldSimulationArea {
 }
 
 pub(crate) fn track_held_simulation_areas(
-    mut holders: Query<
+    mut holders: Populated<
         (Entity, &HeldSimulationArea, Option<&mut SimulationTicket>),
         Changed<HeldSimulationArea>,
     >,
@@ -304,13 +311,20 @@ pub(crate) fn track_held_simulation_areas(
 ) {
     let owned = owned.as_deref();
     for (holder, &HeldSimulationArea(wanted), held) in &mut holders {
-        follow(&mut dims, &mut commands, owned, holder, wanted, held);
+        follow(
+            dims.reborrow(),
+            commands.reborrow(),
+            owned,
+            holder,
+            wanted,
+            held,
+        );
     }
 }
 
 fn follow(
-    dims: &mut Dimensions,
-    commands: &mut Commands,
+    mut dims: Dimensions<'_, '_>,
+    mut commands: Commands<'_, '_>,
     owned: Option<&OwnedColumns>,
     holder: Entity,
     wanted: SimulationTicket,
@@ -334,25 +348,32 @@ fn follow(
             Some(wanted.area),
         );
     } else {
-        shift_in(dims, commands, owned, old.dim, Some(old.area), None);
+        shift_in(
+            dims.reborrow(),
+            commands.reborrow(),
+            owned,
+            old.dim,
+            Some(old.area),
+            None,
+        );
         shift_in(dims, commands, owned, wanted.dim, None, Some(wanted.area));
     }
-    *held = wanted;
+    held.set_if_neq(wanted);
 }
 
 pub(crate) fn raise_simulation_ticket(
     add: On<Add<SimulationTicket>>,
     held: Query<&SimulationTicket>,
-    mut dims: Dimensions,
+    dims: Dimensions,
     owned: Option<Res<OwnedColumns>>,
-    mut commands: Commands,
+    commands: Commands,
 ) {
     let Ok(held) = held.get(add.event().entity) else {
         return;
     };
     shift_in(
-        &mut dims,
-        &mut commands,
+        dims,
+        commands,
         owned.as_deref(),
         held.dim,
         None,
@@ -363,16 +384,16 @@ pub(crate) fn raise_simulation_ticket(
 pub(crate) fn release_simulation_ticket(
     remove: On<Remove<SimulationTicket>>,
     held: Query<&SimulationTicket>,
-    mut dims: Dimensions,
+    dims: Dimensions,
     owned: Option<Res<OwnedColumns>>,
-    mut commands: Commands,
+    commands: Commands,
 ) {
     let Ok(held) = held.get(remove.event().entity) else {
         return;
     };
     shift_in(
-        &mut dims,
-        &mut commands,
+        dims,
+        commands,
         owned.as_deref(),
         held.dim,
         Some(held.area),
@@ -543,11 +564,12 @@ mod tests {
         );
         assert_eq!(markers(&app, SectionPos::new(1, 5, 1), dim), (false, false));
 
+        let mut lowered = *app.world().get::<Transform>(player).expect("transform");
+        lowered.translation.y = -3.0 * 16.0;
         app.world_mut()
             .get_mut::<Transform>(player)
             .expect("transform")
-            .translation
-            .y = -3.0 * 16.0;
+            .set_if_neq(lowered);
         app.world_mut().run_schedule(FixedUpdate);
         assert_eq!(
             markers(&app, deep, dim),

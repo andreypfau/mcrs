@@ -17,7 +17,12 @@ impl Plugin for WorldClockPlugin {
                 PreUpdate,
                 seed_clocks.run_if(resource_exists_and_changed::<CurrentRegistries>),
             )
-            .add_systems(FixedUpdate, advance_clocks.in_set(WorldClockSystems));
+            .add_systems(
+                FixedUpdate,
+                advance_clocks
+                    .run_if(resource_equals(AdvanceTime(true)))
+                    .in_set(WorldClockSystems),
+            );
     }
 }
 
@@ -30,10 +35,7 @@ fn seed_clocks(mut clocks: ResMut<WorldClocks>, registries: Res<CurrentRegistrie
     }
 }
 
-fn advance_clocks(mut clocks: ResMut<WorldClocks>, advance_time: Res<AdvanceTime>) {
-    if !advance_time.0 {
-        return;
-    }
+fn advance_clocks(mut clocks: ResMut<WorldClocks>) {
     for (_, state) in clocks.iter_mut() {
         state.advance();
     }

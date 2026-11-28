@@ -1,0 +1,31 @@
+[package]
+name = "mcrs_minecraft_engine_player_vitals"
+description = "The health state of the players of a dimension world: each player gets its vitals, hit record and defence when it spawns"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+libm.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_damage.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_replication.workspace = true
+mcrs_minecraft_text.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_save.workspace = true

@@ -1,0 +1,207 @@
+{
+  "target": {
+    "operators": [
+      "reachboundsprobe"
+    ]
+  },
+  "observe": {
+    "inventory": true
+  },
+  "steps": [
+    {
+      "id": "join",
+      "join": "reachboundsprobe"
+    },
+    {
+      "id": "prepare",
+      "console": {
+        "lines": [
+          "difficulty peaceful",
+          "gamerule spawn_mobs false",
+          "kill @e[type=!minecraft:player]",
+          "fill -5 -60 -8 5 -55 8 minecraft:air",
+          "fill -5 -61 -8 5 -61 8 minecraft:stone",
+          "gamemode survival reachboundsprobe",
+          "clear reachboundsprobe"
+        ]
+      }
+    },
+    {
+      "id": "setup_attack_5_95",
+      "console": {
+        "lines": [
+          "kill @e[type=minecraft:pig]",
+          "summon minecraft:pig 0.5 -59 6.9 {NoAI:1b,NoGravity:1b,Silent:1b}",
+          "tp reachboundsprobe 0.5 -60 0.5 0 0"
+        ]
+      }
+    },
+    {
+      "id": "wait_attack_5_95",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "attack_5_95",
+      "attack": {
+        "client": "reachboundsprobe",
+        "target": "minecraft:pig"
+      }
+    },
+    {
+      "id": "read_attack_5_95",
+      "console": {
+        "lines": [
+          "data get entity @e[type=minecraft:pig,limit=1] Health"
+        ]
+      }
+    },
+    {
+      "id": "setup_attack_6_05",
+      "console": {
+        "lines": [
+          "kill @e[type=minecraft:pig]",
+          "summon minecraft:pig 0.5 -59 7.0 {NoAI:1b,NoGravity:1b,Silent:1b}",
+          "tp reachboundsprobe 0.5 -60 0.5 0 0"
+        ]
+      }
+    },
+    {
+      "id": "wait_attack_6_05",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "attack_6_05",
+      "attack": {
+        "client": "reachboundsprobe",
+        "target": "minecraft:pig"
+      }
+    },
+    {
+      "id": "read_attack_6_05",
+      "console": {
+        "lines": [
+          "data get entity @e[type=minecraft:pig,limit=1] Health"
+        ]
+      }
+    },
+    {
+      "id": "setup_interact_5_95",
+      "console": {
+        "lines": [
+          "kill @e[type=minecraft:chest_minecart]",
+          "summon minecraft:chest_minecart 0.5 -59 6.94 {NoGravity:1b}",
+          "tp reachboundsprobe 0.5 -60 0.5 0 0"
+        ]
+      }
+    },
+    {
+      "id": "wait_interact_5_95",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "interact_5_95",
+      "interact": {
+        "client": "reachboundsprobe",
+        "target": "minecraft:chest_minecart",
+        "hand": "main"
+      }
+    },
+    {
+      "id": "close_interact_5_95",
+      "close": {
+        "client": "reachboundsprobe"
+      }
+    },
+    {
+      "id": "setup_interact_6_05",
+      "console": {
+        "lines": [
+          "kill @e[type=minecraft:chest_minecart]",
+          "summon minecraft:chest_minecart 0.5 -59 7.04 {NoGravity:1b}",
+          "tp reachboundsprobe 0.5 -60 0.5 0 0"
+        ]
+      }
+    },
+    {
+      "id": "wait_interact_6_05",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "interact_6_05",
+      "interact": {
+        "client": "reachboundsprobe",
+        "target": "minecraft:chest_minecart",
+        "hand": "main"
+      }
+    },
+    {
+      "id": "close_interact_6_05",
+      "close": {
+        "client": "reachboundsprobe"
+      }
+    },
+    {
+      "id": "setup_menu",
+      "console": {
+        "lines": [
+          "kill @e[type=minecraft:chest_minecart]",
+          "setblock 0 -60 2 minecraft:chest",
+          "tp reachboundsprobe 0.5 -60 0.5 0 0"
+        ]
+      }
+    },
+    {
+      "id": "wait_menu",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "open_chest",
+      "use_block": {
+        "client": "reachboundsprobe",
+        "position": [
+          0,
+          -60,
+          2
+        ]
+      }
+    },
+    {
+      "id": "move_8_4",
+      "console": {
+        "lines": [
+          "tp reachboundsprobe 0.5 -60 -6.37709 0 0"
+        ]
+      }
+    },
+    {
+      "id": "wait_8_4",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "move_8_6",
+      "console": {
+        "lines": [
+          "tp reachboundsprobe 0.5 -60 -6.57762 0 0"
+        ]
+      }
+    },
+    {
+      "id": "wait_8_6",
+      "wait": {
+        "ms": 1500
+      }
+    }
+  ]
+}

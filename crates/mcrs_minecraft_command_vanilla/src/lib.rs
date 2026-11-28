@@ -1,3 +1,4 @@
+mod attribute;
 mod ban;
 mod damage;
 mod data;
@@ -7,6 +8,7 @@ mod execute;
 mod execute_view;
 mod gamemode;
 mod kill;
+mod list;
 #[cfg(feature = "locate")]
 mod locate;
 mod mob_hit;
@@ -14,6 +16,7 @@ mod mob_view;
 mod op;
 mod plugin;
 mod relative_move;
+mod scale_text;
 mod select;
 mod set;
 mod summon;

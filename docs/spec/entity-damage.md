@@ -26,6 +26,8 @@ numeric rules and the packets (section 15).
   entity reads the other entities at their state from the start of the tick.
 - **Sorted queue**, **apply step**: `entity-physics.md`, section 0.1, defines these terms. In this
   document, the entries of the sorted queue are hits.
+- **Packet phase**: `entity-physics.md`, section 0.1, defines this term. In it, the server handles
+  the packets of the clients one after the other, before the pass (PHY-ORD-018).
 - **Health**: an f32 value of a living entity, from 0 to the max health.
 - **Max health**: the value of the attribute `max_health` of the entity, converted to f32.
 - **Damage type**: an entry of the data-pack registry `minecraft:damage_type`.
@@ -185,9 +187,13 @@ change. Section 3 marks the steps that read the causing entity.
 true, the hit is rejected and the procedure stops.
 
 1. The entity is removed.
-2. The entity is invulnerable and the damage type does not have the tag
-   `bypasses_invulnerability`. Hook: the saved flag `Invulnerable` and the saved counter
-   `invulnerable_time` make an entity invulnerable.
+2. All these conditions are true:
+   - the entity is invulnerable;
+   - the damage type does not have the tag `bypasses_invulnerability`;
+   - the causing entity is not a player in creative mode.
+
+   Hook: the saved flag `Invulnerable` and the saved counter `invulnerable_time` make an entity
+   invulnerable. Thus a player in creative mode can hit an entity with the flag `Invulnerable`.
 3. The damage type has the tag `is_fire` and the entity type is fire-immune.
 4. The damage type has the tag `is_fall` and the entity type is in `fall_damage_immune`.
 5. For a player, a test of DMG-PLR-001 is true. Two of these tests read the causing entity: the
@@ -196,7 +202,8 @@ true, the hit is rejected and the procedure stops.
 7. The damage type has the tag `is_fire` and the entity has the effect `fire_resistance`.
 
 Provenance: `source_suggested_black_box_confirmed`; step 5 as DMG-PLR-001. Kind: semantic.
-Confidence: high; step 5 as DMG-PLR-001.
+Confidence: high; step 5 as DMG-PLR-001. Experiment for step 2: ATK-E4 of `player-attack.md`;
+`tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **DMG-HIT-002** (`source_suggested_black_box_confirmed`, semantic, confidence: high). After the
 tests of DMG-HIT-001, the hit does these steps before the cooldown:
@@ -258,9 +265,9 @@ part instead (DMG-PLR-002). Thus a full hit in tick `T` lets the next full hit o
 `T + 10` at the earliest. The save keeps the hurt time. It does not keep the damage cooldown or the
 last amount, so a loaded entity has a damage cooldown of 0.
 
-**DMG-KB-001** (`source_suggested`, semantic, confidence: medium). The default knockback applies
-in DMG-HIT-005 step 2. Let `x` and `z` be the horizontal components of the direction, and let
-`power` be 0.4.
+**DMG-KB-001** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The default
+knockback applies in DMG-HIT-005 step 2. Let `x` and `z` be the horizontal components of the
+direction, and let `power` be `0.4F`, widened to f64. This value is `0.4000000059604645`.
 
 1. If the direct entity is a projectile, the direction is the horizontal velocity of the projectile
    with both components negated. The entity moves along the velocity of the projectile.
@@ -277,12 +284,25 @@ The procedure continues in this way:
    `u1` and `u2` in [0, 1) for each of them.
 3. Let `n` be the vector `(x, z)` with length 1, and `v` the velocity of the entity. Set the new
    velocity to `(v.x / 2 - n.x * power, vy, v.z / 2 - n.z * power)`. The new `vy` is
-   `min(0.4, v.y / 2 + power)` when the entity is on the ground. Else it is `v.y`.
+   `min(0.4, v.y / 2 + power)` when the on-ground flag of the entity is true. Else it is `v.y`,
+   with no change. The limit 0.4 is the f64 value 0.4, not `0.4F`.
 4. Mark the velocity of the entity for the next update (DMG-NET-004).
+
+Step 3 reads the on-ground flag that the entity has at the hit. `entity-physics.md`, PHY-ORD-017,
+states its value after a summon. These examples have `power = 0.4000000059604645` and the
+direction `(0, -1)`:
+
+| Velocity before the hit | On-ground flag | Velocity after the hit |
+|-------------------------|----------------|------------------------|
+| `(0, 0, 0)` | true | `(0, 0.4, 0.4000000059604645)` |
+| `(0, -0.0784000015258789, 0)` | true | `(0, 0.36080000519752503, 0.4000000059604645)` |
+| `(0, 0, 0)` | false | `(0, 0, 0.4000000059604645)` |
 
 The extra knockback of a melee attack and of enchantments has its own rules. The knockback of an
 explosion is in `explosions.md`, EXP-KNB-001. The damage types of explosions have the tag
-`no_knockback`. No experiment has run for this rule.
+`no_knockback`. The experiments ATK-E1, ATK-E3 and ATK-E9 of `player-attack.md` confirm step 3 for
+both values of the on-ground flag. No experiment confirms the direction of a projectile or the
+random direction of step 2.
 
 ## 4. Reductions
 
@@ -581,7 +601,9 @@ stated, not a channel.
 without the tag `no_impact` marks the velocity. At the end of the next tracker tick, after the
 update packets, the tracker sends `set_entity_motion` (play clientbound 103). The viewers and the
 entity itself get it. Then the tracker clears the mark (TRK-UPD-007). The mark does not make the tracker tick an
-update. D9 shows the packet after `set_entity_data`.
+update. D9 shows the packet after `set_entity_data`. The packet carries the velocity that the
+entity has at the tracker tick. For a hit before the pass, this is the velocity after the tick of
+the entity (`player-attack.md`, ATK-KB-005).
 
 **DMG-NET-005** (`black_box_confirmed`, wire, confidence: high). The server part of a player sends
 `set_health` (play clientbound 106) to that player when one of these values changed since the last
@@ -645,8 +667,10 @@ A mob does not read these game rules. The tests of the causing entity apply to e
 not only to an attack. The causing entity can be the target itself, for example the player that
 primed a TNT. ATK-TGT-004 of `player-attack.md` applies these tests to an attack.
 
-Provenance: `source_suggested_black_box_confirmed`; `source_suggested` for the two tests of the
-causing entity. Kind: semantic. Confidence: high; medium for the two tests of the causing entity.
+Provenance: `source_suggested_black_box_confirmed`; `source_suggested` for the test of the team.
+Kind: semantic. Confidence: high; medium for the test of the team. Experiment for the test of
+`pvp` and the test of creative mode: ATK-E7 of `player-attack.md`;
+`tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **DMG-PLR-003** (`source_suggested`, semantic, confidence: high). A hit on a player scales with the
 difficulty when the damage type has the scaling `always`. The damage type has the scaling `always`
@@ -678,16 +702,24 @@ these steps:
    (DMG-FALL-001).
 3. Step 9, the push step: the crowd hit, before the pushes (PHY-PSH-007).
 
-In the pass, a hit from another entity, for example an attack, applies in the apply step of the
-tick that wrote it (PHY-CMP-015, AIT-RFX-006). Each tick has one apply step. It comes after the
-tick of each entity of the pass, and before the server sends the changes of the tick. Thus the
-target does its own tick with the health from before the hit. The update of the same tick sends
-the new health. A hit from another cell can apply in the apply step of the next tick (PHY-CMP-015).
+A hit that a client packet causes, for example an attack, applies when the server
+handles that packet, in the packet phase (`player-attack.md`, ATK-ORD-002). A later packet of the
+same packet phase sees the hit (PHY-ORD-018). In mcrs, the hits of the client packets of a tick
+apply after the last packet of the tick, so a later packet does not see them (ATK-DEV-006). In
+both, the target then does its own tick with the health after the hit (ATK-ORD-005). DMG-ORD-004
+states the place of a hit of a command.
+
+In the pass, a hit from another entity applies in the apply step of the tick that wrote it
+(PHY-CMP-015, AIT-RFX-006). That apply step comes after the tick of each entity of the pass, and
+before the server sends the changes of the tick. Thus the target does its own tick with the health
+from before such a hit. The update of the same tick sends the new health. A hit from another cell
+can apply in the apply step of the next tick (PHY-CMP-015).
 
 The order is visible. An entity that lands on magma takes the `hot_floor` hit first, as a full
 hit. The fall hit of the same tick is then a partial hit, so the damage event names `hot_floor`.
 
-Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: high.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic; deviation
+(`player-attack.md`, ATK-DEV-006). Confidence: high.
 
 **DMG-ORD-002** In the pass, the own hits of an entity are entries of the sorted queue, as the hits
 from other entities are. The own hits are the hits
@@ -741,6 +773,41 @@ A hit with a damage type of the tag `bypasses_cooldown` is always a full hit (DM
 order then changes the health. Example: the health is 20, a hit of 2 has that tag, and a hit of 5
 does not. The order "2, then 5" gives 15. The order "5, then 2" gives 13. The tag is empty in the
 corpus, so only a data pack makes this case.
+
+**DMG-ORD-004** A hit of a command, for example of `damage` or `kill`, applies when the command
+runs (`command-damage.md`, CMD-DMG-003; `command-kill.md`, CMD-KILL-006). A later command sees the
+hit. The source of the command sets its place in the tick:
+
+| Source of the command | When the command runs | First entity pass that sees the hit |
+|-----------------------|-----------------------|-------------------------------------|
+| a client | in the packet phase, in the order of its packet (PHY-ORD-018) | the pass of the same tick |
+| the server console, the remote console | in the packet phase, before the packets of the clients, in the order of arrival | the pass of the same tick |
+| a function of the tag `#minecraft:tick` | after the packet phase, before the dimensions tick | the pass of the same tick |
+| a function that `schedule` starts | in the time step of the overworld (PHY-ORD-010 step 3) | the pass of the same tick |
+| a command block | in the scheduled block ticks of its dimension (PHY-ORD-010 step 3) | the pass of the same tick |
+
+Thus a mob that a hit of a command knocks back moves in the first entity pass after the command.
+The update after that pass sends the velocity after the travel step of the mob (DMG-NET-004). The
+base entity tick of that pass decreases the hurt time and the damage cooldown (DMG-HIT-006).
+
+The reference runs a command of the server console at the end of a tick, after the server part of
+the players. Between that place and the packet phase of the next tick, no entity ticks and only
+commands run.
+An observer also does not know when a console command arrives relative to the tick. Thus the two
+places give the same result to an observer. In both, the mob moves in the next entity pass after
+the command runs.
+
+A command of a client also sees the hits of the earlier attack packets of the same tick
+(PHY-ORD-018). In mcrs, it reads the state from before these hits (`player-attack.md`,
+ATK-DEV-006).
+
+A user of the library can change or cancel each hit of a command before it applies. The user gets
+the hits of a command together with the other hits of the same apply step, not one command at a
+time.
+
+Provenance: `source_suggested`; `design` for the change of a hit by a user of the library and for
+the order of a command of a client (PHY-DEV-015). Kind: semantic; deviation (ATK-DEV-006).
+Confidence: medium.
 
 ## 12. Out of scope
 

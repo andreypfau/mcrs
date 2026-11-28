@@ -18,6 +18,8 @@ without Bevy or the engine.
 edge of the inventory (`mcrs_minecraft_inventory_server`) and without the click and
 client view crates. The engine still links the network crates today.
 [Loot validate](loot_validate/) checks the loot tables of a data pack without the engine.
+[Worldgen preview](worldgen_preview/) draws the terrain of a data pack as PNG maps without
+Bevy, the engine or a server.
 
 Run `cargo nextest run -p xtask` to check the policies. The `portability` trigger
 also checks them in CI. The check reads workspace membership through Cargo

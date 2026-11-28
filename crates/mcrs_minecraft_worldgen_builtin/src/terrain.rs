@@ -218,9 +218,12 @@ fn mountain_ridge(c: &Coordinates, modulation: f32, saddle: bool) -> ProtoSpline
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the reference passes these as separate values"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "each call builds one spline variant from its own heights and flags, and the calls list them as a table"
+    )
 )]
 fn erosion_offset(
     c: &Coordinates,

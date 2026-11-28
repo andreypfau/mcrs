@@ -60,15 +60,14 @@ fn run() -> anyhow::Result<Findings> {
     let vanilla = PathBuf::from(args.next().context(USAGE)?);
     let assets = PathBuf::from(args.next().context(USAGE)?);
     anyhow::ensure!(args.next().is_none(), USAGE);
-    let packs = DirectoryPacks::new(assets.clone(), vanilla).with_only_pack(&pack)?;
+    let packs = DirectoryPacks::new(assets.clone(), vanilla).with_pack(&pack)?;
     let name = packs
-        .standard_pack()
-        .context("the data pack has no name")?
-        .to_owned();
+        .standard_packs()
+        .first()
+        .cloned()
+        .context("the data pack has no name")?;
     let pack_id = format!("file/{name}");
-    let mut additions = RegistryAdditions::default();
-    additions.local_packs.push(name);
-    let (registries, diagnostics) = load_registries(&packs, additions)?;
+    let (registries, diagnostics) = load_registries(&packs, RegistryAdditions::default())?;
     let mut reported = Vec::new();
     for diagnostic in diagnostics {
         if let Diagnostic::Pack(

@@ -38,7 +38,7 @@ pub(crate) fn start_load<P: Row>(
         return;
     }
     if let Ok(mut load) = player.single_mut() {
-        *load = PlayerLoad::Loading(LoadProgress::default());
+        load.set_if_neq(PlayerLoad::Loading(LoadProgress::default()));
     }
 }
 
@@ -87,9 +87,9 @@ pub(crate) fn end_player_load(
     };
     if progress.level_chunks_started && ready() {
         connection.write_packet(&ServerboundPlayerLoaded);
-        *load = PlayerLoad::Loaded;
+        load.set_if_neq(PlayerLoad::Loaded);
     } else if progress.tick_ends_sent >= TICK_ENDS_BEFORE_TIMEOUT {
-        *load = PlayerLoad::Loaded;
+        load.set_if_neq(PlayerLoad::Loaded);
     }
 }
 

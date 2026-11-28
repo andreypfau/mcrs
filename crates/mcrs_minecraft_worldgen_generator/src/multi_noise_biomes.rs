@@ -138,7 +138,7 @@ impl MultiNoiseBiomeTable {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PresetBiomeTables {
     tables: Vec<Arc<MultiNoiseBiomeTable>>,
 }

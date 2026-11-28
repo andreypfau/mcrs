@@ -2,7 +2,7 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{Transform as PhysicsTransform, Velocity};
 use mcrs_minecraft_entity_visual::SyncedData;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_physics::{
     BlockAction, Keys, NoBodies, Orientation, PlayerFacts, PlayerInput, Scratch, Side, View,
     tick_player,
@@ -11,11 +11,11 @@ use mcrs_minecraft_physics::{
 use crate::collision_tables::ClientPhysicsTables;
 use crate::collision_view::ClientBlocks;
 use crate::columns::ColumnStore;
-use crate::game_mode::LocalGameMode;
 use crate::local_motion::LocalMotion;
 use crate::local_player::Sprint;
 use crate::movement_input::MovementInput;
 use crate::player::Player;
+use crate::scripted_input::ScriptedInput;
 
 #[derive(Default)]
 pub(crate) struct WalkBuffers {
@@ -25,6 +25,7 @@ pub(crate) struct WalkBuffers {
 
 pub(crate) fn walk(
     input: Res<MovementInput>,
+    scripted: Res<ScriptedInput>,
     columns: Res<ColumnStore>,
     tables: Res<ClientPhysicsTables>,
     mut buffers: Local<WalkBuffers>,
@@ -34,7 +35,7 @@ pub(crate) fn walk(
             &mut PhysicsTransform,
             &mut Velocity,
             &mut Sprint,
-            Option<&LocalGameMode>,
+            Option<&PlayerGameMode>,
             &SyncedData,
         ),
         With<Player>,
@@ -45,10 +46,10 @@ pub(crate) fn walk(
     let tables = tables.tables();
     let world = ClientBlocks::new(&*columns, tables);
     let player_input = PlayerInput {
-        keys: keys(*input),
+        keys: keys(input.or(scripted.movement)),
         rotation: Orientation::facing(transform.rotation.yaw(), transform.rotation.pitch()),
         facts: PlayerFacts {
-            spectator: game_mode.is_some_and(|mode| mode.current == GameMode::Spectator),
+            spectator: game_mode.is_some_and(|mode| mode.0 == GameMode::Spectator),
             sleeping: synced.sleeping_position.is_some(),
             fall_flying: synced.is_fall_flying(),
             spin_attack: synced.is_spin_attacking(),
@@ -107,6 +108,7 @@ mod tests {
     fn logged_in(position: DVec3, game_mode: GameMode) -> TestSession {
         let mut session = TestSession::new(position);
         session.receive(login(game_mode));
+        session.end_load();
         session
     }
 
@@ -187,12 +189,9 @@ mod tests {
     #[cfg(not(target_family = "wasm"))]
     mod wire {
         use super::*;
-        use crate::joined_game::JoinedGame;
-        use crate::test_session::Server;
+        use crate::previous_position::PreviousPosition;
+        use crate::test_session::{Joined, Server, joined, take_column};
         use mcrs_minecraft_core::Look;
-        use mcrs_minecraft_network::client::{
-            ClientConnection, ClientNetworkPlugin, JoinRequest, finish_configuration,
-        };
         use mcrs_minecraft_pose::Pose;
         use mcrs_minecraft_protocol::Packet;
         use mcrs_minecraft_protocol_game::ColumnPos;
@@ -205,44 +204,6 @@ mod tests {
             ServerboundClientTickEnd, ServerboundMovePlayerPos, ServerboundPlayerInput,
             ServerboundPlayerLoaded,
         };
-        use std::net::TcpListener;
-        use std::thread;
-        use std::time::Duration;
-
-        fn joined(mut app: App) -> (App, Server, Entity) {
-            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-            app.add_plugins(ClientNetworkPlugin {
-                holds_vanilla_pack: false,
-                play: None,
-            });
-            app.world_mut().write_message(JoinRequest {
-                server: listener.local_addr().unwrap(),
-                username: "Steve".to_owned(),
-                profile_id: None,
-                view_distance: 8,
-            });
-            app.update();
-            let (mut server, _information) = Server::join(&listener);
-            let connection = (0..1000)
-                .find_map(|_| {
-                    app.update();
-                    thread::sleep(Duration::from_millis(10));
-                    app.world_mut()
-                        .query_filtered::<Entity, With<ClientConnection>>()
-                        .single(app.world())
-                        .ok()
-                })
-                .expect("the client joins");
-            finish_configuration(&mut app.world_mut().commands(), connection);
-            app.world_mut().flush();
-            app.update();
-            let _finished = server.next_frame();
-            app.world_mut().entity_mut(connection).insert(JoinedGame {
-                player_id: OWN_PLAYER,
-                dimensions: Vec::new(),
-            });
-            (app, server, connection)
-        }
 
         const LEVEL_CHUNKS_LOAD_START: ClientboundGameEvent = ClientboundGameEvent {
             game_event: GameEventKind::LevelChunksLoadStart,
@@ -281,7 +242,11 @@ mod tests {
         fn a_held_shift_key_goes_to_the_server_once_and_crouches_the_local_player() {
             let session = TestSession::new(DVec3::new(8.5, FLOOR_TOP, 2.5));
             let player = session.player;
-            let (mut app, mut server, connection) = joined(session.app);
+            let Joined {
+                mut app,
+                mut server,
+                connection,
+            } = joined(session.app);
             receive(&mut app, connection, login(GameMode::Survival));
             receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
             app.insert_resource(MovementInput {
@@ -309,14 +274,13 @@ mod tests {
         #[test]
         fn a_shift_key_held_through_the_load_goes_out_after_player_loaded() {
             let session = TestSession::new(DVec3::new(8.5, FLOOR_TOP, 2.5));
-            let (mut app, mut server, connection) = joined(session.app);
+            let Joined {
+                mut app,
+                mut server,
+                connection,
+            } = joined(session.app);
             let spawn_column = ColumnPos::new(0, 0);
-            let column = {
-                let mut columns = app.world_mut().resource_mut::<ColumnStore>();
-                let column = columns.get(spawn_column).unwrap().as_ref().clone();
-                columns.remove(spawn_column);
-                column
-            };
+            let column = take_column(&mut app, spawn_column);
             receive(&mut app, connection, login(GameMode::Survival));
             app.insert_resource(MovementInput {
                 shift: true,
@@ -354,11 +318,59 @@ mod tests {
         }
 
         #[test]
+        fn the_player_stays_in_place_until_its_column_arrives_and_then_stands_on_it() {
+            let start = DVec3::new(8.5, FLOOR_TOP, 2.5);
+            let session = TestSession::new(start);
+            let player = session.player;
+            let Joined {
+                mut app,
+                server: _server,
+                connection,
+            } = joined(session.app);
+            let spawn_column = ColumnPos::new(0, 0);
+            let column = take_column(&mut app, spawn_column);
+            receive(&mut app, connection, login(GameMode::Survival));
+            receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
+            for _ in 0..5 {
+                app.world_mut().run_schedule(FixedUpdate);
+            }
+            let position = |app: &App| {
+                app.world()
+                    .get::<PhysicsTransform>(player)
+                    .unwrap()
+                    .translation
+            };
+            assert_eq!(position(&app), start, "the player waits for its column");
+
+            app.world_mut()
+                .resource_mut::<ColumnStore>()
+                .insert(spawn_column, column);
+            for _ in 0..3 {
+                app.world_mut().run_schedule(FixedUpdate);
+            }
+            assert_eq!(position(&app), start, "the player stands on the floor");
+            assert!(
+                app.world()
+                    .get::<LocalMotion>(player)
+                    .unwrap()
+                    .0
+                    .body
+                    .flags
+                    .on_ground
+            );
+        }
+
+        #[test]
         fn a_dropped_player_lands_and_its_move_packet_carries_the_ground_flag() {
             let session = TestSession::new(DVec3::ZERO);
             let player = session.player;
-            let (mut app, mut server, connection) = joined(session.app);
+            let Joined {
+                mut app,
+                mut server,
+                connection,
+            } = joined(session.app);
             receive(&mut app, connection, login(GameMode::Survival));
+            receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
             receive(
                 &mut app,
                 connection,
@@ -400,6 +412,60 @@ mod tests {
             let (landed, falling) = ground_flags.split_last().expect("the player moves");
             assert!(*landed, "the landing move has the ground flag");
             assert!(!falling.is_empty() && falling.iter().all(|ground| !ground));
+        }
+
+        #[test]
+        fn the_previous_position_is_the_teleport_target_and_then_the_start_of_each_tick() {
+            let session = TestSession::new(DVec3::ZERO);
+            let player = session.player;
+            let Joined {
+                mut app,
+                server: _server,
+                connection,
+            } = joined(session.app);
+            let spawn_column = ColumnPos::new(0, 0);
+            let column = take_column(&mut app, spawn_column);
+            let target = DVec3::new(8.5, FLOOR_TOP + 1.0, 8.5);
+            receive(&mut app, connection, login(GameMode::Survival));
+            receive(&mut app, connection, LEVEL_CHUNKS_LOAD_START);
+            receive(
+                &mut app,
+                connection,
+                ClientboundPlayerPosition {
+                    teleport_id: VarInt(1),
+                    position: target,
+                    velocity: DVec3::ZERO,
+                    look: Look {
+                        yaw: 30.0,
+                        pitch: 10.0,
+                    },
+                    flags: PositionFlags::default(),
+                },
+            );
+            let positions = |app: &App| {
+                let world = app.world();
+                (
+                    world.get::<PhysicsTransform>(player).unwrap().translation,
+                    world.get::<PreviousPosition>(player).unwrap().0,
+                )
+            };
+
+            app.world_mut().run_schedule(FixedUpdate);
+            let (current, previous) = positions(&app);
+            assert_eq!(current, target, "the teleport lands");
+            assert_eq!(previous, current, "a teleport while loading leaves no gap");
+
+            app.world_mut()
+                .resource_mut::<ColumnStore>()
+                .insert(spawn_column, column);
+            let mut start = current;
+            for _ in 0..3 {
+                app.world_mut().run_schedule(FixedUpdate);
+                let (current, previous) = positions(&app);
+                assert_eq!(previous, start, "the previous position is the tick start");
+                start = current;
+            }
+            assert!(start.y < target.y, "the player falls");
         }
     }
 }

@@ -106,8 +106,8 @@ pub fn place<W: WorldGenVolume, R: Random>(
     scratch: &mut PlacerScratch,
     origin: BlockPos,
     rng: &mut R,
-    carries: &dyn Fn(u16) -> bool,
-    generate: &mut dyn FnMut(&mut W, &mut R, BlockPos) -> bool,
+    carries: &impl Fn(u16) -> bool,
+    mut generate: impl FnMut(&mut W, &mut R, BlockPos) -> bool,
 ) -> bool {
     if modifiers.is_empty() {
         return generate(volume, rng, origin);
@@ -137,28 +137,23 @@ pub fn place<W: WorldGenVolume, R: Random>(
     placed_any
 }
 
-pub type Generate<'a, W> = &'a mut dyn FnMut(
-    (usize, usize),
-    &mut W,
-    &mut WorldgenRandom,
-    BlockPos,
-    &dyn Fn(u16) -> bool,
-) -> bool;
-
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one decoration pass"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one decoration pass"
+    )
 )]
 pub fn decorate<'a, W: WorldGenVolume>(
     present: &[FixedBitSet],
     steps: Range<usize>,
-    chain: &dyn Fn(usize, usize) -> &'a [Modifier],
-    carries: &dyn Fn(u16, usize, usize) -> bool,
+    chain: impl Fn(usize, usize) -> &'a [Modifier],
+    carries: impl Fn(u16, usize, usize) -> bool,
     volume: &mut W,
     scratch: &mut PlacerScratch,
     origin: BlockPos,
     decoration_seed: i64,
-    generate: Generate<'_, W>,
+    mut generate: impl FnMut((usize, usize), &mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) {
     for step in steps {
         let Some(bits) = present.get(step) else {
@@ -177,7 +172,7 @@ pub fn decorate<'a, W: WorldGenVolume>(
                 origin,
                 &mut rng,
                 &carry,
-                &mut |volume, rng, at| generate((step, index), volume, rng, at, &carry),
+                |volume, rng, at| generate((step, index), volume, rng, at),
             );
         }
     }
@@ -238,7 +233,7 @@ mod tests {
             origin,
             &mut rng,
             &always,
-            &mut |_, _, at| {
+            |_, _, at| {
                 hits.push(at);
                 true
             },
@@ -441,7 +436,7 @@ mod tests {
             BlockPos::new(0, 0, 0),
             &mut rng,
             &refuse,
-            &mut |_, _, _| {
+            |_, _, _| {
                 hits += 1;
                 true
             },
@@ -503,7 +498,7 @@ mod tests {
                 BlockPos::new(0, 0, 0),
                 &mut rng,
                 &always,
-                &mut |_, _, _| true,
+                |_, _, _| true,
             );
         }
         assert!(scratch.pending.is_empty());
@@ -537,13 +532,13 @@ mod tests {
                 decorate(
                     &present,
                     range.clone(),
-                    &|step, index| &steps[step][index],
-                    &|_, _, _| true,
+                    |step, index| &steps[step][index],
+                    |_, _, _| true,
                     &mut volume,
                     &mut scratch,
                     ORIGIN,
                     777,
-                    &mut |_, _, _, at, _| {
+                    |_, _, _, at| {
                         hits.push(at);
                         true
                     },

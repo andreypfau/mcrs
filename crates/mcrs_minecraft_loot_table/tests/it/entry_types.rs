@@ -2,7 +2,7 @@ use mcrs_minecraft_item_stack::{Count, ItemStack, MaxStackSize};
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{ContextParam, LootContext, ParamNotAllowed};
 use mcrs_minecraft_loot_table::{LootProblem, LootScratch, LootTableFile};
-use mcrs_minecraft_predicate::NoWorld;
+use mcrs_minecraft_predicate::BlockHost;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_resource::ResourceLocationBuf;
@@ -30,7 +30,7 @@ fn roll_in(name: &str, context: &LootContext<'_, ()>) -> (Vec<Option<ItemStack>>
         .roll(
             added_table(name),
             context,
-            &NoWorld,
+            &BlockHost::none(),
             &mut random,
             &mut LootScratch::new(),
             &mut stacks,

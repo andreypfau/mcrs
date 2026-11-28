@@ -49,4 +49,5 @@ jobs:
       - name: run the tests of the item engine under Miri
         env:
           MIRIFLAGS: -Zmiri-ignore-leaks
+          CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER: ""
         run: cargo miri nextest run --locked -p mcrs_minecraft_engine_item --profile ci-hosted

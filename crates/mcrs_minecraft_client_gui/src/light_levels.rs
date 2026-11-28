@@ -1,4 +1,5 @@
 use bevy::color::Mix;
+use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 use bevy::text::FontSize;
 use bevy::transform::TransformSystems;
@@ -89,7 +90,14 @@ impl<C: Component> Plugin for LightLevelsPlugin<C> {
         } else {
             LightLevels::Off
         })
-        .add_systems(Update, (toggle, sync_pool).chain())
+        .add_systems(
+            Update,
+            (
+                toggle.run_if(input_just_pressed(KeyCode::F4)),
+                sync_pool.run_if(resource_changed::<LightLevels>),
+            )
+                .chain(),
+        )
         .add_systems(
             PostUpdate,
             render::<C>
@@ -173,6 +181,7 @@ fn render<C: Component>(
     levels: Res<LightLevels>,
     store: Option<Res<ColumnStore>>,
     camera: Single<(&Camera, &GlobalTransform), With<C>>,
+    mut wanted: Local<Vec<Label>>,
     mut labels: Query<
         (
             &mut UiTransform,
@@ -189,7 +198,7 @@ fn render<C: Component>(
     };
     let (camera, eye) = *camera;
     let origin = eye.translation().floor().as_ivec3();
-    let mut wanted = Vec::new();
+    wanted.clear();
     for dy in -RADIUS..=RADIUS {
         for dz in -RADIUS..=RADIUS {
             for dx in -RADIUS..=RADIUS {
@@ -228,7 +237,7 @@ fn render<C: Component>(
     wanted.truncate(LABELS);
     wanted.reverse();
 
-    let mut wanted = wanted.into_iter();
+    let mut wanted = wanted.drain(..);
     for (mut transform, mut visibility, mut text, mut color, node) in &mut labels {
         let Some(label) = wanted.next() else {
             visibility.set_if_neq(Visibility::Hidden);
@@ -236,7 +245,8 @@ fn render<C: Component>(
         };
         visibility.set_if_neq(Visibility::Inherited);
         if text.0 != label.text {
-            text.0 = label.text.to_owned();
+            text.0.clear();
+            text.0.push_str(label.text);
         }
         color.set_if_neq(TextColor(label.color));
         let half = node.size() * node.inverse_scale_factor() / 2.0;

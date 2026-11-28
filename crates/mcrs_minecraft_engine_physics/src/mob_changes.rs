@@ -1,5 +1,6 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_damage::Vitals;
@@ -24,6 +25,10 @@ pub struct Spawned {
     pub id: EntityId,
     pub start: EntityState,
     pub vitals: Vitals,
+}
+
+pub(crate) fn has_spawns(changes: Res<MobChanges>) -> bool {
+    !changes.spawned.is_empty()
 }
 
 pub(crate) fn clear_mob_changes(mut changes: ResMut<MobChanges>) {

@@ -39,7 +39,7 @@ impl Plugin for ConsolePlugin {
             pending: VecDeque::new(),
             log,
         });
-        app.add_systems(Update, send_console_lines);
+        app.add_systems(Update, send_console_lines.run_if(console_has_lines));
     }
 }
 
@@ -48,6 +48,11 @@ pub(crate) struct Console {
     receive: flume::Receiver<String>,
     pending: VecDeque<String>,
     pub(crate) log: AnswerLog,
+}
+
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+fn console_has_lines(console: Res<Console>) -> bool {
+    !console.pending.is_empty() || !console.receive.is_empty()
 }
 
 fn send_console_lines(

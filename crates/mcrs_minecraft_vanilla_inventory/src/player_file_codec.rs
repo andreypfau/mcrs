@@ -19,15 +19,12 @@ use crate::kept_equipment::KeptEquipment;
 use crate::player_file::INVENTORY_KEY;
 
 pub(crate) fn capture_player_file(
-    world: &mut World,
+    world: &World,
     player: Entity,
-    cause: CaptureCause,
+    _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
-    registry_names(world).map_err(|missing| encode_error(INVENTORY_KEY, missing))?;
-    let Some(items) = world
-        .run_system_cached_with(capture_holders, (player, cause))
-        .map_err(|error| encode_error(INVENTORY_KEY, error))?
-    else {
+    let names = registry_names(world).map_err(|missing| encode_error(INVENTORY_KEY, missing))?;
+    let Some(items) = capture_holders(world, player) else {
         return Ok(None);
     };
     let file = PlayerInventoryFile {
@@ -37,7 +34,6 @@ pub(crate) fn capture_player_file(
             .map(|kept| kept.0.clone())
             .unwrap_or_default(),
     };
-    let names = registry_names(world).map_err(|missing| encode_error(INVENTORY_KEY, missing))?;
     let mut compound = NbtCompound::new();
     mcrs_minecraft_inventory_file::write(&file, &names, &mut compound)
         .map_err(|error| encode_error(file_key(error), error))?;

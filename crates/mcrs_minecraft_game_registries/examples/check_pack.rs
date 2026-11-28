@@ -14,7 +14,7 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
     let loaded = test_packs()
-        .with_only_pack(Path::new(&pack))
+        .with_pack(Path::new(&pack))
         .map_err(RegistryLoadError::from)
         .and_then(|packs| load_registries(&packs, test_additions()));
     let diagnostics = match loaded {

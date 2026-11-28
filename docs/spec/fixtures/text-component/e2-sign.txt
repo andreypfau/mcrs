@@ -1,0 +1,20 @@
+# Experiment E2 of docs/spec/text-component.md, section 8.7: the text on a sign.
+# Source: a screenshot of the window of the vanilla client, in e2-sign.png. The screenshot shows two wall signs.
+# The player is the offline test player Recorder, who looks south from the signs at a pitch of 5 degrees.
+# The vanilla client of the project version joined the vanilla server on 127.0.0.1. The server ran in offline mode.
+# The console of the server gave each command. The time was set to noon and the clock was stopped.
+# The sign of SIGN-3 is the left sign of the screenshot. The sign of SIGN-2 is the right sign.
+# A block entity that a command sets does not resolve a selector, a score or an nbt content. The client shows them as they are.
+#
+# case SIGN-2
+> execute at Recorder run setblock ~-1 ~1 ~2 oak_wall_sign[facing=north]{front_text:{messages:[{selector:"@p"},["a",{score:{name:"@s",objective:"o"}},"b"],["c",{nbt:"Health",entity:"@s"},"d"],{text:"S",extra:[{atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:"FB"},"T"]}]}}
+# observed line 1: the selector text "@p"
+# observed line 2: "ab"
+# observed line 3: "cd"
+# observed line 4: the letter S, the image of the stone sprite, and the letter T
+# case SIGN-3
+> execute at Recorder run setblock ~1 ~1 ~2 oak_wall_sign[facing=north]{front_text:{messages:[{text:"§cR§lB§zX§"},{translate:"%s-%s-%s",color:"red",bold:false,with:[{text:"a",color:"blue"},{text:"b",bold:true},"c"],extra:["!"]},{translate:"%s",with:[{keybind:"key.jump"}]},{text:"U",extra:[{selector:"@e[ type = cow ]"}]}]}}
+# observed line 1: the letters R, B and X in red, B and X in bold, R not in bold, with no mark of the two code characters that start no code
+# observed line 2: "a-b-c!" with a in blue, b in red and bold, the other characters in red and not bold
+# observed line 3: "Space", the name of the key
+# observed line 4: "U@e[ type = cow ]"

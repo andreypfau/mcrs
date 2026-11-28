@@ -1,0 +1,607 @@
+{
+  "version": {
+    "name": "26.4 Snapshot 7",
+    "protocol": 1073742169
+  },
+  "steps": [
+    {
+      "id": "prepare_peaceful",
+      "observed": {
+        "console": {
+          "output": [
+            "The difficulty has been set to Peaceful",
+            "Game rule spawn_mobs is now set to false",
+            "Game rule natural_health_regeneration is now set to false"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "join_alice",
+      "observed": "joined",
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "prepare_alice",
+      "observed": {
+        "console": {
+          "output": [
+            "No entity was found",
+            "No items were found on player noaiprobealice",
+            "Teleported noaiprobealice to 0.500000, -60.000000, 0.500000",
+            "The game is frozen"
+          ],
+          "chat": [
+            {
+              "client": "noaiprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "noaiprobealice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell noaiprobealice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            -1662356824,
+                            2055221934,
+                            -1652849506,
+                            -621864021
+                          ],
+                          "name": "noaiprobealice"
+                        },
+                        "insertion": "noaiprobealice"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.500000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "noaiprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.tick.status.frozen"
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "sync_alice",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "summon_targets",
+      "observed": {
+        "console": {
+          "output": [
+            "Summoned new Pig",
+            "Summoned new Sheep",
+            "Summoned new Cow",
+            "Summoned new Cow"
+          ],
+          "chat": [
+            {
+              "client": "noaiprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            -864884537,
+                            -341359147,
+                            -1491692406,
+                            -129442739
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "cc72e8c7-eba7-45d5-a716-948af848dc4d"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "noaiprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.sheep",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:sheep",
+                          "uuid": [
+                            -211531393,
+                            1586318404,
+                            -1174092809,
+                            -79582261
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.sheep"
+                          }
+                        },
+                        "insertion": "f364497f-5e8d-4c44-ba04-c3f7fb41abcb"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "noaiprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.cow",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:cow",
+                          "uuid": [
+                            -162806369,
+                            1247758792,
+                            -1159512625,
+                            -636793374
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.cow"
+                          }
+                        },
+                        "insertion": "f64bc59f-4a5f-49c8-bae3-3dcfda0b4de2"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "noaiprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.cow",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:cow",
+                          "uuid": [
+                            -1147386040,
+                            355356620,
+                            -2146047177,
+                            -1754091242
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.cow"
+                          }
+                        },
+                        "insertion": "bb9c4748-152e-4fcc-8015-eb379772b116"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "wait_tracked",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "t0",
+      "observed": {
+        "console": {
+          "output": [
+            "Pig has the following entity data: 0b",
+            "Sheep has the following entity data: 0b",
+            "Cow has the following entity data: 0b",
+            "Cow has the following entity data: 1b"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "t1",
+      "observed": {
+        "sent": {
+          "disconnects": [],
+          "console_output": [
+            "Cow has the following entity data: 0b",
+            "Cow has the following entity data: [0.0d, -0.0784000015258789d, 0.0d]",
+            "Cow has the following entity data: 0b",
+            "Cow has the following entity data: [0.0d, -0.0784000015258789d, 0.0d]"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "t2",
+      "observed": {
+        "sent": {
+          "disconnects": [],
+          "console_output": [
+            "Cow has the following entity data: 1b",
+            "Cow has the following entity data: [0.0d, -0.0784000015258789d, 0.0d]",
+            "Cow has the following entity data: 1b",
+            "Cow has the following entity data: [0.0d, -0.0784000015258789d, 0.0d]"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "t22",
+      "observed": {
+        "sent": {
+          "disconnects": [],
+          "console_output": [
+            "Pig has the following entity data: 0b",
+            "Pig has the following entity data: [0.5d, -60.0d, 2.5d]",
+            "Sheep has the following entity data: 0b",
+            "Sheep has the following entity data: [2.5d, -58.0d, 0.5d]",
+            "Sheep has the following entity data: [0.0d, 0.0d, 0.0d]",
+            "Cow has the following entity data: 1b"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "noaiprobealice",
+          "sound": "minecraft:entity.cow.ambient",
+          "source": 6,
+          "position": [
+            -20,
+            -480,
+            -20
+          ],
+          "volume": 0.4,
+          "pitch": 0.88276595,
+          "seed": 8970283158579849935
+        },
+        {
+          "client": "noaiprobealice",
+          "sound": "minecraft:entity.pig.ambient",
+          "source": 6,
+          "position": [
+            4,
+            -480,
+            20
+          ],
+          "volume": 1.0,
+          "pitch": 1.0054319,
+          "seed": 6981722452269319318
+        },
+        {
+          "client": "noaiprobealice",
+          "sound": "minecraft:entity.cow.ambient",
+          "source": 6,
+          "position": [
+            -12,
+            -480,
+            4
+          ],
+          "volume": 0.4,
+          "pitch": 0.94879216,
+          "seed": -4376855821221003710
+        }
+      ],
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "hit_pig",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "noaiprobealice",
+          "sound": "minecraft:entity.pig.hurt",
+          "source": 6,
+          "position": [
+            4,
+            -480,
+            20
+          ],
+          "volume": 1.0,
+          "pitch": 1.022929,
+          "seed": -341559228765357677
+        },
+        {
+          "client": "noaiprobealice",
+          "sound": "minecraft:entity.player.attack.strong",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 3658425487602041314
+        }
+      ],
+      "swings": []
+    },
+    {
+      "id": "hit_pig_after",
+      "observed": {
+        "console": {
+          "output": [
+            "Pig has the following entity data: 9.0f",
+            "Pig has the following entity data: [0.0d, 0.0d, 0.4000000059604645d]"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "charge_1",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "hit_sheep",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "noaiprobealice",
+          "sound": "minecraft:entity.sheep.hurt",
+          "source": 6,
+          "position": [
+            20,
+            -464,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0576544,
+          "seed": -1296890135995700275
+        },
+        {
+          "client": "noaiprobealice",
+          "sound": "minecraft:entity.player.attack.strong",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": -2262153387818663515
+        }
+      ],
+      "swings": []
+    },
+    {
+      "id": "hit_sheep_after",
+      "observed": {
+        "console": {
+          "output": [
+            "Sheep has the following entity data: 7.0f",
+            "Sheep has the following entity data: [0.4000000059604645d, 0.0d, 0.0d]"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "after_20",
+      "observed": {
+        "sent": {
+          "disconnects": [],
+          "console_output": [
+            "Pig has the following entity data: [0.5d, -60.0d, 2.5d]",
+            "Pig has the following entity data: [0.0d, 0.0d, 0.4000000059604645d]",
+            "Sheep has the following entity data: [2.5d, -58.0d, 0.5d]",
+            "Sheep has the following entity data: [0.4000000059604645d, 0.0d, 0.0d]"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "charge_2",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "hit_cow",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "noaiprobealice",
+          "sound": "minecraft:entity.cow.hurt",
+          "source": 6,
+          "position": [
+            -12,
+            -480,
+            4
+          ],
+          "volume": 0.4,
+          "pitch": 1.0006313,
+          "seed": -8561972560739574098
+        },
+        {
+          "client": "noaiprobealice",
+          "sound": "minecraft:entity.player.attack.strong",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 8892629246706990701
+        }
+      ],
+      "swings": []
+    },
+    {
+      "id": "hit_cow_after",
+      "observed": {
+        "console": {
+          "output": [
+            "Cow has the following entity data: 9.0f",
+            "Cow has the following entity data: 1b",
+            "Cow has the following entity data: [-0.4000000059604645d, 0.36080000519752503d, 0.0d]"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": []
+    },
+    {
+      "id": "cow_step",
+      "observed": {
+        "sent": {
+          "disconnects": [],
+          "console_output": [
+            "Cow has the following entity data: [-0.2184000286221508d, 0.2751840104494096d, 0.0d]",
+            "Cow has the following entity data: 0b"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "checkpoints": [
+        {
+          "game_ticks": {
+            "ticks": 1
+          }
+        }
+      ]
+    }
+  ]
+}

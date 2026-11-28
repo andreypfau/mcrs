@@ -13,7 +13,7 @@ pub fn place_coral_tree<W>(
     volume: &mut W,
     rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_block: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    mut place_block: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -54,7 +54,7 @@ pub fn place_coral_claw<W>(
     volume: &mut W,
     rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_block: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    mut place_block: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -121,15 +121,10 @@ mod tests {
         let mut volume = FakeVolume::default();
         let mut rng = WorldgenRandom::new(3);
 
-        assert!(place_coral_tree(
-            &mut volume,
-            &mut rng,
-            AT,
-            &mut |_, _, pos| {
-                seen.push(pos);
-                true
-            }
-        ));
+        assert!(place_coral_tree(&mut volume, &mut rng, AT, |_, _, pos| {
+            seen.push(pos);
+            true
+        }));
 
         let trunk = WorldgenRandom::new(3).next_i32_bound(3) + 1;
         assert_eq!(
@@ -144,15 +139,10 @@ mod tests {
         let mut volume = FakeVolume::default();
         let mut rng = WorldgenRandom::new(3);
 
-        assert!(place_coral_tree(
-            &mut volume,
-            &mut rng,
-            AT,
-            &mut |_, _, pos| {
-                seen.push(pos);
-                false
-            }
-        ));
+        assert!(place_coral_tree(&mut volume, &mut rng, AT, |_, _, pos| {
+            seen.push(pos);
+            false
+        }));
 
         let mut replay = WorldgenRandom::new(3);
         replay.next_i32_bound(3);
@@ -167,15 +157,10 @@ mod tests {
         let mut rng = WorldgenRandom::new(5);
         let before = rng.clone();
 
-        assert!(!place_coral_claw(
-            &mut volume,
-            &mut rng,
-            AT,
-            &mut |_, _, pos| {
-                seen.push(pos);
-                false
-            }
-        ));
+        assert!(!place_coral_claw(&mut volume, &mut rng, AT, |_, _, pos| {
+            seen.push(pos);
+            false
+        }));
 
         assert_eq!(rng, before);
         assert_eq!(seen, vec![AT]);
@@ -187,15 +172,10 @@ mod tests {
         let mut volume = FakeVolume::default();
         let mut rng = WorldgenRandom::new(5);
 
-        assert!(place_coral_claw(
-            &mut volume,
-            &mut rng,
-            AT,
-            &mut |_, _, pos| {
-                seen.push(pos);
-                pos == AT
-            }
-        ));
+        assert!(place_coral_claw(&mut volume, &mut rng, AT, |_, _, pos| {
+            seen.push(pos);
+            pos == AT
+        }));
 
         let mut replay = WorldgenRandom::new(5);
         let claw = Direction::HORIZONTAL[replay.next_i32_bound(4) as usize];

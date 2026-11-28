@@ -100,7 +100,7 @@ fn is_unquoted_key(key: &str) -> bool {
         && !key.eq_ignore_ascii_case("false")
 }
 
-fn quote_and_escape(input: &str, out: &mut String) {
+pub(crate) fn quote_and_escape(input: &str, out: &mut String) {
     let quote = match input.chars().find(|c| matches!(c, '"' | '\'')) {
         Some('"') => '\'',
         _ => '"',

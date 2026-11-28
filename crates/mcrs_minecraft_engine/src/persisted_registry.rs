@@ -147,7 +147,7 @@ pub trait PersistedForm<T>: Serialize + DeserializeOwned {
     fn into_value(self) -> Result<T, String>;
 }
 
-type Capture = fn(&mut World, Entity, CaptureCause) -> Result<Option<NbtTag>, PersistedError>;
+type Capture = fn(&World, Entity, CaptureCause) -> Result<Option<NbtTag>, PersistedError>;
 type Apply = fn(&mut World, Entity, &NbtTag) -> Result<(), PersistedError>;
 
 #[derive(Clone, Copy)]
@@ -230,7 +230,7 @@ impl PersistedRegistry {
 
     pub fn capture(
         &self,
-        world: &mut World,
+        world: &World,
         entity: Entity,
         cause: CaptureCause,
     ) -> Result<PersistedSnapshot, PersistedError> {
@@ -239,7 +239,7 @@ impl PersistedRegistry {
 
     pub fn capture_file(
         &self,
-        world: &mut World,
+        world: &World,
         entity: Entity,
         cause: CaptureCause,
     ) -> Result<PersistedSnapshot, PersistedError> {
@@ -250,7 +250,7 @@ impl PersistedRegistry {
 
     fn capture_scoped(
         &self,
-        world: &mut World,
+        world: &World,
         entity: Entity,
         cause: CaptureCause,
         wanted: impl Fn(PersistScope) -> bool,
@@ -367,7 +367,7 @@ impl PersistedAppExt for App {
 }
 
 fn capture_component<T>(
-    world: &mut World,
+    world: &World,
     entity: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError>
@@ -394,7 +394,7 @@ where
 }
 
 fn capture_form<T, F>(
-    world: &mut World,
+    world: &World,
     entity: Entity,
     _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError>
@@ -523,7 +523,7 @@ mod tests {
             .unwrap();
 
         let snapshot = registry
-            .capture(&mut world, entity, CaptureCause::Autosave)
+            .capture(&world, entity, CaptureCause::Autosave)
             .unwrap();
         world.despawn(entity);
         let entity = world.spawn_empty().id();
@@ -542,7 +542,7 @@ mod tests {
             .unwrap();
 
         let snapshot = registry
-            .capture(&mut world, entity, CaptureCause::Autosave)
+            .capture(&world, entity, CaptureCause::Autosave)
             .unwrap();
 
         assert!(snapshot.is_empty());
@@ -579,7 +579,7 @@ mod tests {
             .unwrap();
 
         let snapshot = registry
-            .capture(&mut world, entity, CaptureCause::Autosave)
+            .capture(&world, entity, CaptureCause::Autosave)
             .unwrap();
         assert_eq!(snapshot.get("X"), Some(&NbtTag::Int(1)));
         assert_eq!(snapshot.get("Y"), Some(&NbtTag::Int(2)));
@@ -600,13 +600,13 @@ mod tests {
 
         assert!(
             registry
-                .capture_file(&mut world, entity, CaptureCause::Autosave)
+                .capture_file(&world, entity, CaptureCause::Autosave)
                 .unwrap()
                 .is_empty()
         );
         assert!(
             !registry
-                .capture(&mut world, entity, CaptureCause::CellCrossing)
+                .capture(&world, entity, CaptureCause::CellCrossing)
                 .unwrap()
                 .is_empty()
         );

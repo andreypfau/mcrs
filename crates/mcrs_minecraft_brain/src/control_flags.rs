@@ -8,8 +8,6 @@ impl ControlFlags {
     pub const JUMP: Self = Self(4);
     pub const TARGET: Self = Self(8);
 
-    pub const EACH: [Self; 4] = [Self::MOVE, Self::LOOK, Self::JUMP, Self::TARGET];
-
     #[must_use]
     pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)

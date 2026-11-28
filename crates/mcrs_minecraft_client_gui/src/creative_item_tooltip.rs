@@ -31,10 +31,14 @@ enum AddedParts {
     TabsAndTags { entry: usize },
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each access is its own parameter"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the tooltip caches its lines, so it allocates only when the hovered stack or the tooltip style changes"
+    )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(13))]
 pub(crate) fn request_creative_item_tooltip(
     player: Query<(&PlayerHolders, &Menus, Option<&AttributeInstances>), With<Player>>,
     menus: Query<(&MenuLayout, &MenuParts)>,

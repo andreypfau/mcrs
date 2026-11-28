@@ -29,7 +29,9 @@ pub fn hurt(
     let HurtRules {} = rules;
     let damage_type = hit.source.damage_type;
     let tags = types.tags(damage_type);
-    if !vitals.is_alive() || defence.immune.intersects(tags) {
+    let invulnerable = !tags.contains(DamageTags::BYPASSES_INVULNERABILITY)
+        && (defence.ability_invulnerable || defence.invulnerable && !hit.source.by_creative_player);
+    if !vitals.is_alive() || invulnerable || defence.immune.intersects(tags) {
         return HitReport::REJECTED;
     }
     record.strike();
@@ -144,6 +146,7 @@ mod tests {
     const MAGIC: u32 = 2;
     const IN_FIRE: u32 = 3;
     const ALWAYS: u32 = 4;
+    const KILL: u32 = 5;
 
     fn types() -> DamageTypeRules {
         DamageTypeRules::new([
@@ -152,6 +155,7 @@ mod tests {
             DamageTags::BYPASSES_RESISTANCE,
             DamageTags::IS_FIRE,
             DamageTags::BYPASSES_COOLDOWN,
+            DamageTags::BYPASSES_INVULNERABILITY,
         ])
     }
 
@@ -249,12 +253,77 @@ mod tests {
             "a hit on a fire-immune pig strikes nothing"
         );
 
+        let invulnerable = Defence {
+            invulnerable: true,
+            ..Defence::default()
+        };
+        assert_eq!(
+            outcome(strike(
+                &mut vitals,
+                &mut record,
+                &invulnerable,
+                hit(5.0, GENERIC)
+            )),
+            HitOutcome::Rejected
+        );
+        assert_eq!(
+            record.strikes(),
+            2,
+            "a hit on an invulnerable player strikes nothing"
+        );
+        assert_eq!(
+            outcome(strike(
+                &mut vitals,
+                &mut record,
+                &invulnerable,
+                hit(5.0, KILL)
+            )),
+            HitOutcome::Partial,
+            "a type that bypasses invulnerability hits"
+        );
+        assert_eq!(vitals.health, 5.0);
+
         vitals.death_time = Some(1);
         assert_eq!(
             outcome(strike(&mut vitals, &mut record, &defence, drown)),
             HitOutcome::Rejected
         );
-        assert_eq!(record.strikes(), 2, "a hit on a dying pig strikes nothing");
+        assert_eq!(record.strikes(), 3, "a hit on a dying pig strikes nothing");
+    }
+
+    #[test]
+    fn hit_001_a_creative_player_hits_an_invulnerable_entity() {
+        let invulnerable = Defence {
+            invulnerable: true,
+            ..Defence::default()
+        };
+        let mut source = DamageSource::of(GENERIC);
+        source.by_creative_player = true;
+        let mut vitals = Vitals::new(10.0);
+        let report = strike(
+            &mut vitals,
+            &mut HitRecord::default(),
+            &invulnerable,
+            Hit::new(4.0, source),
+        );
+        assert_eq!(report.outcome, HitOutcome::Full);
+        assert_eq!(vitals.health, 6.0);
+
+        let creative_target = Defence {
+            ability_invulnerable: true,
+            ..Defence::default()
+        };
+        let report = strike(
+            &mut Vitals::new(10.0),
+            &mut HitRecord::default(),
+            &creative_target,
+            Hit::new(4.0, source),
+        );
+        assert_eq!(
+            report.outcome,
+            HitOutcome::Rejected,
+            "a creative attacker does not pass the ability invulnerability"
+        );
     }
 
     #[test]

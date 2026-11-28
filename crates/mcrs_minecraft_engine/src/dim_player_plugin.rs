@@ -1,15 +1,15 @@
 use crate::ability::{AnnounceOpLevel, AnswerOpLevel, OpLevelAnnounced};
 use crate::block_break::BlockBreakPlugin;
-use crate::bus::OutboundPlayerReleased;
+use crate::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerReleased};
 use crate::client_info::ClientInfoPlugin;
 use crate::client_view_distance::on_client_view_distance;
 use crate::cold_columns::SaveRequest;
 use crate::column_streams::ColumnStreamPlugin;
-use crate::consume_inbound_player_spawn::consume_inbound_player_spawn;
+use crate::consume_inbound_player_spawn::{InboundPlayerSpawnSet, consume_inbound_player_spawn};
 use crate::coordinator::default_game_mode::DefaultGameMode;
 use crate::coordinator::ops::OpList;
 use crate::departure::PlayerTransfer;
-use crate::despawn_inbound_player::despawn_inbound_player;
+use crate::despawn_inbound_player::{InboundPlayerDespawnSet, despawn_inbound_player};
 use crate::dim_tick::DimInboxDrain;
 use crate::dim_tick::drain_dim_inbox;
 use crate::game_mode::{self, GameModePlugin};
@@ -30,7 +30,6 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::{
     on_message, resource_exists, resource_exists_and_changed,
 };
-use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -91,8 +90,7 @@ impl Plugin for DimPlayerPlugin {
             receive_transfers
                 .run_if(on_message::<PlayerTransfer>)
                 .in_set(DimInboxDrain)
-                .after(drain_dim_inbox)
-                .before(add_entity_to_chunk),
+                .after(drain_dim_inbox),
         );
         app.add_message::<OrderedPlayer>();
         app.add_systems(
@@ -100,28 +98,9 @@ impl Plugin for DimPlayerPlugin {
             obey_orders
                 .run_if(on_message::<OrderedPlayer>)
                 .in_set(DimInboxDrain)
-                .after(receive_transfers)
-                .before(add_entity_to_chunk),
+                .after(receive_transfers),
         );
-        app.add_systems(
-            Update,
-            (
-                (
-                    (
-                        consume_inbound_player_spawn,
-                        refresh_op_levels.run_if(resource_exists_and_changed::<OpList>),
-                        send_op_level,
-                    )
-                        .chain()
-                        .in_set(AnnounceOpLevel),
-                    game_mode::send_game_mode.after(AnswerOpLevel),
-                )
-                    .chain(),
-                despawn_inbound_player
-                    .after(consume_inbound_player_spawn)
-                    .after(game_mode::send_game_mode),
-            ),
-        );
+        add_join_and_leave(app);
         app.add_systems(
             FixedUpdate,
             send_own_attributes
@@ -139,6 +118,41 @@ impl Plugin for DimPlayerPlugin {
                 .in_set(TickSet::Output),
         );
     }
+}
+
+fn add_join_and_leave(app: &mut App) {
+    app.add_systems(
+        Update,
+        (
+            (
+                (
+                    consume_inbound_player_spawn
+                        .run_if(on_message::<InboundPlayerSpawn>)
+                        .in_set(InboundPlayerSpawnSet),
+                    refresh_op_levels.run_if(resource_exists_and_changed::<OpList>),
+                    send_op_level,
+                )
+                    .chain()
+                    .in_set(AnnounceOpLevel),
+                game_mode::send_game_mode.after(AnswerOpLevel),
+            )
+                .chain(),
+            despawn_inbound_player
+                .run_if(on_message::<InboundPlayerDespawn>)
+                .after(consume_inbound_player_spawn)
+                .after(game_mode::send_game_mode),
+        ),
+    );
+    app.configure_sets(
+        Update,
+        (
+            InboundPlayerDespawnSet::Drop,
+            InboundPlayerDespawnSet::Close,
+        )
+            .chain()
+            .after(consume_inbound_player_spawn)
+            .before(despawn_inbound_player),
+    );
 }
 
 #[cfg(test)]

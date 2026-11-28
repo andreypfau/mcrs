@@ -16,7 +16,7 @@ use mcrs_minecraft_loot_condition::{
     IntProviderFile, LootContext, LootInputs, NamedEntries, Tool,
 };
 use mcrs_minecraft_loot_table::{LootIssue, LootScratch, LootTableFile, LootTables};
-use mcrs_minecraft_predicate::{NoWorld, PredicateScratch};
+use mcrs_minecraft_predicate::{BlockHost, PredicateScratch};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -513,7 +513,7 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
     let inputs = LootInputs {
         named: &ENTRIES,
         context: &context,
-        world: &NoWorld,
+        world: &BlockHost::none(),
     };
     let mut scratch = PredicateScratch::default();
     let differs = match &case.outcome {
@@ -538,7 +538,7 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
                 .roll(
                     table,
                     &context,
-                    &NoWorld,
+                    &BlockHost::none(),
                     &mut random,
                     &mut LootScratch::new(),
                     &mut stacks,

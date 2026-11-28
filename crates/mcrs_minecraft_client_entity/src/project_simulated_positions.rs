@@ -3,7 +3,7 @@ use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity_visual::Motion;
 
 pub(crate) fn project_simulated_positions(
-    mut entities: Query<(&MotionState, &mut Motion), Changed<MotionState>>,
+    mut entities: Populated<(&MotionState, &mut Motion), Changed<MotionState>>,
 ) {
     for (MotionState(state), mut motion) in &mut entities {
         let position = state.body.position;

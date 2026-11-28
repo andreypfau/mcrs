@@ -1,6 +1,7 @@
 use crate::mock_connection;
 
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 use bytes::Bytes;
@@ -12,11 +13,11 @@ use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionAnchors, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::channels::{MAX_HELD_SERVERBOUND, TO_DIM_CAPACITY};
-use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_network::{Instant, ServerSideConnection};
 
 fn build_world() -> World {
     let mut world = World::new();
-    world.init_resource::<Messages<InboundPlayerPacket>>();
+    MessageRegistry::register_message::<InboundPlayerPacket>(&mut world);
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<DimInputs>();
     world.init_resource::<SessionAnchors>();
@@ -80,6 +81,8 @@ fn packet(session: PlayerSession, id: i32) -> InboundPlayerPacket {
         id,
         data: Bytes::new(),
         trigger: None,
+        acknowledged_tick: 0,
+        arrival: Instant::now(),
     }
 }
 

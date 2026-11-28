@@ -45,15 +45,15 @@ use mcrs_minecraft_item_stack::ToolRule;
 use mcrs_minecraft_item_stack::TooltipDisplay;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_stack::WireError;
+use mcrs_minecraft_item_stack::WireStack;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::read_saved;
 use mcrs_minecraft_item_stack::read_wire;
 use mcrs_minecraft_item_stack::read_wire_not_empty;
-use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_item_stack::write_saved;
 use mcrs_minecraft_item_stack::write_wire;
 use mcrs_minecraft_item_stack::write_wire_not_empty;
-use mcrs_minecraft_item_stack::write_wire_with_length;
 use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_nbt::NbtQuotaExceeded;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -66,6 +66,8 @@ use mcrs_minecraft_snbt::parse_compound;
 use mcrs_minecraft_text::Color;
 use mcrs_minecraft_text::IntoText;
 use mcrs_minecraft_text::Text;
+use mcrs_minecraft_wire::Decode;
+use mcrs_minecraft_wire::ErrorKind;
 use serde::Deserialize;
 
 use crate::common::COMPONENT_TYPES;
@@ -168,9 +170,31 @@ fn wire(stack: Option<&ItemStack>) -> Vec<u8> {
 }
 
 fn wire_with_length(stack: Option<&ItemStack>) -> Vec<u8> {
-    let mut output = Vec::new();
-    write_wire_with_length(stack, &Names, &mut output).expect("the test stack has a wire form");
-    output
+    WireStackWithLength::write(stack, &Names)
+        .expect("the test stack has a wire form")
+        .bytes()
+        .to_vec()
+}
+
+fn read_wire_with_length(input: &mut &[u8], names: &Names) -> Result<Option<ItemStack>, WireError> {
+    WireStackWithLength::decode(input)
+        .map_err(|error| frame_error(&error))?
+        .read(names)
+}
+
+fn frame_error(error: &mcrs_minecraft_wire::Error) -> WireError {
+    match error.kind() {
+        ErrorKind::Other(other) => *other
+            .downcast_ref::<WireError>()
+            .expect("the frame gives a wire error"),
+        kind => {
+            assert!(
+                matches!(kind, ErrorKind::UnexpectedEnd),
+                "the frame gives {kind:?}"
+            );
+            WireError::UnexpectedEnd
+        }
+    }
 }
 
 fn read_all<T>(
@@ -367,51 +391,93 @@ fn a_repeated_enchantment_on_the_wire_keeps_the_last_level() {
 }
 
 #[test]
-fn the_count_is_8_bits_and_the_length_prefixed_form_holds_at_most_99() {
+fn the_count_of_each_wire_form_follows_the_table_of_the_count_rules() {
     let empty = Err(WireError::EmptyStack);
-    let cases: [(
-        &str,
-        Result<Option<u8>, WireError>,
-        Result<Option<u8>, WireError>,
-    ); 7] = [
-        ("00", Ok(None), Ok(None)),
-        ("ffffffff0f", Ok(None), Ok(None)),
-        ("01", Ok(Some(1)), Ok(Some(1))),
-        ("63", Ok(Some(99)), Ok(Some(99))),
-        ("64", Ok(Some(100)), Err(WireError::CountOutOfRange)),
-        ("ff01", Ok(Some(255)), Err(WireError::CountOutOfRange)),
-        (
-            "8002",
-            Err(WireError::CountTooLarge),
-            Err(WireError::CountTooLarge),
-        ),
+    let over = Err(WireError::CountOutOfRange);
+    let cases: [(&str, i32, Result<Option<u8>, WireError>); 8] = [
+        ("00", 0, Ok(None)),
+        ("ffffffff0f", -1, Ok(None)),
+        ("01", 1, Ok(Some(1))),
+        ("63", 99, Ok(Some(99))),
+        ("64", 100, over),
+        ("ff01", 255, over),
+        ("8002", 256, over),
+        ("ffffffff07", i32::MAX, over),
     ];
-    for (count, bare, prefixed) in cases {
+    for (count, raw, expected) in cases {
         let bytes = [unhex(count), unhex("01 00 00")].concat();
-        let count_of = |stack: Option<ItemStack>| stack.map(|stack| stack.count.get());
         let mut input = bytes.as_slice();
-        assert_eq!(read_wire(&mut input, &Names).map(count_of), bare, "{count}");
+        let frame = WireStack::decode(&mut input).expect("a count does not change the bounds");
+        let end = if raw > 0 {
+            bytes.len()
+        } else {
+            count.len() / 2
+        };
+        assert_eq!(frame.bytes(), &bytes[..end], "{count}");
+        assert_eq!(frame.count(), raw, "{count}");
+        let count_of = |stack: Option<ItemStack>| stack.map(|stack| stack.count.get());
+        assert_eq!(frame.read(&Names).map(count_of), expected, "{count}");
+        let mut input = bytes.as_slice();
+        assert_eq!(
+            read_wire(&mut input, &Names).map(count_of),
+            expected,
+            "{count}"
+        );
         let mut input = bytes.as_slice();
         let read = read_wire_with_length(&mut input, &Names).map(count_of);
-        assert_eq!(read, prefixed, "{count}");
+        assert_eq!(read, expected, "{count}");
         let mut input = bytes.as_slice();
         let not_empty =
             read_wire_not_empty(&mut input, &Names).map(|stack| Some(stack.count.get()));
-        let expected = bare.and_then(|count| count.map(Some).ok_or(WireError::EmptyStack));
+        let expected = expected.and_then(|count| count.map(Some).ok_or(WireError::EmptyStack));
         assert_eq!(not_empty, expected, "{count}");
     }
 
     let mut output = vec![0xaa];
-    let over = stack(STONE, 100);
-    assert_eq!(
-        write_wire(Some(&over), &Names, &mut output),
-        Err(WireError::CountOutOfRange)
-    );
-    assert_eq!(output, [0xaa], "a failed write leaves the output as it was");
     assert_eq!(
         write_wire_not_empty(&stack(AIR, 1), &Names, &mut output),
         empty
     );
+
+    let written = WireStack::write(Some(&stack(STONE, 7)), &Names).expect("stone has a name");
+    assert_eq!(written.bytes(), unhex("07 01 00 00"));
+    assert_eq!(written.count(), 7);
+    assert_eq!(
+        written
+            .read_not_empty(&Names)
+            .map(|stack| stack.count.get()),
+        Ok(7)
+    );
+    let air = WireStack::write(Some(&stack(AIR, 1)), &Names).expect("air has a name");
+    assert_eq!(air, WireStack::EMPTY);
+}
+
+#[test]
+fn the_count_of_an_item_template_in_the_wire_form_is_1_to_99() {
+    let bad = Err(WireError::BadValue(BuiltinKey::BundleContents));
+    let cases: [(&str, Result<u8, WireError>); 8] = [
+        ("00", Err(WireError::EmptyStack)),
+        ("ffffffff0f", bad),
+        ("01", Ok(1)),
+        ("63", Ok(99)),
+        ("64", Err(WireError::CountOutOfRange)),
+        ("ff01", Err(WireError::CountOutOfRange)),
+        ("8002", Err(WireError::CountOutOfRange)),
+        ("ffffffff07", Err(WireError::CountOutOfRange)),
+    ];
+    for (count, expected) in cases {
+        let value = [unhex("01 01"), unhex(count), unhex("00 00")].concat();
+        let bytes = stone_with("bundle_contents", &value);
+        let read = read_all(&bytes, read_wire).map(|stack| {
+            let stack = stack.expect("a stone");
+            let Some(PatchEntry::Value(Builtin::BundleContents(contents))) = stack.patch().first()
+            else {
+                panic!("the stone holds a bundle");
+            };
+            contents.0.first().map(|template| template.count.get())
+        });
+        assert_eq!(read, expected.map(Some), "{count}");
+    }
 }
 
 fn saved(snbt: &str) -> NbtCompound {
@@ -858,7 +924,7 @@ fn each_error_names_the_rule_that_the_input_breaks() {
         Err(WireError::UnregisteredType)
     );
 
-    let wire_only = read_all(&unhex("01 01 01 00 3c 02 0a00"), read_wire_with_length)
+    let wire_only = read_all(&unhex("01 01 01 00 3c 03 0a 0a00"), read_wire_with_length)
         .expect("entity data with a length prefix")
         .expect("a stone");
     assert_eq!(
@@ -1335,7 +1401,7 @@ fn a_lore_has_at_most_256_lines_in_each_form() {
 
 #[test]
 fn a_writer_measures_the_depth_past_a_component_that_only_the_wire_form_holds() {
-    let wire_only = read_all(&unhex("01 01 01 00 3c 02 0a00"), read_wire_with_length)
+    let wire_only = read_all(&unhex("01 01 01 00 3c 03 0a 0a00"), read_wire_with_length)
         .expect("entity data with a length prefix")
         .expect("a stone");
     let deepest = Chain {
@@ -1423,6 +1489,103 @@ fn one_wire_stack_shares_one_nbt_budget_with_the_stacks_inside_it() {
             assert!(matches!(read, Ok(Ok(Some(_)))), "{index}");
         } else {
             assert_eq!(read, Err(NbtQuotaExceeded), "{index}");
+        }
+    }
+}
+
+fn decode_with_length(bytes: &[u8]) -> Result<Vec<u8>, WireError> {
+    let mut input = bytes;
+    let frame = WireStackWithLength::decode(&mut input).map_err(|error| frame_error(&error))?;
+    assert!(input.is_empty(), "{} bytes are left", input.len());
+    Ok(frame.bytes().to_vec())
+}
+
+#[test]
+fn a_length_prefixed_frame_checks_each_value_against_the_shape_of_its_type() {
+    let charge = ComponentType(7);
+    let cases = [
+        (
+            with_one_component("minimum_attack_charge", "04 3f800000"),
+            None,
+        ),
+        (
+            with_one_component("minimum_attack_charge", "05 3f800000 00"),
+            Some(WireError::BadLength(charge)),
+        ),
+        (
+            with_one_component("minimum_attack_charge", "03 3f8000"),
+            Some(WireError::BadLength(charge)),
+        ),
+        (
+            with_one_component("damage", "01 8001"),
+            Some(WireError::BadLength(ComponentType(3))),
+        ),
+        (
+            with_one_component("use_effects", "06 02 00 3f800000"),
+            Some(WireError::BadShape(ComponentType(5))),
+        ),
+        (
+            unhex("01 01 01 00 7a 00"),
+            Some(WireError::UnknownComponentType(122)),
+        ),
+        (
+            with_one_component("max_stack_size", "03 10 aa bb"),
+            Some(WireError::BadLength(ComponentType(1))),
+        ),
+        (unhex("01 00 00 00"), None),
+    ];
+    for (index, (bytes, error)) in cases.iter().enumerate() {
+        let expected = error.map_or_else(|| Ok(bytes.clone()), Err);
+        assert_eq!(decode_with_length(bytes), expected, "{index}");
+    }
+}
+
+#[test]
+fn a_length_prefixed_frame_reads_a_value_out_of_range_as_an_error() {
+    let cases = [
+        (
+            with_one_component("max_stack_size", "01 00"),
+            Err(WireError::OutOfRange(BuiltinKey::MaxStackSize)),
+        ),
+        (
+            with_one_component("max_stack_size", "01 64"),
+            Err(WireError::OutOfRange(BuiltinKey::MaxStackSize)),
+        ),
+        (
+            with_one_component("max_damage", "01 00"),
+            Err(WireError::OutOfRange(BuiltinKey::MaxDamage)),
+        ),
+        (
+            with_one_component("max_damage", "01 05"),
+            Ok(Some(stack(STONE, 1).set(MaxDamage(5)))),
+        ),
+        (unhex("01 00 00 00"), Ok(None)),
+    ];
+    for (index, (bytes, expected)) in cases.into_iter().enumerate() {
+        let frame = WireStackWithLength::decode(&mut bytes.as_slice())
+            .expect("the frame checks only the shape");
+        assert_eq!(frame.read(&Names), expected, "{index}");
+    }
+}
+
+#[test]
+fn a_length_prefixed_frame_charges_its_values_to_the_nbt_budget_in_force() {
+    let mut nbt = vec![10, 7, 0, 1, b'a', 0, 0, 0, 100];
+    nbt.resize(nbt.len() + 100, 0);
+    nbt.push(0);
+    let length = u8::try_from(nbt.len()).expect("the value is shorter than 128 bytes");
+    let bytes = stone_with("custom_data", &[vec![length], nbt].concat());
+    let cases = [(1_024, true), (64, false)];
+    for (limit, passes) in cases {
+        let budget = NbtBudget {
+            bytes: limit,
+            tags: 262_144,
+        };
+        let decoded = with_nbt_budget(budget, || decode_with_length(&bytes));
+        if passes {
+            assert_eq!(decoded, Ok(Ok(bytes.clone())), "{limit}");
+        } else {
+            assert_eq!(decoded, Err(NbtQuotaExceeded), "{limit}");
         }
     }
 }

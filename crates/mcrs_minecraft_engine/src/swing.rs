@@ -7,6 +7,7 @@ use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Query, Res, ResMut};
 use mcrs_engine_muxer::EntityEvent;
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -99,8 +100,8 @@ pub(crate) fn has_pending_player_swings(pending: Res<PendingPlayerSwings>) -> bo
     !pending.swings.is_empty()
 }
 
-fn player_is_dead(state: Option<&PlayerFileState>) -> bool {
-    state.is_some_and(|file| file.health <= 0.0 || file.death_time > 0)
+fn player_is_dead(vitals: Option<&Vitals>) -> bool {
+    vitals.is_some_and(|vitals| !vitals.is_alive())
 }
 
 fn swing_modifiers_for_player(state: Option<&PlayerFileState>) -> SwingModifiers {
@@ -122,16 +123,17 @@ fn apply_player_swings(
     mut players: Query<(
         Option<&PlayerGameMode>,
         Option<&PlayerFileState>,
+        Option<&Vitals>,
         &mut PlayerSwing,
     )>,
     mut pending: Option<ResMut<PendingPlayerSwings>>,
 ) {
     let now = clock.map_or(0, |clock| clock.0);
     for &request in requests.read() {
-        let Ok((mode, file_state, mut swing)) = players.get_mut(request.player) else {
+        let Ok((mode, file_state, vitals, mut swing)) = players.get_mut(request.player) else {
             continue;
         };
-        if mode.is_some_and(|mode| mode.0 == GameMode::Spectator) || player_is_dead(file_state) {
+        if mode.is_some_and(|mode| mode.0 == GameMode::Spectator) || player_is_dead(vitals) {
             continue;
         }
         if !swing.0.can_start(now) {
@@ -180,6 +182,7 @@ pub(crate) fn publish_player_swings(
 mod tests {
     use super::*;
     use bevy_app::App;
+    use bevy_ecs::change_detection::DetectChangesMut;
     use bevy_time::{TimePlugin, TimeUpdateStrategy};
     use mcrs_engine_muxer::{EntityId, TileKey};
     use mcrs_minecraft_replication::ReplicationData;
@@ -187,6 +190,7 @@ mod tests {
     use crate::bus::InboundPlayerDespawn;
     use crate::player_state::Effect;
     use crate::player_tracker::PlayerTrackerPlugin;
+    use crate::replicated::Visibility;
 
     fn test_app() -> (App, Entity) {
         let mut app = App::new();
@@ -205,6 +209,7 @@ mod tests {
                     id: EntityId(99),
                     tile: TileKey::new(0, 0, 0),
                     game_mode: GameMode::Survival,
+                    visibility: Visibility::Shown,
                 },
             ))
             .id();
@@ -259,7 +264,7 @@ mod tests {
                 show_icon: Some(true),
                 hidden_effect: None,
             });
-        app.world_mut().resource_mut::<BirthClock>().0 = 15;
+        app.world_mut().insert_resource(BirthClock(15));
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert!(
@@ -267,7 +272,7 @@ mod tests {
             "SWG-STA-005: D=10 blocks tick T+5"
         );
 
-        app.world_mut().resource_mut::<BirthClock>().0 = 16;
+        app.world_mut().insert_resource(BirthClock(16));
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert_eq!(
@@ -276,7 +281,7 @@ mod tests {
             "SWG-CMP-003: wire duration remains unscaled under mining fatigue"
         );
 
-        app.world_mut().resource_mut::<BirthClock>().0 = 21;
+        app.world_mut().insert_resource(BirthClock(21));
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert!(
@@ -284,7 +289,7 @@ mod tests {
             "SWG-STA-002/005: mining fatigue 1 expands B=6 to D=10 blocking T+5"
         );
 
-        app.world_mut().resource_mut::<BirthClock>().0 = 22;
+        app.world_mut().insert_resource(BirthClock(22));
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert_eq!(
@@ -300,7 +305,7 @@ mod tests {
         app.world_mut()
             .get_mut::<PlayerGameMode>(player)
             .expect("player mode")
-            .0 = GameMode::Spectator;
+            .set_if_neq(PlayerGameMode(GameMode::Spectator));
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert!(
@@ -311,11 +316,11 @@ mod tests {
         app.world_mut()
             .get_mut::<PlayerGameMode>(player)
             .expect("player mode")
-            .0 = GameMode::Survival;
-        app.world_mut()
-            .get_mut::<PlayerFileState>(player)
-            .expect("player state")
-            .health = 0.0;
+            .set_if_neq(PlayerGameMode(GameMode::Survival));
+        app.world_mut().entity_mut(player).insert(Vitals {
+            death_time: Some(0),
+            ..Vitals::new(0.0)
+        });
         app.world_mut()
             .write_message(SwingPlayer::default_main(player));
         assert!(

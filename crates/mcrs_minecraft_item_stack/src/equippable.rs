@@ -64,17 +64,14 @@ impl EntityForm for Equippable {
     fn borrow_static(&'static self) -> Self {
         Self {
             slot: self.slot,
-            equip_sound: self.equip_sound.as_ref().map(SoundEventRef::borrow_static),
+            equip_sound: self.equip_sound.clone(),
             asset_id: self.asset_id.as_ref().map(Identifier::borrow_static),
             camera_overlay: self.camera_overlay.as_ref().map(Identifier::borrow_static),
             allowed_entities: self
                 .allowed_entities
                 .as_ref()
                 .map(EntityTypeSet::borrow_static),
-            shearing_sound: self
-                .shearing_sound
-                .as_ref()
-                .map(SoundEventRef::borrow_static),
+            shearing_sound: self.shearing_sound.clone(),
             ..*self
         }
     }

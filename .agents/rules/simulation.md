@@ -11,9 +11,9 @@ paths:
 
 ## Dimension sub-apps
 
-Each dimension runs as a Bevy `SubApp` with its own `World`. Immutable registries are cloned in
-once at spawn; mutable per-tick state is pushed every tick through `sub_app.set_extract(...)`.
-That is how `Time<…>` and `WorldClocks` reach dimension systems.
+Each dimension runs as a Bevy `SubApp` with its own `World`, held by `SubAppWorld<DimInput, DimOutput>`.
+Data from the main app to a sub-app is a field of `DimInput`. Data from a sub-app to the main app
+is a field of `DimOutput`. Nothing else crosses. That is how `WorldClocks` reaches dimension systems.
 
 ## Determinism
 

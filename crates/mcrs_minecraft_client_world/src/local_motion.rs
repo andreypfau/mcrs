@@ -120,7 +120,7 @@ impl LocalMotion {
 }
 
 pub(crate) fn write_motion_inputs(
-    mut players: Query<
+    mut players: Populated<
         (&mut LocalMotion, &AttributeInstances, &Sprint, &Abilities),
         (
             With<Player>,
@@ -257,6 +257,7 @@ mod tests {
     ) -> PlayerState {
         let mut session = TestSession::new(DVec3::new(8.5, FLOOR_TOP + 4.0, 8.5));
         session.receive(login(GameMode::Survival));
+        session.end_load();
         session.ticks(input, 1);
         session.receive(ClientboundUpdateAttributes {
             entity_id: VarInt(OWN_PLAYER),
@@ -267,6 +268,7 @@ mod tests {
         }
         if let Some(respawn) = respawn {
             session.receive(respawn);
+            session.end_load();
         }
         session.ticks(input, 1);
         session.motion()

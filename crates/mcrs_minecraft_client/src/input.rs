@@ -1,16 +1,17 @@
 use bevy::input::mouse::{AccumulatedMouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
+use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_item::{LAST_HOTBAR_SLOT, SelectedHotbarSlot};
+use mcrs_minecraft_game_mode::PlayerGameMode;
+use mcrs_minecraft_item::LAST_HOTBAR_SLOT;
 
 use mcrs_minecraft_client_gui::item_key_codes;
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_gui::wheel_notches;
 use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::attack_input::AttackInput;
-use mcrs_minecraft_client_world::game_mode::LocalGameMode;
 use mcrs_minecraft_client_world::local_player::LocalPlayerTick;
 use mcrs_minecraft_client_world::movement_input::MovementInput;
 use mcrs_minecraft_client_world::player::Player;
@@ -42,7 +43,12 @@ impl Plugin for ClientInputPlugin {
             )
             .add_systems(Update, (apply_mouse_look, grab_cursor_on_click).chain());
         #[cfg(not(target_family = "wasm"))]
-        app.add_systems(Update, toggle_fullscreen);
+        app.add_systems(
+            Update,
+            toggle_fullscreen.run_if(bevy::input::common_conditions::input_just_pressed(
+                KeyCode::F11,
+            )),
+        );
     }
 
     fn finish(&self, app: &mut App) {
@@ -82,11 +88,16 @@ fn read_attack_input(
     mut input: ResMut<AttackInput>,
 ) {
     let screen_open = cursor.grab_mode == CursorGrabMode::None || !screen_is_none(screen);
-    input.screen_open = screen_open;
-    input.down = !screen_open && buttons.pressed(MouseButton::Left);
-    if !screen_open && buttons.just_pressed(MouseButton::Left) {
-        input.presses = input.presses.saturating_add(1);
-    }
+    let presses = if !screen_open && buttons.just_pressed(MouseButton::Left) {
+        input.presses.saturating_add(1)
+    } else {
+        input.presses
+    };
+    input.set_if_neq(AttackInput {
+        presses,
+        down: !screen_open && buttons.pressed(MouseButton::Left),
+        screen_open,
+    });
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -138,14 +149,7 @@ fn read_wheel(
     mut sums: Local<WheelSums>,
     screen: Option<Res<Screen>>,
     window: Single<(&CursorOptions, &Window), With<PrimaryWindow>>,
-    mut player: Query<
-        (
-            &mut Abilities,
-            &mut SelectedHotbarSlot,
-            Option<&LocalGameMode>,
-        ),
-        With<Player>,
-    >,
+    mut player: Query<(&mut Abilities, &mut Selected, Option<&PlayerGameMode>), With<Player>>,
 ) {
     let (cursor, window) = *window;
     let screen_open = cursor.grab_mode == CursorGrabMode::None || !screen_is_none(screen);
@@ -157,7 +161,7 @@ fn read_wheel(
         wheel.clear();
         return;
     }
-    let spectator = game_mode.is_some_and(|mode| mode.current == GameMode::Spectator);
+    let spectator = game_mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
     let mut speed = abilities.flying_speed;
     let mut slot = selected.0;
     for event in wheel.read() {
@@ -174,7 +178,7 @@ fn read_wheel(
             slot = slot_after(slot, -notches.horizontal);
         }
     }
-    selected.set_if_neq(SelectedHotbarSlot(slot));
+    selected.set_if_neq(Selected(slot));
     let next = Abilities {
         flying_speed: speed,
         ..*abilities
@@ -184,14 +188,7 @@ fn read_wheel(
 
 fn read_hotbar_keys(
     keys: Res<ButtonInput<KeyCode>>,
-    mut player: Query<
-        (
-            &mut SelectedHotbarSlot,
-            Option<&Abilities>,
-            Option<&LocalGameMode>,
-        ),
-        With<Player>,
-    >,
+    mut player: Query<(&mut Selected, Option<&Abilities>, Option<&PlayerGameMode>), With<Player>>,
 ) {
     let Some(slot) = (0..=LAST_HOTBAR_SLOT)
         .zip(item_key_codes::HOTBAR)
@@ -202,7 +199,7 @@ fn read_hotbar_keys(
     let Ok((mut selected, abilities, game_mode)) = player.single_mut() else {
         return;
     };
-    if game_mode.is_some_and(|mode| mode.current == GameMode::Spectator) {
+    if game_mode.is_some_and(|mode| mode.0 == GameMode::Spectator) {
         return;
     }
     if abilities.is_some_and(|abilities| abilities.instant_build)
@@ -210,7 +207,7 @@ fn read_hotbar_keys(
     {
         return;
     }
-    selected.set_if_neq(SelectedHotbarSlot(slot));
+    selected.set_if_neq(Selected(slot));
 }
 
 fn grab_cursor_on_click(
@@ -263,15 +260,17 @@ pub(crate) fn apply_mouse_look(
     motion: Res<AccumulatedMouseMotion>,
     options: Res<ClientOptions>,
     window: Single<&CursorOptions, With<PrimaryWindow>>,
-    player: Single<(&mut PhysicsTransform, &mut OldTransform), With<Player>>,
+    transform: Single<&mut PhysicsTransform, With<Player>>,
 ) {
     if window.grab_mode == CursorGrabMode::None || motion.delta == Vec2::ZERO {
         return;
     }
-    let (mut transform, mut previous) = player.into_inner();
     let turn = motion.delta * degrees_per_motion_unit(options.sensitivity);
-    transform.rotation = transform.rotation.turn(turn.x, turn.y);
-    previous.0.rotation = previous.rotation.turn(turn.x, turn.y);
+    let rotation = transform.rotation.turn(turn.x, turn.y);
+    transform
+        .into_inner()
+        .map_unchanged(|transform| &mut transform.rotation)
+        .set_if_neq(rotation);
 }
 
 #[cfg(test)]

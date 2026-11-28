@@ -259,6 +259,7 @@ fn read_keys(compound: NbtCompound) -> Option<Summoned> {
                 }
             }
             ("NoAI", NbtTag::Byte(value)) => extras.no_ai = value != 0,
+            ("OnGround", NbtTag::Byte(value)) => extras.on_ground = value != 0,
             ("CustomName", NbtTag::String(name)) => extras.custom_name = Some(name),
             ("Tags", NbtTag::List(tags)) => {
                 extras.tags = tags
@@ -269,7 +270,7 @@ fn read_keys(compound: NbtCompound) -> Option<Summoned> {
                     })
                     .collect();
             }
-            ("NoAI" | "CustomName" | "Tags" | "UUID" | "PersistenceRequired", _) => {}
+            ("NoAI" | "OnGround" | "CustomName" | "Tags" | "UUID" | "PersistenceRequired", _) => {}
             _ => return None,
         }
     }

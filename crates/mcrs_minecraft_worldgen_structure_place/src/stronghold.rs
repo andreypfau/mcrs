@@ -65,7 +65,7 @@ pub struct StrongholdBlocks {
 
 impl StrongholdBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let of = |block: Block, properties: &[(&str, &str)]| {
@@ -490,9 +490,12 @@ fn straight_stairs_down<W: WorldGenVolume, R: Random>(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one crossing"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one crossing"
+    )
 )]
 fn five_crossing<W: WorldGenVolume, R: Random>(
     b: &StrongholdBlocks,

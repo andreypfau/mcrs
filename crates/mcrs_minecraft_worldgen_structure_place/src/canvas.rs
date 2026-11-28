@@ -33,7 +33,7 @@ impl ChestStates {
         }
     }
 
-    pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
+    pub fn compile(blocks: &impl BlockResolver) -> Result<Self, FeatureCompileError> {
         let facing = |name| state(blocks, Block::Chest, &[("facing", name)]);
         Ok(ChestStates {
             facing: [
@@ -48,7 +48,7 @@ impl ChestStates {
 }
 
 pub fn replaceable_by_structures(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     world: &WorldStates,
 ) -> Result<StateMask, FeatureCompileError> {
     let mut mask = fixedbitset::FixedBitSet::clone(&world.air_states);
@@ -145,9 +145,12 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one probabilistic box fill"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one probabilistic box fill"
+        )
     )]
     pub fn generate_maybe_box<R: Random>(
         &mut self,
@@ -274,9 +277,12 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         true
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the reference passes these as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the block coordinates are local to the piece, like the coordinates of the other canvas methods"
+        )
     )]
     pub fn create_dispenser<R: Random>(
         &mut self,

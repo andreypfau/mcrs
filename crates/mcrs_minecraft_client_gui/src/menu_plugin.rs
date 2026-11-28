@@ -37,7 +37,8 @@ mod tests {
     use bevy::window::PrimaryWindow;
     use mcrs_minecraft_client_widget::{
         AreaSlot, CycleButton, EditBox, GuiExtent, GuiInput, GuiPoint, GuiRect, KeyModifiers,
-        Slider, Tab, TabBar, Widget, WidgetEvent, WidgetId, WidgetKind, WidgetList, Widgets,
+        Slider, Tab, TabBar, Widget, WidgetEvent, WidgetId, WidgetKind, WidgetList, WidgetValue,
+        Widgets,
     };
 
     use super::*;
@@ -97,8 +98,8 @@ mod tests {
         for (id, row, column, kind) in members {
             let origin = WidgetList::option_origin(screen.width, rows[row], column);
             let rect = GuiRect::new(origin.x, origin.y, 150, 20);
-            let mut widget = Widget::new(id, rect, String::new(), kind);
-            widget.area = Some(AreaSlot { area: LIST, row });
+            let widget =
+                Widget::new(id, rect, String::new(), kind).in_area(AreaSlot { area: LIST, row });
             widgets.push(widget).unwrap();
         }
         commands.insert_resource(Menu::new(widgets, MenuBackground::Texture));
@@ -155,7 +156,12 @@ mod tests {
             .init_resource::<Seen>()
             .add_message::<KeyboardInput>()
             .add_systems(Startup, open)
-            .add_systems(PreUpdate, read_events.after(MenuInputSystems));
+            .add_systems(
+                PreUpdate,
+                read_events
+                    .after(MenuInputSystems)
+                    .run_if(on_message::<MenuEvent>),
+            );
         app.world_mut().spawn((Window::default(), PrimaryWindow));
         app
     }
@@ -220,14 +226,8 @@ mod tests {
         app.update();
         let changed = MenuEvent::Widget(WidgetEvent::ValueChanged { widget: EDIT });
         assert_eq!(app.world().resource::<Seen>().0, [changed, changed]);
-        let text = match app
-            .world()
-            .resource::<Menu>()
-            .widgets
-            .get(EDIT)
-            .map(|w| &w.kind)
-        {
-            Some(WidgetKind::EditBox(edit)) => edit.text(),
+        let text = match app.world().resource::<Menu>().widgets.value(EDIT) {
+            Some(WidgetValue::Text(text)) => text,
             _ => "",
         };
         assert_eq!(text, "ab");
@@ -236,7 +236,10 @@ mod tests {
     }
 
     fn point_at(app: &mut App, x: i32, y: i32) {
-        app.world_mut().resource_mut::<GuiConfig>().cursor = Some(IVec2::new(x, y));
+        app.world_mut()
+            .resource_mut::<GuiConfig>()
+            .map_unchanged(|resource| &mut resource.cursor)
+            .set_if_neq(Some(IVec2::new(x, y)));
     }
 
     fn click(app: &mut App) -> Vec<MenuEvent> {
@@ -256,13 +259,13 @@ mod tests {
         point_at(&mut app, 100, 50);
         app.world_mut()
             .resource_mut::<AccumulatedMouseScroll>()
-            .delta
-            .y = -1.0;
+            .map_unchanged(|scroll| &mut scroll.delta.y)
+            .set_if_neq(-1.0);
         app.update();
         app.world_mut()
             .resource_mut::<AccumulatedMouseScroll>()
-            .delta
-            .y = 0.0;
+            .map_unchanged(|scroll| &mut scroll.delta.y)
+            .set_if_neq(0.0);
         let menu = app.world().resource::<Menu>();
         let offset = menu.widgets.get(LIST).and_then(Widget::scroll_offset);
         assert_eq!(offset, Some(12.0));

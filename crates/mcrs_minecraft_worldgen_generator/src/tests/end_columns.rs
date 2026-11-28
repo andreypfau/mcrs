@@ -12,7 +12,8 @@ use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_voxel::ColumnPos;
 
 use super::trees::tree_tables;
-use super::{block_tags, blocks, build_program, corpus_features, generate_region};
+use super::{block_tags, blocks, build_program, corpus_features};
+use crate::generate_area;
 use crate::ids::require_id;
 use crate::modern_carvers::ModernCarverBlockIds;
 use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
@@ -136,7 +137,7 @@ fn the_end_spikes_stand_around_the_origin() {
             .number(),
     );
 
-    let region = generate_region(&ctx, ColumnPos::new(-3, -3), ColumnPos::new(2, 2));
+    let region = generate_area(&ctx, ColumnPos::new(-3, -3), ColumnPos::new(2, 2));
 
     let holds_obsidian = region.values().any(|column| {
         column.sections.iter().flatten().any(|(palette, _)| {

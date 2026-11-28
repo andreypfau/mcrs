@@ -418,9 +418,12 @@ struct FillBuffers {
     block_values: Vec<f32>,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one column fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column fill"
+    )
 )]
 fn fill_column(
     column: &ColumnBlocks,
@@ -514,9 +517,12 @@ fn fill_column(
     true
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one dense column fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one dense column fill"
+    )
 )]
 fn fill_column_dense(
     column: &ColumnBlocks,
@@ -580,9 +586,12 @@ fn fill_cell_box(column: &ColumnBlocks, index: usize, base: IVec3, cell: IVec3, 
     );
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one block fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one block fill"
+    )
 )]
 fn fill_blocks(
     column: &ColumnBlocks,
@@ -669,7 +678,7 @@ fn column_block(
     x: i32,
     y: i32,
     z: i32,
-    barrier: &mut dyn FnMut(i32, i32, i32) -> f64,
+    barrier: &mut impl FnMut(i32, i32, i32) -> f64,
 ) -> VoxelId {
     if density > 0.0 {
         return default_block;
@@ -695,9 +704,12 @@ pub fn first_free_kind(name: HeightmapName) -> HeightmapKinds {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one height query"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one height query"
+    )
 )]
 pub fn base_height(
     router: &NoiseRouter,
@@ -1008,9 +1020,12 @@ pub fn generate_column(
     column.into_sections(&filled.biomes)
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one dense fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one dense fill"
+    )
 )]
 pub fn fill_column_dense_any<'a>(
     column: &mut ColumnBlocks,
@@ -1272,11 +1287,19 @@ fn beta_surface_blocks(
 }
 
 pub mod block_state;
+pub mod dimension_plan;
 mod end_biome_grid;
+mod flat_world;
+pub mod plan_error;
+pub mod world_tables;
+pub mod world_tables_error;
 use end_biome_grid::end_biome_grid;
 pub mod column_blocks;
 pub mod task;
+pub mod template_names;
 pub use column_blocks::ColumnBlocks;
+mod generate_area;
+pub use generate_area::generate_area;
 pub mod beta_caves;
 pub use beta_caves::{BetaCaveBlockIds, apply_beta_carvers};
 pub mod beta_ores;

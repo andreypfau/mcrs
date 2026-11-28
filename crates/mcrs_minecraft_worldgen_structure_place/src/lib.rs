@@ -44,7 +44,7 @@ impl Oriented {
 
     pub fn named(
         world: &WorldStates,
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         block: Block,
         properties: &[(&str, &str)],
     ) -> Result<Self, FeatureCompileError> {
@@ -67,7 +67,7 @@ impl Oriented {
 }
 
 pub(crate) fn ignore_blocks(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     names: &[Block],
 ) -> Result<CompiledChain, FeatureCompileError> {
     Ok(vec![CompiledProcessor::BlockIgnore(block_mask(
@@ -75,9 +75,12 @@ pub(crate) fn ignore_blocks(
     )?)])
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one positional placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one positional placement"
+    )
 )]
 pub fn place_positional<W: WorldGenVolume>(
     template: &FrozenTemplate,

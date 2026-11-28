@@ -4,6 +4,7 @@ use bevy_ecs::message::{Message, MessageWriter};
 use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::event::Trigger;
 use mcrs_minecraft_network::metrics::PacketKind;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -14,11 +15,12 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundContainerClose,
     ClientboundContainerSetContent, ClientboundContainerSetSlot, ClientboundEntityEvent,
     ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
-    ClientboundLevelEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundOpenScreen,
-    ClientboundPlayerAbilities, ClientboundPlayerLookAt, ClientboundPlayerPosition,
-    ClientboundRespawn, ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter,
-    ClientboundSetCursorItem, ClientboundSetHeldSlot, ClientboundSetTime,
-    ClientboundSystemChatPacket, ClientboundTabList,
+    ClientboundHurtAnimation, ClientboundLevelEvent, ClientboundLightUpdate, ClientboundLogin,
+    ClientboundOpenScreen, ClientboundPlayerAbilities, ClientboundPlayerCombatKill,
+    ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRespawn,
+    ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter, ClientboundSetCursorItem,
+    ClientboundSetHealth, ClientboundSetHeldSlot, ClientboundSetTime, ClientboundSystemChatPacket,
+    ClientboundTabList, ClientboundTickingState, ClientboundTickingStep,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_text::Text;
@@ -40,6 +42,8 @@ pub struct InboundPlayerPacket {
     pub id: i32,
     pub data: Bytes,
     pub trigger: Option<Trigger>,
+    pub acknowledged_tick: u64,
+    pub arrival: Instant,
 }
 
 #[derive(Message, Clone, Debug)]
@@ -76,7 +80,7 @@ pub fn to(session: PlayerSession, data: PacketPayload) -> OutboundPlayerPacket {
     to_target(PacketTarget::SinglePlayer(session), data)
 }
 
-pub(crate) fn send_own_entity_state(
+pub fn send_own_entity_state(
     writer: &mut MessageWriter<OutboundPlayerPacket>,
     session: PlayerSession,
     packet: &(impl Packet + Encode),
@@ -138,6 +142,11 @@ pub enum PacketPayload {
     Commands(Bytes),
     CommandSuggestions(ClientboundCommandSuggestions<'static>),
     SetTime(ClientboundSetTime),
+    TickingState(ClientboundTickingState),
+    TickingStep(ClientboundTickingStep),
+    SetHealth(ClientboundSetHealth),
+    HurtAnimation(ClientboundHurtAnimation),
+    PlayerCombatKill(ClientboundPlayerCombatKill<'static>),
     SetHeldSlot(ClientboundSetHeldSlot),
     ContainerSetContent(ClientboundContainerSetContent),
     ContainerSetSlot(ClientboundContainerSetSlot),

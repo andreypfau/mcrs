@@ -7,6 +7,8 @@
 mod boot;
 #[cfg(feature = "singleplayer")]
 mod container_menus;
+#[cfg(all(feature = "singleplayer", unix))]
+mod control;
 #[cfg(feature = "singleplayer")]
 mod creative_actions;
 #[cfg(feature = "singleplayer")]

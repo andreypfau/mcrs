@@ -270,9 +270,12 @@ impl Lane {
 
 impl GradientNoise {
     #[inline(always)]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one lattice-cell sample"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one lattice-cell sample"
+        )
     )]
     pub(crate) fn sample_and_lerp(
         &self,

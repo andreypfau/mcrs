@@ -12,6 +12,14 @@ pub(crate) fn on_create_world(screen: Res<Screen>) -> bool {
     matches!(*screen, Screen::CreateWorld(_))
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates the world name only when the player confirms the create world screen"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
 pub(crate) fn follow_create_world(
     mut events: MessageReader<MenuEvent>,
     (mut screen, mut reason): (ResMut<Screen>, ResMut<DisconnectReason>),
@@ -26,7 +34,7 @@ pub(crate) fn follow_create_world(
         WorldTypes::Loading => &[],
         WorldTypes::Failed(error) => {
             reason.0 = Some(Reason::WorldStore(*error));
-            *screen = Screen::Disconnected;
+            screen.set_if_neq(Screen::Disconnected);
             return;
         }
     };
@@ -57,7 +65,7 @@ pub(crate) fn follow_create_world(
                     && let Some(world) = next.new_world(&menu.widgets, types)
                 {
                     creates.write(CreateWorld(world));
-                    *screen = Screen::Message(ScreenMessage::PreparingWorldCreation);
+                    screen.set_if_neq(Screen::Message(ScreenMessage::PreparingWorldCreation));
                 }
             }
             _ => {}
@@ -100,7 +108,10 @@ mod tests {
             assert_eq!(drained::<ReadWorldList>(&mut app), [ReadWorldList]);
 
             tap_escape(&mut app);
-            app.add_systems(Update, read_like_the_store);
+            app.add_systems(
+                Update,
+                read_like_the_store.run_if(on_message::<ReadWorldList>),
+            );
             click(&mut app, 213, 118);
             app.insert_resource(WorldList::Ready(Vec::new()));
             app.update();

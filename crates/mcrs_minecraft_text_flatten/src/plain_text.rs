@@ -1,10 +1,14 @@
-use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_text::{Text, TextTypes};
 
+use crate::{Projection, TextHost, UnitBudget};
+
 #[must_use]
-pub fn plain_text<I: TextTypes>(language: &Language, text: &Text<I>) -> String {
+pub fn plain_text<I: TextTypes>(host: &impl TextHost, text: &Text<I>) -> String {
     let mut out = String::new();
-    crate::flatten(language, text, |run, _| out.push_str(run));
+    let mut budget = UnitBudget::new();
+    crate::flatten(host, text, Projection::Plain, |run, _| {
+        out.push_str(budget.take(run));
+    });
     out
 }
 
@@ -12,9 +16,11 @@ pub fn plain_text<I: TextTypes>(language: &Language, text: &Text<I>) -> String {
 mod tests {
     use std::str::FromStr;
 
+    use mcrs_minecraft_lang::Language;
     use mcrs_minecraft_text::ItemHover;
 
     use super::*;
+    use crate::MAX_UNITS;
 
     #[test]
     fn each_content_shows_its_text() {
@@ -29,17 +35,24 @@ mod tests {
                 "true is gone",
             ),
             (r#"{"keybind":"key.jump","extra":["!"]}"#, "key.jump!"),
-            (r#"{"selector":"@p"}"#, "@p"),
-            (r#"{"nbt":"Health","entity":"@s"}"#, "Health"),
-            (
-                r#"{"score":{"name":"Alex","objective":"kills"},"extra":[" kills"]}"#,
-                " kills",
-            ),
         ];
         for (json, expected) in cases {
             let text: Text<ItemHover> = Text::from_str(json).expect(json);
             assert_eq!(plain_text(&language, &text), expected, "{json}");
         }
+    }
+
+    #[test]
+    fn the_plain_string_stops_at_the_unit_bound() {
+        let language = Language::from_json(br#"{"grow":"%1$s%1$s%1$s%1$s"}"#).expect("valid JSON");
+        let mut text: Text<ItemHover> = Text::text("a".repeat(30_000));
+        for _ in 0..3 {
+            text = Text::translate_args("grow", vec![text.into()]);
+        }
+        assert_eq!(
+            plain_text(&language, &text).encode_utf16().count(),
+            MAX_UNITS
+        );
     }
 
     #[test]

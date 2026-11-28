@@ -1,0 +1,2522 @@
+{
+  "version": {
+    "name": "26.4 Snapshot 7",
+    "protocol": 1073742169
+  },
+  "steps": [
+    {
+      "id": "prepare_peaceful",
+      "observed": {
+        "console": {
+          "output": [
+            "The difficulty has been set to Peaceful",
+            "Game rule spawn_mobs is now set to false",
+            "Game rule natural_health_regeneration is now set to false"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "join_alice",
+      "observed": "joined",
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "prepare_alice",
+      "observed": {
+        "console": {
+          "output": [
+            "No entity was found",
+            "No items were found on player attackprobealice",
+            "Teleported attackprobealice to 0.500000, -60.000000, 0.500000",
+            "The game is frozen"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "attackprobealice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobealice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1376927303,
+                            12661508,
+                            -1588916638,
+                            -103686080
+                          ],
+                          "name": "attackprobealice"
+                        },
+                        "insertion": "attackprobealice"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.500000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.tick.status.frozen"
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "sync_alice_base",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "summon_targets",
+      "observed": {
+        "console": {
+          "output": [
+            "Summoned new Pig",
+            "Summoned new Cow",
+            "Summoned new Sheep",
+            "Summoned new Goat",
+            "The base value for attribute Knockback Resistance for entity Goat set to 1.0",
+            "Summoned new Villager",
+            "Summoned new Falling Sand"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            570280948,
+                            852050935,
+                            -1836902391,
+                            1085214930
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "21fdcbf4-32c9-43f7-9283-180940af10d2"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.cow",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:cow",
+                          "uuid": [
+                            1406825953,
+                            -2108930102,
+                            -1098584451,
+                            -462789965
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.cow"
+                          }
+                        },
+                        "insertion": "53da75e1-824c-47ca-be84-ee7de46a62b3"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.sheep",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:sheep",
+                          "uuid": [
+                            -1500297141,
+                            516310525,
+                            -1510506069,
+                            1987442148
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.sheep"
+                          }
+                        },
+                        "insertion": "a693484b-1ec6-45fd-a5f7-81ab7675f5e4"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.goat",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:goat",
+                          "uuid": [
+                            -1840763523,
+                            446582216,
+                            -1204398713,
+                            138541513
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.goat"
+                          }
+                        },
+                        "insertion": "92482d7d-1a9e-4dc8-b836-55870841f9c9"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.villager.none",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:villager",
+                          "uuid": [
+                            -1370391685,
+                            -1265023374,
+                            -2073001059,
+                            -2056246027
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.villager.none"
+                          }
+                        },
+                        "insertion": "ae517b7b-b499-4672-8470-839d85702cf5"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.falling_block_type",
+                        "with": [
+                          {
+                            "translate": "block.minecraft.sand"
+                          }
+                        ],
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:falling_block",
+                          "uuid": [
+                            10389196,
+                            -1751039859,
+                            -1857305649,
+                            266681961
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.falling_block_type",
+                            "with": [
+                              {
+                                "translate": "block.minecraft.sand"
+                              }
+                            ]
+                          }
+                        },
+                        "insertion": "009e86cc-97a1-408d-914b-c3cf0fe53e69"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "wait_targets_tracked",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a1_before",
+      "observed": {
+        "console": {
+          "output": [
+            "Pig has the following entity data: 10.0f",
+            "Pig has the following entity data: [0.0d, 0.0d, 0.0d]",
+            "attackprobealice has the following entity data: 0.0f"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a1_attack_pig_full",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.pig.hurt",
+          "source": 6,
+          "position": [
+            4,
+            -480,
+            20
+          ],
+          "volume": 1.0,
+          "pitch": 0.97445863,
+          "seed": -1968009537523066851
+        },
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.strong",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": -8236280210247425928
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a1_after",
+      "observed": {
+        "console": {
+          "output": [
+            "Pig has the following entity data: 9.0f",
+            "Pig has the following entity data: [0.0d, 0.4d, 0.4000000059604645d]",
+            "attackprobealice has the following entity data: 0.1f"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a2_attack_cow_weak",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.cow.hurt",
+          "source": 6,
+          "position": [
+            -12,
+            -480,
+            20
+          ],
+          "volume": 0.4,
+          "pitch": 0.9241707,
+          "seed": -6940569076773171243
+        },
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.weak",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": -8685055335327265722
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a2_after_weak",
+      "observed": {
+        "console": {
+          "output": [
+            "Cow has the following entity data: 9.792f",
+            "Cow has the following entity data: [-0.28284271668930383d, 0.4d, 0.28284271668930383d]",
+            "attackprobealice has the following entity data: 0.2f"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a2_wait_charge",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a2_attack_cow_partial",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.strong",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": -8431205733995064253
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a2_after_partial",
+      "observed": {
+        "console": {
+          "output": [
+            "Cow has the following entity data: 9.0f",
+            "Cow has the following entity data: [-0.28284271668930383d, 0.4d, 0.28284271668930383d]",
+            "attackprobealice has the following entity data: 0.3f"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a2_attack_cow_rejected",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.nodamage",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": -2410227802083837838
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a2_after_rejected",
+      "observed": {
+        "console": {
+          "output": [
+            "Cow has the following entity data: 9.0f",
+            "attackprobealice has the following entity data: 0.3f"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a3_set_knockback",
+      "observed": {
+        "console": {
+          "output": [
+            "The base value for attribute Attack Knockback for entity attackprobealice set to 2.0"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a3_wait_charge",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a3_attack_sheep",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.sheep.hurt",
+          "source": 6,
+          "position": [
+            20,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0572453,
+          "seed": -4873743755388015638
+        },
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.strong",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 8990948247582409485
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a3_after_sheep",
+      "observed": {
+        "console": {
+          "output": [
+            "Sheep has the following entity data: 7.0f",
+            "Sheep has the following entity data: [0.20000000298023224d, 0.4d, 1.0d]",
+            "attackprobealice has the following entity data: [0.0d, -0.0784000015258789d, 0.0d]"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a3_wait_charge_goat",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a3_attack_goat",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.goat.hurt",
+          "source": 6,
+          "position": [
+            4,
+            -480,
+            -12
+          ],
+          "volume": 1.0,
+          "pitch": 1.0144043,
+          "seed": -7045245571205739476
+        },
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.strong",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 1656388439728968340
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a3_after_goat",
+      "observed": {
+        "console": {
+          "output": [
+            "Goat has the following entity data: 9.0f",
+            "Goat has the following entity data: [0.0d, 0.0d, 0.0d]",
+            "The base value for attribute Attack Knockback for entity attackprobealice set to 0.0"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a4_wait_charge",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a4_attack_invulnerable_survival",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.nodamage",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 620185804513846199
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a4_after_survival",
+      "observed": {
+        "console": {
+          "output": [
+            "Villager has the following entity data: 20.0f",
+            "attackprobealice has the following entity data: 0.5f",
+            "Set attackprobealice's game mode to Creative Mode"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "gameMode.changed",
+                "with": [
+                  {
+                    "translate": "gameMode.creative"
+                  }
+                ]
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamemode.success.other",
+                    "with": [
+                      {
+                        "text": "attackprobealice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobealice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1376927303,
+                            12661508,
+                            -1588916638,
+                            -103686080
+                          ],
+                          "name": "attackprobealice"
+                        },
+                        "insertion": "attackprobealice"
+                      },
+                      {
+                        "translate": "gameMode.creative"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a4_wait_creative",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a4_attack_invulnerable_creative",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.villager.hurt",
+          "source": 6,
+          "position": [
+            -12,
+            -480,
+            -12
+          ],
+          "volume": 1.0,
+          "pitch": 0.96359396,
+          "seed": 7253491017962383238
+        },
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.strong",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": -4095783720407885761
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a4_after_creative",
+      "observed": {
+        "console": {
+          "output": [
+            "Villager has the following entity data: 19.0f",
+            "attackprobealice has the following entity data: 0.5f",
+            "Set attackprobealice's game mode to Survival Mode"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "gameMode.changed",
+                "with": [
+                  {
+                    "translate": "gameMode.survival"
+                  }
+                ]
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamemode.success.other",
+                    "with": [
+                      {
+                        "text": "attackprobealice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobealice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1376927303,
+                            12661508,
+                            -1588916638,
+                            -103686080
+                          ],
+                          "name": "attackprobealice"
+                        },
+                        "insertion": "attackprobealice"
+                      },
+                      {
+                        "translate": "gameMode.survival"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a4_wait_charge_falling_block",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a4_attack_falling_block",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a5_clear_targets",
+      "observed": {
+        "console": {
+          "output": [
+            "Killed 6 entities",
+            "The game is running normally"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.kill.success.multiple",
+                    "with": [
+                      6
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.tick.status.running"
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a5_wait_death",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a5_prepare_sweep",
+      "observed": {
+        "console": {
+          "output": [
+            "The game is frozen",
+            "Replaced 1 slot(s) on attackprobealice with [Diamond Sword]",
+            "Summoned new Pig",
+            "Summoned new Sheep",
+            "Summoned new Cow"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.tick.status.frozen"
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.item.entity.replace.success.single.known_item",
+                    "with": [
+                      1,
+                      {
+                        "text": "attackprobealice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobealice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1376927303,
+                            12661508,
+                            -1588916638,
+                            -103686080
+                          ],
+                          "name": "attackprobealice"
+                        },
+                        "insertion": "attackprobealice"
+                      },
+                      {
+                        "translate": "chat.square_brackets",
+                        "with": [
+                          {
+                            "text": "",
+                            "extra": [
+                              {
+                                "translate": "item.minecraft.diamond_sword"
+                              }
+                            ]
+                          }
+                        ],
+                        "color": "white",
+                        "hover_event": {
+                          "action": "show_item",
+                          "id": "minecraft:diamond_sword"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            1891839308,
+                            -1273412770,
+                            -2011382490,
+                            1676717974
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "70c32d4c-b419-435e-881c-bd2663f0af96"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.sheep",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:sheep",
+                          "uuid": [
+                            -2083328583,
+                            -1156560023,
+                            -1734348903,
+                            -748623195
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.sheep"
+                          }
+                        },
+                        "insertion": "83d2edb9-bb10-4b69-989f-ef99d360eaa5"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.cow",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:cow",
+                          "uuid": [
+                            -176610989,
+                            1078739605,
+                            -1148805042,
+                            -1846088974
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.cow"
+                          }
+                        },
+                        "insertion": "f5792153-404c-4295-bb86-a04e91f6eaf2"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a5_wait_charge",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a5_before_sweep",
+      "observed": {
+        "console": {
+          "output": [
+            "Sheep has the following entity data: [0.0d, 0.0d, 0.0d]",
+            "attackprobealice has the following entity data: 0.5f"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a5_attack_sweep",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.pig.hurt",
+          "source": 6,
+          "position": [
+            4,
+            -480,
+            20
+          ],
+          "volume": 1.0,
+          "pitch": 0.9741093,
+          "seed": -154173503055760585
+        },
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.sweep",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": -6205384420681405587
+        },
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.sheep.hurt",
+          "source": 6,
+          "position": [
+            12,
+            -480,
+            20
+          ],
+          "volume": 1.0,
+          "pitch": 1.1040074,
+          "seed": 2169490588995569636
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a5_after_sweep",
+      "observed": {
+        "console": {
+          "output": [
+            "Pig has the following entity data: 3.0f",
+            "Sheep has the following entity data: 7.0f",
+            "Sheep has the following entity data: [0.08944272043279196d, 0.4d, 0.5788854468260484d]",
+            "Cow has the following entity data: 10.0f",
+            "attackprobealice has the following entity data: 0.6f"
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a6_clear_targets",
+      "observed": {
+        "console": {
+          "output": [
+            "Killed 7 entities",
+            "The game is running normally"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.kill.success.multiple",
+                    "with": [
+                      7
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.tick.status.running"
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.cow.death",
+          "source": 6,
+          "position": [
+            -4,
+            -480,
+            28
+          ],
+          "volume": 0.4,
+          "pitch": 0.8799674,
+          "seed": 548383298509241110
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a6_wait_death",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a6_prepare_slow_sword",
+      "observed": {
+        "console": {
+          "output": [
+            "The game is frozen",
+            "The base value for attribute Attack Speed for entity attackprobealice set to 2.6",
+            "Summoned new Pig",
+            "Summoned new Sheep"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.tick.status.frozen"
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            354548462,
+                            1404846133,
+                            -1779088952,
+                            -1454916068
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "1521faee-53bc-4035-95f5-41c8a947be1c"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.sheep",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:sheep",
+                          "uuid": [
+                            1069133837,
+                            1523926611,
+                            -2106507017,
+                            -1531206704
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.sheep"
+                          }
+                        },
+                        "insertion": "3fb9b00d-5ad5-4653-8271-40f7a4bba3d0"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a6_wait_tracked",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a6_attack_sweep_partial",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.pig.hurt",
+          "source": 6,
+          "position": [
+            4,
+            -480,
+            20
+          ],
+          "volume": 1.0,
+          "pitch": 1.1207228,
+          "seed": 2778778894610429446
+        },
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.sweep",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 7343772111364133040
+        },
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.sheep.hurt",
+          "source": 6,
+          "position": [
+            12,
+            -480,
+            20
+          ],
+          "volume": 1.0,
+          "pitch": 0.9002355,
+          "seed": 2306753716841900779
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a6_after_sweep",
+      "observed": {
+        "console": {
+          "output": [
+            "Pig has the following entity data: 93.49266f",
+            "Sheep has the following entity data: 99.045f",
+            "Killed 7 entities",
+            "Replaced 1 slot(s) on attackprobealice with [Air]",
+            "The base value for attribute Attack Speed for entity attackprobealice set to 4.0",
+            "The game is running normally"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.kill.success.multiple",
+                    "with": [
+                      7
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.item.entity.replace.success.single.known_item",
+                    "with": [
+                      1,
+                      {
+                        "text": "attackprobealice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobealice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1376927303,
+                            12661508,
+                            -1588916638,
+                            -103686080
+                          ],
+                          "name": "attackprobealice"
+                        },
+                        "insertion": "attackprobealice"
+                      },
+                      {
+                        "translate": "chat.square_brackets",
+                        "with": [
+                          {
+                            "text": "",
+                            "extra": [
+                              {
+                                "translate": "block.minecraft.air"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.tick.status.running"
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "join_bob",
+      "observed": "joined",
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a7_prepare_pvp",
+      "observed": {
+        "console": {
+          "output": [
+            "Teleported attackprobebob to 0.500000, -60.000000, 2.500000",
+            "Game rule pvp is now set to false"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "attackprobebob",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobebob "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1597488850,
+                            1402747970,
+                            -1174478348,
+                            1911637666
+                          ],
+                          "name": "attackprobebob"
+                        },
+                        "insertion": "attackprobebob"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "2.500000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamerule.set",
+                    "with": [
+                      "pvp",
+                      "false"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobebob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "attackprobebob",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobebob "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1597488850,
+                            1402747970,
+                            -1174478348,
+                            1911637666
+                          ],
+                          "name": "attackprobebob"
+                        },
+                        "insertion": "attackprobebob"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "2.500000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobebob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamerule.set",
+                    "with": [
+                      "pvp",
+                      "false"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a7_wait_charge",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a7_attack_bob_pvp_off",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.nodamage",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": -5656483453040184319
+        },
+        {
+          "client": "attackprobebob",
+          "sound": "minecraft:entity.player.attack.nodamage",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": -5656483453040184319
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a7_after_pvp_off",
+      "observed": {
+        "console": {
+          "output": [
+            "attackprobebob has the following entity data: 20.0f",
+            "Game rule pvp is now set to true"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamerule.set",
+                    "with": [
+                      "pvp",
+                      "true"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobebob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamerule.set",
+                    "with": [
+                      "pvp",
+                      "true"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a7_wait_charge_pvp_on",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a7_attack_bob_pvp_on",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.hurt",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            20
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 8074556923100259457
+        },
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.strong",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 4675403855145547032
+        },
+        {
+          "client": "attackprobebob",
+          "sound": "minecraft:entity.player.attack.strong",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 4675403855145547032
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a7_after_pvp_on",
+      "observed": {
+        "console": {
+          "output": [
+            "attackprobebob has the following entity data: 19.0f",
+            "Set attackprobebob's game mode to Creative Mode"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamemode.success.other",
+                    "with": [
+                      {
+                        "text": "attackprobebob",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobebob "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1597488850,
+                            1402747970,
+                            -1174478348,
+                            1911637666
+                          ],
+                          "name": "attackprobebob"
+                        },
+                        "insertion": "attackprobebob"
+                      },
+                      {
+                        "translate": "gameMode.creative"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobebob",
+              "text": {
+                "translate": "gameMode.changed",
+                "with": [
+                  {
+                    "translate": "gameMode.creative"
+                  }
+                ]
+              }
+            },
+            {
+              "client": "attackprobebob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamemode.success.other",
+                    "with": [
+                      {
+                        "text": "attackprobebob",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobebob "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1597488850,
+                            1402747970,
+                            -1174478348,
+                            1911637666
+                          ],
+                          "name": "attackprobebob"
+                        },
+                        "insertion": "attackprobebob"
+                      },
+                      {
+                        "translate": "gameMode.creative"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a7_wait_charge_creative",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a7_attack_bob_creative",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "attackprobealice",
+          "sound": "minecraft:entity.player.attack.nodamage",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 1914937648034172532
+        },
+        {
+          "client": "attackprobebob",
+          "sound": "minecraft:entity.player.attack.nodamage",
+          "source": 7,
+          "position": [
+            4,
+            -480,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 1914937648034172532
+        }
+      ],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a7_punch_swing_control",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [
+        {
+          "client": "attackprobebob",
+          "subject": "attackprobealice",
+          "hand": "main",
+          "animation": "whack",
+          "duration": 6
+        }
+      ],
+      "swing_bytes": {
+        "canonical": true
+      },
+      "animates": []
+    },
+    {
+      "id": "a7_after_creative",
+      "observed": {
+        "console": {
+          "output": [
+            "attackprobebob has the following entity data: 19.0f",
+            "Set attackprobebob's game mode to Survival Mode",
+            "Set attackprobealice's game mode to Spectator Mode"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamemode.success.other",
+                    "with": [
+                      {
+                        "text": "attackprobebob",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobebob "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1597488850,
+                            1402747970,
+                            -1174478348,
+                            1911637666
+                          ],
+                          "name": "attackprobebob"
+                        },
+                        "insertion": "attackprobebob"
+                      },
+                      {
+                        "translate": "gameMode.survival"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "gameMode.changed",
+                "with": [
+                  {
+                    "translate": "gameMode.spectator"
+                  }
+                ]
+              }
+            },
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamemode.success.other",
+                    "with": [
+                      {
+                        "text": "attackprobealice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobealice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1376927303,
+                            12661508,
+                            -1588916638,
+                            -103686080
+                          ],
+                          "name": "attackprobealice"
+                        },
+                        "insertion": "attackprobealice"
+                      },
+                      {
+                        "translate": "gameMode.spectator"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobebob",
+              "text": {
+                "translate": "gameMode.changed",
+                "with": [
+                  {
+                    "translate": "gameMode.survival"
+                  }
+                ]
+              }
+            },
+            {
+              "client": "attackprobebob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamemode.success.other",
+                    "with": [
+                      {
+                        "text": "attackprobebob",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobebob "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1597488850,
+                            1402747970,
+                            -1174478348,
+                            1911637666
+                          ],
+                          "name": "attackprobebob"
+                        },
+                        "insertion": "attackprobebob"
+                      },
+                      {
+                        "translate": "gameMode.survival"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobebob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamemode.success.other",
+                    "with": [
+                      {
+                        "text": "attackprobealice",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell attackprobealice "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1376927303,
+                            12661508,
+                            -1588916638,
+                            -103686080
+                          ],
+                          "name": "attackprobealice"
+                        },
+                        "insertion": "attackprobealice"
+                      },
+                      {
+                        "translate": "gameMode.spectator"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a8_wait_spectator",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a8_attack_bob_spectator",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a8_after_spectator",
+      "observed": {
+        "console": {
+          "output": [
+            "attackprobebob has the following entity data: 19.0f",
+            "No entity was found",
+            "Summoned new Stone"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "block.minecraft.stone",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:item",
+                          "uuid": [
+                            323334326,
+                            93734218,
+                            -1747216453,
+                            2076410998
+                          ],
+                          "name": {
+                            "translate": "block.minecraft.stone"
+                          }
+                        },
+                        "insertion": "1345b0b6-0596-454a-97db-97bb7bc38476"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobebob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "block.minecraft.stone",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:item",
+                          "uuid": [
+                            323334326,
+                            93734218,
+                            -1747216453,
+                            2076410998
+                          ],
+                          "name": {
+                            "translate": "block.minecraft.stone"
+                          }
+                        },
+                        "insertion": "1345b0b6-0596-454a-97db-97bb7bc38476"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a8_wait_item_tracked",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a8_attack_item_out_of_reach",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a8_summon_near_item",
+      "observed": {
+        "console": {
+          "output": [
+            "Summoned new Stone"
+          ],
+          "chat": [
+            {
+              "client": "attackprobealice",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "block.minecraft.stone",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:item",
+                          "uuid": [
+                            -1239430310,
+                            -1362474024,
+                            -1379944888,
+                            -1574727530
+                          ],
+                          "name": {
+                            "translate": "block.minecraft.stone"
+                          }
+                        },
+                        "insertion": "b61fcb5a-aeca-4bd8-adbf-b648a2239096"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "attackprobebob",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "block.minecraft.stone",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:item",
+                          "uuid": [
+                            -1239430310,
+                            -1362474024,
+                            -1379944888,
+                            -1574727530
+                          ],
+                          "name": {
+                            "translate": "block.minecraft.stone"
+                          }
+                        },
+                        "insertion": "b61fcb5a-aeca-4bd8-adbf-b648a2239096"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a8_wait_near_item_tracked",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a8_attack_item",
+      "observed": {
+        "sent": {
+          "disconnects": [
+            {
+              "client": "attackprobebob",
+              "reason": {
+                "translate": "multiplayer.disconnect.invalid_entity_attacked"
+              }
+            }
+          ]
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    },
+    {
+      "id": "a8_wait_disconnect",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "swings": [],
+      "animates": []
+    }
+  ]
+}

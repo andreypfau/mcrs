@@ -213,10 +213,18 @@ still take a surface. Experiment E51.
 
 ### 4.1 Refusals that send only an acknowledgement
 
-**PLC-RCH-001** (`black_box_confirmed`, semantic). A request is refused when the distance from the eye
-position to the nearest point of the block cube at the clicked position is 6.0 or more. A distance less
-than 6.0 is in reach. The placer gets one acknowledgement and no block state. An observer gets nothing. BRK-RCH-001 states the source of the limit. The face has no effect on the result, so a
-target position further than 6.0 can receive a block.
+**PLC-RCH-001** (`source_suggested_black_box_confirmed`, semantic). A request is refused when the
+distance from the eye position to the nearest point of the block cube at the clicked position is the
+limit or more. A distance less than the limit is in reach. The limit is the limit of BRK-RCH-001: the
+value of the `minecraft:block_interaction_range` attribute of the placer, plus 1.0. With the base value
+and no other modifier, the limit is 6.0 in creative mode and 5.5 in survival mode. The placer gets one
+acknowledgement and no block state. An observer gets nothing. The face has no effect on the result, so a
+target position further than the limit can receive a block.
+
+The trace `tools/mcrs_minecraft_probe/traces/reach_placement.json` agrees with this rule. A placer
+whose eye is 5.4 blocks from the block cube places a block in survival mode. At 5.5 and 5.6 blocks,
+the request is refused. In creative mode, a request at 5.9 blocks places a block, and a request at 6.0
+blocks is refused.
 
 **PLC-CUR-001** (`black_box_confirmed`, semantic). A request is refused when a cursor value is below -0.5
 or above 1.5. A value that is not a number also refuses it. The placer gets one acknowledgement and no

@@ -11,11 +11,14 @@ sources:
   - crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs
   - crates/mcrs_minecraft_engine_world/src/world/sub_app.rs
   - rust-toolchain.toml
+  - Cargo.toml
   - issue:321
+  - AGENTS.md
+  - issue:566
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import Status from '~/components/Status.astro';
@@ -36,7 +39,7 @@ You do not need to learn all of Rust to write a plugin. This page shows the part
 | `match` | `switch` that must cover every case |
 | Closure `\|x\| ...` | Lambda |
 | `Vec`, `HashMap`, `String` and `&str` | `List`, `Map`, `String` |
-| `#[derive(Clone)]` | Generated copy and equals code |
+| `#[derive(Clone)]` | Generated code to duplicate a value with `.clone()` |
 | `&T` and `&mut T` | Many readers or one writer, checked at compile time |
 | Modules, `use`, `Cargo.toml` | Packages, imports, `build.gradle` |
 
@@ -163,8 +166,8 @@ Two habits change because of this. Keep an `Entity` id where you would keep a re
 - [Rustlings](https://github.com/rust-lang/rustlings) is a set of small exercises.
 - The [Cargo guide](https://doc.rust-lang.org/cargo/guide/) covers `Cargo.toml` and dependencies.
 - [Bevy learn](https://bevy.org/learn/) and the [ECS examples](https://github.com/bevyengine/bevy/tree/main/examples/ecs) introduce Bevy.
-- The [Unofficial Bevy Cheat Book](https://bevy-cheatbook.github.io/) can lag behind. mcrs uses Bevy 0.19, where the names are `Message`, `MessageReader` and `On<E>`, and older text may use other names.
-- [bevy_ecs on docs.rs](https://docs.rs/bevy_ecs/0.19.1/bevy_ecs/) has the exact signatures.
+- The [Unofficial Bevy Cheat Book](https://bevy-cheatbook.github.io/) can lag behind. mcrs uses Bevy 0.20, where the names are `Message`, `MessageReader` and `On<E>`, and older text may use other names.
+- [bevy_ecs on docs.rs](https://docs.rs/bevy_ecs/0.20.1/bevy_ecs/) has the exact signatures.
 
 <Aside type="caution" title="WIP">
 The toolchain is pinned to nightly in `rust-toolchain.toml`. Building a project outside the repository on stable Rust is part of the work to make the crates publishable.[^321] A detailed setup guide will appear by the alpha.
