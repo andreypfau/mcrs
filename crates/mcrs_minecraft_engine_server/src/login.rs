@@ -23,16 +23,17 @@ use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
 use crate::loopback_ops::{ServerProfile, grant_loopback_ops};
+use crate::session_state::{
+    LoginState, SessionsById, client_protocol, disconnect, duplicate_login_reason,
+};
 
 use mcrs_minecraft_engine::banlist::{BanEntry, BanList, EnforceBans};
 use mcrs_minecraft_engine::coordinator::ops::OpList;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::disconnect::Departing;
-use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle, SessionConnection};
+use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine::whitelist::{EnforceWhitelist, Whitelist};
-use mcrs_minecraft_engine_world::session::{
-    Place, PlayerSessionCounter, Session, SessionPlacement,
-};
+use mcrs_minecraft_engine_world::session::{Place, PlayerSessionCounter};
 
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct ChatSessionId(pub uuid::Uuid);
@@ -166,14 +167,6 @@ fn start_login_clock(
     }
 }
 
-#[derive(Debug, Default, Component, PartialEq, Eq, Clone, Copy)]
-pub enum LoginState {
-    #[default]
-    Hello,
-    AwaitingDeparture,
-    Accepted,
-}
-
 #[derive(Resource, Clone, Debug, PartialEq, Eq)]
 pub struct SingleplayerProfile {
     pub name: String,
@@ -205,7 +198,7 @@ fn invalid_player_name_reason() -> Text {
     )
 }
 
-pub fn banned_reason(entry: &BanEntry) -> Text {
+pub(crate) fn banned_reason(entry: &BanEntry) -> Text {
     let reason = match &entry.reason {
         Some(reason) => Text::text(reason.clone()),
         None => Text::translate("multiplayer.disconnect.banned.reason.default", Vec::new()),
@@ -220,12 +213,8 @@ pub fn banned_reason(entry: &BanEntry) -> Text {
     text
 }
 
-pub fn not_whitelisted_reason() -> Text {
+pub(crate) fn not_whitelisted_reason() -> Text {
     Text::translate("multiplayer.disconnect.not_whitelisted", Vec::new())
-}
-
-pub fn duplicate_login_reason() -> Text {
-    Text::translate("multiplayer.disconnect.duplicate_login", Vec::new())
 }
 
 fn server_full_reason() -> Text {
@@ -268,72 +257,6 @@ pub struct JoinRate {
 
 #[derive(Resource, Default)]
 struct JoinBuckets(HashMap<IpAddr, TokenBucket>);
-
-pub(crate) fn client_protocol(
-    state: ConnectionState,
-    login: Option<&LoginState>,
-) -> ConnectionState {
-    match state {
-        ConnectionState::Login if login == Some(&LoginState::Accepted) => {
-            ConnectionState::Configuration
-        }
-        state => state,
-    }
-}
-
-pub fn disconnect(con: &mut ServerSideConnection, state: ConnectionState, reason: Text) {
-    if let Err(error) = con.disconnect(state, reason) {
-        tracing::warn!("a disconnect could not be encoded: {error:#}");
-    }
-}
-
-#[derive(SystemParam)]
-pub struct SessionsById<'w, 's> {
-    anchors: Query<
-        'w,
-        's,
-        (
-            Entity,
-            &'static GameProfile,
-            &'static SessionPlacement,
-            Option<&'static SessionConnection>,
-        ),
-        With<Session>,
-    >,
-    departing: Query<'w, 's, &'static Departing>,
-}
-
-impl SessionsById<'_, '_> {
-    fn of(&self, id: uuid::Uuid) -> impl Iterator<Item = (Entity, Place, Option<Entity>)> {
-        self.anchors
-            .iter()
-            .filter(move |(_, profile, ..)| profile.id == id)
-            .map(|(anchor, _, placement, connection)| {
-                (
-                    anchor,
-                    placement.place(),
-                    connection.map(SessionConnection::entity),
-                )
-            })
-    }
-
-    fn saving(&self, id: uuid::Uuid) -> bool {
-        self.departing.iter().any(|departing| departing.id == id)
-    }
-
-    pub fn in_world(
-        &self,
-        id: uuid::Uuid,
-        own: Option<Entity>,
-        in_play: impl Fn(Entity) -> bool,
-    ) -> bool {
-        self.saving(id)
-            || self.of(id).any(|(anchor, place, connection)| {
-                Some(anchor) != own
-                    && (place != Place::Unplaced || connection.is_some_and(&in_play))
-            })
-    }
-}
 
 #[derive(SystemParam)]
 pub struct JoinCheck<'w> {
@@ -491,7 +414,7 @@ impl Admission<'_, '_> {
     }
 }
 
-pub fn handle_hello_packet(
+pub(crate) fn handle_hello_packet(
     event: On<Received<ServerboundHello<'static>>>,
     mut query: Query<&mut ServerSideConnection, (Without<LoginState>, Without<AwaitingForwarding>)>,
     forwarding: Option<Res<ProxyForwarding>>,
@@ -517,7 +440,7 @@ pub fn handle_hello_packet(
     admission.admit(event.entity, &mut con, profile);
 }
 
-pub fn handle_custom_query_answer(
+pub(crate) fn handle_custom_query_answer(
     event: On<Received<ServerboundCustomQueryAnswer<'static>>>,
     mut query: Query<(&mut ServerSideConnection, Has<AwaitingForwarding>), Without<LoginState>>,
     forwarding: Option<Res<ProxyForwarding>>,
@@ -628,7 +551,7 @@ fn finish_awaiting_logins(
     }
 }
 
-pub fn handle_login_acknowledged(
+pub(crate) fn handle_login_acknowledged(
     event: On<Received<ServerboundLoginAcknowledged>>,
     mut query: Query<(&mut ServerSideConnection, &LoginState)>,
     mut commands: Commands,
@@ -646,7 +569,7 @@ pub fn handle_login_acknowledged(
         .insert(ConnectionState::Configuration);
 }
 
-pub fn on_login_accepted(
+pub(crate) fn on_login_accepted(
     trigger: On<Insert<LoginState>>,
     login_state: Query<(&LoginState, &GameProfile)>,
     mut session_counter: ResMut<PlayerSessionCounter>,

@@ -7,7 +7,8 @@ use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::disconnect::{LeavingSessions, process_disconnect};
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionConnection};
-use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
+use mcrs_minecraft_engine_server::LoginState;
+use mcrs_minecraft_engine_server::login::LoginPlugin;
 use mcrs_minecraft_engine_world::session::{Place, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_protocol::uuid::Uuid;
 

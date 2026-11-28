@@ -13,7 +13,7 @@ use mcrs_minecraft_protocol::ConnectionState;
 use mcrs_minecraft_text::Text;
 use tokio::sync::oneshot;
 
-use crate::login::LoginState;
+use crate::session_state::{LoginState, client_protocol, disconnect};
 
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ShutdownRequest;
@@ -88,9 +88,9 @@ pub(crate) fn shutdown_system(
     }
     if matches!(*phase, ShutdownPhase::Draining) {
         for (entity, mut side_connection, &connection_state, login) in connections.iter_mut() {
-            crate::login::disconnect(
+            disconnect(
                 &mut side_connection,
-                crate::login::client_protocol(connection_state, login),
+                client_protocol(connection_state, login),
                 Text::translate("multiplayer.disconnect.server_shutdown", Vec::new()),
             );
             commands.entity(entity).remove::<ServerSideConnection>();
