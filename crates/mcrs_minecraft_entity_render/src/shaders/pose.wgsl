@@ -1,6 +1,3 @@
-// The pose pass of one client entity definition. The generated `pose_offsets` of the definition
-// comes before this part: it adds the channels of the play list to the palette offsets.
-
 const PALETTE: u32 = #{PALETTE}u;
 const DEFINITION: u32 = #{DEFINITION}u;
 const DEATH_FLIP: f32 = #{DEATH_FLIP};
@@ -66,7 +63,6 @@ fn read_translation(at: u32) -> vec3<f32> {
     return vec3<f32>(bone_matrices[at * 3u].w, bone_matrices[at * 3u + 1u].w, bone_matrices[at * 3u + 2u].w);
 }
 
-/// Composes the bones of one model with the offsets of the palette, from `first`.
 fn write_model_bones(model: ModelRecord, first: u32) {
     for (var index = 0u; index < model.bone_count; index = index + 1u) {
         let bone = bones[model.first_bone + index];
@@ -113,11 +109,11 @@ fn pose(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     let slot = entry.x;
     let state = states[slot];
-    let current = ticks[slot];
+    let current = ticks[current_tick(slot)];
     let interpolates = tick_of_record[slot] == frame.tick;
     var previous = current;
     if (interpolates) {
-        previous = previous_ticks[slot];
+        previous = ticks[previous_tick(slot)];
     }
     let pt = frame.partial_tick;
 

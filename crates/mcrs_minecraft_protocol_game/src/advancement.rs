@@ -28,7 +28,6 @@ impl Encode for AdvancementType {
     }
 }
 
-/// An unknown ordinal reads as `Task`.
 impl Decode<'_> for AdvancementType {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         let id = mcrs_minecraft_protocol::VarInt::decode(r)?.0;
@@ -40,8 +39,6 @@ impl Decode<'_> for AdvancementType {
     }
 }
 
-/// The wire carries only `background`, `show_toast` and `hidden` as flag bits,
-/// so `announce_to_chat` reads back as `false`.
 #[registry_value]
 #[derive(FromWire)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -115,8 +112,6 @@ impl Decode<'_> for DisplayInfo<Wire> {
     }
 }
 
-/// The part of an advancement a client needs: rewards and criteria stay on
-/// the server.
 #[derive(Clone, Debug, PartialEq, FromWire, Encode, Decode)]
 pub struct Advancement<M: Refs = Resolved> {
     pub parent: Option<ResourceLocationBuf>,
@@ -133,7 +128,6 @@ pub struct PositionedAdvancement<M: Refs = Resolved> {
     pub y: f32,
 }
 
-/// When a criterion was obtained, as epoch milliseconds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Encode, Decode)]
 pub struct CriterionProgress {
     pub obtained: Option<i64>,

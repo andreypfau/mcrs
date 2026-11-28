@@ -1,13 +1,12 @@
 use bevy_derive::Deref;
 use bevy_ecs::prelude::{Commands, Component, Entity, Query, Without};
+use bevy_ecs::system::Populated;
 use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::world::dimension::InDimension;
 use crate::world::storage::section::SectionIndex;
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 
-/// Back-link from a block entity to the section holding it; the section's
-/// despawn takes its block entities with it.
 #[derive(Component, Clone, Copy, Debug)]
 #[relationship(relationship_target = SectionBlockEntities)]
 pub struct InSection(pub Entity);
@@ -16,20 +15,14 @@ pub struct InSection(pub Entity);
 #[relationship_target(relationship = InSection, linked_spawn)]
 pub struct SectionBlockEntities(Vec<Entity>);
 
-/// The block a block entity belongs to, and what resolves its section.
 #[derive(Component, Clone, Copy, Debug, Deref)]
 pub struct BlockEntityPos(pub BlockPos);
 
-/// A block entity's kind and state, in the one typed shape the save, the chunk
-/// packet and the anvil reader share; the position is read off the entity's
-/// [`BlockEntityPos`] and duplicated here only because the shape carries it.
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct BlockEntity(pub GeneratedBlockEntity);
 
-/// One entity per entry, under the dimension whose sections the reconcile step
-/// resolves them against.
 pub fn spawn_block_entities(
-    commands: &mut Commands,
+    mut commands: Commands,
     dim: InDimension,
     entries: Vec<GeneratedBlockEntity>,
 ) {
@@ -43,11 +36,8 @@ pub fn spawn_block_entities(
     }
 }
 
-/// A block entity whose section is not loaded has nowhere to live and leaves
-/// again: the section is what owns it, and a section that arrives later brings
-/// its own from the save or the generator.
 pub fn reconcile_block_entities(
-    unlinked: Query<(Entity, &BlockEntityPos, &InDimension), Without<InSection>>,
+    unlinked: Populated<(Entity, &BlockEntityPos, &InDimension), Without<InSection>>,
     dimensions: Query<&SectionIndex>,
     mut commands: Commands,
 ) {

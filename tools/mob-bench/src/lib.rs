@@ -1,6 +1,3 @@
-//! The 50,000-pig benchmark harness: one server, one client mode and the phases of a run.
-//! See `README.md` in `benchmarks/mob-bench` for the method.
-
 pub mod adapter;
 pub mod args;
 mod os;

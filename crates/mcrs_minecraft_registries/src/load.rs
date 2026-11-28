@@ -6,6 +6,7 @@ use mcrs_minecraft_datapack::{
     PackContent, PackDiagnostic, PackFile, PackFiles, PackIndex, PackStack,
 };
 
+use crate::content_paths::ContentPaths;
 use crate::declaration::{Declaration, Source};
 use crate::diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
 use crate::order::entry_file_order;
@@ -15,7 +16,6 @@ use crate::tag_file::{pack_id, resolve_tags};
 use crate::tags::TagTable;
 
 impl Registries {
-    /// Loads `declarations` over `stack` from `files`, whose values move into the registries.
     pub fn load(
         declarations: Vec<Declaration>,
         stack: Arc<PackStack>,
@@ -25,9 +25,6 @@ impl Registries {
         read(declarations, loading, files, None)
     }
 
-    /// Loads these registries again over `stack` from `files`. The stages before
-    /// [`Stage::Reloadable`] keep their entries and values, every tag is read again and keeps its
-    /// number, and the reloadable stage is read again.
     pub fn reload(
         &self,
         stack: Arc<PackStack>,
@@ -126,9 +123,6 @@ fn check(declarations: &[Declaration]) -> Result<(), Diagnostics> {
     Err(Diagnostics::default().with_report(errors))
 }
 
-/// Loads `declarations` stage by stage into `registries`, which resolve the stage being loaded.
-/// `fill` names one registry and gives the tags and the entry sources of it. A load from what a
-/// server sent runs no validator and holds only its synced registries to be non-empty.
 pub(crate) fn stages<'f>(
     mut declarations: Vec<Declaration>,
     mut registries: Registries,
@@ -187,8 +181,6 @@ pub(crate) fn stages<'f>(
     ))
 }
 
-/// A miss into a registry of the stage being loaded is reported under that registry; a miss into
-/// an earlier, complete stage is an error of the entry that names it.
 fn decode(
     registries: &mut Registries,
     decoding: Vec<(ResourceLocationBuf, Vec<Source<'_>>)>,
@@ -370,35 +362,21 @@ fn source(file: PackFile<'_>) -> Source<'_> {
     }
 }
 
-/// A static registry has no entry files, so a file below its directory is not an entry.
 fn route<'f>(
     declarations: &[Declaration],
     stack: &PackStack,
     files: Vec<PackFile<'f>>,
     diagnostics: &mut Diagnostics,
 ) -> HashMap<ResourceLocationBuf, Files<'f>> {
-    let directories: HashMap<&str, (&ResourceLocationBuf, bool)> = (declarations.iter())
-        .map(|d| (d.key.path(), (&d.key, !matches!(d.kind, Kind::Fixed))))
-        .collect();
+    let content = ContentPaths::new(declarations);
     let mut routed: HashMap<ResourceLocationBuf, Files<'f>> = HashMap::new();
     for file in files {
-        let (tag, inside) = match file.relative.strip_prefix("tags/") {
-            Some(inside) => (true, inside),
-            None => (false, file.relative),
-        };
-        let found = inside.match_indices('/').rev().find_map(|(at, _)| {
-            let (directory, rest) = inside.split_at_checked(at)?;
-            match directories.get(directory) {
-                Some(&(key, has_entries)) if tag || has_entries => {
-                    Some((key, rest.strip_prefix('/')?))
-                }
-                _ => None,
-            }
-        });
-        let Some((key, rest)) = found else {
+        let Some(owner) = content.owner(file.relative) else {
             continue;
         };
-        let name = match rest.strip_suffix(".json") {
+        let tag = owner.tag;
+        let key = &owner.declaration.key;
+        let name = match owner.below.strip_suffix(".json") {
             Some(stem) => ResourceLocationBuf::new(file.namespace, stem).ok(),
             None if ResourceLocationBuf::new(file.namespace, file.relative).is_ok() => continue,
             None => None,

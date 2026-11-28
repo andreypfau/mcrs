@@ -2,7 +2,7 @@
 title: Add a command
 description: Register a command with add_command, set a permission level and run it as a Bevy system.
 sidebar:
-  order: 9
+  order: 11
 kind: how-to
 audience: [jvm, rust]
 stability: changing
@@ -16,10 +16,20 @@ sources:
   - docs/command-dimensions.md
   - pr:579
   - issue:285
+  - crates/mcrs_minecraft_command_engine/src/command_event.rs
+  - crates/mcrs_minecraft_command_vanilla/src/damage.rs
+  - crates/mcrs_minecraft_command_vanilla/src/mob_hit.rs
+  - crates/mcrs_minecraft_command_vanilla/src/entity_view.rs
+  - crates/mcrs_minecraft_command_vanilla/src/select.rs
+  - crates/mcrs_minecraft_command_vanilla/src/set.rs
+  - pr:1077
+  - pr:1078
+  - pr:1082
+  - issue:283
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import Status from '~/components/Status.astro';
@@ -44,7 +54,7 @@ The test below builds an `echo` command with one integer argument:
 
 The builder gets a `CommandRegistrar`. Starting from `NodeId::ROOT`, it adds a literal node with `literal` or an argument node with `arg` under a parent node. A node that ends a command line calls `runs(...)`. The builder returns the handles of the arguments, and the handler uses them later to read the values.
 
-The same file registers the command with `app.add_command(echo_at("echo"), run_echo).unwrap();`. The call returns a `Result`, because a node can clash with the tree. When that happens you get an error and nothing of the command is added, as the test at the end of the file shows.
+The same file registers the command with `app.add_command(echo_at("echo"), run_echo).unwrap();`. The call returns a `Result`, because a node can clash with the tree. When that happens you get an error and nothing of the command is added, as the test `a_command_whose_nodes_clash_is_not_registered_at_all` shows.
 
 ## A node can require a permission level
 
@@ -68,6 +78,8 @@ A handler does not change a player directly, because the player can be in anothe
 
 You can also stop a command before it runs. The server raises `CommandEvent` in the world of the source dimension before it runs a command line. An observer, which is a function that Bevy calls when the event fires, can set `cancelled`, and then the command does not run. This is the command side of the planned public, cancellable player events.[^283]
 
+The vanilla `/damage` and `/kill` effects enqueue hits for players and mobs. Damage applies later in `DamageSet::Apply`, after motion, so the command reply is not a notification that health already changed. `/damage` builds its reply from the kernel's `preview`; consumers should read `Damaged` or `Died` for the applied result.[^pr1078][^pr1082] A command that selects several mobs enumerates mobs within one tile by network entity id, rather than by insertion order.[^pr1077]
+
 ## What does not work yet
 
 <Aside type="caution" title="WIP">
@@ -83,3 +95,6 @@ Next: [Intercept chat](/docs/en/plugins/chat-event/).
 [^pr579]: <Status pr={579} state="works" /> Adds the typed command tree, the vanilla commands and the client chat screen.
 [^285]: <Status issue={285} /> Tracks the command tree with permission levels and the commands packet.
 [^283]: <Status issue={283} /> Tracks public player events that a plugin can cancel.
+[^pr1077]: <Status pr={1077} state="works" /> Moves vanilla command targets to ECS mobs and changes their order within a tile.
+[^pr1078]: <Status pr={1078} state="works" /> Defers command hits to the sorted damage apply step.
+[^pr1082]: <Status pr={1082} state="works" /> Routes player targets through the same damage path as mobs.

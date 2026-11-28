@@ -1,8 +1,7 @@
 use bytes::Buf;
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant};
-use mcrs_minecraft_entity::{
-    attribute_keys::Attribute, villager_profession_keys::VillagerProfession,
-};
+use mcrs_minecraft_entity::villager_profession_keys::VillagerProfession;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_resource::Registered;
 use mcrs_minecraft_worldgen_testing::dump_string;
@@ -108,13 +107,13 @@ fn attributes_match_the_registry_entry_for_entry() {
             theirs.id
         );
         assert_eq!(
-            ours.min.to_bits(),
+            ours.range.min.to_bits(),
             theirs.min.to_bits(),
             "{} min",
             theirs.id
         );
         assert_eq!(
-            ours.max.to_bits(),
+            ours.range.max.to_bits(),
             theirs.max.to_bits(),
             "{} max",
             theirs.id

@@ -1,5 +1,3 @@
-//! The chat rules that the client and the server share.
-
 #![no_std]
 
 extern crate alloc;

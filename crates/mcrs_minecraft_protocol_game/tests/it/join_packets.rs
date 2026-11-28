@@ -1,6 +1,3 @@
-//! Bytes written by the vanilla packet stream codecs; `id` lines are the registry
-//! ids the capture session had.
-
 use crate::common::encoded;
 use std::collections::HashMap;
 use std::sync::LazyLock;

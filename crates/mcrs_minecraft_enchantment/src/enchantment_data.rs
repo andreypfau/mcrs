@@ -5,8 +5,6 @@ use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_registries::{Refs, Resolve, Resolved};
 use serde::{Deserialize, Serialize};
 
-/// An enchantment's definition; its effects are the column [`EnchantmentFile`](crate::file::EnchantmentFile)
-/// keeps beside it.
 #[derive(Debug, Clone, Resolve)]
 pub struct EnchantmentData<M: Refs = Resolved> {
     pub description: Text<M>,

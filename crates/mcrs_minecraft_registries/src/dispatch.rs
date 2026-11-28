@@ -14,8 +14,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, forward_to_deseria
 #[doc(hidden)]
 pub use mcrs_minecraft_resource as __resource;
 
-/// A value read once and kept at the width and shape its format delivered, so
-/// a codec can look at a map's keys before choosing how to read its values.
 #[derive(Debug, Clone)]
 pub enum Buffered {
     Unit,
@@ -167,7 +165,6 @@ impl<'de> Visitor<'de> for Capture {
 }
 
 impl Buffered {
-    /// `human_readable` is what the format the value came from reports.
     pub fn deserializer<E>(self, human_readable: bool) -> BufferedDeserializer<E> {
         BufferedDeserializer {
             value: self,
@@ -501,7 +498,6 @@ impl<'de, E: de::Error> Deserializer<'de> for BufferedDeserializer<E> {
         }
     }
 
-    // NBT has no boolean; a flag is a byte, and any number reads as one.
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, E> {
         if self.human_readable {
             return self.deserialize_any(visitor);
@@ -515,8 +511,6 @@ impl<'de, E: de::Error> Deserializer<'de> for BufferedDeserializer<E> {
         }
     }
 
-    // NBT has only signed numbers; a binary format's unsigned field reads the
-    // bits of the signed tag it was written as.
     unsigned_from_signed! {
         deserialize_u8 => visit_u8(u8) from I8,
         deserialize_u16 => visit_u16(u16) from I16,
@@ -549,10 +543,6 @@ impl<'de, E: de::Error> Deserializer<'de> for BufferedDeserializer<E> {
     }
 }
 
-/// What reading the body of a dispatched value failed with. The body is read
-/// with this one error type whatever the format, so each type's derive is
-/// compiled once rather than once per format; `read` hands the message on as
-/// the format's own error.
 #[derive(Debug)]
 pub struct Error(String);
 
@@ -577,8 +567,6 @@ pub enum Pick {
     Unknown,
 }
 
-/// The data type's own derive, handed the body of one chosen variant as an
-/// externally tagged enum.
 #[doc(hidden)]
 pub struct Chosen<'de> {
     variant: &'static str,
@@ -637,7 +625,6 @@ pub struct Body {
 impl<'de> VariantAccess<'de> for Body {
     type Error = Error;
 
-    // The game's unit codecs read no fields and ignore the rest of the map.
     fn unit_variant(self) -> Result<(), Error> {
         Ok(())
     }
@@ -679,8 +666,6 @@ impl<'de> Visitor<'de> for MapEntries {
     }
 }
 
-/// Reads the map whole, takes the type key wherever it stands, and hands the
-/// rest to `derive` as the body of the variant `pick` chose for it.
 #[doc(hidden)]
 pub fn read<'de, D, T, F>(
     deserializer: D,
@@ -732,7 +717,6 @@ fn refusal<E: ser::Error>() -> E {
 pub struct Tag {
     pub key: &'static str,
     pub location: &'static str,
-    /// Writes the key after the body, where vanilla's codec puts it for a few types.
     pub last: bool,
 }
 
@@ -757,8 +741,6 @@ impl Tag {
     }
 }
 
-/// Runs a data type's derive so that what it writes as an externally tagged
-/// enum comes out as one map holding the type key and the body.
 #[doc(hidden)]
 pub struct Tagging<S> {
     serializer: S,

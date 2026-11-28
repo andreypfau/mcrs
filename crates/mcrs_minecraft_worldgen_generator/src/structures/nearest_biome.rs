@@ -4,9 +4,6 @@ const RADIUS: i32 = 200;
 const STEP: i32 = 32;
 const Y_STEP: i32 = 64;
 
-/// The nearest sample point with one of the `wanted` biomes, searched ring by
-/// ring so the search stops once no farther ring can be nearer. `None` for a dimension with no
-/// height.
 pub fn nearest_biome(
     mut biome_at: impl FnMut(IVec3) -> Option<u16>,
     wanted: &[u16],

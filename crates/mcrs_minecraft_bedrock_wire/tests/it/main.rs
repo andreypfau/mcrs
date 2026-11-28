@@ -33,7 +33,6 @@ mod counting_allocator {
     #[global_allocator]
     static GLOBAL: CountingAllocator = CountingAllocator;
 
-    /// Returns the bytes that `run` allocates on this thread, with its result.
     pub fn allocated_by<T>(run: impl FnOnce() -> T) -> (usize, T) {
         let before = ALLOCATED.with(Cell::get);
         let result = run();
@@ -164,7 +163,6 @@ fn packet_header_bit_layout() {
         sender_sub_client,
         target_sub_client,
     };
-    // 42 | 1 << 10 | 2 << 12 = 9258; 1023 | 3 << 10 | 3 << 12 = 16383.
     assert_vector(header(42, 1, 2), &[0xAA, 0x48]);
     assert_vector(header(1023, 3, 3), &[0xFF, 0x7F]);
     assert_vector(header(1, 0, 0), &[0x01]);

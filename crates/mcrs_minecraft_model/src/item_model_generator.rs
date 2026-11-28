@@ -4,6 +4,7 @@ use bevy::math::DVec3;
 use mcrs_minecraft_core::Direction;
 
 use crate::item_model_bake::{ItemQuad, element_quads, plain_element};
+use crate::sprite_atlas::SpriteAtlas;
 use mcrs_minecraft_model_file::model_file::FaceEntry;
 
 const MIN_Z: f32 = 7.5;
@@ -40,10 +41,9 @@ impl Side {
     }
 }
 
-/// Extrudes one `layerN` sprite of a `builtin/generated` item: a front and back quad plus a
-/// one-pixel side quad wherever an opaque texel of any frame borders a transparent one.
 pub fn extrude(
     sprite: u16,
+    atlas: SpriteAtlas,
     side: u32,
     frames: &[&[u8]],
     layer: u32,
@@ -55,6 +55,7 @@ pub fn extrude(
             [0.0, 0.0, 16.0, 16.0],
             Direction::South,
             sprite,
+            atlas,
             layer,
         )?,
         quad(
@@ -63,6 +64,7 @@ pub fn extrude(
             [16.0, 0.0, 0.0, 16.0],
             Direction::North,
             sprite,
+            atlas,
             layer,
         )?,
     ];
@@ -90,7 +92,15 @@ pub fn extrude(
             Side::Right => ([end_x, start_y, MIN_Z], [end_x, end_y, MAX_Z]),
         };
         let uv = [u0 * scale, v0 * scale, u1 * scale, v1 * scale];
-        quads.push(quad(from, to, uv, facing.direction(), sprite, layer)?);
+        quads.push(quad(
+            from,
+            to,
+            uv,
+            facing.direction(),
+            sprite,
+            atlas,
+            layer,
+        )?);
     }
     Ok(quads)
 }
@@ -132,6 +142,7 @@ fn quad(
     uv: [f32; 4],
     dir: Direction,
     sprite: u16,
+    atlas: SpriteAtlas,
     layer: u32,
 ) -> Result<ItemQuad, String> {
     let face = FaceEntry {
@@ -150,7 +161,7 @@ fn quad(
         DVec3::from_array(to.map(f64::from)),
         faces,
     );
-    element_quads(element, sprite)?
+    element_quads(element, sprite, atlas)?
         .pop()
         .ok_or_else(|| format!("a {} side of an item layer draws no face", dir.name()))
 }
@@ -176,7 +187,7 @@ mod tests {
     fn a_single_opaque_texel_extrudes_four_sides_around_the_two_faces() {
         let sprite = 3;
         let pixels = pixel_sprite(16, |x, y| x == 2 && y == 5);
-        let quads = extrude(sprite, 16, &[&pixels], 1).unwrap();
+        let quads = extrude(sprite, SpriteAtlas::Item, 16, &[&pixels], 1).unwrap();
         assert_eq!(quads.len(), 6);
         assert!(
             quads
@@ -219,7 +230,7 @@ mod tests {
         let sprite = 0;
         let a = pixel_sprite(4, |x, y| x == 0 && y == 0);
         let b = pixel_sprite(4, |x, y| x <= 1 && y == 0);
-        let quads = extrude(sprite, 4, &[&a, &b], 0).unwrap();
+        let quads = extrude(sprite, SpriteAtlas::Item, 4, &[&a, &b], 0).unwrap();
         assert_eq!(quads.len() - 2, 4 + 3);
         let scale = 4.0;
         let widest = quads[2..]
@@ -233,7 +244,7 @@ mod tests {
     fn side_faces_sit_on_the_silhouette_edges_not_between_opaque_texels() {
         let sprite = 0;
         let column = pixel_sprite(2, |x, _| x == 0);
-        let quads = extrude(sprite, 2, &[&column], 0).unwrap();
+        let quads = extrude(sprite, SpriteAtlas::Item, 2, &[&column], 0).unwrap();
         let edge = |dir: Direction, axis: fn(&Vec3) -> f32| -> Vec<f32> {
             quads[2..]
                 .iter()

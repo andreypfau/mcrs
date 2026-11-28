@@ -9,7 +9,6 @@ pub struct Block {
 impl Block {
     pub const EMPTY: Self = Self { offset: 0, size: 0 };
 
-    /// The units the block really holds, which the buddy rounding leaves above what was asked.
     pub fn capacity(&self) -> usize {
         self.size
     }
@@ -44,9 +43,6 @@ impl Arena {
             return Some(Block::EMPTY);
         }
         let want = class_of(units);
-        // The lowest free block of any class that fits, so what is handed out packs towards
-        // offset zero: the GPU buffer behind the arena only grows to the highest block in use,
-        // and a capacity that is not a power of two keeps its smallest blocks at the top.
         let (class, offset) = self
             .free
             .iter()

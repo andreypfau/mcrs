@@ -1,22 +1,43 @@
 use alloc::borrow::Cow;
 
+use crate::AttackAnimation;
 use crate::AttributeModifiers;
+use crate::BannerPatterns;
+use crate::Bees;
+use crate::BundleContents;
+use crate::ChargedProjectiles;
+use crate::Container;
+use crate::ContainerLoot;
+use crate::CustomData;
+use crate::CustomModelData;
 use crate::CustomName;
 use crate::Damage;
+use crate::DyedColor;
+use crate::EnchantmentGlintOverride;
+use crate::FireworkExplosion;
+use crate::Fireworks;
 use crate::Food;
+use crate::Instrument;
+use crate::InteractAnimation;
 use crate::ItemModel;
 use crate::ItemName;
+use crate::LodestoneTracker;
 use crate::Lore;
+use crate::MapId;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::Neutral;
+use crate::OminousBottleAmplifier;
+use crate::PaintingVariant;
+use crate::PotionContents;
+use crate::Profile;
 use crate::Rarity;
 use crate::RepairCost;
+use crate::SuspiciousStewEffects;
 use crate::Tool;
+use crate::Trim;
 use crate::Unbreakable;
 
-/// What a stack entity needs of a built-in type: the value that it does not store, and a copy of
-/// a value of the prototype table that borrows its heap data.
 pub(crate) trait EntityForm: Clone + 'static {
     const NEUTRAL: Option<&'static Self> = None;
 
@@ -35,11 +56,51 @@ impl EntityForm for Unbreakable {}
 
 impl EntityForm for Food {}
 
-// chisle: a text is a box, so each stack of a kind with a name owns a copy of it; a text that can
-// borrow from the table lifts it.
+impl EntityForm for MapId {}
+
+impl EntityForm for Profile {}
+
 impl EntityForm for CustomName {}
 
 impl EntityForm for ItemName {}
+
+impl EntityForm for DyedColor {}
+
+impl EntityForm for CustomModelData {}
+
+impl EntityForm for EnchantmentGlintOverride {}
+
+impl EntityForm for LodestoneTracker {}
+
+impl EntityForm for Trim {}
+
+impl EntityForm for PotionContents {}
+
+impl EntityForm for CustomData {}
+
+impl EntityForm for SuspiciousStewEffects {}
+
+impl EntityForm for OminousBottleAmplifier {}
+
+impl EntityForm for Instrument {}
+
+impl EntityForm for BannerPatterns {}
+
+impl EntityForm for Bees {}
+
+impl EntityForm for BundleContents {}
+
+impl EntityForm for ChargedProjectiles {}
+
+impl EntityForm for Container {}
+
+impl EntityForm for ContainerLoot {}
+
+impl EntityForm for PaintingVariant {}
+
+impl EntityForm for FireworkExplosion {}
+
+impl EntityForm for Fireworks {}
 
 impl EntityForm for ItemModel {
     fn borrow_static(&'static self) -> Self {
@@ -83,3 +144,7 @@ impl EntityForm for AttributeModifiers {
         }
     }
 }
+
+impl EntityForm for AttackAnimation {}
+
+impl EntityForm for InteractAnimation {}

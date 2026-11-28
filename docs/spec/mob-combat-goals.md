@@ -1,20 +1,13 @@
 # Mob combat goals: target goals, attacks, avoidance, anger and the goals of tame animals
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
+Version: see `assets/minecraft/version.json`.
 
 This document states the generic goals that a mob uses to select an attack target, to attack it,
 to avoid another entity, and to serve an owner. The wolf (`mob-wolf.md`, prefix `WOLF`) and the
 llama use these goals. `mob-goals.md` (prefix `GOAL`) states the goal framework and the goals of the
 passive animals. This document uses that framework with no change.
 
-The rules state results, not algorithms. Each rule has a fidelity class (GOAL section 0.3). Each
-goal has a section "Cost and parallelism". That section states the world queries of the reference,
-their cadence and their order. It also states the semantic shortcuts that keep the result equal,
-and the fidelity of each shortcut. The aim is a parallel implementation that ticks 50,000 mobs with
-a small cost in each tick.
+The rules state results, not algorithms. Each rule has a fidelity class (GOAL section 0.3).
 
 ## 0. Conventions
 
@@ -54,9 +47,7 @@ a small cost in each tick.
 
 ### 0.2 Provenance, kind, confidence and fidelity
 
-The labels of `mob-goals.md`, sections 0.2 and 0.3, apply. This document has no captured result
-yet. Each `source_suggested` rule has a confidence of at most high, and section 9 attaches an
-experiment. Each rule states its fidelity: `exact`, `distribution` or `envelope`.
+The labels of `mob-goals.md`, sections 0.2 and 0.3, apply. Each `source_suggested` rule has a confidence of at most high. Each rule states its fidelity: `exact`, `distribution` or `envelope`.
 
 ### 0.3 ID prefix
 
@@ -103,12 +94,11 @@ Out of scope:
 | Teams, the game rule `pvp` and the ally relation of teams | hook |
 | The projectile of a ranged attack | the specification of each mob type |
 | The goals of a bow, a crossbow, a trident and a spear | a later specification |
-| The goals of mobs with a brain | a later specification |
+| The goals of mobs with a brain | `mob-brain.md` (BRAIN) |
 
 ### 0.6 Artefacts cited
 
-- The damage type tags `no_anger` and `no_wolf_retaliation` of the data pack. In
-  `26.4-snapshot-7`, `no_anger` holds `mob_attack_no_aggro`, and `no_wolf_retaliation` holds
+- The damage type tags `no_anger` and `no_wolf_retaliation` of the data pack. `no_anger` holds `mob_attack_no_aggro`, and `no_wolf_retaliation` holds
   `sulfur_cube_hot`.
 - The game rules `universal_anger` and `forgive_dead_players`.
 - The packet `swing_animation` (`assets/mcrs/reports/packets.json`).
@@ -245,7 +235,7 @@ evaluation units, with `r` uniform in `[0, 5)`. The cache is "reach" when the se
 whose end node is at most 1.5 blocks from the block position of `C`, horizontally. Else it is "no
 reach". No vanilla goal of the wolf or the llama uses this option with these goals.
 
-### 1.3 Cost and parallelism of the nearest attackable target goal
+### 1.3 Work of the nearest attackable target goal
 
 **CGOAL-NEAR-009** (`source_suggested`, semantic, confidence: high, fidelity: exact). The reference
 does the work of the start condition in this order:
@@ -365,7 +355,7 @@ each receiver again: it is alive, of the same type, and has no attack target now
 receivers see the new attack target in the same tick as the proposer, or at most `max_lag` ticks
 later (AIT-LAG-002).
 
-### 2.1 Cost and parallelism of the hurt-by goal
+### 2.1 Work of the hurt-by goal
 
 **CGOAL-HURT-006** (`design`, semantic, confidence: high, fidelity: exact). The start condition
 reads only the own hurt-by record and the kept attack time, until the attack time differs. Thus it
@@ -466,7 +456,7 @@ record of a living entity holds the entity that it last hit with a melee hit tha
 and the tick count of that hit. The base entity tick clears the entity when it is dead. The
 owner-hurt target goal reads this record (CGOAL-OWNER-002).
 
-#### Cost and parallelism of the melee goal
+#### Work of the melee goal
 
 **CGOAL-MELEE-009** (`source_suggested`, semantic, confidence: high, fidelity: exact). The
 reference costs of the goal:
@@ -479,12 +469,13 @@ reference costs of the goal:
 - One reach test in each tick in which the cooldown is 0. One ray only when the target is in reach,
   or when the goal does not follow an unseen target.
 
-**CGOAL-MELEE-010** (`design`, semantic, confidence: medium, fidelity: exact). Place of each part
-(AIT-RFX-003): the cooldown, the reach test, the ray of the hit, the hit and the look target are a
-reflex. The start check and each path request are decisions. The path timer is a part of the
-decision state: the reflex counts it down, and the decision reads it at its issue tick. A melee hit
-changes another entity. It is a hit of DMG section 3, and DMG-ORD-002 states the order of the hits
-of one tick.
+**CGOAL-MELEE-010** Place of each part (AIT-RFX-003): the cooldown, the reach test, the ray of the
+hit, the hit and the look target are a reflex. The start check and each path request are decisions.
+The path timer is a part of the decision state: the reflex counts it down, and the decision reads it
+at its issue tick. A melee hit changes another entity. It is a hit of DMG section 3, and DMG-ORD-001
+states its place in the tick: the apply step of PHY-CMP-015.
+
+Provenance: `design`. Kind: semantic. Fidelity: exact. Confidence: medium.
 
 ### 3.2 Leap at the target
 
@@ -616,7 +607,7 @@ parts of the goal:
 
 A mob type can add work to the start action and the goal tick (WOLF-GOAL-003).
 
-### 4.1 Cost and parallelism of the avoid goal
+### 4.1 Work of the avoid goal
 
 **CGOAL-AVOID-006** (`source_suggested`, semantic, confidence: high, fidelity: exact). The
 reference cost of one examined full evaluation:
@@ -861,7 +852,7 @@ equal:
 The wake rule of GOAL-WAKE-015 applies: a qualified player with an interesting item in range makes
 the mob busy. Else the beg goal does not need a full evaluation.
 
-### 6.5 Parallelism of the owner goals
+### 6.5 Work of the owner goals
 
 **CGOAL-OWNER-010** (`design`, semantic, confidence: medium, fidelity: envelope). Each start, tick
 and continue of the goals of this section is a decision. The teleport changes the position of the
@@ -869,30 +860,6 @@ own mob. It is a move of the own row, not a pair action. It applies at the appli
 decision, and the hot tick checks the collision of CGOAL-OWNER-005 again at the application. When
 the check fails at the application, the teleport does not occur. The envelope is the allowed delay
 of AIT-DEC-003 for a path search.
-
-## 7. Parallelism notes
-
-| Goal | Place | Reads (own) | Reads (other entities and world) | Writes | World queries |
-|------|-------|-------------|----------------------------------|--------|---------------|
-| nearest attackable target | decision | follow range, tame state, position, box, eye height | entities of the type set: position, box, type, alive, spectator, invulnerable, team, visibility inputs; blocks for one ray to each candidate | attack target; unseen count | `Q-NEAREST`, `Q-NEAREST-PLAYER` |
-| hurt-by target | decision; the alert is a pair action | hurt-by record, kept time, owner | the attacker: alive, type, team; own type in a box: attack target, owner | own attack target; the attack target of each receiver | `Q-ALERT` |
-| melee attack | start and path: decision; cooldown, reach, hit, look: reflex | attack target, path state, timers | the target: position, box, alive; blocks for the ray | path; look target; aggressive bit; a hit on the target | none |
-| leap | decision | attack target, on-ground flag, velocity, passenger | the target position | velocity | none |
-| ranged attack | path: decision; see count, attack time, attack: reflex | target, timers | the target: position, alive; blocks for the ray | path; look target; a projectile | none |
-| avoid entity | decision | position, box, home | entities of the type set; blocks of the away search; the path search | path; speed modifier | `Q-AVOID`, `W(16, 7, p)` |
-| anger update | reflex | anger state, stored target | the stored target: alive, kind; the anger target: game mode | anger state; attack target; entity data of the end time | none |
-| reset universal anger | decision; the alert is a pair action | hurt-by record, kept time | own type in a box | anger state of the mob and of each member | `Q-ANGER-ALERT` |
-| owner goals | decision | tame state, ordered to sit, owner reference | the owner: position, records, game mode, dimension | attack target; path; position at a teleport; sitting pose | none |
-| beg | decision | position | player table: position, eye height, items in hands, alive, spectator, visibility inputs; blocks for rays | look target; interested flag | `Q-BEG` |
-
-These notes follow from the table:
-
-- Each goal writes only its own mob, except the melee hit, the projectile of a ranged attack, and
-  the two alerts. The hit follows DMG-ORD-002. The alerts are pair actions (AIT-CPL-004).
-- The snapshot must publish these values of each mob: the attack target, the owner reference, the
-  team, the invulnerable flag and the type. A target goal of another mob reads them.
-- The expensive work is a box enumeration of a type set, the rays, the away search and the path
-  searches. A per-type index makes each empty box query a probe with no ray.
 
 ## 8. Intentional deviations
 
@@ -904,7 +871,6 @@ These notes follow from the table:
   statement applies only to the single-candidate test.
 - **Visible to the client:** no. This document keeps the reference behaviour. It records the
   difference to AIT-VAN-011, which a later edit of AIT must fix.
-- **Test:** E-C3.
 
 ### CGOAL-DEV-002: Shortcuts that change the order of random draws
 
@@ -913,7 +879,6 @@ These notes follow from the table:
   an extra start test after the away search and the path search. It draws from one random source
   of the mob in the order of the goal lists.
 - **Visible to the client:** no, as a distribution.
-- **Test:** as AIT-DEV-002 and C-G6 of `mob-goals.md`.
 
 ### CGOAL-DEV-003: Ties by the order key
 
@@ -921,11 +886,8 @@ These notes follow from the table:
 - **Reference:** the first entity of the enumeration order wins a tie. GOAL-DEV-001 states the
   same deviation.
 - **Visible to the client:** rarely.
-- **Test:** accept each member at the smallest distance.
 
-## 9. Unresolved and experiments
-
-### 9.1 Unresolved
+## 9. Unresolved
 
 - **U1**: the knockback of a melee hit, and the extra knockback of the attribute
   `attack_knockback`, need `player-attack.md` or a mob attack specification.
@@ -933,20 +895,3 @@ These notes follow from the table:
 - **U3**: the item component `attack_range`, and an item in the main hand of an attacker, are hooks.
 - **U4**: AIT-VAN-011 must state that the must-reach option applies only to the single-candidate
   test (CGOAL-DEV-001).
-- **U5**: no rule of this document has a captured result. The confidence of the timers rests on the
-  source.
-
-### 9.2 Experiments with a vanilla server
-
-The setup of `mob-goals.md`, section 10.1, applies.
-
-| Experiment | Steps | Expected result | Rules |
-|------------|-------|-----------------|-------|
-| E-C1 | Summon a wolf and a sheep 6 blocks apart, 400 times. Record the tick of the first `set_entity_data` with the aggressive bit. | The wait has a geometric law with a mean of about 10 ticks, plus up to 20 ticks for the melee check. | CGOAL-NEAR-004, CGOAL-MELEE-002 |
-| E-C2 | Put a sheep 14 blocks above a wolf on a platform. | The wolf selects the sheep: the box spans 16 blocks up. | CGOAL-NEAR-005 |
-| E-C3 | Put a llama behind a wall that blocks the path to a wolf. Record whether the llama targets the wolf. | The llama targets the wolf when it sees it, also with no path. | CGOAL-NEAR-006 |
-| E-C4 | Let a wolf hunt a sheep. Record each hit tick and each `swing_animation`. | The hits are at least 20 ticks apart. The sheep dies at the second hit. | CGOAL-MELEE-004, CGOAL-MELEE-007 |
-| E-C5 | Hit one wild wolf of a group of 5 with a player. | Each wild wolf within the alert box with no attack target targets the player in the same tick. | CGOAL-HURT-003, CGOAL-HURT-004 |
-| E-C6 | Put a wild wolf 10 blocks from a llama with `Strength:1`, 400 times. Record the start of the flight. | The start rate per examined evaluation, given a path, is 2/5. | CGOAL-AVOID-004, CGOAL-AVOID-005 |
-| E-C7 | Hold a bone 7 blocks from a wolf. Then let a second player with no bone stand 3 blocks from the wolf. | The wolf begs to the first player only while the second player is out of range or out of sight. | CGOAL-OWNER-007, CGOAL-OWNER-008 |
-| E-C8 | Let a llama spit at a wolf. Record the attack time between spits. | The spits are 40 ticks apart. The first spit comes 41 ticks after the start. | CGOAL-RANGED-002 |

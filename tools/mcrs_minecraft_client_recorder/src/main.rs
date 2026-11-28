@@ -1,8 +1,3 @@
-//! Records the client ticks of a vanilla client for one experiment of
-//! `docs/spec/entity-physics.md`, section 15. It starts the vanilla server, listens as a proxy
-//! in front of it, sets each step of the scenario up through the server console and writes one
-//! recording per step. See the README.
-
 mod cheat;
 mod console;
 mod delay;
@@ -11,6 +6,7 @@ mod play;
 mod proxy;
 mod scenario;
 mod session;
+mod stack_text;
 #[cfg(test)]
 mod tests;
 
@@ -35,7 +31,6 @@ use crate::proxy::Connection;
 use crate::scenario::Scenario;
 use crate::session::Session;
 
-/// The port the client connects to: the default port of the game.
 const LISTEN_PORT: u16 = 25565;
 const SERVER_PORT: u16 = 25568;
 
@@ -67,7 +62,6 @@ fn main() -> anyhow::Result<()> {
         .with_context(|| format!("could not read {scenario}"))?
         .parse()?;
     if cheat.is_some() {
-        // The vanilla server kicks a player that floats; the recording would end at the kick.
         scenario.properties.push("allow-flight=true".to_owned());
     }
     let mut console = Console::start(Path::new(server), SERVER_PORT, &scenario.properties)?;

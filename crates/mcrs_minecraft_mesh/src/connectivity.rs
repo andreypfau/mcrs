@@ -12,8 +12,6 @@ pub const OPEN: Connectivity = [CONNECT_ALL; DIRECTIONS];
 
 pub const SEALED: Connectivity = [0; DIRECTIONS];
 
-/// A step set holds one direction per axis, and a set and its opposite see the same face pairs, so
-/// the eight octants a walk can travel in need only four floods.
 const STEP_SETS: [u32; DIRECTIONS] = [0b010101, 0b010110, 0b011001, 0b100101];
 
 const OCTANTS: [(u32, usize); 8] = [
@@ -31,12 +29,8 @@ const N: i32 = SECTION_SIZE as i32;
 
 const VOLUME: usize = (N * N * N) as usize;
 
-/// Separating any two faces of the section means cutting it, and the smallest cut through a
-/// 16³ box is one of its 16×16 slices.
 const SMALLEST_CUT: usize = (N * N) as usize;
 
-/// Merges the floods a walk that has already stepped `stepped` could be travelling in. An axis it
-/// has not stepped yet is free, so both of its octants apply.
 pub fn along(connectivity: &Connectivity, stepped: u32) -> u64 {
     let mut mask = 0;
     for (octant, held) in OCTANTS {
@@ -73,9 +67,6 @@ fn sweep(step: i32) -> impl Iterator<Item = i32> {
     (0..N).map(move |at| if step < 0 { N - 1 - at } else { at })
 }
 
-/// Restricted to one direction per axis the flood is acyclic, so a single sweep in step order
-/// carries every entry face a cell can be reached from, and the cells that step out of the section
-/// hand that set to the face they leave through.
 fn resolve(occludes: &[bool; BORDER_VOLUME], steps: u32) -> u64 {
     let stepping = |low: usize, high: usize| match steps >> low & 1 {
         0 => (1i32, high, low),
@@ -151,10 +142,9 @@ mod tests {
         Box::new([true; BORDER_VOLUME])
     }
 
-    /// The unrestricted flood the directional one has to stay inside of.
     #[expect(
         clippy::excessive_nesting,
-        reason = "floods the section's border one axis and one neighbour at a time, so the unrestricted flood reads against the directional one it bounds"
+        reason = "floods the section's border one axis and one neighbour at a time"
     )]
     fn undirected(occludes: &[bool; BORDER_VOLUME]) -> u64 {
         let mut seen = [false; BORDER_VOLUME];
@@ -206,7 +196,6 @@ mod tests {
         }
     }
 
-    /// A 16³ layout, solid unless `carve` says otherwise.
     fn section(mut carve: impl FnMut(i32, i32, i32) -> bool) -> Box<[bool; BORDER_VOLUME]> {
         let mut occludes = solid_section();
         for y in 0..N {
@@ -268,7 +257,6 @@ mod tests {
         }
     }
 
-    /// A tunnel in from the east face that has to turn north before it can carry on west.
     fn doubling_back() -> Box<[bool; BORDER_VOLUME]> {
         section(|x, y, z| {
             y == 8 && ((z == 8 && x >= 8) || (x == 8 && (2..=8).contains(&z)) || (z == 2 && x <= 8))
@@ -298,9 +286,6 @@ mod tests {
         );
     }
 
-    /// The whole point is that a directional flood is tighter, so the one thing it must never do
-    /// is find a face pair the unrestricted flood does not. Swept across densities, so both
-    /// early-outs are covered as well as the floods between them.
     fn every_flood_stays_inside_the_unrestricted_one_over(
         percents: impl Iterator<Item = u32>,
         seeds: std::ops::Range<u32>,

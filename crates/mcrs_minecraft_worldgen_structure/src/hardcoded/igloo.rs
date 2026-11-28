@@ -10,7 +10,7 @@ use super::on_top_of_chunk_centre;
 use crate::frozen::{FrozenStructures, TemplateId};
 use crate::orient::random_rotation;
 use crate::piece::{IglooPiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     IglooTemplate::Top.location(),
@@ -63,14 +63,14 @@ impl IglooTemplate {
     }
 }
 
-pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    _rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     on_top_of_chunk_centre(ctx, HeightmapName::WorldSurfaceWg)
 }
 
-/// The reference lowers every piece at placement by the live
-/// `WORLD_SURFACE_WG` height under the entrance, which is the same column
-/// for the three templates; the density column answers it here.
-pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, mut site: Site) -> Vec<Piece> {
     let start = IVec3::new(
         ctx.chunk.min_block_x(),
         LAYOUT_HEIGHT,

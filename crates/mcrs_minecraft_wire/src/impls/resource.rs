@@ -7,10 +7,8 @@ use mcrs_minecraft_resource::{
 use crate::impls::{check_len, encode_len};
 use crate::{Context, Decode, Encode, Error, Result, VarInt};
 
-/// The longest string the protocol writes; a location is ASCII, so its bytes are its chars.
 const MAX_CHARS: usize = 32767;
 
-/// Writes the canonical `namespace:path` text from the two parts, without a buffer.
 impl Encode for ResourceLocation<'_> {
     fn encode(&self, mut w: impl Write) -> Result<()> {
         check_len(self.len(), MAX_CHARS)?;
@@ -21,7 +19,6 @@ impl Encode for ResourceLocation<'_> {
     }
 }
 
-/// Borrows the parts from the frame.
 impl<'a> Decode<'a> for ResourceLocation<'a> {
     fn decode(r: &mut &'a [u8]) -> Result<Self> {
         ResourceLocation::read(<&'a str>::decode(r)?).map_err(Error::other)
@@ -60,8 +57,6 @@ impl<T> Decode<'_> for ResourceKeyBuf<T> {
     }
 }
 
-/// An id writes as its sixteen-bit number. Whether a registry holds that number is checked where
-/// the id is looked up, since only the registries the connection holds know their size.
 impl<R> Encode for Id<R> {
     fn encode(&self, w: impl Write) -> Result<()> {
         VarInt(i32::from(self.number())).encode(w)

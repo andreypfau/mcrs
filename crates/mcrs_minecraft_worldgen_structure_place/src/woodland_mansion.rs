@@ -18,15 +18,13 @@ use mcrs_minecraft_block::block_keys::Block;
 
 #[derive(Clone)]
 pub struct WoodlandMansionBlocks {
-    /// `BlockIgnoreProcessor.STRUCTURE_BLOCK`, the only processor a mansion
-    /// piece carries.
     pub chain: CompiledChain,
     pub chest: ChestStates,
     pub cobblestone: VoxelId,
 }
 
 impl WoodlandMansionBlocks {
-    pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
+    pub fn compile(blocks: &impl BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(WoodlandMansionBlocks {
             chain: ignore_blocks(blocks, &[Block::StructureBlock])?,
             chest: ChestStates::compile(blocks)?,
@@ -35,13 +33,12 @@ impl WoodlandMansionBlocks {
     }
 }
 
-/// `WoodlandMansionPiece.postProcess` for one column: the template, then its
-/// data markers inside the clip in palette order, a chest facing as the
-/// marker names it, or the mobs the marker spawns with the block under them
-/// cleared.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the mansion's blocks, template, manifest and piece, the column's reference and clip, the volume, the random source and the two lists one column's placement fills"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's placement"
+    )
 )]
 pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
     b: &WoodlandMansionBlocks,

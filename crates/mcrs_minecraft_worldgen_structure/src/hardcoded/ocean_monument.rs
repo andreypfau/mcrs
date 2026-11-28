@@ -5,16 +5,18 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 
+use mcrs_voxel::ColumnPos;
+
 use super::on_top_of_chunk_centre;
 use crate::orient::{Orientation, orient_box, world_pos};
 use crate::piece::{MonumentChild, MonumentRoom, MonumentRoomKind, OceanMonumentPiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 const BIOME_RANGE_CHECK: i32 = 29;
 
 pub fn site(
     surrounding: &BiomeMask,
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     _rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
     let centre = IVec3::new(
@@ -31,23 +33,31 @@ pub fn site(
     on_top_of_chunk_centre(ctx, HeightmapName::OceanFloorWg)
 }
 
-pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
-    let rng = &mut site.rng;
-    let west = ctx.chunk.min_block_x() - BIOME_RANGE_CHECK;
-    let north = ctx.chunk.min_block_z() - BIOME_RANGE_CHECK;
-    let orientation = Orientation::random(rng);
-    building(rng, west, north, orientation)
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, mut site: Site) -> Vec<Piece> {
+    start_piece(&mut site.rng, ctx.chunk)
         .map(Piece::OceanMonument)
         .into_iter()
         .collect()
+}
+
+pub fn rebuild(seed: i64, chunk: ColumnPos) -> Option<OceanMonumentPiece> {
+    start_piece(
+        &mut LegacyRandom::large_feature(seed, chunk.x, chunk.z),
+        chunk,
+    )
+}
+
+fn start_piece(rng: &mut LegacyRandom, chunk: ColumnPos) -> Option<OceanMonumentPiece> {
+    let west = chunk.min_block_x() - BIOME_RANGE_CHECK;
+    let north = chunk.min_block_z() - BIOME_RANGE_CHECK;
+    let orientation = Orientation::random(rng);
+    building(rng, west, north, orientation)
 }
 
 const fn room_index(x: i32, y: i32, z: i32) -> i32 {
     y * 25 + z * 5 + x
 }
 
-/// The graph while it is built: the rooms plus what only the build reads,
-/// and the shuffled order the fitters walk them in.
 struct Graph {
     rooms: Vec<MonumentRoom>,
     claimed: Vec<bool>,
@@ -67,7 +77,6 @@ impl Graph {
         }
     }
 
-    /// The room past `direction`.
     fn past(&self, room: usize, direction: Direction) -> Option<usize> {
         self.rooms.get(room)?.connection(direction)
     }
@@ -94,7 +103,6 @@ impl Graph {
         }
     }
 
-    /// `RoomDefinition.findSource`: a walk over open faces stamped by the scan.
     fn find_source(&mut self, room: usize, scan: i32) -> bool {
         if room == self.source {
             return true;
@@ -115,7 +123,6 @@ impl Graph {
     }
 }
 
-/// `Direction.from3DDataValue` of a `nextInt(6)` draw.
 fn from_3d_data(value: i32) -> Direction {
     match value {
         0 => Direction::Down,
@@ -135,10 +142,9 @@ fn grid_has_room(x: i32, y: i32, z: i32) -> bool {
     }
 }
 
-/// `MonumentBuilding.generateRoomGraph`.
 #[expect(
     clippy::too_many_lines,
-    reason = "builds the monument's room graph and draws its openings in the reference's order, so the random draws match it"
+    reason = "builds the monument's room graph and draws its openings in the reference's order"
 )]
 fn room_graph(rng: &mut LegacyRandom) -> Option<Graph> {
     let mut slot = [None; 75];
@@ -182,7 +188,6 @@ fn room_graph(rng: &mut LegacyRandom) -> Option<Graph> {
         core: 0,
         order: (0..grid_count).collect(),
     };
-    // The reference wires the z axis backwards: north is the room at z + 1.
     let steps = [
         (IVec3::NEG_Y, Direction::Down),
         (IVec3::Y, Direction::Up),
@@ -319,7 +324,6 @@ impl Fitter {
         }
     }
 
-    /// Each fitter's `create`: the cells it claims and the piece it builds.
     fn create(
         self,
         graph: &mut Graph,
@@ -372,8 +376,6 @@ impl Fitter {
     }
 }
 
-/// `OceanMonumentPiece.makeBoundingBox` over a room cell, in the building's
-/// own frame before the offset to the world.
 fn room_box(
     orientation: Orientation,
     index: i32,
@@ -394,8 +396,6 @@ fn room_box(
     unmoved.moved(delta)
 }
 
-/// The cell a room grows from and its size in cells; `None` for the wings
-/// and the penthouse, which take their box from the building.
 fn room_cells(kind: MonumentRoomKind) -> Option<(usize, (i32, i32, i32))> {
     let (room, size) = match kind {
         MonumentRoomKind::Core { room } => (room, (2, 2, 2)),
@@ -412,7 +412,6 @@ fn room_cells(kind: MonumentRoomKind) -> Option<(usize, (i32, i32, i32))> {
     Some((usize::from(room), size))
 }
 
-/// `MonumentBuilding`'s constructor.
 fn building(
     rng: &mut LegacyRandom,
     west: i32,

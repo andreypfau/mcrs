@@ -3,7 +3,6 @@ use glam::{Vec2, Vec3};
 use crate::cube::{FaceUv, UvRotation};
 use crate::face::Face;
 
-/// A texture rectangle `[u1, v1, u2, v2]` in texels. `u1 > u2` or `v1 > v2` flips the image.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct UvRect {
     pub u1: f32,
@@ -18,7 +17,6 @@ impl UvRect {
         Self { u1, v1, u2, v2 }
     }
 
-    /// The box UV rectangle of `face`, with the layout sizes `layout` (`w`, `h`, `d`).
     #[must_use]
     pub fn of_box(face: Face, origin: Vec2, layout: Vec3, mirror: bool) -> Self {
         let Vec2 { x: u, y: v } = origin;
@@ -43,7 +41,6 @@ impl UvRect {
         }
     }
 
-    /// The per-face rectangle of `face`, with `size` the size of the box before inflate.
     #[must_use]
     pub fn of_face(face: Face, uv: &FaceUv, size: Vec3) -> Self {
         let Vec2 { x, y } = uv.uv;
@@ -58,7 +55,6 @@ impl UvRect {
         }
     }
 
-    /// The texels of the corners `c0`, `c1`, `c2` and `c3`.
     #[must_use]
     pub fn corners(self) -> [Vec2; 4] {
         [
@@ -70,8 +66,6 @@ impl UvRect {
     }
 }
 
-/// Turns the texels of the corners clockwise. One step moves the texel of `c2` to `c0`, of `c3`
-/// to `c2`, of `c1` to `c3` and of `c0` to `c1`.
 #[must_use]
 pub fn rotate_corners(texels: [Vec2; 4], rotation: UvRotation) -> [Vec2; 4] {
     let mut turned = texels;

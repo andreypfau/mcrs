@@ -10,21 +10,16 @@ use mcrs_minecraft_render_controller::{RenderControllerLibrary, RenderController
 use crate::entity_library::DefinitionSource;
 use crate::repository_pack::REPOSITORY_PACK;
 
-/// The flip angle of the death tilt when a mob document gives no other, in degrees.
 pub const DEATH_FLIP: f32 = 90.0;
 
-/// One client entity of the pack, compiled.
 #[derive(Clone, Debug)]
 pub struct PackEntity {
     pub resources: ClientEntityFile,
     pub rig: Rig,
     pub controllers: RenderControllers,
-    /// The geometries in the order of the geometry map of the client entity.
     pub geometries: Vec<Option<BakedGeometry>>,
 }
 
-/// The client entities of an entity pack with their animations, geometries and render
-/// controllers.
 #[derive(Clone, Debug, Default)]
 pub struct EntityPack {
     pub entities: Vec<PackEntity>,
@@ -32,14 +27,11 @@ pub struct EntityPack {
 }
 
 impl EntityPack {
-    /// The entity pack of the repository, `assets/mcrs/entity`, which the crate embeds.
     #[must_use]
     pub fn repository() -> Self {
         Self::load(REPOSITORY_PACK)
     }
 
-    /// Compiles the files of an entity pack. Each file is its path below the pack root, such as
-    /// `entity/pig.entity.json`, and its text.
     #[must_use]
     pub fn load<'a>(files: impl IntoIterator<Item = (&'a str, &'a str)>) -> Self {
         let mut pack = Self::default();
@@ -109,7 +101,6 @@ impl EntityPack {
         pack
     }
 
-    /// The client entity with the identifier `identifier`.
     #[must_use]
     pub fn entity(&self, identifier: &str) -> Option<(usize, &PackEntity)> {
         self.entities
@@ -118,7 +109,6 @@ impl EntityPack {
             .find(|(_, entity)| entity.resources.identifier == identifier)
     }
 
-    /// The definitions of the entity library, in the order of [`EntityPack::entities`].
     #[must_use]
     pub fn sources(&self) -> Vec<DefinitionSource<'_>> {
         self.entities
@@ -133,8 +123,6 @@ impl EntityPack {
     }
 }
 
-/// Reads the geometries of a geometry file into `geometries`. `paths` takes the path of each
-/// geometry identifier.
 fn read_geometry_file<'a>(
     path: &'a str,
     text: &str,
@@ -160,8 +148,6 @@ fn read_geometry_file<'a>(
     }
 }
 
-/// Resolves the legacy parents across all geometry files, then bakes each geometry, by
-/// identifier. A legacy geometry can name a parent of another file.
 fn bake_geometries(
     read: Vec<Geometry>,
     paths: &HashMap<String, &str>,

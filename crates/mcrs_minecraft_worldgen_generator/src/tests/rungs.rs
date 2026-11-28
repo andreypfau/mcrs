@@ -1,6 +1,3 @@
-//! What a rung buys: a feature reads the ground every other column already
-//! finished shaping, rather than the ground as it stood before any of them ran.
-
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -16,25 +13,18 @@ use mcrs_voxel::ColumnPos;
 use crate::features::FeatureTables;
 use crate::staging::FilledSnapshot;
 
-use super::{TEMPERATE, blocks, corpus_state_of, generate_region};
+use super::{TEMPERATE, blocks, corpus_state_of};
+use crate::generate_area;
 
 const BIOME: &str = "minecraft:badlands";
 const SEED: u64 = 0x1a2e;
 
-/// The lakes step, with the one-in-two-hundred filter of the shipped placement
-/// dropped so that every column digs one. Everything else is
-/// `minecraft:lake_lava_surface` as it ships: a sixteen-wide blob of lava under
-/// four of cave air, walled in stone, straddling whatever column boundary it
-/// lands on.
 const LAKE: &str = r#"[
   { "type": "minecraft:in_square" },
   { "type": "minecraft:heightmap", "heightmap": "WORLD_SURFACE_WG" },
   { "type": "minecraft:biome" }
 ]"#;
 
-/// The vegetation step of the badlands, over `MOTION_BLOCKING` as the shipped
-/// dry grass reads it, and with the count raised so one region is a census
-/// rather than a handful of draws.
 const PLANTS: &str = r#"[
   { "type": "minecraft:count", "count": 48 },
   { "type": "minecraft:in_square" },
@@ -44,8 +34,6 @@ const PLANTS: &str = r#"[
     "predicate": { "type": "minecraft:matching_block_tag", "tag": "minecraft:air" } }
 ]"#;
 
-/// The two features at the steps the corpus puts them at, so that the rungs the
-/// program cuts are the ones the shipped biomes get.
 fn tables() -> FeatureTables {
     const LAKES: usize = 1;
     const VEGETAL: usize = 9;
@@ -122,15 +110,6 @@ fn block_at(column: &FilledSnapshot, x: usize, y: i32, z: usize) -> VoxelId {
         })
 }
 
-/// A lava lake is dug at the lakes step and the plants grow at the vegetal one,
-/// so by the time a plant asks whether it can stand somewhere, every lake in
-/// reach of it — its own column's and its neighbours' — is already in the
-/// ground it reads.
-///
-/// Without the rung between the two steps a column cannot see a neighbour's
-/// lake at all: it plants on the terracotta that was there when the region was
-/// filled, the lake replaces that terracotta at the merge, and the plant is
-/// left standing on lava or hanging over the hole.
 #[test]
 fn a_plant_never_grows_on_a_lake_a_neighbour_dug() {
     let (ctx, _) = super::trees::dimension_over(BIOME, Arc::new(tables()), SEED);
@@ -140,7 +119,7 @@ fn a_plant_never_grows_on_a_lake_a_neighbour_dug() {
         "the lakes step and the vegetal step are cut into rungs of their own"
     );
 
-    let region = generate_region(&ctx, ColumnPos::new(-1, -1), ColumnPos::new(1, 1));
+    let region = generate_area(&ctx, ColumnPos::new(-1, -1), ColumnPos::new(1, 1));
     let lava = state_of("minecraft:lava");
     let plant = state_of("minecraft:dead_bush");
 

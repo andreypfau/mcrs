@@ -176,6 +176,14 @@ tasks.register('dumpDefinitions', JavaExec) {
 	args = [project.findProperty('definitionsOut') ?: "${layout.buildDirectory.get()}/definitions-out".toString(), game.world_version.toString()]
 }
 
+tasks.register('dumpCreativeTabs', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.CreativeTabDumper'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('creativeTabsOut') ?: "${layout.buildDirectory.get()}/creative_tabs.json".toString()]
+}
+
 tasks.register('dumpChunks', JavaExec) {
 	group = 'oracle'
 	classpath = sourceSets.data.runtimeClasspath
@@ -254,12 +262,42 @@ tasks.register('dumpNumeric', JavaExec) {
 	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/numeric-out".toString()]
 }
 
+tasks.register('dumpAttributes', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.AttributeOracle'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/attribute-out".toString()]
+}
+
+tasks.register('dumpPlayerDimensions', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.PlayerDimensionOracle'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/player-dimension-out".toString()]
+}
+
+tasks.register('dumpLoot', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.LootOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/loot-out".toString()]
+}
+
 tasks.register('dumpBlockModels', JavaExec) {
 	group = 'oracle'
 	classpath = sourceSets.data.runtimeClasspath
 	mainClass = 'mcrs.data.BlockModelOracle'
 	jvmArgs '-Xmx2G'
 	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/block-model-out".toString()]
+}
+
+tasks.register('dumpPotionColors', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.PotionColorOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/potion-color-out".toString()]
 }
 
 tasks.register('dumpBlockFaces', JavaExec) {
@@ -291,4 +329,32 @@ tasks.register('dumpEnvironment', JavaExec) {
 	classpath = sourceSets.data.runtimeClasspath
 	mainClass = 'mcrs.data.EnvironmentOracle'
 	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/environment-out".toString()]
+}
+
+tasks.register('dumpFont', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.FontOracle'
+	jvmArgs '-Xmx2G'
+	args = [
+		project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/font-out".toString(),
+		"${layout.buildDirectory.get()}/font-assets".toString(),
+		"${projectDir}/../../crates/mcrs_minecraft_client_jar/src/release.json".toString()
+	]
+}
+
+tasks.register('dumpLocalWorlds', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.LocalWorldOracle'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/local-worlds-out".toString()]
+}
+
+tasks.register('recordInventoryE17', Exec) {
+	group = 'oracle'
+	workingDir = file('../..')
+	environment 'AUTOPLAY', 'true'
+	environment 'CHEAT', 'remove:player_action'
+	commandLine 'tools/mcrs_minecraft_client_recorder/record.sh', 'inventory_e17',
+		project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/inventory-e17-out".toString()
 }

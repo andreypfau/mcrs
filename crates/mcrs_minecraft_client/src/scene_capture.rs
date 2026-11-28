@@ -17,34 +17,21 @@ const REQUEST: &str = "request";
 
 const REQUEST_POLL: Duration = Duration::from_millis(100);
 
-/// Forty client ticks, the wait of a vanilla capture after its chunks have arrived.
 const SETTLE: Duration = Duration::from_millis(40 * 50);
 
-/// How long the shots of a frame can differ before the frame fails (CFC-RUN-004).
 const SETTLE_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Draws the world camera into an image of `size` pixels, with no window and so no HUD. A frame
-/// whose name a test writes into `<dir>/request` goes to `<dir>/<name>.png` as 8-bit sRGB with no
-/// alpha; the request file is gone before the image appears, and also when the frame fails. The
-/// frame is written once the terrain has stayed settled for forty ticks and two shots forty ticks
-/// apart are the same, since the light of the terrain keeps changing after its meshes are done.
 pub struct SceneCapturePlugin {
     pub dir: PathBuf,
     pub size: UVec2,
-    /// The record of the vanilla client that gives the entities of each frame, in the render
-    /// mode of a comparison; `None` takes them from the server.
     pub record: Option<PathBuf>,
 }
 
 impl Knobs {
-    /// `SCENE_DIR=<dir>` runs with no window: the world camera draws into an image of
-    /// `RESOLUTION`, and each frame that `<dir>/request` names is written to `<dir>/<name>.png`.
     pub fn scene_dir(&self) -> Option<PathBuf> {
         self.knob("SCENE_DIR").map(PathBuf::from)
     }
 
-    /// `SCENE_RECORD=<record>` takes the entities of each scene frame from the frame of the same
-    /// name in the record of the vanilla client, the render mode of a comparison.
     pub fn scene_record(&self) -> Option<PathBuf> {
         self.knob("SCENE_RECORD").map(PathBuf::from)
     }
@@ -94,7 +81,6 @@ struct Pending {
     shooting: bool,
     last_shot: Option<Vec<u8>>,
     polled_at: Duration,
-    /// When the first shot of the frame was taken.
     first_shot: Option<Duration>,
 }
 
@@ -147,7 +133,6 @@ fn read_request(
     };
 }
 
-/// A plain file name that does not collide with the files the capture writes next to the frame.
 fn is_frame_name(name: &str) -> bool {
     !name.is_empty()
         && Path::new(name).file_name() == Some(name.as_ref())

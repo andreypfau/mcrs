@@ -5,23 +5,20 @@ use core::fmt;
 use mcrs_minecraft_item_stack::SavedError;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
-/// Why the item definitions did not bake into a table.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BakeError {
-    /// The file is not JSON, or does not have the layout of an item definition.
     Layout {
         file: String,
         line: usize,
         column: usize,
     },
-    /// Two files have the same item id.
-    RepeatedId { item: ResourceLocationBuf, id: u16 },
-    /// Two files have the same item identifier.
+    RepeatedId {
+        item: ResourceLocationBuf,
+        id: u16,
+    },
     RepeatedItem(ResourceLocationBuf),
-    /// No file has this item id, but a file has a larger one.
     MissingId(u16),
-    /// A component of the item is not a valid saved form, or names no component type.
     Component {
         item: ResourceLocationBuf,
         component: ResourceLocationBuf,

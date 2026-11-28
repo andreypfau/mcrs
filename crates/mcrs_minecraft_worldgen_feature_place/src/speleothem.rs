@@ -31,7 +31,6 @@ fn speleothem_profile(
     relative.max(0.0) / 0.384 * radius
 }
 
-/// The five `SpeleothemThickness` values in the order a column is built.
 const THICKNESSES: usize = 5;
 const TIP_MERGE: usize = 0;
 pub(crate) const TIP: usize = 1;
@@ -39,19 +38,16 @@ pub(crate) const FRUSTUM: usize = 2;
 const MIDDLE: usize = 3;
 const BASE: usize = 4;
 
-/// Every state a pointed speleothem takes: `[tip direction][thickness]
-/// [waterlogged]`, the direction `up` first.
 type PointedTable = [[[VoxelId; 2]; THICKNESSES]; 2];
 
 #[derive(Clone, Debug)]
 pub struct PointedStates {
     pub states: PointedTable,
-    /// The same table with `attached=true`, for a block that has the property.
     pub attached: Option<PointedTable>,
 }
 
 impl PointedStates {
-    pub fn resolve(pointed: &BlockState, blocks: &dyn BlockResolver) -> Option<Self> {
+    pub fn resolve(pointed: &BlockState, blocks: &impl BlockResolver) -> Option<Self> {
         Some(PointedStates {
             states: Self::table(pointed, blocks, None)?,
             attached: Self::table(pointed, blocks, Some("true")),
@@ -60,7 +56,7 @@ impl PointedStates {
 
     fn table(
         pointed: &BlockState,
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         attached: Option<&str>,
     ) -> Option<PointedTable> {
         const THICKNESS_NAMES: [&str; THICKNESSES] =
@@ -111,7 +107,6 @@ pub struct CompiledSpeleothemCluster {
     pub pointed: PointedStates,
     pub pointed_block_states: StateMask,
     pub replaceable_blocks: StateMask,
-    /// `SpeleothemUtils.isBase`: the base block or one of the replaceables.
     pub base_or_replaceable: StateMask,
     pub floor_to_ceiling_search_range: i32,
     pub height: IntProvider,
@@ -160,8 +155,6 @@ impl CompiledSpeleothemCluster {
     }
 }
 
-/// `SpeleothemClusterFeature.place`: five draws for the cluster, then one
-/// column per cell of the radius rectangle.
 pub fn place_speleothem_cluster<W: WorldGenVolume>(
     config: &CompiledSpeleothemCluster,
     volume: &mut W,
@@ -204,13 +197,13 @@ pub fn place_speleothem_cluster<W: WorldGenVolume>(
     true
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the cluster's configuration, volume, random source and position, the offsets of the column, and its water, speleothem, height and density rolls"
+#[cfg_attr(
+    mcrs_lint,
+    expect(mcrs::too_many_arguments, reason = "independent inputs of one column")
 )]
 #[expect(
     clippy::too_many_lines,
-    reason = "draws one column's stalagmite and stalactite with the reference's random draws in the reference's order, so the sequence reads against it"
+    reason = "random draws keep the reference's order"
 )]
 fn place_cluster_column<W: WorldGenVolume>(
     config: &CompiledSpeleothemCluster,
@@ -420,8 +413,6 @@ fn can_place_pool<W: WorldGenVolume>(
         && adjacent(volume, pos + IVec3::NEG_Y)
 }
 
-/// `SpeleothemClusterFeature.replaceBlocksWithBaseBlocks`, which stops at the
-/// first block it may not replace.
 fn replace_with_base<W: WorldGenVolume>(
     config: &CompiledSpeleothemCluster,
     volume: &mut W,
@@ -439,8 +430,6 @@ fn replace_with_base<W: WorldGenVolume>(
     }
 }
 
-/// `SpeleothemUtils.growSpeleothem`: nothing grows unless the block behind the
-/// start is one the column may root in.
 pub(crate) struct Growth<'a> {
     pub pointed: &'a PointedStates,
     pub root: &'a StateMask,
@@ -482,9 +471,7 @@ impl Growth<'_> {
 
 #[derive(Clone, Debug)]
 pub struct CompiledLargeSpeleothem {
-    /// The default state of the base block.
     pub base: VoxelId,
-    /// The base block's states, the replaceables, and lava.
     pub column_edge: StateMask,
     pub floor_to_ceiling_search_range: i32,
     pub column_radius_min: i32,
@@ -632,8 +619,6 @@ fn embed_base<W: WorldGenVolume>(shape: &mut Shape, volume: &W, wind: Option<Win
     false
 }
 
-/// `SpeleothemUtils.isCircleMostlyEmbeddedInStone`, whose angular step is what
-/// decides how many samples the circle takes.
 fn circle_mostly_embedded<W: WorldGenVolume>(volume: &W, center: BlockPos, xz_radius: i32) -> bool {
     let world = volume.world();
     if world.is_empty_or_water_or_lava(volume.get(center)) {
@@ -715,8 +700,6 @@ pub(crate) mod tests {
     const LAVA: VoxelId = VoxelId(4);
     const POINTED: u16 = 100;
 
-    /// A distinct id per (direction, thickness, waterlogged), so a test can
-    /// read back which one a column grew.
     pub(crate) fn pointed_states(first: u16) -> PointedStates {
         let mut states = [[[VoxelId(0); 2]; THICKNESSES]; 2];
         for (direction, plane) in states.iter_mut().enumerate() {
@@ -758,7 +741,6 @@ pub(crate) mod tests {
         }
     }
 
-    /// Stone below `floor`, stone at and above `ceiling`, air between.
     fn cave(floor: i32, ceiling: i32) -> FakeVolume {
         let mut volume = FakeVolume::default();
         volume.world.water = WATER;
@@ -829,13 +811,6 @@ pub(crate) mod tests {
         assert_eq!(rng, before);
     }
 
-    /// A one-cell radius is nine columns; each spends a wetness draw, two
-    /// chance draws, a layer thickness and a height per end, the tip merge and
-    /// — where the ends meet — the split that shares the gap between them. The
-    /// pin is the next draw off the source, so any change to that ladder shows.
-    ///
-    /// Self-recorded: the ladder is read off `SpeleothemClusterFeature`, the
-    /// number is read off this implementation.
     #[test]
     fn cluster_draw_count_anchor() {
         let mut volume = cave(10, 20);

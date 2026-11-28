@@ -10,12 +10,22 @@ tracking: [321]
 sources:
   - rust-toolchain.toml
   - README.md
+  - Cargo.toml
   - crates/mcrs_minecraft_client_jar/src/native.rs
+  - crates/mcrs_minecraft_client_jar/src/asset_object.rs
+  - crates/mcrs_minecraft_client/Cargo.toml
+  - crates/mcrs_minecraft_client/src/native.rs
+  - crates/mcrs_minecraft_client_world/src/registries.rs
+  - .github/workflows/checks.yml
+  - .config/nextest.toml
+  - assets/minecraft/version.json
+  - tools/vanilla-oracle/build.gradle
+  - pr:1057
   - issue:321
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -25,28 +35,32 @@ import { Aside } from '@astrojs/starlight/components';
 This page lists what you need on your machine to build mcrs. If you come from Java, the second half maps the parts of Gradle you know to Cargo, the build tool of Rust.
 
 <Aside type="caution" title="WIP">
-A detailed install guide will come before the alpha. Today only developers use the project, so this page is short and we have not run its steps again for the docs. When in doubt, follow the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Binary releases are planned and do not exist yet, and no issue tracks them. Publishing the crates is a different piece of work.[^321]
+A detailed install guide will come before the alpha. Today only developers use the project, so this page is short and we have not run its steps again for the docs. When in doubt, follow the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Publishing the crates is a different piece of work.[^321]
 </Aside>
 
 ## What you need
 
-Install Rust through [rustup](https://rustup.rs). You do not pick a version, because [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) pins `nightly-2026-09-02` and rustup downloads it on the first `cargo` call. It also adds rustfmt, clippy and the wasm32 targets.
+Install Rust through [rustup](https://rustup.rs). You do not pick a version, because [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) pins `nightly-2026-09-02` and rustup downloads it on the first `cargo` call. It also adds rustfmt, clippy, the wasm32 targets and the Cranelift code generator, which a debug build uses for most workspace crates.
+
+On Linux the client supports both Wayland and X11.
 
 For an IDE, use RustRover, or IntelliJ IDEA with the Rust plugin, and open the repository root as a Cargo project. Check the current licence terms of RustRover yourself.
 
-mcrs needs the official client jar of the snapshot, but you do not download it by hand. It is taken from the launcher folder, or downloaded from Mojang into the same folder on the first run, and then checked by SHA-1.
+mcrs needs the official client jar of the snapshot, but you do not download it by hand. It is taken from the launcher folder, or downloaded from Mojang into the same folder on the first run, and then checked by SHA-1. The client also needs the font files and the title screen panorama, which the game keeps outside the jar. It takes them from the `assets/objects` folder of the launcher or downloads them from Mojang into that folder, and checks each file by SHA-1.
 
-You do not need Java to run mcrs. Some tools, such as `tools/vanilla-oracle` and the mob bench, need Java 21 or newer.
+The native client loads block definitions in the background, so the window can open before they are ready. An automatic join through `--connect` waits for those definitions. The web client still loads them synchronously.[^1057]
 
-The author measured and ran everything on macOS, on an Apple M4 Max with Metal. CI runs lint, clippy, portability checks and tests on Ubuntu 24.04, without the crates that need a GPU. For Windows the code has a jar path, and nobody has checked it.
+You do not need Java to run mcrs. The oracle and tools that launch vanilla need the Java version listed as `java_version` in [`version.json`](https://github.com/andreypfau/mcrs/blob/main/assets/minecraft/version.json).
 
-Nobody has measured yet how long the first build takes or how much disk it needs. The workspace has {fact('crates')} crates, so expect a long first build.
+The native client has been checked on Windows in a release build with a GTX 1080, including startup and joins to a local server.[^1057] CI runs checks on Ubuntu 24.04, and its default test profile skips GPU tests.
+
+The `crates/` directory has {fact('crates')} crates. This guide gives no estimate for the duration or disk use of a first build.
 
 ## Cargo for people who know Gradle
 
 | Gradle | Cargo |
 |---|---|
-| `settings.gradle` with subprojects | Root `Cargo.toml` with `[workspace]`. The {fact('crates')} members are in `crates/` |
+| `settings.gradle` with subprojects | Root `Cargo.toml` with `[workspace]`. Members include packages in `crates/`, `tools/` and `examples/` |
 | `build.gradle` of a project | `Cargo.toml` of a crate |
 | `./gradlew run` | `cargo run`. For mcrs add `--release`, because a debug build is too slow |
 | `./gradlew build` | `cargo build` |
@@ -62,3 +76,4 @@ Crates are not published on crates.io, so today your own code lives in a clone o
 Next: [Run a server](/docs/en/start/run-server/).
 
 [^321]: <Status issue={321} /> Tracks making the protocol, network and game data crates ready to publish.
+[^1057]: <Status pr={1057} state="works" /> Loads native block definitions on a background task and records checks on Windows.

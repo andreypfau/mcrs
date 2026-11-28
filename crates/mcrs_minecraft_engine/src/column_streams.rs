@@ -1,11 +1,12 @@
 use bevy_app::{App, FixedUpdate, Plugin};
-use bevy_ecs::change_detection::DetectChanges;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::lifecycle::Discard;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{
-    Added, Changed, Component, Has, Local, On, Or, Query, Ref, Resource, Single, With, Without,
+    Added, Changed, Component, Has, Local, On, Or, Populated, Query, Resource, Single, With,
+    Without, on_message,
 };
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition, SystemSet};
 use bevy_ecs::system::{Res, ResMut};
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut};
 use bytes::Bytes;
@@ -50,15 +51,10 @@ use crate::held_light::{HeldLight, RelitSections};
 use crate::hot_ticket::CellCrossing;
 use crate::light_codec::{build_delta_light_data, build_stored_light_data};
 use crate::player_view::{PlayerView, ViewerPosition};
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
-/// The version stream of each column of a dimension that the muxer subscribes to: the dimension
-/// publishes a version of a column when the muxer wants one, and each change of a subscribed
-/// column.
 pub struct ColumnStreamPlugin;
 
-/// Takes the requests of the muxer, reports the views of the players, and publishes the
-/// columns that are ready.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnStreamSet;
 
@@ -75,18 +71,26 @@ impl Plugin for ColumnStreamPlugin {
             FixedUpdate,
             (
                 (
-                    take_column_requests,
+                    take_column_requests.run_if(column_requests_pending),
                     report_player_views,
                     land_viewed_columns,
                     requeue_unlit_columns,
-                    raise_wanted_columns,
+                    raise_wanted_columns.run_if(columns_queued),
                 )
                     .chain()
                     .before(ChunkSpawnSet),
                 project_ready_columns
+                    .run_if(
+                        on_message::<SectionStageChanged>
+                            .or_eager(on_message::<SectionRelit>)
+                            .or_eager(columns_awaited),
+                    )
                     .after(raise_wanted_columns)
                     .before(ColumnLightGate),
-                (take_lit_columns, publish_ready_columns)
+                (
+                    take_lit_columns.run_if(on_message::<ColumnLightSettled>),
+                    publish_ready_columns.run_if(columns_ready),
+                )
                     .chain()
                     .after(ColumnLightGate),
             )
@@ -105,46 +109,30 @@ impl Plugin for ColumnStreamPlugin {
     }
 }
 
-/// The requests of the muxer for the next tick, in the order it sent them.
 #[derive(Resource, Default)]
 pub struct ColumnRequests(pub Vec<ColumnRequest>);
 
-/// Where a column waits before the dimension publishes a version of it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Pending {
-    /// Wanted, with no work started for it yet.
     Queued,
-    /// Waiting for the data layer to hand back the final column.
     Fetching,
-    /// Waiting for its sections and the sections around it to land in the dimension.
     Awaiting,
-    /// Landed and lit, waiting for the light around it to be final.
     Lighting,
     Ready,
 }
 
-/// The columns of a dimension that the muxer subscribes to, the columns that it waits on a
-/// version of, and the light that the clients hold of the others.
 #[derive(Component, Default)]
 pub struct ColumnStreams {
     subscribed: FxHashSet<ColumnPos>,
     pending: FxHashMap<ColumnPos, Pending>,
-    /// The light that went out with each column, and with each change of its light since.
     held: FxHashMap<ColumnPos, HeldLight>,
-    /// The sections of each held column that the dimension lit again since the light went out,
-    /// until the light of the column is final.
     relit: FxHashMap<ColumnPos, RelitSections>,
-    /// The columns that began to wait for their sections this tick.
     awaited: Vec<ColumnPos>,
-    /// The columns set to [`Pending::Queued`] since they were last taken, some of them stale.
     queued: Vec<ColumnPos>,
-    /// The columns set to [`Pending::Ready`] since they were last taken, some of them stale.
     ready: Vec<ColumnPos>,
 }
 
 impl ColumnStreams {
-    /// Streams that publish the changes of `columns`, as if the muxer had asked for them and
-    /// got their versions.
     #[cfg(feature = "world-access")]
     pub fn subscribed_to(columns: impl IntoIterator<Item = ColumnPos>) -> Self {
         Self {
@@ -153,14 +141,11 @@ impl ColumnStreams {
         }
     }
 
-    /// Whether the changes of `column` go to the muxer.
     #[must_use]
     pub fn is_subscribed(&self, column: ColumnPos) -> bool {
         self.subscribed.contains(&column)
     }
 
-    /// Whether the clients hold a version of `column`: the muxer subscribes to it and waits on
-    /// no version of it.
     pub(crate) fn holds(&self, column: ColumnPos) -> bool {
         self.is_subscribed(column) && !self.pending.contains_key(&column)
     }
@@ -169,8 +154,6 @@ impl ColumnStreams {
         self.pending.get(&column).copied()
     }
 
-    /// Takes the columns in `state` from `queue`, in a fixed order, so the requests that follow
-    /// do not depend on the order in which the columns came.
     fn take_in_state(
         pending: &FxHashMap<ColumnPos, Pending>,
         queue: &mut Vec<ColumnPos>,
@@ -207,7 +190,6 @@ impl ColumnStreams {
         self.relit.remove(&column);
     }
 
-    /// Takes `column` out of the pending columns as `stored` goes out, with its light.
     fn sent(&mut self, column: ColumnPos, stored: &StoredColumn) {
         self.pending.remove(&column);
         self.relit.remove(&column);
@@ -215,7 +197,22 @@ impl ColumnStreams {
     }
 }
 
-/// Applies the requests of the muxer to the dimension of this world.
+fn column_requests_pending(requests: Res<ColumnRequests>) -> bool {
+    !requests.0.is_empty()
+}
+
+fn columns_queued(dims: Query<&ColumnStreams>) -> bool {
+    dims.iter().any(|streams| !streams.queued.is_empty())
+}
+
+fn columns_ready(dims: Query<&ColumnStreams>) -> bool {
+    dims.iter().any(|streams| !streams.ready.is_empty())
+}
+
+fn columns_awaited(dims: Query<&ColumnStreams>) -> bool {
+    dims.iter().any(|streams| !streams.awaited.is_empty())
+}
+
 fn take_column_requests(
     mut requests: ResMut<ColumnRequests>,
     streams: Option<Single<&mut ColumnStreams>>,
@@ -237,9 +234,8 @@ fn take_column_requests(
     }
 }
 
-/// Reports where each player stands and how far it sees, once that changes.
 pub(crate) fn report_player_views(
-    mut players: Query<
+    mut players: Populated<
         (
             &mut SentChunkView,
             &Transform,
@@ -257,7 +253,7 @@ pub(crate) fn report_player_views(
     mut views: MessageWriter<PlayerView>,
     mut positions: MessageWriter<ViewerPosition>,
 ) {
-    for (mut sent_view, transform, distance, in_dim, owner) in &mut players {
+    for (sent_view, transform, distance, in_dim, owner) in &mut players {
         positions.write(ViewerPosition {
             session: owner.0,
             position: transform.translation,
@@ -273,10 +269,12 @@ pub(crate) fn report_player_views(
             min_section_y,
             min_section_y + type_config.section_count as i32 - 1,
         );
-        if sent_view.0 == Some(view) {
+        if !sent_view
+            .map_unchanged(|sent| &mut sent.0)
+            .set_if_neq(Some(view))
+        {
             continue;
         }
-        sent_view.0 = Some(view);
         views.write(PlayerView {
             session: owner.0,
             view: Some(view),
@@ -297,7 +295,6 @@ fn close_player_view(
     }
 }
 
-/// How the light of a version goes on the wire in this world.
 fn stored_light(light_gated: bool, has_sky_light: bool) -> StoredLight {
     if light_gated {
         StoredLight::Kept { has_sky_light }
@@ -318,14 +315,14 @@ fn light_change(column: ColumnPos, light_data: LightData<'static>) -> ColumnChan
     }
 }
 
-/// Publishes each column that the data layer finished for the muxer. A column that the
-/// dimension lights by now is taken from the dimension instead, so a version older than the
-/// hot one never goes out. A column that the views hold and that the data layer lit again goes
-/// out as a change of its light, unless the clients hold that light.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes its params as arguments"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only for a column that is ready in this tick, and the encoded packet moves into the outbound column message"
+    )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(15))]
 pub(crate) fn land_viewed_columns(
     mut store: ResMut<ColumnStoreLink>,
     dims: Single<(&mut ColumnStreams, &ColumnLoading, Has<HasSkyLight>)>,
@@ -346,7 +343,6 @@ pub(crate) fn land_viewed_columns(
     {
         match delivery {
             Delivery::Light => {
-                // The dimension sends the light of a column that it lights.
                 if light_gated.is_none() || !streams.holds(column) || loading.lights(column) {
                     continue;
                 }
@@ -379,16 +375,11 @@ pub(crate) fn land_viewed_columns(
     encode_ready(&mut taken, direct_bits, light, &mut versions);
 }
 
-/// Sends a column that waits to be taken from the dimension back to the queue once the
-/// dimension stops lighting it, so the data layer makes it instead.
 fn requeue_unlit_columns(
-    mut dims: Query<(&mut ColumnStreams, Ref<ColumnLoading>)>,
+    mut dims: Populated<(&mut ColumnStreams, &ColumnLoading), Changed<ColumnLoading>>,
     mut unlit: Local<Vec<ColumnPos>>,
 ) {
     for (mut streams, loading) in &mut dims {
-        if !loading.is_changed() {
-            continue;
-        }
         unlit.extend(
             streams
                 .pending
@@ -405,8 +396,6 @@ fn requeue_unlit_columns(
     }
 }
 
-/// Starts the work of each wanted column: the dimension waits for a column that it lights,
-/// and the data layer makes the others.
 fn raise_wanted_columns(
     mut dims: Query<(&mut ColumnStreams, &ColumnLoading)>,
     store: Res<ColumnStoreLink>,
@@ -427,9 +416,6 @@ fn raise_wanted_columns(
     }
 }
 
-/// Whether the column entity and every section of `column` are in the dimension, each section
-/// loaded. Light and heightmaps are read off the column entity, and a column published before
-/// `reconcile_columns` indexed it would carry neither.
 fn sections_landed(
     chunk_index: &SectionIndex,
     stages: &Query<&SectionStage>,
@@ -448,20 +434,6 @@ fn sections_landed(
     })
 }
 
-/// Moves a column on from waiting once every section it carries has landed: to ready, or in
-/// a light-gated world to waiting for the light around it to be final. A column is looked at
-/// when it begins to wait, when a section lands within one column of it, and when its own light
-/// is written.
-///
-/// The light gate belongs before the publish: a client gets a column once, so a column whose
-/// light is not final stays black on the client.
-///
-/// A held column that the dimension lit again keeps the relit sections, and the light stage
-/// answers once the light of the column is final.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes its params as arguments"
-)]
 fn project_ready_columns(
     dims: Option<
         Single<(
@@ -517,10 +489,6 @@ fn project_ready_columns(
         {
             continue;
         }
-        // A cell's light is decided by the blocks within fifteen of it, which reaches one
-        // column out and no further. So the neighbours owe this column their blocks, never
-        // their light: waiting on their light too would hold every column of a bulk load
-        // behind the whole queue.
         let ready = column.square(1).all(|near| {
             let own_light = (await_light && near == column).then_some(&lit);
             sections_landed(chunk_index, &stages, own_light, rows, near)
@@ -539,8 +507,6 @@ fn project_ready_columns(
     }
 }
 
-/// Moves a column whose light is final from waiting for it to ready, and sends the change of
-/// the light of a held column that the clients do not hold.
 fn take_lit_columns(
     mut settled: MessageReader<ColumnLightSettled>,
     dims: Option<
@@ -569,7 +535,6 @@ fn take_lit_columns(
         let Some(relit) = streams.relit.remove(&column) else {
             continue;
         };
-        // A column asked for again gets its light with the next version.
         if !column_index.0.contains_key(&column) || !streams.holds(column) {
             continue;
         }
@@ -587,15 +552,12 @@ fn take_lit_columns(
     }
 }
 
-/// A column taken from the sections of the dimension, and its packet once encoded.
 pub(crate) struct ReadyColumn {
     column: ColumnPos,
     stored: StoredColumn,
     packet: Option<Bytes>,
 }
 
-/// Encodes every column of `ready`, spread over the compute pool when there is more than one,
-/// and publishes a version of each one it took off `ready`.
 fn encode_ready(
     ready: &mut Vec<ReadyColumn>,
     direct_bits: DirectBits,
@@ -612,14 +574,11 @@ fn encode_ready(
     let mut columns = ready.as_mut_slice();
     match pool.filter(|_| columns.len() > 1 && threads > 1) {
         Some(pool) => {
-            // Columns differ in cost, so each thread gets several small chunks rather than one
-            // share.
             let chunk = columns.len().div_ceil(threads * 4).max(1);
             columns.par_chunk_map_mut(pool, chunk, encode_all);
         }
         None => encode_all(0, columns),
     }
-    // The encode logged why a column has no packet; it stays unsent rather than produced again.
     versions.write_batch(ready.drain(..).filter_map(|ready| {
         Some(ColumnVersion {
             column: ready.column,
@@ -628,12 +587,14 @@ fn encode_ready(
     }));
 }
 
-/// Publishes a version of each ready column, taken from the sections of the dimension and
-/// encoded once for every client of the muxer that takes it.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes its params as arguments"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only for a column that is ready in this tick, and the encoded packet moves into the outbound column message"
+    )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(18))]
 fn publish_ready_columns(
     mut dims: Query<(&ColumnIndex, &mut ColumnStreams, Has<HasSkyLight>)>,
     snapshots: ColumnSnapshots,

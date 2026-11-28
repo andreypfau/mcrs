@@ -1,12 +1,3 @@
-//! A step between two air cells costs exactly one level, so their sky light
-//! cannot differ by more than one. The server's answer satisfies that
-//! everywhere, which makes it a check the client can run on its own — no sky
-//! floors, no emission, no shapes, and no second light engine.
-//!
-//! It shares nothing with the server: a column and the eight around it are all
-//! the rule reads, and the columns are exactly what the mesher already holds
-//! alive, so the walk runs on a worker thread off a snapshot.
-
 use std::collections::VecDeque;
 use std::sync::{Arc, Weak};
 
@@ -22,14 +13,9 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 
 use super::knobs::Guard;
 
-/// Columns handed to a worker per frame, and how many walks may be in flight.
-/// One walk is 256 block columns of the world's height, so a handful of them is
-/// about what a few section meshes cost.
 const PER_FRAME: usize = 6;
 const IN_FLIGHT: usize = 12;
 
-/// Faults printed alongside the panic, so one crash shows the shape of the
-/// break rather than a single cell of it.
 const REPORTS: usize = 40;
 
 pub struct LightGuardPlugin {
@@ -46,23 +32,23 @@ impl Plugin for LightGuardPlugin {
             passed: default(),
             running: default(),
         })
-        .add_systems(Update, (enqueue, collect).chain());
+        .add_systems(
+            Update,
+            (
+                enqueue.run_if(resource_exists::<ColumnStore>),
+                collect.run_if(checks_running),
+            )
+                .chain(),
+        );
     }
 }
 
 #[derive(Resource)]
 pub struct LightGuard {
     level: Guard,
-    /// Whether each block state is air, by state id. Built once the block
-    /// corpus exists; without it every cell would have to be treated as opaque
-    /// and nothing would be checked.
     air: Option<Arc<[bool]>>,
     waiting: VecDeque<ColumnPos>,
     queued: HashSet<ColumnPos>,
-    /// The column handle whose light already checked out. A light update
-    /// replaces the handle, so a rewritten column is examined again. Held
-    /// weakly because that pins the allocation: a freed column's address cannot
-    /// come back as another column, and a relight cannot rewrite it in place.
     passed: HashMap<ColumnPos, Weak<Column>>,
     running: Vec<Task<Report>>,
 }
@@ -94,14 +80,7 @@ fn surrounded(store: &ColumnStore, pos: ColumnPos) -> bool {
     (-1..=1).all(|dz| (-1..=1).all(|dx| store.holds(ColumnPos::new(pos.x + dx, pos.z + dz))))
 }
 
-fn enqueue(
-    mut guard: ResMut<LightGuard>,
-    store: Option<Res<ColumnStore>>,
-    blocks: Option<Res<Blocks>>,
-) {
-    let Some(store) = store else {
-        return;
-    };
+fn enqueue(mut guard: ResMut<LightGuard>, store: Res<ColumnStore>, blocks: Option<Res<Blocks>>) {
     if guard.air.is_none() {
         let Some(blocks) = blocks else {
             return;
@@ -134,8 +113,6 @@ fn enqueue(
             continue;
         }
         if !surrounded(&store, pos) {
-            // Put it back: a missing neighbour reads as open sky, which would
-            // make every seam of the loading frontier look broken.
             guard.waiting.push_back(pos);
             break;
         }
@@ -149,8 +126,11 @@ fn enqueue(
     }
 }
 
-fn collect(mut guard: ResMut<LightGuard>) {
-    let mut finished = Vec::new();
+fn checks_running(guard: Res<LightGuard>) -> bool {
+    !guard.running.is_empty()
+}
+
+fn collect(mut guard: ResMut<LightGuard>, mut finished: Local<Vec<Report>>) {
     let mut running = std::mem::take(&mut guard.running);
     running.retain_mut(|task| match check_ready(task) {
         Some(report) => {
@@ -161,7 +141,7 @@ fn collect(mut guard: ResMut<LightGuard>) {
     });
     guard.running = running;
 
-    for report in finished {
+    for report in finished.drain(..) {
         guard.queued.remove(&report.pos);
         if report.faults.is_empty() {
             guard.passed.insert(report.pos, report.handle);
@@ -205,7 +185,7 @@ fn collect(mut guard: ResMut<LightGuard>) {
 
 #[expect(
     clippy::excessive_nesting,
-    reason = "walks the column's faces and neighbours and returns the report the moment the fault cap is reached, so the early return stays beside the loop that fills it"
+    reason = "early return stays beside the loop that fills the report"
 )]
 fn check(pos: ColumnPos, handle: Weak<Column>, world: Neighbourhood, air: Arc<[bool]>) -> Report {
     let mut faults = Vec::new();
@@ -247,8 +227,6 @@ fn check(pos: ColumnPos, handle: Weak<Column>, world: Neighbourhood, air: Arc<[b
                     IVec3::NEG_Y,
                 ] {
                     let toward = at + step;
-                    // Outside the world there are no blocks to read and the
-                    // padding the wire carries is not part of the answer.
                     if toward.y < bottom || toward.y > top {
                         continue;
                     }

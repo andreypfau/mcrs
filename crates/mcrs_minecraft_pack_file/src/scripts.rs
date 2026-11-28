@@ -1,24 +1,18 @@
 use crate::json::{Json, JsonObject};
 
-/// The scale fields of `scripts`, in the order of [`Scripts::scale`].
 pub const SCALE_FIELDS: [&str; 4] = ["scale", "scalex", "scaley", "scalez"];
 
-/// An element of the `animate` list.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AnimateItem {
-    /// In lower case.
     pub short_name: String,
-    /// `None` for the weight `1`.
     pub weight: Option<Json>,
 }
 
-/// The fields of `scripts` that the animation host reads.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Scripts {
     pub initialize: Vec<String>,
     pub pre_animation: Vec<String>,
     pub animate: Vec<AnimateItem>,
-    /// The fields of [`SCALE_FIELDS`].
     pub scale: [Option<Json>; 4],
 }
 

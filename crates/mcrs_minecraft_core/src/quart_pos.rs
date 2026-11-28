@@ -1,6 +1,5 @@
 use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
-/// A biome cell: 4 by 4 by 4 blocks.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct QuartPos {
     pub x: i32,
@@ -38,7 +37,6 @@ impl QuartPos {
         self.y << Self::BITS
     }
 
-    /// The cell's index inside its section's 4 by 4 by 4 biome grid, as x, y, z.
     pub const fn section_local(self) -> [usize; 3] {
         let mask = (1 << Self::PER_SECTION_BITS) - 1;
         [

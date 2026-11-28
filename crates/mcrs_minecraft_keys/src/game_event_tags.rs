@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 
 pub const ALLAY_CAN_LISTEN: ResourceLocation<'static> = rl!("minecraft:allay_can_listen");

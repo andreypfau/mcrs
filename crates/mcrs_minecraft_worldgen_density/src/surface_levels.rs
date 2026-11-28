@@ -1,23 +1,8 @@
 use crate::router::NoiseRouter;
-use core::ptr;
+use crate::router_key::RouterKey;
 
 const SIDE_BITS: u32 = 7;
 const SIDE: usize = 1 << SIDE_BITS;
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct Owner {
-    router: usize,
-    seed: u64,
-}
-
-impl Owner {
-    fn of(router: &NoiseRouter) -> Self {
-        Self {
-            router: ptr::from_ref(router) as usize,
-            seed: router.world_seed,
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug)]
 struct Known {
@@ -26,24 +11,15 @@ struct Known {
     level: i32,
 }
 
-/// The surface levels a worker has sampled, kept so that the fluid field of
-/// one column starts with what the fields of its neighbours already paid for.
-///
-/// A level is a function of the router and the quart column alone, so a kept
-/// level is the level a new sample would give. The table is a torus of quart
-/// columns with one slot each: its size is fixed, and a quart column that
-/// lands on a taken slot replaces what was there.
 #[derive(Default, Debug)]
 pub struct SurfaceLevels {
-    owner: Option<Owner>,
+    owner: Option<RouterKey>,
     slots: Box<[Option<Known>]>,
 }
 
 impl SurfaceLevels {
-    /// One worker fills columns for every dimension, and a level differs by
-    /// seed and by graph.
     pub(crate) fn retarget(&mut self, router: &NoiseRouter) {
-        let owner = Owner::of(router);
+        let owner = router.key();
         if self.owner == Some(owner) {
             return;
         }
@@ -56,7 +32,7 @@ impl SurfaceLevels {
     }
 
     pub(crate) fn serves(&self, router: &NoiseRouter) -> bool {
-        self.owner == Some(Owner::of(router))
+        self.owner == Some(router.key())
     }
 
     pub(crate) fn get(&self, quart_x: i32, quart_z: i32) -> Option<i32> {

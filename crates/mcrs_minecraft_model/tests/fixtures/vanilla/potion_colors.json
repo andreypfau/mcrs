@@ -1,0 +1,128 @@
+{
+  "default": -13083194,
+  "cases": [
+    {
+      "potion": null,
+      "custom_color": null,
+      "custom_effects": [],
+      "color": -13083194
+    },
+    {
+      "potion": "minecraft:water",
+      "custom_color": null,
+      "custom_effects": [],
+      "color": -13083194
+    },
+    {
+      "potion": "minecraft:strong_healing",
+      "custom_color": null,
+      "custom_effects": [],
+      "color": -515037
+    },
+    {
+      "potion": "minecraft:turtle_master",
+      "custom_color": null,
+      "custom_effects": [],
+      "color": -7503130
+    },
+    {
+      "potion": "minecraft:strong_turtle_master",
+      "custom_color": null,
+      "custom_effects": [],
+      "color": -7502362
+    },
+    {
+      "potion": null,
+      "custom_color": null,
+      "custom_effects": [
+        {
+          "id": "minecraft:speed",
+          "amplifier": 0,
+          "show_particles": true
+        }
+      ],
+      "color": -13374465
+    },
+    {
+      "potion": null,
+      "custom_color": null,
+      "custom_effects": [
+        {
+          "id": "minecraft:speed",
+          "amplifier": 0,
+          "show_particles": false
+        }
+      ],
+      "color": -13083194
+    },
+    {
+      "potion": "minecraft:night_vision",
+      "custom_color": null,
+      "custom_effects": [
+        {
+          "id": "minecraft:speed",
+          "amplifier": 1,
+          "show_particles": true
+        },
+        {
+          "id": "minecraft:poison",
+          "amplifier": 0,
+          "show_particles": false
+        }
+      ],
+      "color": -10292788
+    },
+    {
+      "potion": null,
+      "custom_color": null,
+      "custom_effects": [
+        {
+          "id": "minecraft:speed",
+          "amplifier": 255,
+          "show_particles": true
+        },
+        {
+          "id": "minecraft:poison",
+          "amplifier": 0,
+          "show_particles": true
+        }
+      ],
+      "color": -13374722
+    },
+    {
+      "potion": null,
+      "custom_color": null,
+      "custom_effects": [
+        {
+          "id": "minecraft:instant_health",
+          "amplifier": 2,
+          "show_particles": true
+        },
+        {
+          "id": "minecraft:wither",
+          "amplifier": 1,
+          "show_particles": true
+        }
+      ],
+      "color": -4047817
+    },
+    {
+      "potion": "minecraft:strong_healing",
+      "custom_color": 65280,
+      "custom_effects": [
+        {
+          "id": "minecraft:speed",
+          "amplifier": 0,
+          "show_particles": true
+        }
+      ],
+      "color": 65280
+    },
+    {
+      "potion": null,
+      "custom_color": 0,
+      "custom_effects": [],
+      "color": 0
+    }
+  ]
+}

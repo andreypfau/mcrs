@@ -2,11 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
 | Packets | PLAY, clientbound: `respawn` 84, `change_difficulty` 10, `entity_event` 34, `commands` 16, `player_position` 73, `set_chunk_cache_center` 96, `player_abilities` 65, `initialize_border` 44, `set_time` 115, `set_default_spawn_position` 99, `game_event` 39, `ticking_state` 130, `ticking_step` 131, `container_set_content` 18, `set_held_slot` 107, `update_mob_effect` 135, `post_effects` 83, `set_health` 106, `set_experience` 105, `remove_entities` 78 |
 
-Source of the version values: `assets/minecraft/version.json`. Source of the packet ids:
+Version: see `assets/minecraft/version.json`. Source of the packet ids:
 `assets/mcrs/reports/packets.json`.
 
 This document states what occurs when a teleport moves an entity from one dimension to another.
@@ -81,8 +79,8 @@ Overworld, and the player is in the Nether without a vehicle.
 | 8 | `initialize_border` | the world border of the new dimension |
 | 9 | `set_time` | the game time and the state of every clock (`command-time.md`) |
 | 10 | `set_default_spawn_position` | the respawn data of the new dimension |
-| 11 | `game_event` × 3 | only when it rains in the new dimension: event 1 (start rain) with 0; event 7 (rain level) with the rain level; event 8 (thunder level) with the thunder level |
-| 12 | `game_event` | event 13 (level chunks load start) with 0 |
+| 11 | `game_event` × 3 | only when it rains in the new dimension: event 1 (start rain) with 0; event 7 (rain strength) with the rain strength; event 8 (thunder strength) with the thunder strength |
+| 12 | `game_event` | event 13 (start of the chunk load) with 0 |
 | 13 | `ticking_state` | the tick rate and the frozen flag of the server |
 | 14 | `ticking_step` | the frozen ticks that remain |
 | 15 | `container_set_content` | the inventory menu of the player, with the carried item |
@@ -114,7 +112,6 @@ that one `update_mob_effect` arrives and that no `forget_level_chunk` arrives.
 | dimension | Identifier | the identifier of the new dimension |
 | game mode | VarInt | the id of the game mode of the player |
 | previous game mode | VarInt | 0 when the player has no previous game mode; otherwise the id of that mode plus 1 |
-| debug | Boolean | true when the new dimension is a debug world |
 | flat | Boolean | true when the world is a flat world |
 | last death location | optional | a Boolean; when true, then the Identifier of the dimension and the block position of the last death |
 | portal cooldown | VarInt | the portal cooldown of the player, in ticks |
@@ -124,8 +121,8 @@ that one `update_mob_effect` arrives and that no `forget_level_chunk` arrives.
 - The game mode ids are `survival` 0, `creative` 1, `adventure` 2 and `spectator` 3.
 - The data to keep has two bits. `0x01` tells the client to keep the attribute modifiers.
   `0x02` tells the client to keep the entity data of the player. A dimension change sets both.
-- **Postconditions** (kind: client agreement): the client drops its old level. It makes a new
-  level for the dimension and dimension type of the packet. It keeps its local player, with the
+- **Postconditions** (kind: client agreement): the client drops its old world. It makes a new
+  world for the dimension and dimension type of the packet. It keeps its local player, with the
   attribute modifiers and the entity data. It then waits for chunks
   (DIM-CHG-007).
 - **Edge cases:** the fields before the data to keep are the same fields, in the same order, as
@@ -238,7 +235,7 @@ in the Nether, and its network id differs.
 
 ---
 
-## 3. Open questions
+## 3. Unresolved
 
 - DIM-CHG-003: the position of the spawn packets of entities of the new dimension against steps
   7 to 18 is not measured. Experiment: capture the packets of the experiment of DIM-CHG-003 with

@@ -9,24 +9,18 @@ const HUGE_PROBABILITY: f32 = 0.06;
 
 #[derive(Clone, Debug)]
 pub struct CompiledHugeFungus {
-    /// Every state of the block the nylium check names.
     pub valid_base: StateMask,
     pub stem_state: VoxelId,
     pub hat_state: VoxelId,
-    /// Every state of the hat's block: what the skirt looks for below itself.
     pub hat_block: StateMask,
     pub decor_state: VoxelId,
     pub replaceable_blocks: Predicate,
     pub planted: bool,
-    /// The hat is `nether_wart_block`, the only hat that hangs vines.
     pub place_vines: bool,
     pub weeping_vines_plant: VoxelId,
-    /// `weeping_vines` at ages 23, 24 and 25.
     pub weeping_vines_by_age: [VoxelId; 3],
 }
 
-/// A huge crimson or warped fungus: a stem of one or nine columns under a hat
-/// of stacked squares, with weeping vines hung from a nether wart hat.
 pub fn place_huge_fungus<W: WorldGenVolume>(
     cfg: &CompiledHugeFungus,
     volume: &mut W,
@@ -41,9 +35,6 @@ pub fn place_huge_fungus<W: WorldGenVolume>(
     if rng.next_i32_bound(12) == 0 {
         total_height *= 2;
     }
-    // The reference measures the roof against the generator's height rather
-    // than the dimension's top, so a world whose bottom is not zero is judged
-    // against a ceiling that many blocks too low. Copied as it stands.
     if !cfg.planted && at.y + total_height + 1 >= volume.extent().depth {
         return false;
     }
@@ -100,7 +91,6 @@ fn place_hat<W: WorldGenVolume>(
     let vines = |probability: f32| if cfg.place_vines { probability } else { 0.0 };
 
     for dy in hat_start..=total_height {
-        // Drawn for every layer, whether or not it decides the radius.
         let mut radius = if dy < total_height - rng.next_i32_bound(3) {
             2
         } else {
@@ -156,8 +146,6 @@ fn place_hat_block<W: WorldGenVolume>(
         volume.set(pos, cfg.decor_state);
     } else if rng.next_f32() < hat_probability {
         volume.set(pos, cfg.hat_state);
-        // Drawn even for a hat that hangs nothing, so the two hats keep one
-        // draw sequence.
         if rng.next_f32() < vines_probability {
             hang_vines(cfg, volume, rng, pos);
         }
@@ -209,8 +197,6 @@ fn hang_vines<W: WorldGenVolume>(
     }
 }
 
-/// The reference breaks whatever stands on solid ground before a planted fungus
-/// takes the cell; without item entities that is the clearing alone.
 fn clear_below<W: WorldGenVolume>(volume: &mut W, pos: BlockPos) {
     if !volume.is_air(pos - IVec3::Y) {
         volume.set(pos, volume.world().air);
@@ -264,10 +250,6 @@ mod tests {
         }
     }
 
-    /// Stone everywhere but a one-block shaft over the nylium, so only the shaft
-    /// is ever replaceable and the hat's cell-by-cell draws reduce to the one
-    /// cell that sits above the stem.
-    /// A volume whose only replaceable state is air.
     fn open_air() -> FakeVolume {
         let mut volume = FakeVolume::default();
         volume.world.replaceable = mask_of([AIR.0]);
@@ -303,9 +285,6 @@ mod tests {
         (total_height, huge, hat_height)
     }
 
-    /// The whole draw sequence of one fungus in a shaft: two for the height,
-    /// one for the huge roll, one for the hat depth, one per hat layer, and the
-    /// hat-block rolls of the single cell that crowns the stem.
     #[test]
     fn a_fungus_in_a_shaft_spends_exactly_the_layer_and_crown_draws() {
         let cfg = config();
@@ -328,7 +307,6 @@ mod tests {
             if dy != total_height {
                 continue;
             }
-            // The crown cell is neither inside nor a corner, and never skirt.
             if replay.next_f32() >= 5.0e-4 && replay.next_f32() < 0.98 {
                 replay.next_f32();
             }
@@ -348,7 +326,6 @@ mod tests {
         );
     }
 
-    /// Ground that is not the fungus's nylium refuses before the first draw.
     #[test]
     fn the_wrong_ground_draws_nothing() {
         let cfg = config();
@@ -363,8 +340,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// The roof test sits between the height draws and the huge roll, so a
-    /// fungus that would poke through the top costs two draws and no third.
     #[test]
     fn a_fungus_under_the_roof_stops_after_the_height_draws() {
         let cfg = config();
@@ -381,8 +356,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// Open air, hanging vines and all: nothing a fungus writes leaves the
-    /// volume the writer allows it.
     #[test]
     fn the_hat_and_the_skirt_stay_inside_the_window() {
         let mut cfg = config();

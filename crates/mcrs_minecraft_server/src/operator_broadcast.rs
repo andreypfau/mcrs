@@ -7,7 +7,6 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_text::RawText;
 use smallvec::SmallVec;
 
-/// Delivers the admin messages of the commands of each dimension world to the operators.
 #[derive(Clone)]
 pub struct OperatorBroadcastPlugin;
 
@@ -17,9 +16,6 @@ impl Plugin for OperatorBroadcastPlugin {
     }
 }
 
-/// Delivers an admin message to every online operator of any dimension but its source. The
-/// world holds a copy of the operator list and the players of every dimension in the targets of
-/// its commands, so the set is read there when a message arrives.
 pub fn broadcast_to_operators(
     broadcast: On<OperatorBroadcast>,
     targets: Res<CommandTargets>,

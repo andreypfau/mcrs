@@ -7,15 +7,12 @@ use mcrs_voxel::{BlockPos, LocalPos, SectionPos};
 
 use crate::colors::{LightColors, LightType};
 
-/// Emission is at most 15 and every step costs at least one level, so light
-/// from further away than this arrives at zero.
 pub const REACH: i32 = 14;
 
 pub const EAST_FACE: u8 = 1 << 0;
 pub const UP_FACE: u8 = 1 << 1;
 pub const SOUTH_FACE: u8 = 1 << 2;
 
-/// The section plus a one-block apron, so the mesher can sample every face.
 pub fn section_output(section: SectionPos) -> (BlockPos, i32) {
     let size = SectionPos::SIZE as i32;
     (
@@ -52,9 +49,8 @@ impl Region {
 
     #[expect(
         clippy::excessive_nesting,
-        reason = "copies the cells of each overlapping section into the region across the three axes, so the index arithmetic of the source reads once"
+        reason = "index arithmetic of the source reads once"
     )]
-    /// A section `blocks` cannot give is unloaded inside `bounds`.
     pub fn covering(
         min: BlockPos,
         size: i32,
@@ -115,8 +111,6 @@ impl Region {
     }
 }
 
-/// Cost to enter each cell, and which of its east, up and south faces light
-/// may not cross. A face's bit lives on the cell at its lower coordinate.
 pub struct EdgeCosts {
     pub entry: Box<[u8]>,
     pub veto: Box<[u8]>,
@@ -125,7 +119,7 @@ pub struct EdgeCosts {
 impl EdgeCosts {
     #[expect(
         clippy::excessive_nesting,
-        reason = "visits the three forward faces of each cell and records the cost both ways in one pass over the region, so the two directions stay together"
+        reason = "both directions stay together in one pass"
     )]
     pub fn new(region: &Region, registry: &LightRegistry) -> EdgeCosts {
         let cells = region.cell_count();
@@ -225,9 +219,6 @@ pub struct Seed {
     pub emission: u8,
 }
 
-/// One section's cells, x fastest then z then y. Where a region's cell and its
-/// six neighbours all lie inside it, these equal that region's `EdgeCosts`, so
-/// a region can be assembled from the bricks of the sections it covers.
 pub struct SectionBricks {
     pub entry: Box<[u8]>,
     pub veto: Box<[u8]>,

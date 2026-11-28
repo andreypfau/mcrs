@@ -94,7 +94,7 @@ fn a_world_registry_without_files_is_empty() {
 }
 
 #[test]
-fn a_wire_id_the_registries_lack_is_refused_by_registry_and_a_holder_id_round_trips() {
+fn unknown_wire_id_is_refused_and_holder_id_round_trips() {
     let registries = test_registries();
     let ctx = WireLookup::new(registries);
     let past = |registry: &str, offset: usize| {

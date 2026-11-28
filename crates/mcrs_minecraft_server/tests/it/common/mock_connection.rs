@@ -1,10 +1,5 @@
-//! Minimal ECS world helpers for bridge routing tests.
-//!
-//! These tests exercise `bridge_outbound` (packet routing only, no sockets).
-//! The world carries `OutboundQueue` + sessions but no real network
-//! transport — socket I/O belongs to separate dispatch tests.
-
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
@@ -21,23 +16,19 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
 use mcrs_voxel::BlockPos;
 use tokio::sync::mpsc;
 
-/// Build a bare world with the resources needed for `bridge_outbound` tests.
 pub fn build_bridge_world() -> World {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     world.init_resource::<mcrs_minecraft_engine_world::session::SessionAnchors>();
     world
 }
 
-/// Spawn a connection entity with an `OutboundQueue` and return its entity id.
 pub fn spawn_connection(world: &mut World) -> Entity {
     world.spawn(OutboundQueue::default()).id()
 }
 
-/// Log a player in on `socket`, placed in `dim`. Returns the host anchor that
-/// carries the session, and the session.
 pub fn register_player(world: &mut World, socket: Entity, dim: Entity) -> (Entity, PlayerSession) {
     if !world.contains_resource::<PlayerSessionCounter>() {
         world.init_resource::<PlayerSessionCounter>();
@@ -53,10 +44,6 @@ pub fn register_player(world: &mut World, socket: Entity, dim: Entity) -> (Entit
     (anchor, session)
 }
 
-/// Write a test packet addressed to `target` into the world's
-/// `Messages<OutboundPlayerPacket>`. Pass `session` + `epoch` to simulate
-/// the stamp the extract closure applies; use `PlayerSession(0)` / `0` for
-/// fan-out targets that are epoch-checked per-recipient in bridge_outbound.
 pub fn write_packet(
     world: &mut World,
     target: PacketTarget,
@@ -74,14 +61,10 @@ pub fn write_packet(
         });
 }
 
-/// Convenience wrapper: write a packet with `PlayerSession(0)` / epoch 0,
-/// suitable for fan-out targets (`AllInDim`, `AllPlayers`, `PlayerSet`) when
-/// all sessions in the registry are also at epoch 0.
 pub fn write_packet_broadcast(world: &mut World, target: PacketTarget, seq: u32) {
     write_packet(world, target, PlayerSession(0), 0, seq);
 }
 
-/// Write a test packet stamped for `session` and addressed to it.
 pub fn write_packet_stamped(world: &mut World, session: PlayerSession, epoch: u32, seq: u32) {
     write_packet(
         world,
@@ -92,8 +75,6 @@ pub fn write_packet_stamped(world: &mut World, session: PlayerSession, epoch: u3
     );
 }
 
-/// Register a session directly (bypassing the PlayerSessionCounter), placed in
-/// dim `Entity::from_raw_u32(9998)` at `epoch`.
 pub fn register_session(world: &mut World, session: PlayerSession, socket: Entity, epoch: u32) {
     let dim = Entity::from_raw_u32(9998).expect("nonzero");
     let anchor = world
@@ -109,7 +90,6 @@ pub fn build_bridge_world_with_sessions() -> World {
     build_bridge_world()
 }
 
-/// Run a single system on `world` (handles initialization and deferred commands).
 pub fn run_system<S, Marker>(world: &mut World, system: S)
 where
     S: IntoSystem<(), (), Marker>,
@@ -120,8 +100,6 @@ where
     sys.apply_deferred(world);
 }
 
-/// Collect all packets from a connection entity's `OutboundQueue`, in the order they go on the
-/// wire.
 pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<QueuedPacket> {
     let mut q = world
         .get_mut::<OutboundQueue>(socket)
@@ -129,7 +107,6 @@ pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<QueuedPacket> {
     q.drain().collect()
 }
 
-/// A small real packet that carries `seq`, so a test can tell its packets apart.
 pub fn marker(seq: u32) -> PacketPayload {
     PacketPayload::BlockEvent(ClientboundBlockEvent {
         pos: BlockPos::new(0, 0, 0),
@@ -139,7 +116,6 @@ pub fn marker(seq: u32) -> PacketPayload {
     })
 }
 
-/// The `seq` of a packet that [`marker`] made.
 pub fn marker_seq(payload: &PacketPayload) -> Option<u32> {
     match payload {
         PacketPayload::BlockEvent(packet) => Some(packet.block.0 as u32),
@@ -147,15 +123,6 @@ pub fn marker_seq(payload: &PacketPayload) -> Option<u32> {
     }
 }
 
-/// Create a mock `RawConnection` backed by an in-memory mpsc channel.
-///
-/// Returns the `(RawConnection, OutboundReceiver)` pair so tests can observe
-/// every blob that would be sent to a real socket.
-///
-/// The dummy JoinHandle tasks are spawned onto a process-global single-thread
-/// runtime that lives for the entire test binary lifetime. Abort on
-/// `RawConnection` drop cleans up the handle slots; the runtime itself never
-/// shuts down.
 pub fn make_mock_raw_connection() -> (RawConnection, OutboundReceiver) {
     use std::sync::OnceLock;
     use tokio::runtime::Runtime;
@@ -178,10 +145,6 @@ pub fn make_mock_raw_connection() -> (RawConnection, OutboundReceiver) {
     (raw, outgoing_rx)
 }
 
-/// Create a full mock `RawConnection` with controllable inbound packets.
-///
-/// Returns `(RawConnection, outgoing_rx, inbound_tx)` so the test can both
-/// observe outgoing blobs and inject incoming `ReceivedPacket` values.
 pub fn make_mock_raw_connection_full() -> (
     RawConnection,
     OutboundReceiver,

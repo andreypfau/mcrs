@@ -39,9 +39,6 @@ fn wire(particle: &ParticleOptions) -> Vec<u8> {
     out
 }
 
-/// Decodes the golden wire bytes, checks they re-encode byte for byte, and
-/// that the golden JSON parses to the same value and is written back as it
-/// was read.
 fn check(label: &str) -> ParticleOptions {
     let bytes = hex(golden(&format!("{label}.wire")));
     let mut r = &bytes[..];

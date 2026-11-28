@@ -1,18 +1,12 @@
 use mcrs_minecraft_chunk::PalettedContainer::{Heterogeneous, Homogeneous};
+use mcrs_minecraft_chunk::VoxelPalette;
 pub use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_chunk::{SharedVoxelPalette, VoxelPalette};
 use mcrs_voxel::{BlockStateId, SectionPos};
 
-/// One section's block states as the engine keeps them.
 pub type SectionStates = VoxelPalette<BlockStateId, { SectionPos::SIZE }>;
 
-/// The blocks of a loaded section, which the
-/// [`SectionIndex`](crate::world::storage::section::SectionIndex) of its dimension holds: the
-/// engine's shared section palette, named in this crate's vocabulary.
-pub type ChunkBlocks = SharedVoxelPalette<BlockStateId, { SectionPos::SIZE }>;
+pub use mcrs_minecraft_chunk::ChunkBlocks;
 
-/// The states of a section that worldgen or a save produced, checked against the
-/// `state_count` states of the block table. An id past the table reads as air.
 pub fn section_states(blocks: &BlockPalette, state_count: usize) -> SectionStates {
     VoxelPalette(
         blocks
@@ -25,13 +19,6 @@ pub fn air_section() -> ChunkBlocks {
     ChunkBlocks::new(SectionStates::homogeneous(BlockStateId::AIR))
 }
 
-// Coupling: this assumes `VoxelId(0)` is the air state, which
-// is the current vanilla convention but is not enforced by `BlockPalette`
-// itself. Reordering the static block registry so air ends up at a
-// different ID would silently break this count. The principled fix is to
-// consult the `IS_NOT_AIR` bit from `BlockStateLightTable.flags_for`, but that
-// requires plumbing the table through `non_air_block_count`'s callers in
-// the column encoders. Tracked as a follow-up.
 pub fn non_air_block_count(blocks: &BlockPalette) -> u16 {
     match &blocks.0 {
         Homogeneous(registry_id) if registry_id.0 != 0 => SectionPos::VOLUME as u16,

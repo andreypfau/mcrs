@@ -1,12 +1,3 @@
-//! Oracle fixtures by name. `fixture(name)` resolves a name in
-//! `tools/fixtures.json`, requires `tools/captures.json` to record it at the
-//! corpus version, and reads it with `text`, `bytes`, `file`, `files` or
-//! `dump(magic)`, which also checks a binary dump's header.
-//!
-//! A parity file is a `.rs` file whose stem ends in `_parity` or is `parity`.
-//! Every test in it loads a fixture and takes each expected value from the
-//! fixture or from the code under test. Nothing else in the workspace names a
-//! fixture file.
 #![expect(
     clippy::expect_used,
     clippy::panic,
@@ -38,8 +29,6 @@ const DUMP_FORMAT: u32 = 1;
 
 type Manifest = BTreeMap<String, String>;
 
-/// The pinned client jar's `data/minecraft` tree and `version.json`, laid out as the
-/// `minecraft` directory of a data pack root. The jar must be installed; nothing is downloaded.
 pub fn vanilla_dir() -> &'static Path {
     static DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         vanilla_data(&ClientJar::Installed, None, &Progress::default()).unwrap_or_else(|error| {

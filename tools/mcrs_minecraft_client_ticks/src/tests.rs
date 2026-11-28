@@ -16,9 +16,19 @@ events
 8750 > move 0.5,99.9216,0.5 - on_ground
 10000 > tick
 11250 < motion 0 -0.0784000015258789 0
+11250 < data self 0 byte:0x02
+11250 < data 57 6 pose:crouching
 12500 > move - 12.25,-3.5 none
 13750 > tick
+14000 > command start_fall_flying
+14500 > interact true
 15000 > input none
+15500 < slot 0 3 36 minecraft:stone*10
+15500 < cursor -
+15500 < content 0 4 - - minecraft:shield*1
+16000 > action swap_item_with_offhand
+16500 > removed action drop_item
+17000 > click 0 3 36 0 pickup minecraft:stone*9{minecraft:damage=-12,!minecraft:food} 36=-
 ";
 
 #[test]
@@ -46,6 +56,14 @@ fn a_recording_reads_back_as_written() {
         })
     );
     assert_eq!(ticks[2][0], Event::Motion([0.0, -0.0784000015258789, 0.0]));
+    assert_eq!(
+        ticks[2][2],
+        Event::EntityData(EntityData {
+            entity: DataEntity::Other(57),
+            index: 6,
+            value: "pose:crouching".to_owned(),
+        })
+    );
     assert_eq!(
         recording.times[8], 11250,
         "each event keeps the time of its line"

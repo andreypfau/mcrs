@@ -1,12 +1,13 @@
 use crate::bus::to;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{
-    Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query, Res,
-    With,
+    Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Populated,
+    Query, Res, With, on_message,
 };
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_network::event::Received;
@@ -16,6 +17,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
 };
 
 use crate::bus::{OutboundPlayerPacket, PacketPayload};
+use crate::client_on_ground::ClientOnGround;
 use crate::coordinator::clock::GameTime;
 use crate::teleport::{
     AcceptOutcome, MAX_XZ, MAX_Y, TeleportState, landing, position_packet, teleport_to,
@@ -35,7 +37,15 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_move_vehicle);
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
-        app.add_systems(FixedUpdate, process_movement.in_set(TickSet::ClientInput));
+        if let Err(error) = app.try_register_required_components::<Player, ClientOnGround>() {
+            tracing::error!("a player does not require its on-ground flag: {error}");
+        }
+        app.add_systems(
+            FixedUpdate,
+            process_movement
+                .run_if(on_message::<PlayerMovement>)
+                .in_set(TickSet::ClientInput),
+        );
         app.add_systems(
             FixedPostUpdate,
             teleport.before(VoxelUpdateSet::NetworkSync),
@@ -52,6 +62,7 @@ fn handle_move_pos(
             entity: on.entity,
             position: Some(p.position.into()),
             look: None,
+            on_ground: Some(ClientOnGround(p.flags.on_ground())),
         });
     }
 }
@@ -65,6 +76,7 @@ fn handle_move_pos_rot(
             entity: on.entity,
             position: Some(p.position.into()),
             look: Some(Rotation::new(p.look.yaw, p.look.pitch)),
+            on_ground: Some(ClientOnGround(p.flags.on_ground())),
         });
     }
 }
@@ -78,6 +90,7 @@ fn handle_move_rot(
             entity: on.entity,
             position: None,
             look: Some(Rotation::new(p.look.yaw, p.look.pitch)),
+            on_ground: Some(ClientOnGround(p.flags.on_ground())),
         });
     }
 }
@@ -86,17 +99,16 @@ fn handle_move_status_only(
     on: On<Received<ServerboundMovePlayerStatusOnly>>,
     mut writer: MessageWriter<PlayerMovement>,
 ) {
-    if on.packet().is_some() {
+    if let Some(p) = on.packet() {
         writer.write(PlayerMovement {
             entity: on.entity,
             position: None,
             look: None,
+            on_ground: Some(ClientOnGround(p.flags.on_ground())),
         });
     }
 }
 
-/// The server has no vehicles, so a vehicle move moves nothing; it still counts as a move for the
-/// resend of a pending teleport.
 fn handle_move_vehicle(
     on: On<Received<ServerboundMoveVehicle>>,
     mut writer: MessageWriter<PlayerMovement>,
@@ -106,6 +118,7 @@ fn handle_move_vehicle(
             entity: on.entity,
             position: None,
             look: None,
+            on_ground: None,
         });
     }
 }
@@ -115,16 +128,23 @@ pub struct PlayerMovement {
     entity: Entity,
     position: Option<DVec3>,
     look: Option<Rotation>,
+    on_ground: Option<ClientOnGround>,
 }
 
 pub(crate) fn process_movement(
     mut reader: MessageReader<PlayerMovement>,
-    mut query: Query<(&Owner, Mut<TeleportState>, Mut<Transform>)>,
+    mut query: Query<(
+        &Owner,
+        Mut<TeleportState>,
+        Mut<Transform>,
+        Mut<ClientOnGround>,
+    )>,
     time: Res<GameTime>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     for movement in reader.read() {
-        let Ok((owner, mut state, mut transform)) = query.get_mut(movement.entity) else {
+        let Ok((owner, mut state, mut transform, mut on_ground)) = query.get_mut(movement.entity)
+        else {
             continue;
         };
         if state.pending().is_some() {
@@ -140,6 +160,9 @@ pub(crate) fn process_movement(
         if let Some(look) = movement.look {
             transform.set_if_neq(transform.with_rotation(look));
         }
+        if let Some(reported) = movement.on_ground {
+            on_ground.set_if_neq(reported);
+        }
         state.sync(*transform);
     }
 }
@@ -149,8 +172,6 @@ fn reachable(position: DVec3) -> DVec3 {
     position.clamp(-MAX_POS, MAX_POS)
 }
 
-/// The resend of a pending teleport: absolute values, with the position of `destination`, the
-/// rotation of the player and zero velocity.
 fn resend(
     owner: &Owner,
     teleport_id: i32,
@@ -167,8 +188,6 @@ fn resend(
     position(owner, teleport_id, &teleport)
 }
 
-/// The correction of an accept: the position of `destination`, and the client keeps its rotation
-/// and velocity.
 fn correction(owner: &Owner, teleport_id: i32, destination: Transform) -> OutboundPlayerPacket {
     position(owner, teleport_id, &teleport_to(destination, destination))
 }
@@ -181,7 +200,10 @@ fn position(owner: &Owner, teleport_id: i32, teleport: &Teleport) -> OutboundPla
 }
 
 fn teleport(
-    mut clients: Query<(&Owner, &mut TeleportState, &Transform), (Changed<Transform>, With<Owner>)>,
+    mut clients: Populated<
+        (&Owner, &mut TeleportState, &Transform),
+        (Changed<Transform>, With<Owner>),
+    >,
     time: Res<GameTime>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
@@ -200,9 +222,6 @@ fn teleport(
     }
 }
 
-/// An accept of the pending teleport at its destination confirms it, and an accept at another
-/// position gets a correction: the position of an accept never becomes the position of the
-/// player. An accept of the newest id once it is confirmed disconnects the client.
 fn handle_accept_teleportation(
     event: On<Received<ServerboundAcceptTeleportation>>,
     mut players: Query<(&Owner, &mut TeleportState)>,
@@ -237,15 +256,16 @@ fn handle_accept_teleportation(
 mod tests {
     use super::*;
     use crate::bus::PacketTarget;
+    use bevy_ecs::message::MessageRegistry;
     use bevy_ecs::message::Messages;
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
     use mcrs_minecraft_engine_world::session::PlayerSession;
 
     #[test]
-    fn a_server_move_sends_one_position_with_the_next_teleport_id_and_a_synced_one_none() {
+    fn server_move_sends_one_position_with_the_next_teleport_id() {
         let mut world = World::new();
-        world.init_resource::<Messages<OutboundPlayerPacket>>();
+        MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
         world.init_resource::<GameTime>();
         let moved_session = PlayerSession(1);
         let moved = world
@@ -294,13 +314,14 @@ mod tests {
             entity,
             position: Some(position),
             look: None,
+            on_ground: None,
         }
     }
 
     fn movement_world() -> World {
         let mut world = World::new();
-        world.init_resource::<Messages<PlayerMovement>>();
-        world.init_resource::<Messages<OutboundPlayerPacket>>();
+        MessageRegistry::register_message::<PlayerMovement>(&mut world);
+        MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
         world.init_resource::<GameTime>();
         world
     }
@@ -322,13 +343,19 @@ mod tests {
         let mut unconfirmed = TeleportState::default();
         unconfirmed.sent(Transform::default(), GameTime(0));
         let awaiting = world
-            .spawn((Owner(PlayerSession(1)), Transform::default(), unconfirmed))
+            .spawn((
+                Owner(PlayerSession(1)),
+                Transform::default(),
+                unconfirmed,
+                ClientOnGround::default(),
+            ))
             .id();
         let confirmed = world
             .spawn((
                 Owner(PlayerSession(2)),
                 Transform::default(),
                 TeleportState::default(),
+                ClientOnGround::default(),
             ))
             .id();
         let to = DVec3::new(5.0, 64.0, 5.0);
@@ -348,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn an_accept_away_from_the_destination_gets_a_correction_and_never_moves_the_player() {
+    fn accept_away_from_destination_gets_a_correction_without_moving() {
         use mcrs_minecraft_core::Look;
         use mcrs_minecraft_protocol::Encode;
 
@@ -397,7 +424,12 @@ mod tests {
         let mut state = TeleportState::default();
         state.sent(destination, GameTime(0));
         let player = world
-            .spawn((Owner(PlayerSession(1)), destination, state))
+            .spawn((
+                Owner(PlayerSession(1)),
+                destination,
+                state,
+                ClientOnGround::default(),
+            ))
             .id();
         let mut body = Vec::new();
         ServerboundMoveVehicle {
@@ -434,5 +466,82 @@ mod tests {
             "TP-CONFIRM-RES-004"
         );
         assert_eq!(world.get::<Transform>(player), Some(&destination));
+    }
+
+    #[test]
+    fn the_on_ground_flag_follows_each_move_packet_of_the_player_and_no_vehicle_move() {
+        use mcrs_minecraft_protocol::Encode;
+        use mcrs_minecraft_protocol::packets::table::Row;
+        use mcrs_minecraft_protocol_game::MoveFlags;
+
+        fn flag_after<P: Row + Encode>(world: &mut World, player: Entity, packet: &P) -> bool {
+            let mut body = Vec::new();
+            packet.encode(&mut body).unwrap();
+            world.trigger(Received::<P>::new(player, body.into()));
+            world.run_system_once(process_movement).unwrap();
+            world.get::<ClientOnGround>(player).unwrap().0
+        }
+        let flags = |on_ground| MoveFlags::new().with_on_ground(on_ground);
+        let vehicle = |on_ground| ServerboundMoveVehicle {
+            position: Default::default(),
+            look: Default::default(),
+            on_ground,
+        };
+
+        let mut world = movement_world();
+        world.add_observer(handle_move_pos);
+        world.add_observer(handle_move_pos_rot);
+        world.add_observer(handle_move_rot);
+        world.add_observer(handle_move_status_only);
+        world.add_observer(handle_move_vehicle);
+        let player = world
+            .spawn((
+                Owner(PlayerSession(1)),
+                Transform::default(),
+                TeleportState::default(),
+                ClientOnGround::default(),
+            ))
+            .id();
+
+        let reported = [
+            flag_after(
+                &mut world,
+                player,
+                &ServerboundMovePlayerStatusOnly { flags: flags(true) },
+            ),
+            flag_after(&mut world, player, &vehicle(false)),
+            flag_after(
+                &mut world,
+                player,
+                &ServerboundMovePlayerPos {
+                    position: Default::default(),
+                    flags: flags(false),
+                },
+            ),
+            flag_after(
+                &mut world,
+                player,
+                &ServerboundMovePlayerPosRot {
+                    position: Default::default(),
+                    look: Default::default(),
+                    flags: flags(true),
+                },
+            ),
+            flag_after(
+                &mut world,
+                player,
+                &ServerboundMovePlayerRot {
+                    look: Default::default(),
+                    flags: flags(false),
+                },
+            ),
+            flag_after(&mut world, player, &vehicle(true)),
+        ];
+
+        assert_eq!(
+            reported,
+            [true, true, false, true, false, false],
+            "BRK-PRG-002"
+        );
     }
 }

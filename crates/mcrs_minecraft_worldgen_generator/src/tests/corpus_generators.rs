@@ -1,8 +1,3 @@
-//! Which of the corpus's features the freeze can actually run.
-//!
-//! A feature without a generator keeps its index and its seed and places
-//! nothing, so a gap here is silent in the world and loud only in this census.
-
 #[cfg(test)]
 use mcrs_minecraft_resource::ResourceLocationBuf;
 #[cfg(test)]
@@ -33,11 +28,9 @@ use super::{corpus_features, one_step};
 const BIOME: &str = "minecraft:badlands";
 
 #[cfg(test)]
-/// The corpus features this build still cannot place.
 const EXPECTED_MISSING: [&str; 0] = [];
 
 #[cfg(test)]
-/// Every feature of the corpus as one step, each placed under its own id.
 fn corpus_tables() -> (FeatureTables, &'static LoadedFeatures) {
     let corpus = corpus_features();
     let step: Vec<Arc<CompiledPlacedFeature>> = corpus
@@ -67,7 +60,6 @@ fn corpus_program() -> &'static (FeatureTables, FeatureProgram) {
 }
 
 #[cfg(test)]
-/// The step position of the corpus feature `name`, and the program's generator for it.
 fn generator_of<'a>(
     tables: &FeatureTables,
     program: &'a FeatureProgram,
@@ -86,10 +78,6 @@ fn generator_of<'a>(
 }
 
 #[cfg(test)]
-/// The ids whose feature this build can actually write a block for.
-///
-/// Compiling to a generator is not enough: a container whose every entry is a
-/// shape this build has no code for still compiles and still places nothing.
 fn runnable() -> BTreeSet<ResourceLocationBuf> {
     let (tables, program) = corpus_program();
     tables.features.steps[0]
@@ -125,8 +113,6 @@ fn id(name: &str) -> ResourceLocationBuf {
 }
 
 #[cfg(test)]
-/// Which of the corpus's features still have no generator, read off the
-/// registry rather than written by hand: the gap is loud here or nowhere.
 fn the_census_of_what_still_places_nothing() {
     let runnable = runnable();
     let features: BTreeMap<ResourceLocationBuf, Feature> = registry("feature");
@@ -143,8 +129,6 @@ fn the_census_of_what_still_places_nothing() {
 }
 
 #[cfg(test)]
-/// The sixteen selectors that reach a fallen tree kept their chance draw and
-/// placed nothing for that entry; now the entry has a generator of its own.
 fn the_tree_selectors_reach_their_fallen_entry() {
     let (tables, program) = corpus_program();
 
@@ -164,8 +148,6 @@ fn the_tree_selectors_reach_their_fallen_entry() {
 }
 
 #[cfg(test)]
-/// `simple_random_selector` picks with one `nextInt(size)`, which is what a
-/// weighted selector over `size` ones does — and the compile says so.
 fn a_simple_random_selector_compiles_to_equal_weights() {
     let (tables, program) = corpus_program();
     let Some(Generator::WeightedRandomSelector(features)) =
@@ -177,8 +159,6 @@ fn a_simple_random_selector_compiles_to_equal_weights() {
 }
 
 #[cfg(test)]
-/// The three flower features whose block comes out of a noise sampler, and
-/// which of the three shapes each takes.
 fn the_noise_state_providers_resolve_to_a_sampler() {
     use mcrs_minecraft_block_predicate::provider::{
         DirectBlockStateProvider, TypedBlockStateProvider,
@@ -243,9 +223,6 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
 }
 
 #[cfg(test)]
-/// `pale_moss` rolls for a `minecraft:pale_moss_patch` on the tree's own random
-/// source, so a pale oak can only run once that patch does: running it without
-/// the patch's draws would move every later object of the column.
 fn a_pale_oak_runs_its_moss_patch() {
     let (tables, program) = corpus_program();
     assert!(
@@ -264,8 +241,6 @@ fn a_pale_oak_runs_its_moss_patch() {
     );
 }
 
-/// Every corpus placed feature, with its own chain, as one step the single
-/// biome carries — the widest program the freeze can be handed.
 pub(super) fn every_placed_feature() -> FeatureTables {
     let corpus = corpus_features();
     let step = corpus
@@ -282,9 +257,6 @@ pub(super) fn every_placed_feature() -> FeatureTables {
 }
 
 #[cfg(test)]
-/// Every feature type the corpus uses, and every feature written with it: the
-/// type of each file, plus the type of every feature written inline inside one,
-/// which a census over file ids cannot see.
 fn corpus_feature_types() -> BTreeMap<String, Vec<Feature>> {
     fn walk(
         node: &serde_json::Value,
@@ -328,13 +300,9 @@ fn corpus_feature_types() -> BTreeMap<String, Vec<Feature>> {
 }
 
 #[cfg(test)]
-/// The feature types no generator places.
 const EXPECTED_MISSING_TYPES: [&str; 0] = [];
 
 #[cfg(test)]
-/// Every feature type the corpus uses, derived from the assets rather than
-/// listed here, against the generators this build has. A datapack that adds a
-/// type this build cannot place fails here rather than in a silent world.
 fn every_feature_type_the_corpus_uses_compiles_to_a_generator() {
     let types = corpus_feature_types();
     let mut kinds = Vec::new();
@@ -373,9 +341,6 @@ fn every_feature_type_the_corpus_uses_compiles_to_a_generator() {
 }
 
 #[cfg(test)]
-/// Every block a `simple_block` feature can hand its region, read out of the
-/// asset: every name under `to_place` that the block registry resolves,
-/// whatever key the provider happens to hold it under.
 fn nested_simple_blocks(value: &serde_json::Value) -> Vec<&serde_json::Value> {
     let mut out = Vec::new();
     match value {
@@ -424,9 +389,6 @@ fn simple_block_states(to_place: &serde_json::Value, out: &mut BTreeSet<String>)
 }
 
 #[cfg(test)]
-/// The pale garden's carpet is the one `simple_block` state the reference does
-/// not simply write: `MossyCarpetBlock.placeAt` builds the shape from the walls
-/// beside it. The compile has to hand the placer the table that lets it.
 fn the_pale_garden_carpet_compiles_to_a_shape_table() {
     let (tables, program) = corpus_program();
     let Some(Generator::SimpleBlock(config)) =
@@ -458,10 +420,6 @@ fn the_pale_garden_carpet_compiles_to_a_shape_table() {
     );
 }
 
-/// `SimpleBlockFeature.place` refuses a state that could not survive, so every
-/// state a `simple_block` can name has to be decided: by the placement filter
-/// of its definition, by a `canSurvive` family, or by the reference's default
-/// of true for a block that overrides nothing.
 #[test]
 fn every_simple_block_state_is_decided() {
     use mcrs_minecraft_worldgen_feature_place::tree::survive::family_of;
@@ -473,12 +431,17 @@ fn every_simple_block_state_is_decided() {
             simple_block_states(&simple_block["to_place"], &mut states);
         }
         for state in states {
-            let by_definition = blocks()
-                .0
-                .block(&state)
-                .is_some_and(|block| block.placement_filter.is_some());
+            let entry = blocks().0.block(&state);
+            let by_definition = entry.is_some_and(|block| {
+                crate::trees::short_form(&blocks().0, block.default_state_id).is_some()
+            });
+            let every_state = entry.is_some_and(|block| {
+                (0..block.state_count)
+                    .filter_map(|offset| block.state_at(offset))
+                    .all(|id| crate::trees::short_form(&blocks().0, id).is_some())
+            });
             match (by_definition, family_of(&state)) {
-                (true, Some(_)) => panic!("{state} is decided twice"),
+                (true, Some(_)) if every_state => panic!("{state} is decided twice"),
                 (false, None) => {
                     by_default.insert(state);
                 }

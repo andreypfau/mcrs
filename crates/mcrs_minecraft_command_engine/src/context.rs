@@ -9,9 +9,8 @@ use bevy_ecs::prelude::Res;
 use bevy_ecs::system::{StaticSystemParam, SystemParam};
 use mcrs_command::{Argument, ArgumentHandle, Contains};
 use mcrs_minecraft_command::Source;
-use mcrs_minecraft_entity::PLAYER_EYE_HEIGHT;
+use mcrs_minecraft_pose::Pose;
 
-/// What a handler of a command of the set `S` reads its arguments with.
 #[derive(SystemParam)]
 pub struct CommandContext<'w, 's, S: CommandSet> {
     pub(crate) tree: Res<'w, CommandTree<S>>,
@@ -21,7 +20,6 @@ pub struct CommandContext<'w, 's, S: CommandSet> {
 }
 
 impl<'w, 's, S: CommandSet> CommandContext<'w, 's, S> {
-    /// The source of the call, which reads the world through the lookup of the set.
     pub fn source(
         &self,
         call: &Invocation,
@@ -29,8 +27,6 @@ impl<'w, 's, S: CommandSet> CommandContext<'w, 's, S> {
         self.source_of(&call.source)
     }
 
-    /// The source of `state`, with the rank of its dimension in the dimension order. The world
-    /// fills the targets before a line parses, so a dimension they lack fails the source.
     pub(crate) fn source_of(
         &self,
         state: &SourceState,
@@ -39,33 +35,35 @@ impl<'w, 's, S: CommandSet> CommandContext<'w, 's, S> {
             tracing::error!(dimension = ?state.dimension, "a command source names no running dimension");
             return Err(CommandFailure::failed());
         };
+        let eye_height = state
+            .player
+            .and_then(|player| self.targets.player(player))
+            .map_or(Pose::Standing.player_dimensions().eye_height, |entry| {
+                entry.dimensions.eye_height
+            });
         Ok(Source {
             position: state.position,
             yaw: state.yaw,
             pitch: state.pitch,
             anchor: state.anchor,
-            eye_height: Some(PLAYER_EYE_HEIGHT),
+            eye_height: Some(f64::from(eye_height)),
             dimension,
             ..Source::new(state.level, self.lookup())
         })
     }
 
-    /// What the arguments of the set read from this world.
     pub fn lookup(&self) -> &SetLookup<'w, 's, S> {
         &self.lookup
     }
 
-    /// The dimensions that run and the players of every one of them.
     pub fn targets(&self) -> &CommandTargets {
         &self.targets
     }
 
-    /// The command line that runs, without its leading slash.
     pub fn line(&self) -> &str {
         &self.running.line
     }
 
-    /// The value of an argument the branch of the call always holds.
     pub fn arg<'a, T>(
         &'a self,
         call: &Invocation,
@@ -79,7 +77,6 @@ impl<'w, 's, S: CommandSet> CommandContext<'w, 's, S> {
         self.opt(call, arg)?.ok_or_else(CommandFailure::failed)
     }
 
-    /// The value of an argument the branch of the call may lack.
     pub fn opt<'a, T>(
         &'a self,
         call: &Invocation,

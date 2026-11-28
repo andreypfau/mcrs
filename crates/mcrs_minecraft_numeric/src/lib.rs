@@ -1,12 +1,3 @@
-//! Numeric operations whose result bits go into terrain, entity motion, command output and
-//! registry data.
-//!
-//! Each function gives a bit-exact result. Most of them differ from the obvious standard library
-//! call in a NaN, a signed zero or a step order, so a caller that needs the reference bits uses
-//! them.
-
-// std: LazyLock for the sine tables, and the f64 sine, logarithm and power that build and use them
-
 mod angle;
 mod atan;
 mod atan_table;
@@ -19,7 +10,7 @@ mod interpolation;
 mod sine;
 mod sine_table;
 
-pub use angle::{radians_from_degrees, wrap_degrees};
+pub use angle::{radians_from_degrees, wrap_degrees, wrap_degrees_f64};
 pub use atan::{atan2, inverse_sqrt_estimate};
 pub use colour::hsv_to_rgb;
 pub use comparison::{clamp_f32, max_f32, min_f32, sign_f32};

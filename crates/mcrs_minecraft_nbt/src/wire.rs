@@ -8,8 +8,6 @@ use crate::deserializer::NbtReadHelper;
 use crate::serializer::WriteAdaptor;
 use crate::tag::NbtTag;
 
-/// The input past what a cursor over it read, or an error when the read ran
-/// past the end of it.
 fn rest_after(r: &[u8], position: u64) -> Result<&[u8]> {
     usize::try_from(position)
         .ok()
@@ -51,15 +49,12 @@ impl Decode<'_> for NbtTag {
     }
 }
 
-/// Writes a serde value as one network NBT tag: an unnamed root of whatever type the value
-/// serializes to.
 pub fn encode_wire<T: serde::Serialize>(value: &T, w: impl Write) -> Result<()> {
     crate::to_bytes_unnamed(value, w).map_err(Error::other)
 }
 
 pub type WireDeserializer<'x, 'y> = crate::deserializer::Deserializer<&'x mut Cursor<&'y [u8]>>;
 
-/// Reads one network NBT tag through `read`, and advances `r` past it.
 pub fn read_wire<T>(
     r: &mut &[u8],
     read: impl FnOnce(&mut WireDeserializer<'_, '_>) -> Result<T>,
@@ -82,8 +77,6 @@ pub fn decode_wire<T: serde::de::DeserializeOwned>(r: &mut &[u8]) -> Result<T> {
     read_wire(r, |d| T::deserialize(&mut *d).map_err(Error::other))
 }
 
-/// Checks that `r` starts with one well-formed network NBT tag, advances `r` past it, and
-/// returns the bytes of the tag. It builds no tree and does not allocate.
 pub fn split_wire<'a>(r: &mut &'a [u8]) -> Result<&'a [u8]> {
     let input = *r;
     let Some(&tag_id) = input.first() else {
@@ -94,7 +87,7 @@ pub fn split_wire<'a>(r: &mut &'a [u8]) -> Result<&'a [u8]> {
     }
     let mut cursor = Cursor::new(input);
     let mut reader = NbtReadHelper::new(&mut cursor);
-    reader.skip_bytes(1).map_err(Error::other)?;
+    reader.read_root_kind().map_err(Error::other)?;
     NbtTag::skip_data(&mut reader, tag_id).map_err(Error::other)?;
     let end =
         usize::try_from(cursor.position()).map_err(|_| Error::from(ErrorKind::UnexpectedEnd))?;

@@ -2,10 +2,8 @@ use uuid::Uuid;
 
 use crate::{BedrockUuidScheme, GameProfileValue, PlayerName, Xuid};
 
-/// The external identity of a player. The UUID derives from it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PlayerIdentity {
-    /// A Java player, or a Bedrock player with a linked Java account.
     Java(GameProfileValue),
     Bedrock(BedrockIdentity),
 }

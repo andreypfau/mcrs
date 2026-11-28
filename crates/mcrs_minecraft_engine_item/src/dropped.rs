@@ -7,7 +7,6 @@ use bevy_math::DVec3;
 
 use crate::InSlot;
 
-/// The stack lies in the world at `pos`. An insert removes [`InSlot`].
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 #[component(on_insert = leave_slot)]
 pub struct Dropped {

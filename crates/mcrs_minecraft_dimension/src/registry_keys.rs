@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const DIMENSION: RegistryKey<crate::Dimension> = RegistryKey::new(rl!("minecraft:dimension"));

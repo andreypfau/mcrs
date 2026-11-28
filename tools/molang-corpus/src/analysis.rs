@@ -4,7 +4,6 @@ use mcrs_molang::{
     BinaryOp, Body, Expr, ExprKind, ResourceKind, Stmt, StmtKind, Syntax, UnaryOp, VariableSpace,
 };
 
-/// A value that an expression reads from outside the run.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Read {
     Query(String),
@@ -35,7 +34,6 @@ pub struct VariableWrite {
     pub deps: BTreeSet<Read>,
 }
 
-/// The facts of one parsed expression that the report aggregates.
 #[derive(Clone, Debug, Default)]
 pub struct Facts {
     pub nodes: usize,

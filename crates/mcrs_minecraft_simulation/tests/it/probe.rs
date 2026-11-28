@@ -134,7 +134,6 @@ pub fn at(x: i32, y: i32, z: i32) -> BlockPos {
     BlockPos::new(x, y, z)
 }
 
-/// The hits of the `speed` picks of `section`, whose state ticks at the local indices `ticking`.
 pub fn draw_hits(
     section: SectionPos,
     ticking: &[u16],
@@ -597,8 +596,6 @@ impl Host {
         self.set_block(pos, state).expect("loaded section");
     }
 
-    /// Lists the positions that tick randomly under `table` in each section, now and after each
-    /// write.
     pub fn set_random_ticks(&mut self, table: RandomTickTable) {
         self.random_table = table;
         let sections: Vec<SectionPos> = self.ticking.keys().copied().collect();
@@ -615,14 +612,12 @@ impl Host {
         ticking.rebuild(&section, &self.random_table, &mut PaletteBuffer::default());
     }
 
-    /// The local indices of the positions of `section` whose state takes random ticks.
     pub fn random_ticking(&self, section: SectionPos) -> &[u16] {
         self.ticking
             .get(&section)
             .map_or(&[], TickingPositions::as_slice)
     }
 
-    /// The hits of `speed` picks in each of `sections` in step `now`, in the order of `sections`.
     pub fn draw_hits(&self, sections: &[SectionPos], speed: u32, now: i64) -> Vec<RandomHit> {
         let streams = StreamSeed::new(4, "minecraft:overworld").sections(GameTick(now));
         let mut hits = Vec::new();

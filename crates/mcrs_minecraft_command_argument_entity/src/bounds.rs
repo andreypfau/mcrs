@@ -34,7 +34,6 @@ impl BoundNumber for f32 {
     }
 }
 
-/// A run of number characters that stops before `..`.
 fn bound_token(reader: &mut Reader<'_>) -> Span {
     let start = reader.cursor();
     while let Some(c) = reader.peek() {

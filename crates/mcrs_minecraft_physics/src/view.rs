@@ -1,6 +1,5 @@
 use crate::Tables;
 
-/// The read-only data of every step: the blocks, the other entities and the tables.
 pub struct View<'a, W, B> {
     pub world: &'a W,
     pub bodies: &'a B,

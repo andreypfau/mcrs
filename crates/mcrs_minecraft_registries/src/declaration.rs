@@ -11,8 +11,6 @@ use crate::refs::{Resolve, ResolveError};
 use crate::registries::{Erased, Kind, Registries, Stage};
 use crate::registry::{DataValue, Names, Registry};
 
-/// Where one entry is decoded from: a pack file or a value built in its place, both in the file
-/// form, or what a server sent and the file of a known pack it stands for, in the network form.
 pub(crate) enum Source<'f> {
     File { path: &'f str, bytes: &'f [u8] },
     Value(Box<dyn Any + Send + Sync>),
@@ -29,7 +27,6 @@ impl<'f> Source<'f> {
     }
 }
 
-/// Reads the named form of `T` from `source` and resolves it against `registries`.
 fn decode<T: Resolve<Named: DeserializeOwned + 'static>>(
     source: Source<'_>,
     registries: &Registries,
@@ -91,8 +88,6 @@ impl<V: DataValue> DataDeclaration<V> {
         self
     }
 
-    /// Checks the loaded registry as a whole. `validator` names each entry it refuses by its
-    /// position in [`Registry::values`].
     pub fn validate(
         mut self,
         validator: impl Fn(&Registry<V>, &Registries) -> Vec<(usize, String)> + Send + Sync + 'static,
@@ -101,7 +96,6 @@ impl<V: DataValue> DataDeclaration<V> {
         self
     }
 
-    /// Sends the registry to clients, each entry in its named form.
     pub fn synced(mut self) -> Self
     where
         V::Named: Serialize,
@@ -113,8 +107,6 @@ impl<V: DataValue> DataDeclaration<V> {
         self
     }
 
-    /// Sends the registry to clients as `N` and reads what a server sent back through it, for a
-    /// registry whose network form differs from its file form.
     pub fn synced_via<N>(mut self) -> Self
     where
         N: Resolve<Named: Serialize + DeserializeOwned + 'static> + for<'v> From<&'v V>,
@@ -184,13 +176,10 @@ impl<V: DataValue> Codec for DataDeclaration<V> {
     }
 }
 
-/// The path of the file of the entry `name` of the registry whose path is `registry`.
 pub(crate) fn entry_path(registry: &str, name: &ResourceLocationBuf) -> String {
     format!("data/{}/{registry}/{}.json", name.namespace(), name.path())
 }
 
-/// Puts `value` in `pack` as the entry `name` of the data registry of `V`, at the path of the
-/// entry's file. It replaces a file at that path.
 pub fn insert_entry<V: DataValue>(
     files: &mut PackFiles,
     pack: &str,
@@ -207,13 +196,10 @@ pub struct Declaration {
     pub(crate) key: ResourceLocationBuf,
     pub(crate) stage: Stage,
     pub(crate) kind: Kind,
-    /// The entries of a static registry, in id order.
     pub(crate) names: Vec<ResourceLocationBuf>,
 }
 
 impl Declaration {
-    /// A data registry of `V`, under the key of the registry `V` belongs to, loaded in the world
-    /// stage unless [`Declaration::in_stage`] moves it.
     pub fn data<V: DataValue>() -> DataDeclaration<V> {
         DataDeclaration {
             non_empty: false,
@@ -222,7 +208,6 @@ impl Declaration {
         }
     }
 
-    /// A data registry whose entries are the names of its files, which are never read.
     pub fn names_only(key: ResourceLocationBuf, stage: Stage) -> Declaration {
         Declaration {
             key,
@@ -232,7 +217,6 @@ impl Declaration {
         }
     }
 
-    /// A static registry: its entries are `names`, in id order.
     pub fn fixed(key: ResourceLocationBuf, names: Vec<ResourceLocationBuf>) -> Declaration {
         Declaration {
             key,
@@ -250,7 +234,6 @@ impl Declaration {
         self.stage
     }
 
-    /// Loads a data registry in `stage`. A static registry stays in [`Stage::Static`].
     pub fn in_stage(mut self, stage: Stage) -> Self {
         if !matches!(self.kind, Kind::Fixed) {
             self.stage = stage;
@@ -270,18 +253,11 @@ impl<V: DataValue> From<DataDeclaration<V>> for Declaration {
     }
 }
 
-/// Registries and packs that a load adds to the vanilla declarations and the packs of a pack root.
-/// A declaration replaces the vanilla declaration of its key. Each embedded pack is enabled, above
-/// `vanilla` and below the packs of the root, in the order of `embedded_packs`; `files` holds its
-/// files and values under its id. A plugin adds to this resource before `RegistryLoadPlugin`
-/// finishes, which takes it. An embedded pack whose id is the id of another pack fails the load.
 #[derive(Default)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::prelude::Resource))]
 pub struct RegistryAdditions {
     pub declarations: Vec<Declaration>,
     pub embedded_packs: Vec<String>,
     pub files: PackFiles,
-    /// The local packs of the pack root the load takes, by directory name. A local pack that no
-    /// one names is left out.
     pub local_packs: Vec<String>,
 }

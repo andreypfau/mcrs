@@ -5,7 +5,6 @@ use mcrs_command::{
     LibraryError, Reader, SEPARATOR, SuggestionBuilder, SuggestionText, SyntaxError,
 };
 
-/// One coordinate: `~` with an optional offset, or an absolute value that `absolute` reads.
 pub(crate) fn read_axis(
     reader: &mut Reader<'_>,
     missing: CoordinatesError,
@@ -42,23 +41,18 @@ pub(crate) fn read_axis(
     })
 }
 
-/// Where an absolute integer value of a world coordinate lands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Centre {
-    /// An integer value moves to the centre of its block.
     Block,
-    /// The value stays as written.
     Exact,
 }
 
-/// Whether a read of three axes accepts the end of the input after a complete axis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Completeness {
     Full,
     Partial,
 }
 
-/// One world coordinate.
 pub(crate) fn read_world(
     reader: &mut Reader<'_>,
     centre: Centre,
@@ -97,8 +91,6 @@ pub(crate) fn separator(
     }
 }
 
-/// Three axes apart by one separator each. A partial read stops without an error at the end
-/// of the input after a complete axis; the axes it did not read keep `unread`.
 pub(crate) fn read_axes<T: Copy>(
     reader: &mut Reader<'_>,
     completeness: Completeness,
@@ -119,7 +111,6 @@ pub(crate) fn read_axes<T: Copy>(
     Ok(values)
 }
 
-/// Three local values in the order left, up, forwards.
 pub(crate) fn read_local(
     reader: &mut Reader<'_>,
     completeness: Completeness,
@@ -189,7 +180,6 @@ pub(crate) fn suggest_coordinates<'t, T>(
     }
 }
 
-/// One block coordinate.
 pub(crate) fn read_block(
     reader: &mut Reader<'_>,
 ) -> Result<WorldCoordinate, SyntaxError<CoordinatesError>> {

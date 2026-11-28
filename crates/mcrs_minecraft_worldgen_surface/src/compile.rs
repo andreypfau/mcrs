@@ -1,3 +1,4 @@
+use crate::noise_band::NoiseBands;
 use crate::proto::{
     CaveSurface, MaterialCondition, MaterialConditionHolder, MaterialRule, MaterialRuleHolder,
 };
@@ -27,9 +28,6 @@ pub type RandomId = u32;
 
 pub const CLAY_BAND_COUNT: usize = 192;
 
-/// The nine noises the stage samples outside the density graph. The reference
-/// hardcodes them, so no datapack file names them and nothing else would load
-/// them.
 pub const SURFACE_NOISE_NAMES: [ResourceKey<'static, NoiseParam>; 9] = [
     mcrs_minecraft_noise::noise_keys::SURFACE,
     mcrs_minecraft_noise::noise_keys::SURFACE_SECONDARY,
@@ -100,9 +98,6 @@ pub struct CompiledCondition {
     pub scope: Scope,
 }
 
-/// Root indices into the shared program, never raw node ids: a node that is not
-/// registered as a root has no fill plan, and the prune after compilation would
-/// renumber it into an unrelated node.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OreVein {
     pub ore: VoxelId,
@@ -148,8 +143,6 @@ impl BiomeMask {
             .is_some_and(|word| word >> (biome % 64) & 1 != 0)
     }
 
-    /// How this set answers for a column that can select exactly `biomes`.
-    /// `Never` and `Always` settle the condition statically for the column.
     pub fn fold(&self, biomes: impl IntoIterator<Item = u16>) -> Tri {
         let mut any = false;
         let mut all = true;
@@ -178,10 +171,8 @@ pub struct MaterialProgram {
     noise_random: RandomSource,
     clay_bands: [VoxelId; CLAY_BAND_COUNT],
     surface_noises: [(NoiseId, Arc<NoiseStack<Octave>>); 9],
-    /// One per ore vein, over its density root.
     vein_bounds: Box<[CellBounds]>,
-    /// The interning tables the builder kept. Only the differential oracle
-    /// reads them back, to name the id a rule resolved to.
+    noise_bands: NoiseBands,
     #[cfg(test)]
     noise_ids: HashMap<(ResourceLocationBuf, bool), NoiseId>,
     #[cfg(test)]
@@ -193,8 +184,6 @@ impl MaterialProgram {
         &self.tape
     }
 
-    /// The block the rule answers wherever no guarded rule before it did, if
-    /// it ends in one.
     pub fn fallback_block(&self) -> Option<VoxelId> {
         let mut at = 0;
         while let Some(op) = self.tape.get(at) {
@@ -206,6 +195,10 @@ impl MaterialProgram {
             }
         }
         None
+    }
+
+    pub(crate) fn noise_bands(&self) -> &NoiseBands {
+        &self.noise_bands
     }
 
     pub fn conditions(&self) -> &[CompiledCondition] {
@@ -220,7 +213,6 @@ impl MaterialProgram {
         &self.veins
     }
 
-    /// The cell bounds of one ore vein's density, indexed as [`Self::veins`].
     #[inline]
     pub fn vein_cell_bounds(&self, vein: usize) -> Option<&CellBounds> {
         self.vein_bounds.get(vein)
@@ -277,8 +269,6 @@ impl MaterialProgram {
         }
     }
 
-    /// The table the `bandlands` rule indexes by Y plus the `clay_bands_offset`
-    /// noise.
     pub fn clay_bands(&self) -> &[VoxelId; CLAY_BAND_COUNT] {
         &self.clay_bands
     }
@@ -289,7 +279,6 @@ impl MaterialProgram {
             .map(|random| random.clone().fork_at(pos))
     }
 
-    /// The unnamed stream the surface depth and the icebergs draw from.
     pub fn noise_random_at(&self, pos: IVec3) -> RandomSource {
         self.noise_random.clone().fork_at(pos)
     }
@@ -308,8 +297,6 @@ pub enum SurfaceNoise {
     IcebergSurface,
 }
 
-/// The two registries plus what this crate cannot supply itself: resolvers for block states and
-/// for the biome numbers a `biome_is` set names, which it has no registries for.
 pub struct MaterialInputs<'a> {
     pub rules: &'a BTreeMap<ResourceLocationBuf, MaterialRuleHolder>,
     pub conditions: &'a BTreeMap<ResourceLocationBuf, MaterialConditionHolder>,
@@ -317,8 +304,6 @@ pub struct MaterialInputs<'a> {
     pub biomes: &'a dyn Fn(&KeySet<mcrs_minecraft_biome::Biome>) -> Option<Vec<u16>>,
 }
 
-/// The router and the material program compiled into one graph, which is how
-/// the material rules read the density functions they name.
 pub fn build_router_and_material(
     settings: &NoiseGeneratorSettings,
     registry: &BTreeMap<ResourceLocationBuf, DensityFunctionHolder>,
@@ -335,8 +320,6 @@ pub fn build_router_and_material(
         blocks,
         |compiler, roots| compile_material(compiler, roots, settings, inputs),
     )?;
-    // Filling with the block the rule falls back to leaves the bulk of the
-    // terrain already in its final state, so the rule pass need not rewrite it.
     if settings.default_block.is_none()
         && let Some(fallback) = material.fallback_block()
     {
@@ -345,7 +328,7 @@ pub fn build_router_and_material(
     material.vein_bounds = material
         .veins
         .iter()
-        .map(|vein| CellBounds::new(&router.program, router.program.root_node(vein.density)))
+        .map(|vein| CellBounds::new(router.program(), router.program().root_node(vein.density)))
         .collect();
     Ok((router, material))
 }
@@ -409,6 +392,7 @@ fn compile_material<'a>(
     ];
     let clay_bands = builder.clay_bands()?;
 
+    let noise_bands = NoiseBands::compile(&builder.tape, &builder.conditions);
     Ok(MaterialProgram {
         tape: builder.tape.into_boxed_slice(),
         conditions: builder.conditions.into_boxed_slice(),
@@ -420,6 +404,7 @@ fn compile_material<'a>(
         clay_bands,
         surface_noises,
         vein_bounds: Box::default(),
+        noise_bands,
         #[cfg(test)]
         noise_ids: builder.noise_ids,
         #[cfg(test)]
@@ -671,8 +656,6 @@ impl<'r> Builder<'_, '_, 'r> {
         Ok(id)
     }
 
-    /// Each dimensionality gets its own id: the descent's cache is one slot per id,
-    /// and a 2D reading is stamped against a different scope than a 3D one.
     fn noise(
         &mut self,
         id: &ResourceLocationBuf,
@@ -828,14 +811,10 @@ pub(crate) mod tests {
         (registry("material_rule"), registry("material_condition"))
     }
 
-    /// Stands in for the block registry the compiling crate does not have: any
-    /// well-formed id resolves, to a distinct id per name.
     pub(crate) fn resolve_block(state: &BlockState) -> Option<VoxelId> {
         Some(VoxelId(hash_id(state.name.as_str()) as u16))
     }
 
-    /// Stands in for the biome registry the compiling crate does not have: every
-    /// name and tag resolves, to ids that depend on the name alone.
     pub(crate) fn biome_ids(set: &KeySet<mcrs_minecraft_biome::Biome>) -> Option<Vec<u16>> {
         let id = |name: &ResourceLocationBuf| (hash_id(name.as_str()) % 64) as u16;
         Some(match set {
@@ -884,8 +863,6 @@ pub(crate) mod tests {
     fn every_guard_jumps_to_the_end_of_its_own_subtree() {
         let (_, material) = build("overworld");
         let tape = material.tape();
-        // A well-formed tape is a set of properly nested intervals: walking a
-        // guard's body must land exactly on its jump target, never past it.
         fn walk(tape: &[Op], mut pc: usize, end: usize) {
             while pc < end {
                 match tape[pc] {
@@ -907,9 +884,6 @@ pub(crate) mod tests {
         assert!(tape.iter().any(|op| matches!(op, Op::Guard { .. })));
     }
 
-    /// The shipped `material_condition` registry holds six distinct
-    /// `stone_depth` shapes and two `water` shapes, and every occurrence of
-    /// either kind in the rule corpus is a reference to one of them.
     #[test]
     fn the_shared_condition_files_intern_to_one_id_each() {
         let (_, material) = build("overworld");
@@ -1030,15 +1004,14 @@ pub(crate) mod tests {
         for vein in material.veins() {
             for root in [vein.density, vein.richness, vein.filler_gap] {
                 assert!(root >= 8, "vein roots come after the eight terrain roots");
-                router.program.fill(&mut workspace, &volume, root, &mut out);
+                router
+                    .program()
+                    .fill(&mut workspace, &volume, root, &mut out);
                 assert!(out[0].is_finite(), "root {root} is not finite");
             }
         }
     }
 
-    /// Golden strings transcribed from a reference run of the band table over
-    /// the legacy random stream, which `LegacyRandom` matches bit for bit. Any
-    /// slip in the draw order moves the whole tail.
     #[test]
     fn the_band_table_matches_the_reference_draw_order() {
         let colours = ClayBandColours {
@@ -1152,8 +1125,6 @@ pub(crate) mod tests {
             assert!(material.noise(id).unwrap().get(1.0, 2.0, 3.0).is_finite());
         }
 
-        // `minecraft:surface` is also named by a noise_threshold condition, so
-        // it must be the same interned sampler, not a second instance.
         let threshold = material.conditions().iter().find_map(|c| match c.kind {
             Condition::NoiseThreshold { noise, .. }
                 if noise == material.surface_noise(SurfaceNoise::Surface) =>

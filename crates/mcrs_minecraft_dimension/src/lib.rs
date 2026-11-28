@@ -16,9 +16,6 @@ use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_value_provider::IntProvider;
 use serde::{Deserialize, Serialize};
 
-/// The part of a dimension type every crate that names one can hold. Its
-/// environment attributes, timelines and default clock are a column beside the
-/// registry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DimensionType {
     pub has_skylight: bool,
@@ -37,12 +34,8 @@ pub struct DimensionType {
     pub has_fixed_time: bool,
 }
 
-/// An entry of `worldgen/noise_settings`. A crate of world generation holds its value, so a noise
-/// chunk generator names its settings without that crate.
 pub enum NoiseSettings {}
 
-/// The part of a dimension every crate that names one can hold. Its chunk
-/// generator is a column beside the registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Dimension {
     pub dimension_type: Id<crate::DimensionType>,

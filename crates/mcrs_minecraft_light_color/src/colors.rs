@@ -9,8 +9,6 @@ impl LightType {
     pub const DEFAULT: LightType = LightType(0);
 }
 
-/// Colour `i` belongs to light type `i + 1`; type 0 is the default and has no
-/// colour here because the dimension's block light tint is applied at shading.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct LightColors {
@@ -33,8 +31,6 @@ impl LightColors {
         LightColors { colours, types }
     }
 
-    /// States past the table, such as the light registry's filler ids for
-    /// unloaded and out-of-world space, are the default type.
     pub fn light_type(&self, state: VoxelId) -> LightType {
         self.types
             .get(state.0 as usize)
@@ -49,7 +45,6 @@ impl LightColors {
             .copied()
     }
 
-    /// Every type including the default.
     pub fn type_count(&self) -> usize {
         self.colours.len() + 1
     }
@@ -107,10 +102,9 @@ mod load {
     }
 
     impl LightColors {
-        /// Colours are numbered from 1 in the order the files come.
         #[expect(
             clippy::excessive_nesting,
-            reason = "walks each file's entries, their member blocks and the matching states in order, recording which entry claimed each state so a double claim names both"
+            reason = "a double claim names both entries"
         )]
         pub fn from_files(
             files: impl IntoIterator<Item = (String, Vec<u8>)>,

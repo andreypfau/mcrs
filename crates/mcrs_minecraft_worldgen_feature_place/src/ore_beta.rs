@@ -10,16 +10,9 @@ pub struct OreConfig {
     pub size: i32,
 }
 
-/// Port of WorldGenMinable.a — place a single Beta ore vein.
-///
-/// Beta overrides applied vs modern OreFeature:
-///   - y-offset is `+2` (not modern `-2`)
-///   - no blob overlap-cull pre-pass
-///   - no air-exposure discard
-///   - stone-only replacement via `target`
 #[expect(
     clippy::excessive_nesting,
-    reason = "follows back2beta's ore blob loops over x, y and z with the target test inline, so it reads against that source and keeps its order of draws"
+    reason = "follows back2beta's ore blob loops over x, y and z with the target test inline"
 )]
 pub fn place_beta_ore<V: BlockVolumeMut, R: Random>(
     config: &OreConfig,
@@ -32,17 +25,14 @@ pub fn place_beta_ore<V: BlockVolumeMut, R: Random>(
 
     let f = rng.next_f32() * std::f32::consts::PI;
 
-    // Segment endpoints X
     let d0 =
         origin_x as f64 + 8.0 + (mcrs_minecraft_numeric::sin_beta(f) * size as f32 / 8.0) as f64;
     let d1 =
         origin_x as f64 + 8.0 - (mcrs_minecraft_numeric::sin_beta(f) * size as f32 / 8.0) as f64;
-    // Segment endpoints Z
     let d2 =
         origin_z as f64 + 8.0 + (mcrs_minecraft_numeric::cos_beta(f) * size as f32 / 8.0) as f64;
     let d3 =
         origin_z as f64 + 8.0 - (mcrs_minecraft_numeric::cos_beta(f) * size as f32 / 8.0) as f64;
-    // Segment endpoints Y — Beta WorldGenMinable uses `+2`, not modern OreFeature's `-2`
     let d4 = origin_y as f64 + rng.next_i32_bound(3) as f64 + 2.0;
     let d5 = origin_y as f64 + rng.next_i32_bound(3) as f64 + 2.0;
 
@@ -51,7 +41,6 @@ pub fn place_beta_ore<V: BlockVolumeMut, R: Random>(
         let d7 = d4 + (d5 - d4) * l as f64 / size as f64;
         let d8 = d2 + (d3 - d2) * l as f64 / size as f64;
 
-        // next_f64 matches Java nextDouble() draw count (two LCG advances).
         let d9 = rng.next_f64() * size as f64 / 16.0;
         let sin_step =
             (mcrs_minecraft_numeric::sin_beta(l as f32 * std::f32::consts::PI / size as f32) + 1.0)
@@ -131,7 +120,6 @@ mod tests {
 
         let mut world = all_stone(32, 128);
 
-        // Mark a non-stone cell inside the likely vein range
         let non = BlockPos::new(12, 50, 12);
         world
             .set_block(non, BlockStateId::AIR)
@@ -158,12 +146,6 @@ mod tests {
         );
     }
 
-    /// Beta's `WorldGenMinable` offsets its segment endpoints by `+2` where the
-    /// modern `OreFeature` uses `-2`, so a vein sits above the source position
-    /// rather than straddling it.
-    ///
-    /// Read off the blocks rather than off the arithmetic: a test that
-    /// recomputes the endpoints itself cannot fail when the placer changes.
     #[test]
     fn a_vein_sits_above_the_source_it_grew_from() {
         let config = beta_coal_config();
@@ -194,10 +176,6 @@ mod tests {
 
     #[test]
     fn place_draw_count_anchor() {
-        // Verify the per-vein draw count for size=8:
-        //   1 next_f32 (angle) + 2 next_i32_bound (y endpoints) + (size+1) next_f64 (loop)
-        //   = 3 + 9 = 12 method calls consuming 3 + 18 = 21 LCG advances.
-        // This test pins the RNG state after placement for regression detection.
         let config = OreConfig {
             target: stone(),
             state: coal_ore(),
@@ -210,14 +188,11 @@ mod tests {
 
         place_beta_ore(&config, BlockPos::new(8, 40, 8), &mut world, &mut rng);
 
-        // Replay the known draw sequence on the same starting state, then assert
-        // the resulting RNG state matches what place() left behind.
         let mut replay = state_before;
-        replay.next_f32(); // angle f
-        replay.next_i32_bound(3); // d4
-        replay.next_i32_bound(3); // d5
+        replay.next_f32();
+        replay.next_i32_bound(3);
+        replay.next_i32_bound(3);
         for _ in 0..=config.size {
-            // size+1 iterations
             replay.next_f64();
         }
 

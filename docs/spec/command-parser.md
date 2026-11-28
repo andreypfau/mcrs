@@ -2,11 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
+| Version | see `assets/minecraft/version.json` |
 | Command library | Brigadier `1.3.11`, the version that the game names in its library list |
-
-Source of the game values: `assets/minecraft/version.json`.
 
 This document states how a command line becomes a parse result, an error or a list of
 suggestions, given a command tree. The vanilla client parses each command line itself, against
@@ -67,8 +64,7 @@ The labels of `registry.md`, section 0.3, apply, with one more:
 
 - `library_source`: taken from the source of Brigadier `1.3.11`. Brigadier is a separate
   library under the MIT licence, not game code. An implementer can read it too
-  (`docs/clean-room.md`). The parity fuzzer of section 10 is the test for each rule of this
-  kind. No run of the fuzzer exists yet.
+  (`docs/clean-room.md`).
 
 The sources jar of `com.mojang:brigadier:1.3.11` from Maven and the `master` branch of
 `github.com/Mojang/brigadier` at commit `9ba4f13` have identical sources.
@@ -885,27 +881,6 @@ Provenance: `library_source`. Kind: semantic. Confidence: high.
 
 ---
 
-## 10. Parity test
-
-The parity fuzzer runs the same tree and the same command lines through Brigadier `1.3.11` from
-Maven and through the implementation. For each command line it compares:
-
-- the final cursor and the reported error of CMD-PARSE-007, with its kind and its position;
-- the client validity test of CMD-PARSE-007;
-- the range and the set of texts of the suggestion list of CMD-SUG-007 at the end of the line.
-
-The fuzzer does not compare the order of the suggestions or the order of the errors of
-CMD-PARSE-006. It does not compare any other item that a rule calls unspecified. When the
-fuzzer finds a difference, it looks for the case in the entries of section 11. A difference
-that an entry states is the expected result. Any other difference is a defect.
-
-The trees use the six library argument types, literals, redirects to the root and to inner
-nodes, and requirements. The command lines include the cases of CMD-RD-002, CMD-RD-004,
-CMD-RD-010 and CMD-PARSE-007. They also include text outside the Basic Multilingual Plane, the
-whitespace of CMD-TEXT-002, and runs of separators.
-
----
-
 ## 11. Intentional deviations
 
 ### CMD-DEV-001: Suggestions skip hidden children
@@ -917,8 +892,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
 - **Visible to the client:** only through an `ask_server` argument whose parent has a hidden
   child that matches the input. For other suggestions, the client uses its own tree, which has
   no hidden child. Whether a vanilla tree has such a parent is not known (section 12).
-- **Test:** expect the hidden child in the reference reply and not in the reply of the
-  implementation.
 
 ### CMD-DEV-002: Merge conflicts are errors
 
@@ -926,7 +899,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
 - **Reference:** the library ignores each field of the added node that differs from the node
   that the parent already has.
 - **Visible to the client:** no. The merge occurs when the server builds its tree.
-- **Test:** do not build a tree with a merge that has a conflict.
 
 ### CMD-DEV-003: A hidden literal does not hide its argument siblings
 
@@ -936,7 +908,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
 - **Visible to the client:** yes. The tree of the client has no hidden literal, so the client
   tries the argument siblings and can accept the line. The reference server then rejects the
   line that the client accepted.
-- **Test:** expect the reference to fail where the implementation tries the argument siblings.
 
 ### CMD-DEV-004: A redirect to a hidden target is not followed
 
@@ -946,7 +917,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
 - **Visible to the client:** yes. The vanilla server removes such a redirect from the tree of
   the player. The client then parses the node as a node with no redirect and no children. The
   reference server can accept a line that the client rejects.
-- **Test:** expect the result of the implementation to equal the parse of the client tree.
 
 ### CMD-DEV-005: Argument types fail only with syntax errors
 
@@ -957,7 +927,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
   the error.
 - **Visible to the client:** no. The client shows such an error only for a defect in its own
   argument types.
-- **Test:** an implementation argument type that fails without a syntax error is a defect.
 
 ### CMD-DEV-006: The context text and the error position count characters
 
@@ -969,8 +938,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
   Basic Multilingual Plane before the error. The position number in the error message is
   smaller. The context text holds 10 characters, not 10 code units, and never starts with an
   unpaired surrogate.
-- **Test:** for such a command line, compare the error kind and ignore the position number and
-  the context text.
 
 ### CMD-DEV-007: A redirect node has no children
 
@@ -978,7 +945,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
 - **Reference:** the node builders refuse children on a node with a redirect, but a merge can
   add them. The parse and the suggestions never visit these children.
 - **Visible to the client:** no.
-- **Test:** do not build such a tree.
 
 ### CMD-DEV-008: A suggestion request always gets a reply
 
@@ -988,7 +954,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
   server sends no reply.
 - **Visible to the client:** yes. With no reply, the client shows no new suggestions for the
   argument.
-- **Test:** expect a reply from the implementation where the reference sends none.
 
 ### CMD-DEV-009: The lower case form of the remaining input
 
@@ -997,7 +962,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
   it at the start. When a character before the start changes length in lower case, for example
   U+0130, the lower case remaining input moves.
 - **Visible to the client:** only for a server suggestion after such a character.
-- **Test:** do not compare suggestions for an input with such a character before the start.
 
 ### CMD-DEV-010: Every suggestion is a text
 
@@ -1009,7 +973,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
   suggestions (`argument-block.md`, ARG-BLK-016), but only the client makes them: those
   arguments have no suggestion type `minecraft:ask_server`. No suggestion source of the server
   makes integer suggestions, and the `command_suggestions` packet carries only texts.
-- **Test:** do not use integer suggestions.
 
 ### CMD-DEV-011: The list of one child is sorted
 
@@ -1018,7 +981,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
   child as it is, without CMD-SUG-006.
 - **Visible to the client:** only when the suggestion source of that child returns a list that
   is not sorted. The order of the reply is then different.
-- **Test:** do not compare the order of suggestions (section 10).
 
 ### CMD-DEV-012: A number outside the finite range is a syntax error
 
@@ -1031,8 +993,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
 - **Visible to the client:** yes, but only for unusual input. The client parse accepts the
   token or reports a range error. The implementation rejects the token with a syntax error at
   its start. The grammar policy of section 0.2.1 allows this difference.
-- **Test:** expect `reader_invalid_double` or `reader_invalid_float` from the implementation
-  where the reference reads an infinity.
 
 ### CMD-DEV-013: Positions inside the implementation are not code units
 
@@ -1042,8 +1002,6 @@ whitespace of CMD-TEXT-002, and runs of separators.
 - **Visible to the client:** no. The codec of `command_suggestions` converts the range to code
   units (`commands-packet.md`, CMDP-SUG-002). An error position reaches the client only as text
   (CMD-DEV-006).
-- **Test:** a differential test converts each suggestion range to code units before it compares
-  the range.
 
 ### CMD-DEV-014: The information separators are not whitespace
 
@@ -1054,11 +1012,10 @@ whitespace of CMD-TEXT-002, and runs of separators.
   character in an argument of the game fails with a syntax error. The server is then stricter
   than the client, as section 0.2.1 allows.
   An SNBT text in a data pack field fails in the same way (`snbt.md`, SNBT-ARG-004).
-- **Test:** do not compare a command line with a character from U+001C to U+001F.
 
 ---
 
-## 12. Open questions
+## 12. Unresolved
 
 - The game runs a command chain in its own executor, with the game rules
   `max_command_sequence_length` and `max_command_forks`. Its order, its limits and its results

@@ -6,7 +6,7 @@ use crate::ColumnBiomes;
 use crate::modern_carvers::{ModernCarverBlockIds, TerrainCarving};
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 #[cfg(test)]
-use crate::surface::{Visit, descend_strip, set_block};
+use crate::surface::{Descent, Visit, descend_strip, set_block};
 #[cfg(test)]
 use crate::task::CancellationToken;
 use crate::{ColumnBlocks, SurfaceStates};
@@ -24,6 +24,8 @@ use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 #[cfg(test)]
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
+#[cfg(test)]
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 #[cfg(test)]
@@ -40,7 +42,6 @@ const STONE: VoxelId = VoxelId(1);
 const WATER: VoxelId = VoxelId(2);
 
 #[cfg(test)]
-/// Every visit the descent made, as `(y, depth_above, depth_below, water)`.
 fn walk(column: &ColumnBlocks, height: i32, min_y: i32) -> Vec<(i32, i32, i32, i32)> {
     let mut seen = Vec::new();
     descend_strip(column, 0, 0, height, min_y, [WATER, VoxelId(3)], |step| {
@@ -53,6 +54,7 @@ fn walk(column: &ColumnBlocks, height: i32, min_y: i32) -> Vec<(i32, i32, i32, i
         {
             seen.push((y, depth_above, depth_below, water_level));
         }
+        Descent::Step
     });
     seen
 }
@@ -71,8 +73,6 @@ fn the_descent_reports_depths_water_and_the_floor_below_a_run() {
 
     let seen = walk(&column, 13, 0);
 
-    // The first fluid block from above sets the water level one block over it,
-    // and the air under y = 3 is the floor the depth below counts from.
     let expected: Vec<_> = (3..=9)
         .rev()
         .enumerate()
@@ -101,9 +101,6 @@ fn a_section_this_dispatch_does_not_carry_is_skipped_rather_than_the_bottom() {
 
     let seen = walk(&column, 48, 0);
 
-    // The look-ahead skips the gap too, so the run below y = 47 reaches the
-    // floor of the dimension rather than the floor of the dispatch: treating the
-    // gap as a ceiling would make this 16 and fire every ceiling rule at y = 32.
     let below = |y: i32| y - WAY_BELOW_MIN_Y + 1;
     assert_eq!(seen.first().copied(), Some((47, 1, below(47), NO_WATER)));
     assert!(
@@ -113,8 +110,6 @@ fn a_section_this_dispatch_does_not_carry_is_skipped_rather_than_the_bottom() {
     assert_eq!(seen.last().copied(), Some((0, 32, below(0), NO_WATER)));
 }
 
-/// A rule that carves the top block away lowers the strip's height, which the
-/// gradients of the strips after it read.
 #[test]
 fn writing_air_at_the_top_lowers_the_height_and_writing_a_block_raises_it() {
     let column = ColumnBlocks::new(&[0, 1]);
@@ -138,7 +133,6 @@ fn writing_air_at_the_top_lowers_the_height_and_writing_a_block_raises_it() {
 }
 
 #[cfg(test)]
-/// The preset's biomes numbered as the palette numbers them.
 pub(super) fn biome_ids() -> HashMap<String, u16> {
     let mut ids = HashMap::new();
     for (_, biome) in overworld_parameter_list().values() {
@@ -148,8 +142,6 @@ pub(super) fn biome_ids() -> HashMap<String, u16> {
     ids
 }
 
-/// The corpus read with the biomes numbered as `ids` does and every biome it
-/// leaves out after them, which no cell of the preset's grid holds.
 fn corpus_over(ids: &HashMap<String, u16>) -> Registries {
     let mut named: Vec<(u16, &str)> = ids.iter().map(|(name, id)| (*id, name.as_str())).collect();
     named.sort();
@@ -158,7 +150,6 @@ fn corpus_over(ids: &HashMap<String, u16>) -> Registries {
 }
 
 #[cfg(test)]
-/// The overworld preset's climate table over the biomes `ids` numbers.
 fn table_over(ids: &HashMap<String, u16>) -> MultiNoiseBiomeTable {
     MultiNoiseBiomeTable::of_preset(Preset::Overworld, super::biomes_of(&corpus_over(ids)))
         .expect("the overworld preset resolves")
@@ -182,7 +173,6 @@ fn surface_states() -> SurfaceStates {
 }
 
 #[cfg(test)]
-/// Fill one column and run the surface pass over it, returning the blocks.
 pub(super) fn surfaced_column(
     router: &NoiseRouter,
     material: &MaterialProgram,
@@ -195,18 +185,28 @@ pub(super) fn surfaced_column(
     let table = table_over(ids);
 
     let mut column = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     let mut filled = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
         y_sections,
         router,
+        &mut cells,
         &ColumnBiomes::None,
+        None,
         None,
         &CancellationToken::new(),
     )
     .expect("the column fills");
-    let biomes = multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
+    let biomes = multi_noise_palettes(
+        router,
+        &table,
+        None,
+        section_x * 16,
+        section_z * 16,
+        y_sections,
+    );
 
     let mut scratch = MaterialScratch::default();
     scratch.bypass_shortcuts(bypass_shortcuts);
@@ -227,9 +227,6 @@ pub(super) fn surfaced_column(
     column
 }
 
-/// The descent enters each strip one block above its highest non-air block, and
-/// that height is read off the sections the dispatch carries. A slice would be
-/// surfaced as if its cut were the sky, so the dispatch site leaves it alone.
 #[test]
 fn only_a_whole_column_is_surfaced() {
     let (min_y, height) = (-64, 384);
@@ -247,13 +244,10 @@ fn only_a_whole_column_is_surfaced() {
     assert!(!spans(&holed));
 }
 
-/// Carving is decided block by block inside the descent: a carved grass top
-/// opens to air and the dirt it bared is surfaced again as the new top, while
-/// the fill's own water is never carved.
 #[test]
 #[expect(
     clippy::too_many_lines,
-    reason = "one scenario: surfaces the same columns with and without carving and compares them, so the carved and uncarved columns read side by side"
+    reason = "carved and uncarved columns read side by side"
 )]
 fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
     let ids = biome_ids();
@@ -309,19 +303,28 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
 
         let table = table_over(&ids);
         let mut column = ColumnBlocks::new(&y_sections);
+        let mut cells = AquiferCells::default();
         let mut filled = fill_column_dense_any(
             &mut column,
             section_x,
             section_z,
             &y_sections,
             &router,
+            &mut cells,
             &ColumnBiomes::None,
+            None,
             None,
             &CancellationToken::new(),
         )
         .expect("the column fills");
-        let biomes =
-            multi_noise_palettes(&router, &table, section_x * 16, section_z * 16, &y_sections);
+        let biomes = multi_noise_palettes(
+            &router,
+            &table,
+            None,
+            section_x * 16,
+            section_z * 16,
+            &y_sections,
+        );
         let carver_ids = ModernCarverBlockIds::for_test(Vec::new());
         apply_material_surface(
             &column,
@@ -374,11 +377,6 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
     assert!(kept_water > 0, "no carved water was left standing");
 }
 
-/// A condition given the wrong scope produces plausible terrain and passes
-/// every other test; a run with every cache forced to miss does not. The second
-/// column is in sulfur caves, whose bands are the corpus's only `is_3d` noise
-/// threshold, so the noise cache's scope is covered as well as the condition
-/// cache's.
 #[test]
 fn bypassing_every_shortcut_writes_the_same_blocks() {
     let ids = biome_ids();
@@ -446,9 +444,6 @@ fn bypassing_every_shortcut_writes_the_same_blocks() {
 }
 
 #[cfg(test)]
-/// How many distinct biomes a column's widened grid holds. One means the fold
-/// over the whole column already settles every biome condition, and the
-/// per-strip fold never runs.
 fn grid_biomes(
     router: &NoiseRouter,
     ids: &HashMap<String, u16>,
@@ -457,8 +452,15 @@ fn grid_biomes(
     y_sections: &[i32],
 ) -> usize {
     let table = table_over(ids);
-    let grid = multi_noise_grid(router, &table, section_x * 16, section_z * 16, y_sections)
-        .expect("the multi-noise fill widens a grid");
+    let grid = multi_noise_grid(
+        router,
+        &table,
+        None,
+        section_x * 16,
+        section_z * 16,
+        y_sections,
+    )
+    .expect("the multi-noise fill widens a grid");
     let mut present = [false; 256];
     for id in &grid.ids {
         present[*id as usize] = true;
@@ -466,7 +468,6 @@ fn grid_biomes(
     present.iter().filter(|seen| **seen).count()
 }
 
-/// The preset's biomes as a registry, and the ids it gave them.
 pub fn overworld_biome_registry() -> (Registries, HashMap<String, u16>) {
     let texts: Vec<String> = (overworld_parameter_list().values().iter())
         .map(|(_, biome)| biome.to_string())
@@ -489,8 +490,6 @@ pub fn overworld_biome_registry() -> (Registries, HashMap<String, u16>) {
     (registry, ids)
 }
 
-/// The per-dimension inputs a column stage reads, resolved the way
-/// the generation actor resolves them for the pool.
 pub fn fill_context(
     router: NoiseRouter,
     material: MaterialProgram,
@@ -544,10 +543,6 @@ pub fn fill_context(
 }
 
 #[cfg(test)]
-/// A `minecraft:fixed` source answers one biome at every quart cell, so the
-/// rules that biome selects run over whatever terrain the noise gives. Badlands
-/// is the case worth pinning: it is the sole user of the clay band table, and
-/// no multi-noise sample any test takes reaches it.
 fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     use mcrs_minecraft_biome::source::BiomeSource;
     use mcrs_voxel::ColumnPos;
@@ -568,10 +563,13 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
 
         let y_sections = ctx.y_sections.clone();
         let mut column = ColumnBlocks::new(&y_sections);
+        let mut cells = AquiferCells::default();
         let snapshot = fill_column(
             &ctx,
             ColumnPos::new(3, -7),
             &mut column,
+            None,
+            &mut cells,
             &CancellationToken::new(),
         )
         .expect("the fill was not cancelled");
@@ -634,7 +632,6 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
 }
 
 #[cfg(test)]
-/// The same column under constant biome containers, with the shortcuts on and off.
 fn surfaced_column_fixed(
     router: &NoiseRouter,
     material: &MaterialProgram,
@@ -647,13 +644,16 @@ fn surfaced_column_fixed(
     use mcrs_minecraft_chunk::palette::BiomePalette;
 
     let mut column = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     let mut filled = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
         y_sections,
         router,
+        &mut cells,
         &ColumnBiomes::None,
+        None,
         None,
         &CancellationToken::new(),
     )
@@ -681,11 +681,8 @@ fn surfaced_column_fixed(
     column
 }
 
-/// A run that reaches the clay band rule settles, and the band it writes varies
-/// with y inside that run. Nothing else in the corpus reaches that rule, so
-/// without a badlands column the settled path is never walked.
 #[test]
-fn a_fixed_badlands_source_runs_the_clay_bands_and_a_settled_run_writes_what_the_descent_would() {
+fn fixed_badlands_clay_bands_match_the_descent() {
     a_fixed_biome_source_drives_that_biome_s_material_rules();
     settled_badlands_runs_write_the_bands_the_descent_would(&[(3, -7)]);
 }

@@ -1,10 +1,11 @@
 [package]
 name = "mcrs_minecraft_engine_registries"
-description = "Loads the registries, blocks and items of an app from its pack files, walks it to playing, and hands the snapshot to each dimension world"
+description = "The RegistryLoadPlugin: loads the registries and items from the pack files, walks the app to playing, and hands the snapshot to each dimension world"
 version.workspace = true
 edition.workspace = true
 
 [lib]
+test = false
 doctest = false
 
 [lints]
@@ -15,11 +16,15 @@ mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_resource.workspace = true
-mcrs_minecraft_sound.workspace = true
+mcrs_minecraft_sound = { workspace = true, features = ["registry"] }
+mcrs_minecraft_wire.workspace = true
 mcrs_minecraft_game_registries.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true

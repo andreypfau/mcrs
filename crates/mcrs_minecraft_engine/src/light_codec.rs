@@ -2,11 +2,8 @@ use mcrs_minecraft_chunk::{LightLayer, LightStorage, SectionNibbles as LightNibb
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
 use std::borrow::Cow;
 
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
-/// One row of the light packet's section sequence. The packet carries a
-/// section below and a section above the dimension's real Y range, so the
-/// sequence is one padding row, every real section, then one padding row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum WireRow {
     BottomPadding,
@@ -14,14 +11,12 @@ pub(crate) enum WireRow {
     TopPadding,
 }
 
-/// The light of the section at `y` in one layer.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SectionLight<'a> {
     pub(crate) y: i32,
     pub(crate) light: &'a LightStorage,
 }
 
-/// The masks and the arrays of one light layer of a packet, filled row by row.
 #[derive(Debug, Default)]
 pub(crate) struct LayerPacker {
     mask: Vec<u64>,
@@ -39,7 +34,6 @@ impl LayerPacker {
     }
 }
 
-/// The light packet that the packed layers make.
 fn light_data(block: LayerPacker, sky: LayerPacker) -> LightData<'static> {
     LightData {
         sky_light_mask: Cow::Owned(sky.mask),
@@ -51,8 +45,6 @@ fn light_data(block: LayerPacker, sky: LayerPacker) -> LightData<'static> {
     }
 }
 
-/// Packs the light of one row in `layer` at `bit_idx`. `storage` is `None` for a section
-/// with no light of the layer.
 pub(crate) fn pack_chunk(
     chunk: WireRow,
     storage: Option<&LightStorage>,
@@ -117,9 +109,6 @@ fn set_bit(mask: &mut Vec<u64>, bit_idx: usize) {
     }
 }
 
-/// Sky at full, block at nothing, for every row a column puts on the wire.
-/// A server running without a lighting engine still has to say something about
-/// light, and saying nothing renders the world black on the client.
 pub fn build_fullbright_light_data(rows: usize) -> LightData<'static> {
     let words = rows.div_ceil(64);
     let all_rows: Vec<u64> = (0..words)
@@ -135,8 +124,6 @@ pub fn build_fullbright_light_data(rows: usize) -> LightData<'static> {
     }
 }
 
-/// A `LightData` with only the rows of `block` and `sky`. The client leaves every other row,
-/// the padding rows too, as it is.
 pub(crate) fn build_delta_light_data(
     min_section_y: i32,
     has_sky_light: bool,
@@ -155,11 +142,9 @@ fn pack_sections(
     sections: &mut [SectionLight<'_>],
     layer: LightLayer,
 ) -> LayerPacker {
-    // The arrays go out in the order of their rows.
     sections.sort_unstable_by_key(|section| section.y);
     let mut packer = LayerPacker::with_capacity(sections.len());
     for section in sections.iter() {
-        // Row 0 is the bottom padding.
         let row = section
             .y
             .checked_sub(min_section_y)
@@ -179,8 +164,6 @@ fn pack_sections(
     packer
 }
 
-/// Build a wire-ready `LightData` for a column from the data layer, with the light it held when
-/// it went cold.
 pub(crate) fn build_stored_light_data(
     stored: &StoredColumn,
     has_sky_light: bool,
@@ -246,10 +229,6 @@ mod tests {
         reason = "the column of 24 synthetic chunks is built and its wire order checked in one scenario"
     )]
     fn codec_wire_ordering_invariant_holds_for_synthetic_24_chunk_column() {
-        // Synthesize a column-shaped iter_wire output that exercises every
-        // matrix row at least once. Wire-ordering invariant:
-        // arrays.len() == popcount(mask) per layer, AND arrays must appear
-        // in strictly increasing bit order (i.e., the lowest set bit first).
         let mut nibble = LightNibbles::zeros();
         nibble.set(0, 0, 0, 0xC);
 
@@ -323,7 +302,6 @@ mod tests {
             "sky arrays.len() must equal popcount(sky_mask)"
         );
 
-        // No bit may appear in both mask and empty_mask simultaneously.
         for word_idx in 0..block_mask.len().max(empty_block_mask.len()) {
             let b = *block_mask.get(word_idx).unwrap_or(&0);
             let e = *empty_block_mask.get(word_idx).unwrap_or(&0);
@@ -360,9 +338,6 @@ mod tests {
             "top padding sky in a dimension with sky"
         );
 
-        // Walk through arrays in bit order and confirm they line up with the
-        // set bits of the corresponding mask. The wire format requires arrays
-        // to appear in strict bit-order of the mask, lowest set bit first.
         let block_set_bits: Vec<usize> = (0..rows.len())
             .filter(|&b| bit_is_set(&block_mask, b))
             .collect();
@@ -372,7 +347,6 @@ mod tests {
             .collect();
         assert_eq!(sky_set_bits.len(), sky_arrays.len());
 
-        // Spot-check that the topmost sky array (TopPadding synth) is 0xFF.
         let top_array = &sky_arrays[sky_arrays.len() - 1];
         assert_eq!(*top_array, LightChunk([0xFFu8; 2048]));
     }

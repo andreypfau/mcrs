@@ -8,7 +8,6 @@ use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire};
 use crate::item::patch::ComponentMap;
 use mcrs_minecraft_protocol::{Decode, Encode, Result, VarInt};
 
-/// An item a trade takes, matched by exact component values.
 #[derive(Clone, Debug, PartialEq, FromWire)]
 pub struct ItemCost<M: Refs = Resolved> {
     pub item: M::Id<Item>,
@@ -34,8 +33,6 @@ impl Decode<'_> for ItemCost<Wire> {
     }
 }
 
-/// Out of stock is `uses >= max_uses`; the wire carries the flag and the
-/// reader clamps `uses` to it, as vanilla does.
 #[derive(Clone, Debug, PartialEq, FromWire)]
 pub struct MerchantOffer<M: Refs = Resolved> {
     pub cost_a: ItemCost<M>,

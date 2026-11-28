@@ -1,0 +1,21 @@
+# The proxy module shift_before_loaded sends player_input with the shift flag just before the
+# client reports that it has loaded the world. Stand still, then crouch. Experiment E8, step 3,
+# of docs/spec/player-pose.md: POSE-SRV-012. Run with CHEAT=shift_before_loaded.
+experiment pose_e8_3
+arena -16 96 -16 48 110 16
+
+step stand
+instruction Stand still and release all keys.
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+start 0.5 100 0.5 -90 0
+ticks 100
+
+step crouch
+instruction After Go, hold Shift for 1 second, then release it.
+input 61 shift
+input 81 none
+fill -16 99 -16 48 99 16 minecraft:stone
+start 0.5 100 0.5 -90 0
+ticks 140

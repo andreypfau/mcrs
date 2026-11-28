@@ -16,11 +16,6 @@ use crate::block_scan;
 use crate::block_scan::ShapeContext;
 use crate::tolerance::COLLISION;
 
-/// Appends each collider of the query box `query` for the entity, in the order of the collision
-/// algorithm: the entity colliders, the world border, then the blocks in the scan order.
-///
-/// `feet` replaces the bottom of the entity for the context shapes, for example the `y` of the
-/// old position, which gives a scaffolding shape from before the move.
 pub fn query_colliders<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     entity: &QueryEntity,
@@ -65,8 +60,6 @@ pub fn query_colliders<W: CollisionWorld, B: BodyView>(
     );
 }
 
-/// True when a block shape, an entity collider or the world border overlaps the box with a
-/// volume that is more than zero. The caller shrinks the box when its rule asks for it.
 #[must_use]
 pub fn intersects<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
@@ -99,7 +92,6 @@ pub fn intersects<W: CollisionWorld, B: BodyView>(
     .is_break()
 }
 
-/// Appends the entities that can stop the box in `query`.
 pub(crate) fn entity_colliders<B: BodyView>(
     bodies: &B,
     entity: &QueryEntity,
@@ -112,7 +104,6 @@ pub(crate) fn entity_colliders<B: BodyView>(
     bodies.colliders(query.inflate(DVec3::splat(COLLISION)), entity.key, out);
 }
 
-/// The world border as a collider of the query, when the entity is near it.
 pub(crate) fn border_collider<W: CollisionWorld>(
     world: &W,
     entity: &QueryEntity,

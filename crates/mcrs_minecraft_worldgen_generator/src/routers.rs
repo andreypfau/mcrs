@@ -1,4 +1,5 @@
 use crate::block_state::try_resolve_state;
+use crate::plan_error::PlanError;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::ResourceLocationBuf;
@@ -9,8 +10,6 @@ use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRoute
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 
-/// The material rules take their biome ids from the registry, because it is
-/// what `MultiNoiseBiomeTable` fills the column's biome grid with.
 pub fn build_router(
     registries: &Registries,
     settings: &NoiseGeneratorSettings,
@@ -21,30 +20,29 @@ pub fn build_router(
     build_dimension_router(registries, settings, seed, &block)
 }
 
-/// The fill adds the beard to `final_density` once the graph is evaluated,
-/// which is the graph's own value only while the beardifier is the outermost
-/// addend, so any other shape would silently lose the term.
 pub fn refuse_misplaced_beardifier(
     registries: &Registries,
     dimension: &ResourceLocationBuf,
     settings_name: &ResourceLocationBuf,
     settings: &NoiseGeneratorSettings,
     tables: &DimensionStructureTables,
-) {
+) -> Result<(), PlanError> {
     if tables.live.is_empty() {
-        return;
+        return Ok(());
     }
     match (
         dimension_beardifier_placement(registries, settings),
         tables.adapted().next(),
     ) {
-        (BeardifierPlacement::RootAddend, _) | (BeardifierPlacement::Absent, None) => {}
-        (BeardifierPlacement::Misplaced, _) => panic!(
-            "{dimension}: {settings_name} uses minecraft:beardifier other than as an operand of the add at the root of final_density"
-        ),
-        (BeardifierPlacement::Absent, Some(structure)) => panic!(
-            "{dimension}: the final_density of {settings_name} is not add(_, minecraft:beardifier), so {} cannot adapt the terrain",
-            structure.id
-        ),
+        (BeardifierPlacement::RootAddend, _) | (BeardifierPlacement::Absent, None) => Ok(()),
+        (BeardifierPlacement::Misplaced, _) => Err(PlanError::BeardifierMisplaced {
+            dimension: dimension.clone(),
+            settings: settings_name.clone(),
+        }),
+        (BeardifierPlacement::Absent, Some(structure)) => Err(PlanError::BeardifierMissing {
+            dimension: dimension.clone(),
+            settings: settings_name.clone(),
+            structure: structure.id.clone(),
+        }),
     }
 }

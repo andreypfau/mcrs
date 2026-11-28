@@ -1,5 +1,3 @@
-//! The console and watcher steps that the harness and the drift tool share.
-
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
@@ -13,8 +11,6 @@ pub const READY_TIMEOUT: Duration = Duration::from_secs(600);
 pub const CONSOLE_TIMEOUT: Duration = Duration::from_secs(20);
 pub const JOIN_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Waits until the server answers a status request, and returns the time that took; `None` when
-/// the server exits or does not answer within [`READY_TIMEOUT`].
 pub fn wait_ready(
     server: &mut ServerProcess,
     runtime: &tokio::runtime::Runtime,
@@ -36,7 +32,6 @@ pub fn wait_ready(
     }
 }
 
-/// Keeps the log of `server` current for `duration`.
 pub fn idle(server: &mut ServerProcess, duration: Duration) {
     let until = Instant::now() + duration;
     while Instant::now() < until {
@@ -45,8 +40,6 @@ pub fn idle(server: &mut ServerProcess, duration: Duration) {
     }
 }
 
-/// Sends one line and returns the first log line that follows it within a second, other than the
-/// mcrs tick trace.
 pub fn answered(server: &mut ServerProcess, line: &str) -> Option<String> {
     let sent = Instant::now();
     let _ = server.send(line);
@@ -61,7 +54,6 @@ pub fn game_time(server: &mut ServerProcess) -> Option<i64> {
     server.wait_for(sent, CONSOLE_TIMEOUT, probe::game_time)
 }
 
-/// Joins the watcher and waits until the server has placed its player.
 pub fn join_watcher(
     server: &mut ServerProcess,
     runtime: &tokio::runtime::Runtime,

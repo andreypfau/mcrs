@@ -1,0 +1,39 @@
+[package]
+name = "mcrs_minecraft_worldgen_preview"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "mcrs_minecraft_worldgen_preview"
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+mcrs_minecraft_biome_file.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_dimension_environment.workspace = true
+mcrs_minecraft_game_registries.workspace = true
+mcrs_minecraft_heightmap.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
+mcrs_minecraft_worldgen_builtin.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_generator.workspace = true
+mcrs_voxel.workspace = true
+png.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_fixtures.workspace = true
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"

@@ -1,13 +1,3 @@
-/// Where water sits in one Beta column, one bit per Y.
-///
-/// Carving replaces only stone, dirt and grass and writes only lava, air and
-/// grass, so no ellipsoid can create or remove water: the abort predicate is a
-/// pure function of the pre-carve column and can be answered from a bitmask
-/// built once instead of re-reading blocks around every ellipsoid.
-///
-/// The vertical span is Beta's 0..128 exactly, which is also the range the
-/// ellipsoid bounds are clamped to; positions outside it are dropped, matching
-/// the reference scan's own `0 <= y < 128` guard.
 #[derive(Clone)]
 pub struct WaterMask {
     columns: Box<[u128; 256]>,
@@ -67,11 +57,6 @@ fn y_band(low: i32, high: i32) -> u128 {
     }
 }
 
-/// Whether carving must abort because water touches the shell of the clipped
-/// ellipsoid bounds.
-///
-/// The shell is what the reference scans: every Y of `[y_min - 1, y_max + 1]`
-/// on the border strips, and only the two caps in the interior.
 pub fn water_abort_scan(
     water: &WaterMask,
     x_min: i32,
@@ -108,12 +93,9 @@ mod tests {
     use mcrs_minecraft_random::Random;
     use mcrs_minecraft_random::legacy::LegacyRandom;
 
-    /// The scan as `MapGenCaves` writes it: an outer Y loop from `y_max + 1`
-    /// down to `y_min - 1` that jumps to the bottom cap once it is past the
-    /// border strips. Kept as the oracle the bitmask is checked against.
     #[expect(
         clippy::excessive_nesting,
-        reason = "keeps the reference's loops over y, z and x with the water test inline, because it is the oracle the bitmask is checked against"
+        reason = "oracle for the bitmask, so it keeps the plain loops"
     )]
     fn reference_scan(
         is_water: &impl Fn(i32, i32, i32) -> bool,
@@ -180,7 +162,6 @@ mod tests {
             for case in 0..400 {
                 let mut mask = WaterMask::default();
                 let mut water = vec![false; 16 * 16 * 128];
-                // Sparse at first, then dense enough that both verdicts occur often.
                 let drops = 1 + rng.next_i32_bound(if case % 2 == 0 { 8 } else { 600 });
                 for _ in 0..drops {
                     let x = rng.next_i32_bound(16);

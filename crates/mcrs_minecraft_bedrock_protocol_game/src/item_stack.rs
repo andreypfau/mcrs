@@ -3,28 +3,18 @@ use core::num::NonZeroI32;
 
 use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error, VarI32, VarU32};
 
-/// A non-empty item in the form without a stack network id; on the wire, `None` is the empty
-/// item, a network id of 0.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ItemStack<'a> {
-    /// The network id of the item.
     pub network_id: NonZeroI32,
-    /// The number of items in the stack.
     pub count: u16,
-    /// The metadata of the item.
     pub metadata: VarU32,
-    /// The block runtime id; 0 for an item that is not a block.
     pub block_runtime_id: VarI32,
-    /// The user data, opaque at this layer.
     pub user_data: &'a [u8],
 }
 
-/// A non-empty item with its stack network id; on the wire, `None` is the empty item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NetworkItemStack<'a> {
-    /// The item.
     pub item: ItemStack<'a>,
-    /// The stack network id, when the item has one.
     pub stack_network_id: Option<VarI32>,
 }
 

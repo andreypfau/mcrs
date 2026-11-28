@@ -5,7 +5,6 @@ use mcrs_minecraft_anvil::fixture;
 use mcrs_minecraft_anvil::{PaletteLookup, Properties, parse_chunk};
 use mcrs_minecraft_chunk::VoxelId;
 
-/// A stand-in registry, so the resolve pass does real work.
 struct Names;
 
 impl Names {
@@ -32,6 +31,10 @@ impl PaletteLookup<u8> for Names {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "the workspace fixture must parse; a broken fixture invalidates every measurement"
+)]
 fn bench_decode(c: &mut Criterion) {
     let chunks: Vec<_> = fixture::region_chunks().collect();
 

@@ -12,7 +12,8 @@ use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_voxel::ColumnPos;
 
 use super::trees::tree_tables;
-use super::{block_tags, blocks, build_program, corpus_features, generate_region};
+use super::{block_tags, blocks, build_program, corpus_features};
+use crate::generate_area;
 use crate::ids::require_id;
 use crate::modern_carvers::ModernCarverBlockIds;
 use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
@@ -33,7 +34,7 @@ static ROUTER: LazyLock<NoiseRouter> = LazyLock::new(|| super::build_settings_ro
 fn an_end_column_near_the_origin_stores_the_end_alone() {
     let biomes = ColumnBiomes::new(Some(&BiomeSource::TheEnd), None, Some(IDS)).unwrap();
     let y_sections = dimension_y_sections(&ROUTER, 0, 16);
-    let (palettes, _) = column_biome_palettes(&ROUTER, &biomes, 0, 0, &y_sections);
+    let (palettes, _) = column_biome_palettes(&ROUTER, &biomes, None, 0, 0, &y_sections);
     let mut stored = BTreeSet::new();
     for palette in &palettes {
         palette.for_each_distinct(|biome| {
@@ -43,8 +44,6 @@ fn an_end_column_near_the_origin_stores_the_end_alone() {
     assert_eq!(stored, BTreeSet::from([1]));
 }
 
-/// The first chunk out along x whose eight neighbours pick differently across its diagonal, so a
-/// grid that swaps x and z or reads the centre of the wrong neighbour shows it.
 fn chunk_on_a_biome_edge(ws: &mut Workspace) -> (i32, i32) {
     let mut pick = |x: i32, z: i32| IDS.at(&ROUTER, ws, IVec3::new(x * 4, 0, z * 4));
     (100..2000)
@@ -112,8 +111,7 @@ fn the_end_spikes_stand_around_the_origin() {
     let ctx = FillContext {
         blocks: blocks().0.clone(),
         biome: Some(Arc::new(source.clone())),
-        predicates: Some(heightmap_predicates(blocks(), block_tags())),
-        saved: None,
+        predicates: heightmap_predicates(blocks(), block_tags()),
         program: ColumnProgram {
             generator: ColumnGenerator::Modern {
                 surface: Some((
@@ -139,7 +137,7 @@ fn the_end_spikes_stand_around_the_origin() {
             .number(),
     );
 
-    let region = generate_region(&ctx, ColumnPos::new(-3, -3), ColumnPos::new(2, 2));
+    let region = generate_area(&ctx, ColumnPos::new(-3, -3), ColumnPos::new(2, 2));
 
     let holds_obsidian = region.values().any(|column| {
         column.sections.iter().flatten().any(|(palette, _)| {

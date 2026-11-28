@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_game_mode"
-description = "The game modes of a player, their names and their wire forms"
+description = "The game modes of a player, their names and their wire forms, and the abilities that a game mode gives"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,6 +12,11 @@ doctest = false
 workspace = true
 
 [dependencies]
-derive_more = { workspace = true, features = ["from", "into"] }
+bevy_ecs = { workspace = true, optional = true }
+derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into"] }
 mcrs_minecraft_wire.workspace = true
 serde = { workspace = true, features = ["derive"] }
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]

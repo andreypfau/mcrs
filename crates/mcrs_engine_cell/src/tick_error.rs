@@ -3,11 +3,9 @@ use core::fmt;
 
 use crate::cell_id::CellId;
 
-/// Why [`Cells::tick`](crate::Cells::tick) sent no tick.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TickError {
-    /// The world of `cell` is lent out and not given back yet.
     Lent { cell: CellId },
 }
 

@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""List the worktrees of this repository whose work is merged, and remove them.
+
+usage: worktree-gc [--apply]
+
+A worktree is a candidate when all of these hold:
+  - it is not the main checkout, not the current worktree, and not locked;
+  - `git status --porcelain --ignored --untracked-files=normal` in it prints nothing but `target/`;
+  - it has a branch, and a merged pull request (per `gh`) has that branch name
+    and a head that contains the branch tip.
+
+A branch cut from origin/main with no work yet is an ancestor of origin/main too,
+so ancestry alone does not count as merged. A detached worktree is never a candidate.
+
+Without --apply, the script only prints the candidates and their count.
+With --apply, it runs `git worktree remove` on each one, then deletes its local branch.
+
+exit codes:
+  0  done
+  1  usage error, or a git command failed
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+IGNORED_BUILD_OUTPUT = "!! target/"
+
+
+def git(*args, cwd=None, check=True):
+    result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    if check and result.returncode != 0:
+        raise SystemExit(f"worktree-gc: git {' '.join(args)} failed: {result.stderr.strip()}")
+    return result
+
+
+def worktrees():
+    entries = []
+    entry = {}
+    for line in git("worktree", "list", "--porcelain").stdout.splitlines():
+        if not line:
+            if entry:
+                entries.append(entry)
+            entry = {}
+            continue
+        key, _, value = line.partition(" ")
+        entry[key] = value
+    if entry:
+        entries.append(entry)
+    return entries
+
+
+def merged_pull_requests():
+    if shutil.which("gh") is None:
+        raise SystemExit("worktree-gc: gh is not on PATH")
+    listed = subprocess.run(
+        ["gh", "pr", "list", "--state", "merged", "--limit", "1000", "--json", "headRefName,headRefOid"],
+        capture_output=True,
+        text=True,
+    )
+    if listed.returncode != 0:
+        raise SystemExit(f"worktree-gc: gh pr list failed: {listed.stderr.strip()}")
+    heads = {}
+    for pr in json.loads(listed.stdout or "[]"):
+        heads.setdefault(pr["headRefName"], []).append(pr["headRefOid"])
+    return heads
+
+
+def is_ancestor(commit, of):
+    return git("merge-base", "--is-ancestor", commit, of, check=False).returncode == 0
+
+
+def is_merged(branch, tip, merged_heads):
+    return any(tip == head or is_ancestor(tip, head) for head in merged_heads.get(branch, []))
+
+
+def is_clean(path):
+    status = git("status", "--porcelain", "--ignored", "--untracked-files=normal", cwd=path, check=False)
+    lines = [line for line in status.stdout.splitlines() if not line.startswith(IGNORED_BUILD_OUTPUT)]
+    return status.returncode == 0 and not lines
+
+
+def candidates():
+    current = os.path.realpath(git("rev-parse", "--show-toplevel").stdout.strip())
+    merged_heads = merged_pull_requests()
+    found = []
+    for index, entry in enumerate(worktrees()):
+        path = entry["worktree"]
+        if index == 0 or os.path.realpath(path) == current:
+            continue
+        if "locked" in entry or "prunable" in entry or "bare" in entry or not os.path.isdir(path):
+            continue
+        branch = entry.get("branch", "").removeprefix("refs/heads/")
+        if not branch or not is_merged(branch, entry.get("HEAD", ""), merged_heads):
+            continue
+        if not is_clean(path):
+            continue
+        found.append((path, branch, entry["HEAD"]))
+    return found
+
+
+def main(argv):
+    apply = False
+    for arg in argv[1:]:
+        if arg in ("-h", "--help"):
+            print(__doc__.strip())
+            return 0
+        if arg != "--apply":
+            print(f"worktree-gc: unknown argument {arg}", file=sys.stderr)
+            return 1
+        apply = True
+    found = candidates()
+    for path, branch, tip in found:
+        print(f"{path}\t{branch}")
+        if apply:
+            git("worktree", "remove", path)
+            git("update-ref", "-d", f"refs/heads/{branch}", tip)
+    verb = "removed" if apply else "would remove"
+    print(f"worktree-gc: {verb} {len(found)} worktree(s)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

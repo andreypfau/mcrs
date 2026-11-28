@@ -10,7 +10,6 @@ use mcrs_minecraft_core::codec::{Bounded, PositiveInt, default_true, is_default,
 use mcrs_minecraft_value_provider::{BoundedIntProvider, HeightProvider};
 use std::ops::RangeInclusive;
 
-/// `Codec.INT.optionalFieldOf(name, DEFAULT)`.
 pub type IntOr<const DEFAULT: i32> = Bounded<{ i32::MIN }, { i32::MAX }, DEFAULT>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -29,9 +28,6 @@ impl From<VerticalDirection> for mcrs_minecraft_core::Direction {
     }
 }
 
-/// One placement modifier. `P` is the predicate type: the asset's
-/// `BlockPredicate` as loaded, the compiled `Predicate` once every set it names
-/// is a mask.
 #[dispatch(registry = crate::placement_modifier_type_keys::PlacementModifierType)]
 #[derive(Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -85,8 +81,6 @@ pub enum PlacementModifier<P = BlockPredicate<Named>> {
     EnvironmentScan {
         direction_of_search: VerticalDirection,
         target_condition: P,
-        /// Absent is vanilla's `alwaysTrue` default, kept absent so the entry
-        /// is written back the way it was read.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         allowed_search_condition: Option<P>,
         max_steps: Bounded<1, 32>,
@@ -114,9 +108,6 @@ pub enum PlacementModifier<P = BlockPredicate<Named>> {
 }
 
 impl<P> PlacementModifier<P> {
-    /// The horizontal block range, relative to the chunk's own corner, that
-    /// a position placed through this modifier can reach when it is handed
-    /// positions inside `domain`.
     pub fn xz_domain(&self, domain: RangeInclusive<i32>) -> RangeInclusive<i32> {
         use PlacementModifier::*;
         let (min, max) = domain.into_inner();
@@ -156,7 +147,6 @@ impl<P> PlacementModifier<P> {
         }
     }
 
-    /// The same chain over another predicate type.
     pub fn try_map<Q, E>(
         &self,
         f: &mut impl FnMut(&P) -> Result<Q, E>,

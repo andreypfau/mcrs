@@ -1,6 +1,3 @@
-//! The decorated pot pattern registry value and its keys.
-// std: mcrs_minecraft_registries
-
 mod decorated_pot_pattern;
 #[rustfmt::skip]
 pub mod decorated_pot_pattern_keys;

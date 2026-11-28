@@ -4,9 +4,6 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 
 use crate::console_plugin::Console;
 
-/// Writes each system message for the server console since the last call to the log, one line
-/// each, in English. Run it after the host took the output of a tick and before the packets go
-/// out, which drains them.
 pub fn log_console_answers(world: &mut World) {
     if !world.contains_resource::<Console>() {
         return;

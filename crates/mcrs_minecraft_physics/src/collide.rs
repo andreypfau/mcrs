@@ -6,8 +6,6 @@ use crate::Collider;
 use crate::CollisionTable;
 use crate::tolerance::COLLISION;
 
-/// Resolves the displacement of the box against the colliders, one axis at a time: `y` first,
-/// then the axis with the larger horizontal component last.
 #[must_use]
 pub fn collide(table: &CollisionTable, colliders: &[Collider], bounds: Aabb, d: DVec3) -> DVec3 {
     if colliders.is_empty() {
@@ -32,8 +30,6 @@ pub fn collide(table: &CollisionTable, colliders: &[Collider], bounds: Aabb, d: 
     resolved
 }
 
-/// Clips the distance against each collider in turn. A distance below the tolerance before a
-/// collider ends the clip at exactly zero; a result just past zero after the last collider stays.
 fn clip_all(
     table: &CollisionTable,
     colliders: &[Collider],

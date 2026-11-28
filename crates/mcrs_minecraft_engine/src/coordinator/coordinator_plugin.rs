@@ -16,9 +16,8 @@ use crate::coordinator::dim_cells::DimCellsPlugin;
 use crate::coordinator::ops::OpListHostPlugin;
 use crate::server_edit::ServerStateHostPlugin;
 use crate::whitelist::WhitelistHostPlugin;
+use crate::world_state::WorldStatePlugin;
 
-/// The coordinator: the dimension worlds and their lockstep tick, the queues that spawn and
-/// despawn them, the clocks, the whitelist, the ban list and the operators.
 pub struct CoordinatorPlugin;
 
 impl Plugin for CoordinatorPlugin {
@@ -38,6 +37,7 @@ impl Plugin for CoordinatorPlugin {
             BanListHostPlugin,
             OpListHostPlugin,
             ServerStateHostPlugin,
+            WorldStatePlugin,
         ));
         app.add_systems(
             OnEnter(AppState::Playing),
@@ -46,11 +46,6 @@ impl Plugin for CoordinatorPlugin {
     }
 }
 
-/// Enqueue one `DimSpawnRequest` per baked dimension.
-///
-/// Runs at `OnEnter(AppState::Playing)`. The outer runner loop drains
-/// `DimSpawnQueue` immediately after `app.update()` returns, materialising one
-/// per-dim sub-app per request.
 pub fn enqueue_dim_spawns(
     dimensions: Res<DimensionList>,
     mut spawn_queue: ResMut<DimSpawnQueue>,

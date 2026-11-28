@@ -22,7 +22,6 @@ bevy = { version = "0.20.1", default-features = false, features = [
     "bevy_image",
 ] }
 bytemuck = { version = "1", features = ["derive"] }
-# Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
 wgpu = { version = "30", default-features = false }
 
 [dev-dependencies]

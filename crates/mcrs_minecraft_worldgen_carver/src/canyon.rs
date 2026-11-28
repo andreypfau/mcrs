@@ -10,15 +10,12 @@ use mcrs_minecraft_value_provider::HeightContext;
 
 use crate::modern::RANGE;
 
-/// `CanyonWorldCarver.carve`.
-///
-/// A second trajectory kind rather than another set of knobs on the cave
-/// integrator: it damps its rotations differently, redraws its radii every
-/// step, never splits, and its cross-section is modulated by a per-height
-/// width table rather than being a plain ellipsoid.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the carver's configuration, the chunk and source positions, the water mask, the carving mask and the random source of one canyon carving pass"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one canyon carving pass"
+    )
 )]
 pub fn carve_canyon<R: Random>(
     config: &CarverConfig,
@@ -82,9 +79,12 @@ pub fn carve_canyon_into<T: CarveTarget, R: Random>(
     );
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the position, shape, thickness, angles, distance, vertical scale and random source of one step of a canyon walk, each fed to the reference's arithmetic in order"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one canyon step"
+    )
 )]
 fn walk_canyon_into<T: CarveTarget>(
     context: HeightContext,
@@ -150,8 +150,6 @@ fn walk_canyon_into<T: CarveTarget>(
     }
 }
 
-/// One width factor per Y of the dimension, resampled whenever the smoothness
-/// draw fires, so the canyon's walls step in and out rather than being a tube.
 fn init_width_factors(
     context: HeightContext,
     shape: &CanyonShape,
@@ -225,9 +223,6 @@ mod tests {
         out
     }
 
-    /// The entry's draw order, written out the way `CanyonWorldCarver.carve`
-    /// takes it: origin, rotations, then the shape's own samples, then the
-    /// tunnel seed. One canyon per source, never a count.
     #[test]
     fn the_entry_draws_in_the_reference_order() {
         let config = canyon_at(40);
@@ -310,21 +305,16 @@ mod tests {
         let factors = init_width_factors(overworld(), &shipped_shape(), &mut rng);
         assert_eq!(factors.len(), 384);
         for factor in &factors {
-            // Every entry is `w * w` for some `w` in 1..2.
             assert!(
                 (1.0..=4.0).contains(factor),
                 "width factor {factor} out of range"
             );
         }
-        // Smoothness 3 means roughly a third of the heights redraw, so the
-        // table must neither be constant nor change at every step.
         let changes = factors.windows(2).filter(|w| w[0] != w[1]).count();
         assert!(changes > 40, "only {changes} steps of 383");
         assert!(changes < 250, "{changes} steps of 383 is not smoothing");
     }
 
-    /// The centre factor is what makes a canyon bulge in the middle. With the
-    /// shipped zero it is flat, so assert against a config that uses it.
     #[test]
     fn the_centre_factor_widens_the_middle_of_the_run() {
         let shape = CanyonShape {
@@ -336,13 +326,10 @@ mod tests {
         let mut rng = LegacyRandom::new(5);
         let end = update_vertical_radius(&mut rng, &shape, 1.0, 100, 0);
         assert!(middle > end, "middle {middle} should exceed the end {end}");
-        // default 1.0 + centre 1.0 * 1.0 at the midpoint, times the 0.75..1.0 jitter.
         assert!((0.75 * 2.0..=2.0).contains(&middle), "{middle}");
         assert!((0.75..=1.0).contains(&end), "{end}");
     }
 
-    /// The canyon's cross-section is not the cave's ellipsoid: the `yd * yd / 6`
-    /// term stretches it vertically, so it reaches Y the cave shape would skip.
     #[test]
     fn the_cross_section_stretches_further_than_an_ellipsoid() {
         let mut canyon = empty_mask();

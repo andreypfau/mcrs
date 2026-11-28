@@ -10,17 +10,12 @@ use crate::easing::{Easing, NamedEasing};
 use crate::environment_attribute_keys::EnvironmentAttribute;
 use crate::{Argument, AttributeValue, Operation, info, read_argument};
 
-/// One keyframe of a track: a tick and the argument of the track's modifier there.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Keyframe {
     pub ticks: u32,
     pub argument: Argument,
 }
 
-/// How a timeline moves one attribute: a modifier whose argument follows keyframes.
-///
-/// The segments between keyframes, including the wrap-around ones of a periodic timeline, are
-/// computed when the track is built and when its period is set, so a read allocates nothing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Track {
     attribute: EnvironmentAttribute,
@@ -137,7 +132,6 @@ impl Track {
         segments
     }
 
-    /// The argument of the track at the whole tick `ticks` of its clock.
     #[must_use]
     pub fn sample(&self, ticks: i64) -> Option<Argument> {
         let at = match self.period {
@@ -167,7 +161,6 @@ impl Track {
         ))
     }
 
-    /// The modifier of the track applied to `subject` at the whole tick `ticks`.
     #[must_use]
     pub fn apply(&self, subject: AttributeValue, ticks: i64) -> AttributeValue {
         let Some(argument) = self.sample(ticks) else {
@@ -179,7 +172,6 @@ impl Track {
         }
     }
 
-    /// The load fails for a track whose keyframes do not fit `period`.
     pub(crate) fn check(&self, period: Option<u32>) -> Result<(), String> {
         let ticks: Vec<u32> = self
             .keyframes
@@ -287,7 +279,6 @@ pub(crate) fn serialize_tracks<S: Serializer>(
     tracks: &BTreeMap<EnvironmentAttribute, Track>,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
-    // The files of the game list the tracks in the order of their attribute ids.
     let mut entries: Vec<(&EnvironmentAttribute, &Track)> = tracks.iter().collect();
     entries.sort_by_key(|(attribute, _)| attribute.as_static_str());
     serializer.collect_map(entries)

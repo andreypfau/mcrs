@@ -16,7 +16,6 @@ use super::provider::StateProvider;
 pub use mcrs_minecraft_core::{Axis, dist_manhattan};
 use mcrs_voxel::BlockPos;
 
-/// `Direction.Plane.getRandomDirection`.
 pub fn random_horizontal<R: Random>(rng: &mut R) -> Direction {
     Direction::HORIZONTAL
         .get(rng.next_i32_bound(4) as usize)
@@ -24,31 +23,19 @@ pub fn random_horizontal<R: Random>(rng: &mut R) -> Direction {
         .unwrap_or(Direction::North)
 }
 
-/// `Direction.allShuffled`, which is `Util.shuffle` over all six: a descending
-/// Fisher-Yates spending `n - 1` draws, a slot swapped with itself as readily
-/// as with any other.
 pub fn all_shuffled(rng: &mut WorldgenRandom) -> [Direction; 6] {
     let mut faces = Direction::all();
     mcrs_minecraft_random::shuffle(&mut faces, rng);
     faces
 }
 
-/// Every block set and state edit the trunk and foliage passes name, resolved
-/// once at freeze so nothing here looks a block up by id.
 #[derive(Clone, Debug, Default)]
 pub struct TreeStates {
-    /// `TreeFeature.validTreePos`: air, or in `#replaceable_by_trees`.
     pub valid_tree_pos: StateMask,
-    /// `#logs`, which widens `validTreePos` into `TrunkPlacer.isFree`.
     pub logs: StateMask,
-    /// Air plus `#leaves`, which is `TreeFeature.isAirOrLeaves`.
     pub air_or_leaves: StateMask,
-    /// States whose `persistent` is true, which stops a leaf.
     pub persistent: StateMask,
-    /// `trySetValue(RotatedPillarBlock.AXIS, …)`: the state's block as X, Y, Z.
     pub axis: HashMap<u16, [VoxelId; 3]>,
-    /// `setValue(WATERLOGGED, …)`: `[dry, wet]` per state of a waterloggable
-    /// block. A state absent here carries no such property.
     pub waterlogged: HashMap<u16, [VoxelId; 2]>,
 }
 
@@ -71,8 +58,6 @@ impl TreeStates {
     }
 }
 
-/// The volume a tree grows in, the tree's own tables, and the positions it has
-/// written so far — which the leaf relaxation and every decorator read back.
 pub struct TreeContext<'a, W> {
     pub volume: &'a mut W,
     pub states: &'a TreeStates,
@@ -120,7 +105,6 @@ impl<'a, W: WorldGenVolume> TreeContext<'a, W> {
         self.holds(&self.states.air_or_leaves, pos)
     }
 
-    /// `TrunkPlacer.isFree` before a placer's own widening.
     pub fn is_free(&self, pos: BlockPos) -> bool {
         self.is_valid_tree_pos(pos) || self.holds(&self.states.logs, pos)
     }
@@ -129,7 +113,6 @@ impl<'a, W: WorldGenVolume> TreeContext<'a, W> {
         self.holds(&self.states.persistent, pos)
     }
 
-    /// `level.isFluidAtPosition(pos, fluid -> fluid.isSourceOfType(WATER))`.
     pub fn is_water_source(&self, pos: BlockPos) -> bool {
         self.holds(&self.volume.world().water_source, pos)
     }
@@ -150,13 +133,10 @@ impl<'a, W: WorldGenVolume> TreeContext<'a, W> {
         self.set(pos, state);
     }
 
-    /// `FoliageSetter.isSet`: this tree's own leaves, not the world's.
     pub fn is_leaf_set(&self, pos: BlockPos) -> bool {
         self.leaf_set.contains(&pos)
     }
 
-    /// `TrunkPlacer.placeBelowTrunkBlock`, the only user of a provider's
-    /// optional form: nothing matching writes nothing at all.
     pub fn place_below_trunk_block(&mut self, rng: &mut WorldgenRandom, pos: BlockPos) {
         if let Some(state) = self
             .below_trunk_provider
@@ -167,7 +147,6 @@ impl<'a, W: WorldGenVolume> TreeContext<'a, W> {
     }
 }
 
-/// Where a crown hangs off a trunk, as the trunk placer left it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FoliageAttachment {
     pub pos: BlockPos,
@@ -191,8 +170,6 @@ struct CherryBranch<'a> {
     end_offset_from_top: &'a IntProvider,
 }
 
-/// A trunk placer beside the one block set it can name resolved:
-/// `upwards_branching`'s `can_grow_through`, `None` for every other placer.
 #[derive(Clone, Debug)]
 pub struct Trunk {
     pub placer: TrunkPlacer,
@@ -200,8 +177,6 @@ pub struct Trunk {
 }
 
 impl Trunk {
-    /// `base_height`, `height_rand_a` and `height_rand_b`, which every placer
-    /// carries and draws in that order.
     pub fn base(&self) -> (i32, i32, i32) {
         use TrunkPlacer::*;
         match &self.placer {
@@ -268,7 +243,6 @@ impl Trunk {
         base_height + rng.next_i32_bound(height_rand_a + 1) + rng.next_i32_bound(height_rand_b + 1)
     }
 
-    /// `validTreePos`, which only `upwards_branching` widens.
     pub fn valid_tree_pos<W: WorldGenVolume>(
         &self,
         cx: &TreeContext<'_, W>,
@@ -281,7 +255,6 @@ impl Trunk {
                 .is_some_and(|mask| cx.holds(mask, pos))
     }
 
-    /// `isFree`, which the tree's own free-space scan runs over its footprint.
     pub fn is_free<W: WorldGenVolume>(&self, cx: &TreeContext<'_, W>, pos: BlockPos) -> bool {
         self.valid_tree_pos(cx, pos) || cx.is_free(pos)
     }
@@ -737,9 +710,9 @@ impl Trunk {
         points
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the tree context and random source, the tree height and origin, and the branch step, branch probability and branch length providers of one trunk"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(mcrs::too_many_arguments, reason = "independent inputs of one trunk")
     )]
     fn place_upwards_branching<W: WorldGenVolume>(
         &self,
@@ -789,9 +762,9 @@ impl Trunk {
         attachments
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the tree context and random source, the tree height, the attachment list, and the log position, height, direction, offset and remaining steps of one branch"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(mcrs::too_many_arguments, reason = "independent inputs of one branch")
     )]
     fn place_branch<W: WorldGenVolume>(
         &self,
@@ -834,9 +807,12 @@ impl Trunk {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the tree context and random source, the tree height and origin, the branch count and start offset providers, and the branch settings of one cherry trunk"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one cherry trunk"
+        )
     )]
     fn place_cherry<W: WorldGenVolume>(
         &self,
@@ -916,9 +892,12 @@ impl Trunk {
         attachments
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the tree context and random source, the tree height and origin, the branch settings, the sideways axis, the direction, the offset and the upward flag of one cherry branch"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one cherry branch"
+        )
     )]
     fn generate_branch<W: WorldGenVolume>(
         &self,
@@ -1014,8 +993,6 @@ impl Trunk {
     }
 }
 
-/// `Direction.allShuffled` and *then* a filter, so the two vertical faces spend
-/// their draws before being thrown away.
 fn shuffled_branch_directions(rng: &mut WorldgenRandom) -> Vec<Direction> {
     all_shuffled(rng)
         .into_iter()
@@ -1090,9 +1067,6 @@ pub(crate) mod harness {
         format!(r#"{{"type":"minecraft:uniform","min_inclusive":{min},"max_inclusive":{max}}}"#)
     }
 
-    /// Air is the only free block, `DIRT` is what `can_grow_through` may widen
-    /// to, and the log turns into one of three states so an axis rewrite is
-    /// visible in the dump.
     pub fn states() -> TreeStates {
         TreeStates {
             valid_tree_pos: mask(&[AIR]),
@@ -1104,8 +1078,6 @@ pub(crate) mod harness {
         }
     }
 
-    /// What one placer run is pinned by: every write in order, and the source
-    /// it left behind.
     #[derive(Debug, PartialEq, Eq)]
     pub struct Pin {
         pub writes: usize,
@@ -1163,8 +1135,6 @@ mod tests {
         placer_through(kind, rest, mask(&[]))
     }
 
-    /// `can_grow_through`, which only `upwards_branching` reads, resolved to
-    /// `grow_through`.
     fn placer_through(kind: &str, rest: &str, grow_through: StateMask) -> Trunk {
         let json = format!(r#"{{"type":"minecraft:{kind}_trunk_placer",{rest}}}"#);
         Trunk {
@@ -1179,8 +1149,6 @@ mod tests {
         )
     }
 
-    /// One case per trunk type, parameters taken from the shipped feature that
-    /// uses it.
     pub(crate) fn cases() -> Vec<(&'static str, Trunk)> {
         vec![
             ("straight", placer("straight", &base(4, 2, 0))),
@@ -1297,8 +1265,6 @@ mod tests {
         }
     }
 
-    /// `Util.shuffle` is descending Fisher-Yates: `n - 1` draws for six faces,
-    /// a slot as likely to swap with itself as with any other.
     #[test]
     fn all_shuffled_spends_five_draws_over_six_faces() {
         let mut rng = WorldgenRandom::new(7);
@@ -1315,8 +1281,6 @@ mod tests {
         assert_eq!(sorted, Direction::all());
     }
 
-    /// `Direction.allShuffled` is filtered *after* the shuffle, so a placer that
-    /// wants horizontals still pays for the two vertical faces.
     #[test]
     fn poplar_branch_directions_burn_the_vertical_draws() {
         let mut rng = WorldgenRandom::new(3);
@@ -1328,8 +1292,6 @@ mod tests {
         assert_eq!(rng.next_i64(), replay.next_i64());
     }
 
-    /// `upwards_branching` widens `validTreePos`, and `isFree` is that widened
-    /// test or a log — so a block only `can_grow_through` names is free.
     #[test]
     fn upwards_branching_grows_through_its_own_set() {
         let states = states();

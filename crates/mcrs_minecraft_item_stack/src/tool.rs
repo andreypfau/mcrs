@@ -5,7 +5,6 @@ use core::hash::Hasher;
 use crate::ToolRule;
 use crate::float_key;
 
-/// How the stack mines blocks.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Tool {
@@ -16,8 +15,6 @@ pub struct Tool {
 }
 
 impl Tool {
-    /// A tool with the values that the saved form takes for its absent keys: a default mining
-    /// speed of 1, a damage of 1 for each block, and blocks that break in creative mode.
     #[must_use]
     pub fn new(rules: impl Into<Cow<'static, [ToolRule]>>) -> Self {
         Self {

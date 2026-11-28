@@ -2,7 +2,6 @@ use flume::{Receiver, Sender};
 
 use crate::task_end::{TaskEnd, TaskId, TaskOutcome};
 
-/// The tasks a stage opened, and the way their outcomes come back.
 pub(crate) struct Tasks<T> {
     sender: Sender<TaskOutcome<T>>,
     receiver: Receiver<TaskOutcome<T>>,
@@ -38,18 +37,15 @@ impl<T> Tasks<T> {
         Some(outcome)
     }
 
-    /// Blocks for the next outcome, or gives `None` at once when no task is open.
     pub(crate) fn wait(&mut self) -> Option<TaskOutcome<T>> {
         if self.open == 0 {
             return None;
         }
-        // Never disconnects, because `self` holds a sender.
         let outcome = self.receiver.recv().ok()?;
         self.taken();
         Some(outcome)
     }
 
-    /// Counts an outcome taken off the receiver by other means than `self`.
     pub(crate) fn taken(&mut self) {
         self.open = self.open.saturating_sub(1);
     }

@@ -92,3 +92,42 @@ fn a_policy_that_cannot_give_a_name_is_an_error() {
         );
     }
 }
+
+#[test]
+fn unrelated_players_do_not_shorten_collision_names() {
+    for (max_length, gamertag, expected) in [(2, "A", "A1"), (4, "ABCD", "ABC1")] {
+        let policy = BedrockNamePolicy {
+            prefix: None,
+            space_replacement: None,
+            max_length,
+        };
+        let mut online: HashSet<PlayerName> = (0..99)
+            .map(|index| PlayerName::new(format!("P{index}")).unwrap())
+            .collect();
+        online.insert(PlayerName::new(gamertag).unwrap());
+        assert_eq!(
+            policy.java_name(gamertag, &online),
+            Ok(PlayerName::new(expected).unwrap()),
+            "maximum length {max_length}"
+        );
+    }
+}
+
+#[test]
+fn collision_suffixes_cross_a_digit_boundary_and_report_exhaustion() {
+    for (max_length, gamertag, occupied, expected) in [
+        (3, "A11", 10..20, Ok(PlayerName::new("A20").unwrap())),
+        (2, "A", 1..10, Err(BedrockNameError::NoFreeName)),
+    ] {
+        let policy = BedrockNamePolicy {
+            prefix: None,
+            space_replacement: None,
+            max_length,
+        };
+        let mut online: HashSet<PlayerName> = occupied
+            .map(|index| PlayerName::new(format!("A{index}")).unwrap())
+            .collect();
+        online.insert(PlayerName::new(gamertag).unwrap());
+        assert_eq!(policy.java_name(gamertag, &online), expected);
+    }
+}

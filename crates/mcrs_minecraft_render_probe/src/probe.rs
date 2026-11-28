@@ -46,8 +46,6 @@ impl GpuTimings {
             .percentiles(slot, last, &[0.5, 0.95])
     }
 
-    /// Timing a pass costs an encoder of its own to reset its queries, so passes are timed only
-    /// while something reads the figures.
     pub fn want(&self, on: bool) {
         self.0.wanted.store(on, Ordering::Relaxed);
     }
@@ -73,8 +71,6 @@ impl GpuTimings {
 #[derive(Default)]
 struct Shared {
     wanted: AtomicBool,
-    /// Frames timed since timing was last switched on; the ring holds older frames until every
-    /// slot has been written again.
     warm: AtomicU32,
     frame: AtomicU32,
     samples: Mutex<Samples<SLOTS, WINDOW>>,
@@ -83,8 +79,6 @@ struct Shared {
 }
 
 impl Shared {
-    /// Metal writes no timestamp around a render pass, so a slot can stay blank forever while
-    /// its neighbour resolves every frame; one silent pass must not blind the others.
     fn push(&self, ms: [Option<f32>; SLOTS]) {
         let Ok(mut samples) = self.samples.lock() else {
             return;
@@ -162,7 +156,6 @@ impl<const N: usize, const W: usize> Samples<N, W> {
         self.percentiles(slot, W, &[0.5]).map(|p| p[0])
     }
 
-    /// Quantiles over the newest `last` samples, each clamped to the last sample held.
     fn percentiles<const Q: usize>(
         &self,
         slot: usize,
@@ -199,16 +192,13 @@ pub const PREPARE: usize = 2;
 pub const RENDER: usize = 3;
 pub const CLEANUP: usize = 4;
 pub const ACQUIRE: usize = 5;
-/// The frame's own work: every stage added up, the acquire wait taken back out.
 pub const ENGINE: usize = 6;
 pub const CPU_NAMES: [&str; 7] = [
     "main", "extract", "prepare", "render", "cleanup", "acquire", "engine",
 ];
 pub(crate) const CPU_SLOTS: usize = CPU_NAMES.len();
 
-/// Room for a second of frames at the rate being aimed for.
 pub const CPU_WINDOW: usize = 4096;
-/// A figure stands on the frames of the last second, which is how vanilla counts its fps.
 pub const WINDOW_SECS: f32 = 1.0;
 
 const FRAME_START: usize = 0;
@@ -217,10 +207,6 @@ const RENDER_LAST: usize = 2;
 const ACQUIRE_START: usize = 3;
 const MARKS: usize = 4;
 
-/// Wall time of each stage of the frame, main world and render world alike, as medians over the
-/// same window the GPU slots use. Without pipelined rendering the stages run back to back, so
-/// they and the frame period add up; with it the extract slot also holds the wait for the render
-/// thread and the stages overlap instead of summing.
 #[derive(Resource, Clone, Default)]
 pub struct CpuTimings(Arc<CpuShared>);
 
@@ -253,7 +239,6 @@ impl FrameStarts {
         self.written += 1;
     }
 
-    /// How many of the newest frames began within the window.
     fn recent(&self, now: Instant) -> usize {
         let Some((newer, older)) = self.at.split_at_checked(self.written % CPU_WINDOW) else {
             return 0;
@@ -333,6 +318,13 @@ impl CpuTimings {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the probe records the start of every frame to measure the frame time"
+    )
+)]
 pub(crate) fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
     cpu.mark(FRAME_START, time.last_update());
     if let Some(at) = time.last_update()
@@ -342,48 +334,57 @@ pub(crate) fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
     }
 }
 
-pub(crate) fn main_ended(cpu: Res<CpuTimings>) {
-    cpu.lap(FRAME_START, MAIN_END, MAIN);
-}
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        mcrs::blocking_in_system,
+        reason = "the probe measures the wall-clock time of each frame phase, so it must read the clock on every frame"
+    )
+)]
+mod phases {
+    use super::*;
 
-pub(crate) fn extracted(cpu: Res<CpuTimings>) {
-    cpu.lap(MAIN_END, RENDER_LAST, EXTRACT);
-}
+    pub(crate) fn main_ended(cpu: Res<CpuTimings>) {
+        cpu.lap(FRAME_START, MAIN_END, MAIN);
+    }
 
-pub(crate) fn prepared(cpu: Res<CpuTimings>) {
-    cpu.lap(RENDER_LAST, RENDER_LAST, PREPARE);
-}
+    pub(crate) fn extracted(cpu: Res<CpuTimings>) {
+        cpu.lap(MAIN_END, RENDER_LAST, EXTRACT);
+    }
 
-/// The swapchain acquire blocks until the display hands a drawable back, so on a machine whose
-/// presentation is throttled this is the wait that hides inside the prepare stage.
-pub(crate) fn acquiring(cpu: Res<CpuTimings>) {
-    cpu.mark(ACQUIRE_START, Some(Instant::now()));
-}
+    pub(crate) fn prepared(cpu: Res<CpuTimings>) {
+        cpu.lap(RENDER_LAST, RENDER_LAST, PREPARE);
+    }
 
-pub(crate) fn acquired(cpu: Res<CpuTimings>) {
-    cpu.lap(ACQUIRE_START, ACQUIRE_START, ACQUIRE);
-}
+    pub(crate) fn acquiring(cpu: Res<CpuTimings>) {
+        cpu.mark(ACQUIRE_START, Some(Instant::now()));
+    }
 
-pub(crate) fn rendered(cpu: Res<CpuTimings>) {
-    cpu.lap(RENDER_LAST, RENDER_LAST, RENDER);
-}
+    pub(crate) fn acquired(cpu: Res<CpuTimings>) {
+        cpu.lap(ACQUIRE_START, ACQUIRE_START, ACQUIRE);
+    }
 
-pub(crate) fn cleaned(cpu: Res<CpuTimings>) {
-    cpu.lap(RENDER_LAST, RENDER_LAST, CLEANUP);
-    if let Ok(mut samples) = cpu.0.samples.lock() {
-        let engine = [MAIN, EXTRACT, PREPARE, RENDER, CLEANUP]
-            .iter()
-            .map(|&slot| samples.last(slot))
-            .sum::<f32>()
-            - samples.last(ACQUIRE);
-        samples.push(ENGINE, engine);
+    pub(crate) fn rendered(cpu: Res<CpuTimings>) {
+        cpu.lap(RENDER_LAST, RENDER_LAST, RENDER);
+    }
+
+    pub(crate) fn cleaned(cpu: Res<CpuTimings>) {
+        cpu.lap(RENDER_LAST, RENDER_LAST, CLEANUP);
+        if let Ok(mut samples) = cpu.0.samples.lock() {
+            let engine = [MAIN, EXTRACT, PREPARE, RENDER, CLEANUP]
+                .iter()
+                .map(|&slot| samples.last(slot))
+                .sum::<f32>()
+                - samples.last(ACQUIRE);
+            samples.push(ENGINE, engine);
+        }
     }
 }
 
-/// Every system dispatched costs something whether or not it finds work, so the count per
-/// schedule is a number the frame budget has to know.
-pub(crate) fn log_system_counts(world: &mut World) {
-    let schedules = world.resource::<Schedules>();
+pub(crate) use phases::{acquired, acquiring, cleaned, extracted, main_ended, prepared, rendered};
+
+pub(crate) fn log_system_counts(schedules: Res<Schedules>) {
     let mut counts: Vec<(String, usize)> = schedules
         .iter()
         .map(|(label, schedule)| (format!("{label:?}"), schedule.systems_len()))
@@ -498,10 +499,6 @@ pub(crate) fn resolve(
     encoder.copy_buffer_to_buffer(&queries.resolve, 0, &queries.readback, 0, RESOLVE_BYTES);
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy render-graph system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 pub(crate) fn begin_frame(
     _view: ViewQuery<&'static ExtractedView>,
     queries: Option<Res<Queries>>,
@@ -516,7 +513,10 @@ pub(crate) fn begin_frame(
 ) {
     let queries = timings.timed(queries.as_deref());
     resolve(queries, &timings, ctx.command_encoder());
-    timestamps.queries = queries.map(|queries| (queries.set.clone(), timings.writing()));
+    let next = queries.map(|queries| (queries.set.clone(), timings.writing()));
+    if timestamps.queries != next {
+        timestamps.queries = next;
+    }
     if let Some(heat) = heat.as_deref() {
         let writes = queries.map(|queries| queries.compute(HEAT, &timings));
         heat.dispatch(&pipeline_cache, writes, ctx.command_encoder());
@@ -526,10 +526,7 @@ pub(crate) fn begin_frame(
     }
 }
 
-pub(crate) fn read(queries: Option<Res<Queries>>, timings: Res<GpuTimings>) {
-    let Some(queries) = queries else {
-        return;
-    };
+pub(crate) fn read(queries: Res<Queries>, timings: Res<GpuTimings>) {
     if !timings.0.gate.claim_map() {
         return;
     }

@@ -7,14 +7,11 @@ use crate::instance::{Instance, Phase, Step};
 use crate::query_source::QuerySource;
 use crate::rig::{AnimateTarget, Evaluation, Rig, Script};
 
-/// The inputs of a script at its last run.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct ScriptCache {
     pub inputs: Option<Vec<Option<u64>>>,
 }
 
-/// The animation state of one entity: its variables, the query values of the frame, and one
-/// clip instance for each element of the `animate` list.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EntityAnimation {
     pub(crate) variables: Variables,
@@ -30,7 +27,6 @@ pub struct EntityAnimation {
 }
 
 impl EntityAnimation {
-    /// The state of a new entity of `rig`: no variable is set and no instance plays.
     #[must_use]
     pub fn new(rig: &Rig) -> Self {
         Self {
@@ -47,7 +43,6 @@ impl EntityAnimation {
         }
     }
 
-    /// The model scale of the scripts `scale`, `scalex`, `scaley` and `scalez`.
     #[must_use]
     pub fn scale(&self) -> Vec3 {
         self.scale
@@ -58,14 +53,17 @@ impl EntityAnimation {
         &self.variables
     }
 
-    /// The instance of the element `entry` of the `animate` list.
+    #[must_use]
+    pub fn query_number(&self, slot: QuerySlot) -> Option<f32> {
+        let raw = u32::try_from(self.queries.get(slot)?).ok()?;
+        Some(f32::from_bits(raw))
+    }
+
     #[must_use]
     pub fn instance(&self, entry: usize) -> Option<&Instance> {
         self.instances.get(entry)
     }
 
-    /// Replaces the weight of an element of the `animate` list for this frame, after
-    /// [`EntityAnimation::update`]. A weight that is not 0 makes a stopped instance play.
     pub fn set_weight(&mut self, entry: usize, weight: f32) {
         let clock = self.clock;
         let Some(instance) = self.instances.get_mut(entry) else {
@@ -81,8 +79,6 @@ impl EntityAnimation {
         instance.weight = weight;
     }
 
-    /// Replaces the time of an instance for this frame, after [`EntityAnimation::update`]. The
-    /// loop of the clip wraps the time.
     pub fn set_time(&mut self, rig: &Rig, entry: usize, time: f32) {
         let clock = self.clock;
         let (Some(instance), Some(AnimateTarget::Clip(clip))) = (
@@ -100,9 +96,6 @@ impl EntityAnimation {
         }
     }
 
-    /// Runs the scripts of a frame and updates the play list: `initialize` in the first frame,
-    /// `pre_animation`, the scale, the weights and the time of each instance. `clock` is the
-    /// entity clock in ticks.
     pub fn update<S: QuerySource>(&mut self, rig: &Rig, vm: &mut ScalarVm, clock: f32, source: &S) {
         self.begin_frame(rig, clock, |query| source.query(query).map(Value::to_raw));
         self.run_scripts(rig, vm);
@@ -163,8 +156,6 @@ impl EntityAnimation {
         }
     }
 
-    /// Starts, stops and advances the instance of the element `index` of the `animate` list,
-    /// whose weight expression gave `weight`.
     pub(crate) fn update_instance(
         &mut self,
         rig: &Rig,
@@ -199,8 +190,6 @@ impl EntityAnimation {
             let in_loop_delay = instance.phase == Phase::LoopDelay;
             if instance.run_delay(step) {
                 if in_loop_delay {
-                    // The time is 0 in the frame that ends a loop delay, also for a time
-                    // expression that does not read `query.anim_time`.
                     instance.first_update = false;
                 } else {
                     self.advance_time(vm, rig, clip, &mut instance, step);
@@ -240,7 +229,6 @@ impl EntityAnimation {
         }
     }
 
-    /// Whether a script runs in this frame. Updates the cached inputs.
     fn inputs_changed(&self, script: &Script, cache: &mut ScriptCache) -> bool {
         let Evaluation::OnChange { queries, variables } = &script.evaluation else {
             return true;
@@ -268,7 +256,6 @@ impl EntityAnimation {
         }
     }
 
-    /// Runs an expression with `this` and gives its number.
     pub(crate) fn number(&mut self, vm: &mut ScalarVm, expression: &Expression, this: f32) -> f32 {
         match expression {
             Expression::Constant(value) => value.as_number(),

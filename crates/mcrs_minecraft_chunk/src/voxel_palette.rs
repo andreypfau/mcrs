@@ -4,7 +4,6 @@ use mcrs_voxel::{LocalPos, SectionPos};
 use std::hash::Hash;
 use std::sync::Arc;
 
-/// One section's cube of voxel ids, addressed by section-local position.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct VoxelPalette<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize>(
@@ -15,14 +14,10 @@ impl<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize> VoxelPalette
     pub const SIZE: usize = DIM;
     pub const VOLUME: usize = DIM * DIM * DIM;
 
-    /// A section that holds a single value everywhere.
     pub fn homogeneous(value: V) -> Self {
         Self(PalettedContainer::Homogeneous(value))
     }
 
-    /// Build a section from dense cells in the container's own index order:
-    /// y-major, then z, then x. `None` unless `cells` holds exactly
-    /// [`Self::VOLUME`] of them.
     pub fn from_cells(cells: &[V]) -> Option<Self> {
         PalettedContainer::from_cells(cells).map(Self)
     }
@@ -43,12 +38,12 @@ impl<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize> VoxelPalette
         self.0.get(x, y, z)
     }
 
-    /// Fill the box `[x0, x1) x [y0, y1) x [z0, z1)` in section-local coords.
-    /// Produces output identical to per-voxel `set` calls over the same box,
-    /// with bulk-optimized palette bookkeeping.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the lower and upper bound of the box on each axis, then the value to fill it with"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the lower and upper bound of the box on each axis, then the value to fill it with"
+        )
     )]
     pub fn fill_box(
         &mut self,
@@ -63,8 +58,6 @@ impl<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize> VoxelPalette
         self.0.fill_box(x0, x1, y0, y1, z0, z1, value);
     }
 
-    /// Invoke `f` once for each distinct value present in the container,
-    /// without duplicates.
     pub fn for_each_distinct<F: FnMut(V)>(&self, mut f: F) {
         match &self.0 {
             Homogeneous(value) => f(*value),
@@ -87,13 +80,6 @@ impl<V: Hash + Eq + Copy + Send + Sync + 'static> VoxelPalette<V, { SectionPos::
     }
 }
 
-/// A section's voxels as a world holds them.
-///
-/// Shared rather than owned, because a subsystem that runs off the tick loop —
-/// lighting, meshing, saving — needs a view it can outlive further edits with,
-/// and taking one has to cost a refcount instead of the kilobytes a
-/// heterogeneous section weighs. A write diverges that one section through
-/// [`SharedVoxelPalette::make_mut`].
 #[derive(Debug)]
 pub struct SharedVoxelPalette<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize>(
     pub Arc<VoxelPalette<V, DIM>>,

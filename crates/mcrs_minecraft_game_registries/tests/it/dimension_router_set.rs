@@ -14,8 +14,6 @@ fn every_noise_settings_compiles_into_a_router_from_the_loaded_set() {
     assert_eq!(registry.len(), 8);
 
     for (_, name, settings) in registry.iter() {
-        // Every distinct state gets a distinct id, so a router that mixed the
-        // terrain block up with the sea fluid would not compare equal.
         let states = RefCell::new(BTreeMap::<String, u16>::new());
         let block = |state: &BlockState| {
             let mut states = states.borrow_mut();

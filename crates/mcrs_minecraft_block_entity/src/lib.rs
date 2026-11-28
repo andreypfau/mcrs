@@ -1,6 +1,3 @@
-//! Block entities in the typed shape the save, the chunk packet and the anvil reader share.
-// std: mcrs_minecraft_nbt (`from_bytes_unnamed` reads through `std::io::Cursor`).
-
 mod banner_layer;
 mod bee_occupant;
 mod container_data;
@@ -27,7 +24,7 @@ pub use generated_block_entity::GeneratedBlockEntity;
 pub use hopper_data::HopperData;
 pub use jigsaw::{EMPTY_LABEL, Joint};
 pub use saved_item::{SavedItem, one};
-pub use sign_text::SignText;
+pub use sign_text::{SignText, SignTexts, SignUpdate};
 pub use spawn_data::SpawnData;
 pub use text::Text;
 pub use uuid::Uuid;

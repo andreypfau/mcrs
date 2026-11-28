@@ -11,15 +11,11 @@ use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_snbt::{check_compound, read_compound};
 use mcrs_voxel::BlockStateId;
 
-/// The value of a `block_predicate`. The property list and the data compound stay text and are
-/// read again by the test, so the value borrows the command line and owns nothing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockPredicate<'a> {
     pub subject: ResourceOrTag<'a>,
     input: &'a str,
-    /// The position of the `[` of the property list.
     list: Option<usize>,
-    /// The position of the `{` of the data compound.
     data: Option<usize>,
 }
 
@@ -36,9 +32,6 @@ impl<'a> BlockPredicate<'a> {
         })
     }
 
-    /// Without a data compound the test passes. With one, `saved` gives the saved
-    /// data of the block entity at the position, or `None` when there is none. The
-    /// compound is built from the text the read validated.
     #[must_use]
     pub fn test_data(&self, saved: impl FnOnce() -> Option<NbtCompound>) -> bool {
         let Some(start) = self.data else {
@@ -50,8 +43,6 @@ impl<'a> BlockPredicate<'a> {
         saved().is_some_and(|actual| expected.matches(&actual))
     }
 
-    /// The property test of a block state. The caller tests that the block of the
-    /// state is the block of the predicate, or a member of its tag.
     #[must_use]
     pub fn test(&self, block: &BlockEntry, state: BlockStateId) -> bool {
         self.properties().all(|(name, text)| {
@@ -66,13 +57,10 @@ impl<'a> BlockPredicate<'a> {
     }
 }
 
-/// Reads an optional sign and ASCII digits as a 32-bit integer. A text with an
-/// escape holds a backslash, so it is no integer.
 fn integer(text: StringValue<'_>) -> Option<i32> {
     text.as_unescaped()?.parse().ok()
 }
 
-/// Whether the value text names `value`.
 fn value_text_is(value: &PropertyValue, text: StringValue<'_>) -> bool {
     match value {
         PropertyValue::Str(name) => text == **name,
@@ -82,7 +70,6 @@ fn value_text_is(value: &PropertyValue, text: StringValue<'_>) -> bool {
     }
 }
 
-/// The pairs of an already validated property list.
 pub(crate) fn entries(
     input: &str,
     list: Option<usize>,
@@ -114,7 +101,6 @@ pub(crate) fn entries(
     })
 }
 
-/// Where a read stopped, for the suggestions.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) enum Stage<'a> {
     #[default]
@@ -151,7 +137,6 @@ pub(crate) enum Stage<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BlockPredicateArgument;
 
-/// One entry of the property list of a block.
 fn block_entry<'a>(
     reader: &mut Reader<'a>,
     properties: &[BlockProperty],
@@ -180,8 +165,6 @@ fn block_entry<'a>(
             name_start,
         ));
     };
-    // One bit per property finds duplicates only among the first 64 properties of a
-    // block; vanilla has at most 7. A block with more needs a wider set.
     let bit = 1u64
         .checked_shl(u32::try_from(index).unwrap_or(u32::MAX))
         .unwrap_or(0);

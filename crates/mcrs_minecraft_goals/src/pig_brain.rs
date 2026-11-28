@@ -1,3 +1,7 @@
+use core::fmt::Debug;
+use core::hash::Hash;
+use core::marker::PhantomData;
+
 use glam::DVec3;
 use mcrs_minecraft_brain::BrainRules;
 use mcrs_minecraft_brain::ControlFlags;
@@ -18,9 +22,6 @@ use crate::STROLL_IDLE_LIMIT;
 use crate::StrollGoal;
 use crate::panic;
 
-/// The decision goals of the pig (GOAL-ANI-001), in the order of its list. The float is a reflex
-/// of the hot tick that holds `jump`; no goal here needs `jump`. The breed, the tempt and the
-/// follow goals come with the love state, the held items and the age.
 pub const PIG_GOALS: [GoalSpec; 4] = [
     GoalSpec::new(1, ControlFlags::MOVE),
     GoalSpec::new(6, ControlFlags::MOVE),
@@ -28,14 +29,49 @@ pub const PIG_GOALS: [GoalSpec; 4] = [
     GoalSpec::new(8, ControlFlags::MOVE.union(ControlFlags::LOOK)),
 ];
 
+pub trait FarmAnimal: Clone + Copy + Debug + Default + PartialEq + Eq + Hash {
+    const PANIC_SPEED: f32;
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Pig;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Cow;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Sheep;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Chicken;
+
+impl FarmAnimal for Pig {
+    const PANIC_SPEED: f32 = 1.25;
+}
+
+impl FarmAnimal for Cow {
+    const PANIC_SPEED: f32 = 2.0;
+}
+
+impl FarmAnimal for Sheep {
+    const PANIC_SPEED: f32 = 1.25;
+}
+
+impl FarmAnimal for Chicken {
+    const PANIC_SPEED: f32 = 1.4;
+}
+
+pub type PigBrain = FarmAnimalBrain<Pig>;
+pub type CowBrain = FarmAnimalBrain<Cow>;
+pub type SheepBrain = FarmAnimalBrain<Sheep>;
+pub type ChickenBrain = FarmAnimalBrain<Chicken>;
+
 const PANIC: usize = 0;
 const STROLL: usize = 1;
 const LOOK_AT_PLAYER: usize = 2;
 const LOOK_AROUND: usize = 3;
 
-const PANIC_SPEED: f32 = 1.25;
 const STROLL_SPEED: f32 = 1.0;
-/// The range of the look at a player (GOAL-LKP-001).
 const LOOK_RANGE: f64 = 6.0;
 
 static PIG_RULES: BrainRules = BrainRules {
@@ -44,11 +80,11 @@ static PIG_RULES: BrainRules = BrainRules {
     idle_reset_range: IDLE_RESET_RANGE,
 };
 
-/// The brain state of one pig.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct PigBrain {
+pub struct FarmAnimalBrain<A> {
     selector: Selector,
     goals: PigGoals,
+    animal: PhantomData<A>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -60,23 +96,12 @@ struct PigGoals {
     published: Panic,
 }
 
-impl PigBrain {
+impl<A: FarmAnimal> FarmAnimalBrain<A> {
     #[must_use]
     pub fn selector(&self) -> &Selector {
         &self.selector
     }
 
-    /// The next full evaluation that is not quiet (GOAL-WAKE-002), when no wake event of
-    /// GOAL-WAKE-005 reaches the brain before; the stage wakes the brain for each such event.
-    ///
-    /// - the next evaluation, when a goal started or stopped in this one, or when a goal that the
-    ///   next one examines is eligible with no wait, so that it draws one;
-    /// - the next evaluation while the pig is busy (GOAL-WAKE-004): the panic does not run and the
-    ///   damage record that causes panic is still fresh then, or the look at a player runs;
-    /// - the due evaluation of each wait, and the end of a look around (GOAL-WAKE-006);
-    /// - while the stroll waits, the first evaluation in which the idle time can reach 100 with no
-    ///   reset: that evaluation ends the wait (GOAL-WAKE-007), and an extra evaluation that changes
-    ///   nothing is still exact.
     fn next_wake<W: ?Sized>(&self, turn: &Turn<'_, W>, changed: Changed) -> u64 {
         let goals = &self.goals;
         let tick = turn.tick;
@@ -112,19 +137,20 @@ impl PigBrain {
     }
 }
 
-impl<W: GoalWorld + ?Sized> MobBrain<W> for PigBrain {
+impl<A: FarmAnimal, W: GoalWorld + ?Sized> MobBrain<W> for FarmAnimalBrain<A> {
     fn rules(&self) -> &'static BrainRules {
         &PIG_RULES
     }
 
     fn evaluate(&mut self, turn: &Turn<'_, W>, intents: &mut Intents) -> u64 {
-        let mut goals = PigTurn {
+        let mut goals = PigTurn::<A, W> {
             turn,
             goals: &mut self.goals,
             intents,
             destination: None,
             eligible: 0,
             changed: Changed::No,
+            animal: PhantomData,
         };
         self.selector.evaluate(&mut goals, turn.view.disabled);
         let (eligible, changed) = (goals.eligible, goals.changed);
@@ -151,24 +177,23 @@ impl<W: GoalWorld + ?Sized> MobBrain<W> for PigBrain {
     }
 }
 
-/// Whether a goal started or stopped in a full evaluation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Changed {
     Yes,
     No,
 }
 
-struct PigTurn<'s, 't, 'a, W: ?Sized> {
+struct PigTurn<'s, 't, 'a, A, W: ?Sized> {
     turn: &'t Turn<'a, W>,
     goals: &'s mut PigGoals,
     intents: &'s mut Intents,
     destination: Option<DVec3>,
-    /// The goals with a gate that were eligible in this evaluation, one bit for each goal.
     eligible: u8,
     changed: Changed,
+    animal: PhantomData<A>,
 }
 
-impl<W: GoalWorld + ?Sized> Goals for PigTurn<'_, '_, '_, W> {
+impl<A: FarmAnimal, W: GoalWorld + ?Sized> Goals for PigTurn<'_, '_, '_, A, W> {
     fn specs(&self) -> &[GoalSpec] {
         &PIG_GOALS
     }
@@ -216,7 +241,7 @@ impl<W: GoalWorld + ?Sized> Goals for PigTurn<'_, '_, '_, W> {
         match goal {
             PANIC | STROLL => {
                 let speed = if goal == PANIC {
-                    PANIC_SPEED
+                    A::PANIC_SPEED
                 } else {
                     STROLL_SPEED
                 };

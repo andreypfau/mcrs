@@ -20,7 +20,6 @@ const FENCE: &str =
 const TREES: &str = "minecraft:village/savanna/trees";
 const STEP_EAST: &str = "minecraft:acacia_stairs[facing=east]";
 
-/// The end of a street that opens towards `side` from inside the box.
 fn inner_street_end(c: &mut Canvas, v: Village, [x, z]: [i32; 2], side: Direction) {
     let orientation = format!("{}_up", side.name());
     c.socket_facing([x, 1, z], &orientation, STREET, &v.pool("streets"), NOTHING);
@@ -45,7 +44,6 @@ fn melon_stem(age: i32) -> Cell {
     block(&format!("minecraft:melon_stem[age={age}]"))
 }
 
-/// Farmland on the bottom layer over `runs`, sown with wheat.
 fn field(c: &mut Canvas, runs: &[[i32; 3]]) {
     c.runs(&S.farmland, 0, runs);
     c.runs(&wheat(0), 1, runs);
@@ -158,8 +156,6 @@ fn split_02_of(c: &mut Canvas, v: Village) {
     houses(c, v, West, 8, [4, 4]);
 }
 
-/// A street along the west edge, `length` long, with places for houses on
-/// its east side over each of `sockets`.
 fn straight(c: &mut Canvas, v: Village, length: i32, sockets: &[[i32; 2]]) {
     street(c, v, &[[1, 0], [1, length - 1]]);
     path(c, Z, 1, [0, length - 1]);
@@ -315,7 +311,6 @@ fn terminator_05_of(c: &mut Canvas, v: Village) {
     decorations(c, v, NOTHING, &[[1, 2], [1, 12], [1, 14]]);
 }
 
-/// A fence joined to `sides` only, whatever stands next to it.
 fn fence(sides: &[Direction]) -> Cell {
     fence_joined(Block::AcaciaFence.as_static_str(), sides)
 }
@@ -335,30 +330,22 @@ fn turned_stairs(c: &mut Canvas, corners: &[([i32; 3], Direction)]) {
     }
 }
 
-/// `block` along the four walls of a round room, a 5x5 square without its
-/// corners inside the 7x7 box cornered at `[x, z]`.
 fn round_walls(c: &mut Canvas, block: &Cell, [x, z]: [i32; 2], ys: impl Coords + Clone) {
     c.fill(block, x + 2..=x + 4, ys.clone(), [z + 1, z + 5]);
     c.fill(block, [x + 1, x + 5], ys, z + 2..=z + 4);
 }
 
-/// `cells[0]` in the middle of the two walls of a round room that run along
-/// x, `cells[1]` in the middle of the other two.
 fn wall_middles(c: &mut Canvas, [x, y, z]: [i32; 3], cells: [&Cell; 2]) {
     c.fill(cells[0], x + 3, y, [z + 1, z + 5]);
     c.fill(cells[1], [x + 1, x + 5], y, z + 3);
 }
 
-/// The room most savanna houses are built round: walls of `post` three high
-/// on the layer above `at`, each with a pane in the middle under a `lintel`.
 fn round_room(c: &mut Canvas, [x, y, z]: [i32; 3], post: &Cell, lintel: [&Cell; 2]) {
     round_walls(c, post, [x, z], y + 1..=y + 3);
     wall_middles(c, [x, y + 2, z], [&S.pane, &S.pane]);
     wall_middles(c, [x, y + 3, z], lintel);
 }
 
-/// The lowest ring of a roof: stairs along the four sides of a rectangle,
-/// without its corners, round a ring of planks.
 fn eave(c: &mut Canvas, [x, y, z]: [i32; 3], [far_x, far_z]: [i32; 2]) {
     c.fill(&stairs(STAIRS, South), x + 1..=far_x - 1, y, z);
     c.fill(&stairs(STAIRS, North), x + 1..=far_x - 1, y, far_z);
@@ -372,14 +359,11 @@ fn eave(c: &mut Canvas, [x, y, z]: [i32; 3], [far_x, far_z]: [i32; 2]) {
     );
 }
 
-/// One ring of stairs over the eave of a round room, closed by `top`.
 fn flat_cap(c: &mut Canvas, [x, y, z]: [i32; 3], top: &Cell) {
     c.hip_roof(STAIRS, None, [x, y, z], [x + 4, z + 4], 1);
     c.solid(top, [x + 1, y, z + 1], [x + 3, y, z + 3]);
 }
 
-/// Two rings of stairs closing over a round room, lined with planks; `turned`
-/// are the corner stairs that face a quarter away from the ring's.
 fn cap(c: &mut Canvas, [x, y, z]: [i32; 3], turned: &[([i32; 3], Direction)]) {
     c.hip_roof(STAIRS, Some(&K.planks), [x, y, z], [x + 4, z + 4], 2);
     c.place(&K.planks, x + 2, y, z + 2);
@@ -402,7 +386,6 @@ fn wood_floor(c: &mut Canvas, grain: &Cell) {
 
 const HUT_TURNED: [([i32; 3], Direction); 2] = [([1, 5, 1], East), ([5, 5, 1], South)];
 
-/// A terracotta hut on open ground with its door to the south.
 fn hut(c: &mut Canvas, v: Village, wall: &str) {
     let wall = block(wall);
     let tufts = [
@@ -648,8 +631,6 @@ fn small_house_8(c: &mut Canvas, v: Village) {
     decorations(c, v, GRASS, &[[0, 0]]);
 }
 
-/// A room in the 7x7 box that starts at the row `z`, with a door in its west
-/// wall.
 fn twin_room(c: &mut Canvas, z: i32, turned: &[([i32; 3], Direction)]) {
     footing(c, [0, z]);
     c.solid(&K.planks, [2, 0, z + 2], [4, 0, z + 4]);
@@ -733,8 +714,6 @@ fn medium_house_2(c: &mut Canvas, v: Village) {
         eave(c, [x, 4, z], [x + 6, z + 6]);
         flat_cap(c, [x + 1, 5, z + 1], &slab("top"));
     }
-    // Where the two eaves cross, the first room's ring of planks stays whole
-    // and the stairs inside either room are left out.
     c.void([4, 4, 4], [4, 4, 4]);
     c.void([5, 4, 6], [5, 4, 6]);
     c.each(&K.planks, &[[5, 4, 4], [3, 4, 5]]);
@@ -993,9 +972,6 @@ fn savanna_armorer_1(c: &mut Canvas) {
     c.scatter(&S.short_grass, 1, &[[0, 1], [1, 1], [6, 1], [6, 2]]);
 }
 
-/// The long room of the weaponsmith and the tannery: walls of `wall` round a
-/// 2x5 floor, two windows to the west, the door to the east and a roof whose
-/// corner stairs are `turned`.
 fn workshop(c: &mut Canvas, wall: &Cell, turned: &[([i32; 3], Direction)]) {
     c.fill(wall, 2..=3, 1..=3, [1, 7]);
     c.fill(wall, [1, 4], 1..=3, 2..=6);
@@ -1837,8 +1813,6 @@ fn savanna_fisher_cottage_1(c: &mut Canvas) {
     spots(c, CATS, GRASS, &[[4, 1, 3], [0, 1, 7], [6, 1, 8]]);
 }
 
-/// Four fence posts under a roof of two rows of stairs between slab eaves,
-/// over a counter of two logs; the ridge runs along `along`.
 fn stall(c: &mut Canvas, [x, y, z]: [i32; 3], along: Axis) {
     let place = |c: &mut Canvas, cell: &Cell, across: i32, dy: i32, ridge: i32| {
         if along == Z {

@@ -571,9 +571,6 @@ dialog_type!(ServerLinks {
     pub button_width: ButtonWidth,
 });
 
-// A dialog list names registered dialogs and tags only; the game also takes a dialog
-// written inline in the list, which is refused here until a holder set that holds inline entries
-// exists.
 dialog_type!(DialogList {
     pub dialogs: M::Set<Dialog>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

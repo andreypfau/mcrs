@@ -50,7 +50,6 @@ fn template_cells(template: &Template) -> Option<TemplateCells> {
         .collect()
 }
 
-// Two saves of one structure differ in palette order and block order.
 fn same_template(built: &Template, shipped: &[u8]) -> bool {
     let Ok(shipped) = from_gzip_bytes::<Template, _>(Cursor::new(shipped)) else {
         return false;

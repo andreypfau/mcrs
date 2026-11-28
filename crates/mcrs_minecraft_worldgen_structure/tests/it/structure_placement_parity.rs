@@ -1,6 +1,3 @@
-//! Random-spread structure placement against the reference's
-//! `getPotentialStructureChunk` and `isStructureChunk` over two chunk squares.
-
 use bytes::Buf;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_resource::ResourceLocationBuf;

@@ -12,10 +12,135 @@ sources:
   - docs/clean-room.md
   - docs/spec/block-placing.md
   - docs/spec/teleport-confirmation.md
+  - docs/spec/nbt-quota.md
+  - docs/spec/client-inventory.md
+  - docs/spec/client-container-screen.md
+  - docs/spec/client-creative-inventory.md
+  - docs/spec/client-game-mode-switcher.md
+  - docs/spec/argument-block.md
+  - docs/spec/argument-coordinates.md
+  - docs/spec/argument-entity.md
+  - docs/spec/argument-keywords.md
+  - docs/spec/argument-resource.md
+  - docs/spec/arm-swing.md
+  - docs/spec/attributes.md
+  - docs/spec/bans.md
+  - docs/spec/bedrock-batch.md
+  - docs/spec/bedrock-game-packets.md
+  - docs/spec/bedrock-handshake.md
+  - docs/spec/bedrock-wire.md
+  - docs/spec/block-breaking.md
+  - docs/spec/block-drops.md
+  - docs/spec/block-entity-models.md
+  - docs/spec/block-face-bake.md
+  - docs/spec/block-loot.md
+  - docs/spec/block-model-resolution.md
+  - docs/spec/block-simulation.md
+  - docs/spec/block-smooth-light.md
+  - docs/spec/block-support.md
+  - docs/spec/client-block-breaking.md
+  - docs/spec/client-camera.md
+  - docs/spec/client-chat.md
+  - docs/spec/client-commands.md
+  - docs/spec/client-controls.md
+  - docs/spec/client-edit-box.md
+  - docs/spec/client-entities.md
+  - docs/spec/client-entity-definition.md
+  - docs/spec/client-entity-render.md
+  - docs/spec/client-fog.md
+  - docs/spec/client-font.md
+  - docs/spec/client-gui-sprite.md
+  - docs/spec/client-health-hud.md
+  - docs/spec/client-hotbar.md
+  - docs/spec/client-knowledge.md
+  - docs/spec/client-list.md
+  - docs/spec/client-menu.md
+  - docs/spec/client-player-render.md
+  - docs/spec/client-sign-text.md
+  - docs/spec/client-title-screen.md
+  - docs/spec/client-tooltip.md
+  - docs/spec/client-widget.md
+  - docs/spec/client-world-screens.md
+  - docs/spec/command-damage.md
+  - docs/spec/command-execute.md
+  - docs/spec/command-fill.md
+  - docs/spec/command-forceload.md
+  - docs/spec/command-gamemode.md
+  - docs/spec/command-gamerule.md
+  - docs/spec/command-give.md
+  - docs/spec/command-kill.md
+  - docs/spec/command-locate.md
+  - docs/spec/command-parser.md
+  - docs/spec/command-permissions.md
+  - docs/spec/command-swing.md
+  - docs/spec/command-teleport.md
+  - docs/spec/command-tick.md
+  - docs/spec/command-time.md
+  - docs/spec/command-weather.md
+  - docs/spec/commands-packet.md
+  - docs/spec/compression.md
+  - docs/spec/connection-limits.md
+  - docs/spec/container-loot.md
+  - docs/spec/dimension-change.md
+  - docs/spec/entity-ai-timing.md
+  - docs/spec/entity-animation.md
+  - docs/spec/entity-damage.md
+  - docs/spec/entity-geometry.md
+  - docs/spec/entity-physics.md
+  - docs/spec/entity-tracking.md
+  - docs/spec/environment-attributes.md
+  - docs/spec/environment-damage.md
+  - docs/spec/experience.md
+  - docs/spec/explosions.md
+  - docs/spec/falling-block.md
+  - docs/spec/heightmap.md
+  - docs/spec/hunger.md
+  - docs/spec/inventory-transactions.md
+  - docs/spec/inventory.md
+  - docs/spec/item-entity.md
+  - docs/spec/item-stack.md
+  - docs/spec/login.md
+  - docs/spec/loopback-operators.md
+  - docs/spec/loot-conditions.md
+  - docs/spec/loot-functions.md
+  - docs/spec/loot.md
+  - docs/spec/mob-animals.md
+  - docs/spec/mob-brain-sensors.md
+  - docs/spec/mob-brain.md
+  - docs/spec/mob-combat-goals.md
+  - docs/spec/mob-frog.md
+  - docs/spec/mob-goals.md
+  - docs/spec/mob-llama.md
+  - docs/spec/mob-pig.md
+  - docs/spec/mob-wolf.md
+  - docs/spec/molang-queries.md
+  - docs/spec/molang.md
+  - docs/spec/movement-checks.md
+  - docs/spec/numeric.md
+  - docs/spec/pathfinding.md
+  - docs/spec/persistence.md
+  - docs/spec/player-attack.md
+  - docs/spec/player-death.md
+  - docs/spec/player-pose.md
+  - docs/spec/predicates.md
+  - docs/spec/projectiles.md
+  - docs/spec/proxy-forwarding.md
+  - docs/spec/proxy-protocol.md
+  - docs/spec/reach.md
+  - docs/spec/registry-fields.md
+  - docs/spec/section-biomes.md
+  - docs/spec/snbt.md
+  - docs/spec/status-effects.md
+  - docs/spec/status.md
+  - docs/spec/text-component.md
+  - docs/spec/whitelist.md
+  - assets/minecraft/version.json
+  - docs/command-dimensions.md
+  - docs/entity-render.md
 verified:
   snapshot: 26.4-snapshot-7
-  commit: f50e2fdf6
-  date: 2026-11-10
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -25,9 +150,9 @@ import { Aside } from '@astrojs/starlight/components';
 The files in `docs/spec/` are written for AI agents and for the people who write specifications. They follow the rules of ASD-STE100 Simplified Technical English, as `docs/spec/README.md` says. That is why they are exact and dry. Use this page to find the right file, then read the file itself.
 </Aside>
 
-Each file in [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) states the behavior of one domain as data, which means its inputs, outputs, order, timing and constants. A spec never describes the shape of game code. Specs are also the only source of game behavior that an implementer may read for a rule, as the [clean-room rule](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) requires.
+The domain specifications in [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) state behavior as data: inputs, outputs, order, timing and constants. The README defines the writing conventions. A spec never describes the shape of game code. An implementer works from specs, public player-facing documentation, game-produced artifacts and permitted repository code, as the [clean-room rule](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) requires.
 
-Some spec headers still name `26.4-snapshot-4` as the game version. The project follows <code dir="auto">{fact('snapshot')}</code>, which is set in `assets/minecraft/version.json`.
+A spec does not name a snapshot in its header. The project follows <code dir="auto">{fact('snapshot')}</code>, which is set in `assets/minecraft/version.json`.
 
 ## Files by domain
 
@@ -35,23 +160,37 @@ A rule id such as `CMD-TP-013` has a domain prefix, a topic and a number. Tests 
 
 | Domain | Files in `docs/spec/` | Id prefix |
 |---|---|---|
+| Specification conventions | `README.md` | none |
 | Login, status, compression | `login.md`, `status.md`, `compression.md` | `LOGIN`, `STATUS`, `FRAME` |
-| Whitelist and bans | `whitelist.md`, `bans.md` | `WL`, `BAN` |
-| Commands: parser, tree, permissions | `command-parser.md`, `commands-packet.md`, `command-permissions.md`, `argument-*.md` (block, coordinates, entity, keywords, resource) | `CMD`, `CMDP`, `PERM`, `ARG-*` |
-| Commands: each command | `command-execute.md`, `-gamemode.md`, `-teleport.md`, `-locate.md`, `-kill.md`, `-damage.md`, `-time.md`, `-fill.md`, `-forceload.md`, `-gamerule.md`, `-weather.md`, `-tick.md` | `CMD-*` |
+| Connection limits and proxies | `connection-limits.md`, `proxy-forwarding.md`, `proxy-protocol.md` | `LIM-*`, `FWD-*`, `PXP-*` |
+| NBT budget of a serverbound packet | `nbt-quota.md` | `NBQ-*` |
+| Bedrock protocol | `bedrock-wire.md`, `bedrock-batch.md`, `bedrock-handshake.md`, `bedrock-game-packets.md` | `BEW-*`, `BEB-*`, `BEH-*`, `BEG-*` |
+| Whitelist, bans and operators | `whitelist.md`, `bans.md`, `loopback-operators.md` | `WL`, `BAN`, `LOOP-*` |
+| Commands: parser, tree, permissions | `command-parser.md`, `commands-packet.md`, `command-permissions.md`, `argument-block.md`, `argument-coordinates.md`, `argument-entity.md`, `argument-keywords.md`, `argument-resource.md` | `CMD`, `CMDP`, `PERM`, `ARG-*` |
+| Commands: each command | `command-execute.md`, `command-gamemode.md`, `command-teleport.md`, `command-locate.md`, `command-kill.md`, `command-damage.md`, `command-give.md`, `command-time.md`, `command-fill.md`, `command-forceload.md`, `command-gamerule.md`, `command-weather.md`, `command-tick.md`, `command-swing.md` | `CMD-*` |
 | Registries and data packs | `registry.md`, `registry-fields.md`, `environment-attributes.md` | `REG-*`, `ENVA` |
 | Text formats and numbers | `snbt.md`, `numeric.md` | `SNBT`, `NUM` |
 | Text component | `text-component.md` | `TXT-*` |
 | World generation support | `heightmap.md` | `HM` |
-| Block simulation, breaking and placing | `block-simulation.md`, `block-breaking.md`, `client-block-breaking.md`, `block-placing.md` | `SIM`, `BRK-*`, `PLC-*` |
-| Items | `item-stack.md`, `inventory-transactions.md`, `item-entity.md` | `STK-*`, `ITX-*`, `IEN-*` |
-| Player movement | `movement-checks.md`, `teleport-confirmation.md`, `dimension-change.md` | `MVC-*`, `TP-CONFIRM-*`, `DIM` |
-| Entities: physics, damage, tracking, geometry | `entity-physics.md`, `entity-damage.md`, `entity-tracking.md`, `entity-geometry.md`, `entity-animation.md`, `entity-ai-timing.md` | `PHY`, `DMG`, `TRK`, `EGEO`, `EANIM`, `AIT` |
-| Mobs: goals, pathfinding, species | `mob-goals.md`, `mob-combat-goals.md`, `pathfinding.md`, `mob-animals.md`, `mob-pig.md`, `mob-wolf.md`, `mob-llama.md`, `mob-frog.md` | `GOAL`, `CGOAL`, `PATH`, `ANIM`, `MPIG`, `WOLF`, `LLAMA`, `MFROG` |
+| Section biomes | `section-biomes.md` | `BIO-SEC-*` |
+| Saves | `persistence.md` | `SAVE-*` |
+| Blocks: simulation, breaking, placing, drops | `block-simulation.md`, `block-breaking.md`, `client-block-breaking.md`, `block-placing.md`, `block-support.md`, `block-drops.md`, `falling-block.md`, `explosions.md` | `SIM`, `BRK-*`, `CBK-*`, `PLC-*`, `SUP-*`, `BDR-*`, `FBK-*`, `EXP-*` |
+| Loot and predicates | `loot.md`, `loot-conditions.md`, `loot-functions.md`, `block-loot.md`, `container-loot.md`, `predicates.md` | `LOOT-*`, `CTL-*`, `PRED-*` |
+| Items and inventory | `item-stack.md`, `inventory.md`, `inventory-transactions.md`, `item-entity.md` | `STK-*`, `INV-*`, `ITX-*`, `IEN-*` |
+| Player movement and pose | `movement-checks.md`, `teleport-confirmation.md`, `dimension-change.md`, `player-pose.md` | `MVC-*`, `TP-CONFIRM-*`, `DIM`, `POSE-*` |
+| Client knowledge and reach | `client-knowledge.md`, `reach.md` | `CK-*`, `RCH-*` |
+| Players: hunger, experience, death, melee attack | `hunger.md`, `experience.md`, `player-death.md`, `player-attack.md` | `HNG-*`, `XP-*`, `PLD-*`, `ATK-*` |
+| Entities: physics, damage, effects, tracking, geometry | `entity-physics.md`, `entity-damage.md`, `environment-damage.md`, `attributes.md`, `status-effects.md`, `projectiles.md`, `entity-tracking.md`, `entity-geometry.md`, `entity-animation.md`, `entity-ai-timing.md`, `arm-swing.md` | `PHY`, `DMG`, `ENV-*`, `ATR-*`, `EFX-*`, `PRJ-*`, `TRK`, `EGEO`, `EANIM`, `AIT`, `SWG` |
+| Mobs: brain, goals, pathfinding, species | `mob-brain.md`, `mob-brain-sensors.md`, `mob-goals.md`, `mob-combat-goals.md`, `pathfinding.md`, `mob-animals.md`, `mob-pig.md`, `mob-wolf.md`, `mob-llama.md`, `mob-frog.md` | `BRAIN-*`, `GOAL`, `CGOAL`, `PATH`, `ANIM`, `MPIG`, `WOLF`, `LLAMA`, `MFROG` |
 | Molang | `molang.md`, `molang-queries.md` | `MOL`, `MOLQ` |
-| Client: world and entities | `client-camera.md`, `client-entities.md`, `client-entity-definition.md`, `client-entity-render.md`, `client-frame-capture.md` | `CCAM`, `CENTS`, `CENT`, `CEREN`, `CFC` |
-| Client: GUI, chat, commands | `client-chat.md`, `client-commands.md`, `client-gui-sprite.md`, `client-tooltip.md` | `CHAT`, `CCMD`, `GSPR`, `TIP` |
+| Client: world and entities | `client-camera.md`, `client-fog.md`, `client-entities.md`, `client-entity-definition.md`, `client-entity-render.md`, `client-player-render.md` | `CCAM`, `CFOG-*`, `CENTS`, `CENT`, `CEREN`, `CPR` |
+| Client: GUI widgets and text | `client-widget.md`, `client-list.md`, `client-edit-box.md`, `client-font.md`, `client-gui-sprite.md`, `client-tooltip.md` | `WID-*`, `LIST-*`, `SCRL-*`, `TAB-*`, `EDIT-*`, `FONT`, `GSPR`, `TIP` |
+| Client: screens, hotbar, chat, commands | `client-title-screen.md`, `client-world-screens.md`, `client-menu.md`, `client-controls.md`, `client-hotbar.md`, `client-chat.md`, `client-commands.md`, `client-game-mode-switcher.md` | `TITLE-*`, `WORLD-*`, `MENU-*`, `CTRL-*`, `CHB-*`, `CHAT`, `CCMD`, `CGMS-*` |
+| Client: health and food HUD | `client-health-hud.md` | `CHH-*` |
+| Client: inventory, container screens, creative inventory | `client-inventory.md`, `client-container-screen.md`, `client-creative-inventory.md` | `CINV-*`, `CCS-*`, `CCI-*` |
 | Block models and light | `block-model-resolution.md`, `block-face-bake.md`, `block-entity-models.md`, `block-smooth-light.md`, `client-sign-text.md` | `BMR`, `BFB`, `BEM`, `BSL`, `SIGN` |
+
+An entry here means that a specification exists, not that its behavior is implemented or ready to implement. In particular, `client-knowledge.md` and `reach.md` still have unrun experiments and rules marked `source_suggested`; their lag compensation and reach design is not a working check.
 
 Most specs list their own id prefixes in a table near the top. When that table and this page differ, the table in the file is the full list.
 
@@ -59,7 +198,7 @@ The `docs` folder also has notes next to the specs, for example [docs/command-di
 
 ## How to read a rule
 
-A rule has a heading with its id, a behavior section, and a provenance line:
+A spec has a rule only for a difference that someone can observe: the vanilla client, a player in normal play, a data pack or a save file, or a user of the library. A rule has a heading with its id, a behavior section, and a provenance line:
 
 ```text
 Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: ...
@@ -74,7 +213,7 @@ Provenance says where the rule comes from. Section 0.3 of `docs/spec/registry.md
 | `source_suggested` | Taken from the reference behavior with no artifact yet. Confidence is at most medium and an experiment is attached. |
 | `documentation` | Public, player-facing documented behavior. |
 | `design` | An mcrs choice. The rule states why. |
-| `unresolved` | Not decided. Collected in a section at the end of the file. |
+| `unresolved` | Not decided. Collected in the section "Unresolved" of the file. |
 
 Kind says how exact the rule must be.
 
@@ -84,11 +223,12 @@ Kind says how exact the rule must be.
 | `client agreement` | The server must agree with the client. |
 | `semantic` | The meaning and the result, but not the internal order. |
 | `layout` | GUI positions and sizes. |
-| `deviation` | The reference has a defect, and the rule states the correct behavior. |
-| `unspecified` | A parity test must not compare it. |
+| `deviation` | mcrs differs on purpose from a defect or an accident of the reference, and the rule states the expected behavior. |
+| `quirk` | mcrs keeps an accident of the reference, because the vanilla client, a data pack or a save file depends on it. Only the owner decides that a rule is a quirk. |
+| `unspecified` | An implementation selects the behavior, and a parity test must not compare it. The rule states a bound, such as "at least once in 40 ticks". |
 
-A file also has an "Intentional deviations" section, which records where mcrs differs from vanilla on purpose. Each entry gives the rule id, the reference behavior, whether the client sees the difference, and what a test does about it.
+A file also has an "Intentional deviations" section, which records where mcrs differs from vanilla on purpose. Each entry gives the rule id, the reference behavior, the reason, whether the client sees the difference, the bug report of the game if there is one, and what a test does about it. A "Known vanilla quirks" section lists each quirk with the observer that depends on it and the issue where the owner decided to keep it.
 
-`registry.md` says that none of its experiments has been run. So treat a `source_suggested` rule as a claim that has no game artifact behind it yet.
+A `source_suggested` rule is a claim that has no game artifact behind it yet. A spec is ready when its "Unresolved" section is empty and no rule carries `source_suggested`, and an implementer does not start on a spec that is not ready.
 
 Next: [How to contribute](/docs/en/contributing/) explains how a contributor writes and reads specs, and [Parity](/docs/en/concepts/parity/) explains how parity tests use them.

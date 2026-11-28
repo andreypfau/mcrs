@@ -1,0 +1,368 @@
+use std::borrow::Cow;
+use std::fmt::Write as _;
+use std::path::Path;
+
+use bevy::shader::ShaderDefVal;
+use mcrs_minecraft_render::RenderPath;
+use mcrs_minecraft_render::shared_bindings::{hiz, world_text_textures, world_text_view};
+use naga::back::glsl;
+use naga::valid::{Capabilities, ValidationFlags, Validator};
+use wesl::error::ResolveError;
+use wesl::syntax::{ModulePath, PathOrigin};
+use wesl::{CompileOptions, Resolver};
+
+const FULLSCREEN_VERTEX_OUTPUT: &str = "struct FullscreenVertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};";
+
+const BEVY_MATHS: &str = "const PI: f32 = 3.141592653589793;
+const HALF_PI: f32 = 1.57079632679;";
+const BEVY_VIEW: &str = "struct View {
+    clip_from_world: mat4x4<f32>,
+    world_from_clip: mat4x4<f32>,
+    world_from_view: mat4x4<f32>,
+    world_position: vec3<f32>,
+    view_from_clip: mat4x4<f32>,
+};";
+
+struct Sources {
+    constants: String,
+}
+
+impl Resolver for Sources {
+    fn canonical_path(&self, path: &ModulePath) -> ModulePath {
+        match &path.origin {
+            PathOrigin::Package(package) if package.contains('/') => ModulePath {
+                origin: PathOrigin::Package(
+                    package.rsplit('/').next().unwrap_or(package).to_owned(),
+                ),
+                components: path.components.clone(),
+            },
+            _ => path.clone(),
+        }
+    }
+
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
+        let path = self.canonical_path(path);
+        if let PathOrigin::Package(package) = &path.origin {
+            match package.as_str() {
+                "constants" => return Ok(Cow::Borrowed(&self.constants)),
+                "bevy_core_pipeline" => return Ok(Cow::Borrowed(FULLSCREEN_VERTEX_OUTPUT)),
+                "bevy_render" => match path.components.as_slice() {
+                    [module] if module == "maths" => return Ok(Cow::Borrowed(BEVY_MATHS)),
+                    [module] if module == "view" => return Ok(Cow::Borrowed(BEVY_VIEW)),
+                    _ => {}
+                },
+                "mcrs_minecraft_light_render" if path.components == ["shaders", "volume"] => {
+                    return Ok(Cow::Borrowed(include_str!(
+                        "../../../mcrs_minecraft_light_render/src/shaders/volume.wesl"
+                    )));
+                }
+                _ => {}
+            }
+        }
+        let file = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join(path.components.join("/"))
+            .with_extension("wesl");
+        std::fs::read_to_string(&file)
+            .map(Cow::Owned)
+            .map_err(|error| ResolveError::ModuleNotFound(path.clone(), error.to_string()))
+    }
+}
+
+pub(crate) fn wgsl(shader: &str, defs: Vec<ShaderDefVal>) -> String {
+    wgsl_at(&["shaders", "core", shader], defs)
+}
+
+pub(crate) fn wgsl_at(components: &[&str], defs: Vec<ShaderDefVal>) -> String {
+    let shader = components.join("/");
+    let mut options = CompileOptions {
+        imports: true,
+        condcomp: true,
+        visibility: false,
+        ..CompileOptions::default()
+    };
+    let mut constants = String::new();
+    for def in defs {
+        let (name, value) = match def {
+            ShaderDefVal::Bool(name, on) => {
+                options.features.flags.insert(name.to_string(), on.into());
+                continue;
+            }
+            ShaderDefVal::Int(name, value) => (name, i64::from(value)),
+            ShaderDefVal::UInt(name, value) => (name, i64::from(value)),
+        };
+        options.features.flags.insert(name.to_string(), true.into());
+        writeln!(constants, "const {name} = {value};").unwrap();
+    }
+    let main = ModulePath {
+        origin: PathOrigin::Package("mcrs_minecraft_render".to_owned()),
+        components: components.iter().map(|&part| part.to_owned()).collect(),
+    };
+    wesl::compile(&main, &options, &Sources { constants })
+        .unwrap_or_else(|error| panic!("{shader}: {error}"))
+        .to_string()
+}
+
+fn compile(shader: &str, defs: Vec<ShaderDefVal>) -> naga::Module {
+    naga::front::wgsl::parse_str(&wgsl(shader, defs))
+        .unwrap_or_else(|error| panic!("{shader}: {error}"))
+}
+
+pub(crate) fn cull_defs(section_slots: u32) -> Vec<ShaderDefVal> {
+    vec![
+        ShaderDefVal::UInt("CULL_THREADS".into(), 32),
+        ShaderDefVal::UInt("GROUP_THREADS".into(), 256),
+        ShaderDefVal::UInt("GROUPS_PER_STEP".into(), 2),
+        ShaderDefVal::UInt("SECTION_SLOTS".into(), section_slots),
+        ShaderDefVal::UInt("CAVE_WORDS".into(), section_slots.div_ceil(32)),
+        ShaderDefVal::UInt("MAX_WORKGROUPS".into(), 65535),
+        ShaderDefVal::Int("MODEL_BIAS_CONSTANT".into(), 0),
+        ShaderDefVal::UInt("MODEL_BIAS_SLOPE_BITS".into(), 0),
+    ]
+}
+
+const ES_310_BUILTINS: [&str; 6] = [
+    "bitfieldExtract",
+    "bitfieldInsert",
+    "bitfieldReverse",
+    "bitCount",
+    "findLSB",
+    "findMSB",
+];
+
+const BOTH: &[RenderPath] = &[RenderPath::Full, RenderPath::Minimal];
+const FULL: &[RenderPath] = &[RenderPath::Full];
+
+const PIPELINES: [(&str, &[&str], &[RenderPath]); 19] = [
+    ("greedy", &[], BOTH),
+    ("greedy", &["SOLID"], BOTH),
+    ("greedy", &["SOLID", "WIREFRAME"], BOTH),
+    ("greedy", &["WIREFRAME"], BOTH),
+    ("greedy", &["IMPROVED"], BOTH),
+    ("model", &[], BOTH),
+    ("model", &["SOLID"], BOTH),
+    ("model", &["SOLID", "WIREFRAME"], BOTH),
+    ("model", &["WIREFRAME"], BOTH),
+    ("model", &["IMPROVED"], BOTH),
+    ("lighting_pass", &[], BOTH),
+    ("lighting_pass", &["LIGHTING_TERM"], BOTH),
+    ("lighting_pass", &["IMPROVED"], BOTH),
+    ("lighting_pass", &["LIGHT_TINT"], BOTH),
+    ("lighting_pass", &["IMPROVED", "LIGHT_TINT"], FULL),
+    ("gbuffer_views", &["SHOW_GRID"], BOTH),
+    ("show", &[], BOTH),
+    ("show", &["PYRAMID"], BOTH),
+    ("present", &[], BOTH),
+];
+
+const WEBGL2_FRAGMENT_TEXTURES: usize = 16;
+
+#[test]
+fn the_world_shaders_compile_for_both_paths_and_the_minimal_one_for_webgl2() {
+    for (shader, extra, paths) in PIPELINES {
+        for &path in paths {
+            let mut defs = path.shader_defs();
+            defs.extend(extra.iter().map(|&name| ShaderDefVal::from(name)));
+            let module = compile(shader, defs);
+            let info = Validator::new(ValidationFlags::all(), Capabilities::default())
+                .validate(&module)
+                .unwrap_or_else(|error| panic!("{shader} {extra:?} on {path:?}: {error:?}"));
+            if !path.is_full() {
+                let label = format!("{shader} {extra:?}");
+                assert_writes_for_webgl2(&label, &module, &info);
+                let textures = fragment_textures(&module, &info);
+                assert!(
+                    textures <= WEBGL2_FRAGMENT_TEXTURES,
+                    "{label} samples {textures} textures in a fragment stage"
+                );
+            }
+        }
+    }
+}
+
+fn fragment_textures(module: &naga::Module, info: &naga::valid::ModuleInfo) -> usize {
+    module
+        .entry_points
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| entry.stage == naga::ShaderStage::Fragment)
+        .map(|(index, _)| {
+            let used = info.get_entry_point(index);
+            module
+                .global_variables
+                .iter()
+                .filter(|&(handle, variable)| {
+                    !used[handle].is_empty()
+                        && matches!(
+                            module.types[variable.ty].inner,
+                            naga::TypeInner::Image {
+                                class: naga::ImageClass::Sampled { .. }
+                                    | naga::ImageClass::Depth { .. },
+                                ..
+                            }
+                        )
+                })
+                .count()
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+const OWN_SHADERS: [(&str, &[&str]); 2] = [
+    (
+        "sky",
+        &[
+            "vertex_occluder",
+            "fragment_occluder",
+            "vertex_disc",
+            "fragment_disc",
+            "fragment_clouds",
+            "fragment_cloud_image",
+        ],
+    ),
+    (
+        "panorama",
+        &["panorama", "blur_horizontal", "blur_vertical"],
+    ),
+];
+
+#[test]
+fn the_sky_and_panorama_shaders_compile_with_each_entry_point_for_webgl2() {
+    for (shader, entries) in OWN_SHADERS {
+        let source = wgsl_at(&["shaders", shader], Vec::new());
+        let module = naga::front::wgsl::parse_str(&source)
+            .unwrap_or_else(|error| panic!("{shader}: {error}"));
+        let info = Validator::new(ValidationFlags::all(), Capabilities::default())
+            .validate(&module)
+            .unwrap_or_else(|error| panic!("{shader}: {error:?}"));
+        for name in entries {
+            assert!(
+                module.entry_points.iter().any(|entry| entry.name == *name),
+                "the {shader} shader has no entry point {name}"
+            );
+        }
+        assert_writes_for_webgl2(shader, &module, &info);
+    }
+}
+
+fn assert_writes_for_webgl2(label: &str, module: &naga::Module, info: &naga::valid::ModuleInfo) {
+    let options = glsl::Options {
+        version: glsl::Version::Embedded {
+            version: 300,
+            is_webgl: true,
+        },
+        ..glsl::Options::default()
+    };
+    for entry in &module.entry_points {
+        let pipeline = glsl::PipelineOptions {
+            shader_stage: entry.stage,
+            entry_point: entry.name.clone(),
+            multiview: None,
+        };
+        let mut out = String::new();
+        let written = glsl::Writer::new(
+            &mut out,
+            module,
+            info,
+            &options,
+            &pipeline,
+            naga::proc::BoundsCheckPolicies::default(),
+        )
+        .and_then(|mut writer| writer.write());
+        if let Err(error) = written {
+            panic!("{label} {} for WebGL2: {error}", entry.name);
+        }
+        for builtin in ES_310_BUILTINS {
+            assert!(
+                !out.contains(builtin),
+                "{label} {} calls {builtin}, which WebGL2 does not have",
+                entry.name
+            );
+        }
+    }
+}
+
+#[test]
+fn the_cull_shader_compiles_for_the_full_path() {
+    let module = compile("cull", cull_defs(64));
+    if let Err(error) =
+        Validator::new(ValidationFlags::all(), Capabilities::default()).validate(&module)
+    {
+        panic!("cull: {error:?}");
+    }
+}
+
+fn assert_bindings(module: &naga::Module, expected: &[(u32, u32)]) {
+    let mut actual: Vec<(u32, u32)> = module
+        .global_variables
+        .iter()
+        .filter_map(|(_, var)| var.binding.map(|binding| (binding.group, binding.binding)))
+        .collect();
+    actual.sort_unstable();
+    let mut expected = expected.to_vec();
+    expected.sort_unstable();
+    assert_eq!(actual, expected, "shader resource bindings mismatch");
+}
+
+#[test]
+fn the_hiz_and_world_text_shaders_compile_and_gbuffer_views_drops_unread_groups() {
+    let hiz_module = compile("hiz", Vec::new());
+    Validator::new(ValidationFlags::all(), Capabilities::default())
+        .validate(&hiz_module)
+        .expect("hiz");
+    assert_bindings(
+        &hiz_module,
+        &[(0, hiz::DEPTH), (0, hiz::LEVEL_OUT), (0, hiz::LEVEL_IN)],
+    );
+
+    for (shader, path) in ["world_text", "name_tag"]
+        .into_iter()
+        .flat_map(|shader| BOTH.iter().map(move |path| (shader, path)))
+    {
+        let text_source = wgsl_at(&["shaders", shader], path.shader_defs());
+        let text_module = naga::front::wgsl::parse_str(&text_source)
+            .unwrap_or_else(|error| panic!("{shader} parses: {error}"));
+        let text_info = Validator::new(ValidationFlags::all(), Capabilities::default())
+            .validate(&text_module)
+            .unwrap_or_else(|error| panic!("{shader} validates: {error}"));
+        assert_writes_for_webgl2(shader, &text_module, &text_info);
+        assert_bindings(
+            &text_module,
+            &[
+                (0, world_text_view::FRAME),
+                (1, world_text_textures::FONT_PAGE),
+                (1, world_text_textures::FONT_SAMPLER),
+                (1, world_text_textures::LIGHTMAP_LEVELS),
+                (1, world_text_textures::LIGHTMAP_SAMPLER),
+            ],
+        );
+    }
+
+    for def in [
+        "SHOW_UNLIT",
+        "SHOW_ALBEDO",
+        "SHOW_AO",
+        "SHOW_NORMAL",
+        "SHOW_BLOCK_LIGHT",
+        "SHOW_SKY_LIGHT",
+        "SHOW_GRID",
+    ] {
+        let views = compile("gbuffer_views", vec![ShaderDefVal::from(def)]);
+        Validator::new(ValidationFlags::all(), Capabilities::default())
+            .validate(&views)
+            .unwrap_or_else(|error| panic!("gbuffer_views {def}: {error:?}"));
+        for (_, var) in views.global_variables.iter() {
+            if let Some(binding) = &var.binding {
+                assert!(
+                    binding.group <= 1,
+                    "gbuffer_views {def} must not bind unread groups (saw @group({}) @binding({}))",
+                    binding.group,
+                    binding.binding
+                );
+            }
+        }
+    }
+}

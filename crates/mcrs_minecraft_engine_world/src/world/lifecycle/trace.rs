@@ -7,9 +7,6 @@ use bevy_platform::time::Instant;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 
-/// How far a column has got on its way from a player's view ticket to a mesh on
-/// screen. The order is the pipeline order: a mark only ever moves a column
-/// forward, so a column that fell behind still reads as the stage it stalled in.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum ColumnStage {
     Ticketed,
@@ -68,7 +65,6 @@ struct Trace {
     entered: Instant,
     first: Instant,
     sent_after: Option<Duration>,
-    /// When each stage was entered, after `first`; a stage the column skipped stays empty.
     reached: [Option<Duration>; STAGES],
 }
 
@@ -82,8 +78,6 @@ pub struct ColumnSample {
 }
 
 impl ColumnSample {
-    /// How long the column spent getting from the stage before `stage` to `stage`, or
-    /// `None` when it has not reached it.
     pub fn hop(&self, stage: ColumnStage) -> Option<Duration> {
         let at = (*self.reached.get(stage as usize)?)?;
         let before = self
@@ -117,8 +111,6 @@ impl TraceEvent {
     }
 }
 
-/// A player who keeps walking one way leaves entries behind that no unload ever
-/// claims, so the map is dropped wholesale rather than grown without bound.
 const CAPACITY: usize = 1 << 16;
 
 #[derive(Default)]
@@ -184,12 +176,6 @@ impl ColumnTraces {
     }
 }
 
-/// What a dimension has traced since the host last took it. Present only when the host shares
-/// its traces with a client, so a server nobody reads the trace of records nothing.
-///
-/// Systems record through a shared borrow: a write borrow would keep every system that traces
-/// from running beside another, even in a server that records nothing. A clone records into the
-/// same log, from any thread.
 #[derive(Resource, Clone)]
 pub struct ColumnTraceLog {
     sender: flume::Sender<TraceEvent>,
@@ -209,7 +195,6 @@ impl ColumnTraceLog {
     }
 
     fn record(&self, event: TraceEvent) {
-        // Cannot fail: the log holds its own receiver.
         let _ = self.sender.send(event);
     }
 }
@@ -226,13 +211,6 @@ pub fn forget(log: Option<&ColumnTraceLog>, pos: ColumnPos) {
     }
 }
 
-/// A single-player client hosts its server in this same process, so the debug
-/// map reads the server's column lifecycle through the sink both hold rather
-/// than over the wire.
-///
-/// Against a remote server only the client's own `Received`/`Meshed`
-/// marks land, and the earlier stages read as unknown; a debug packet is the
-/// upgrade.
 #[derive(Resource, Clone, Default)]
 pub struct ColumnTraceSink(Arc<Mutex<FxHashMap<String, ColumnTraces>>>);
 

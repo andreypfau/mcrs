@@ -1,5 +1,3 @@
-//! The upkeep a headless protocol client owes the server so that it keeps the client in the world.
-
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -21,25 +19,17 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundPlayerLoaded, ServerboundPong,
 };
 
-/// The length of a client tick.
 pub const TICK: Duration = Duration::from_millis(50);
 pub const VIEW_DISTANCE: u8 = 10;
-/// Both servers clamp the asked rate to their own ceiling, so asking for the most leaves the
-/// pace to the server's batch window, the same rule on both.
 pub const DESIRED_CHUNKS_PER_TICK: f32 = 64.0;
 
-/// What [`answer_upkeep`] did with a packet.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Upkeep {
-    /// The packet was an upkeep request and is answered.
     Handled,
-    /// The server placed the player at this position; the teleport is accepted.
     Teleported(DVec3),
-    /// The packet is none of the upkeep packets.
     Other,
 }
 
-/// Joins the server at `address` as `username` and returns the play connection.
 pub async fn connect(address: SocketAddr, username: String) -> anyhow::Result<RawConnection> {
     let io = PacketIo::connect(address).await?;
     let Joined { connection, .. } = join(
@@ -59,7 +49,6 @@ pub async fn connect(address: SocketAddr, username: String) -> anyhow::Result<Ra
     Ok(connection)
 }
 
-/// Answers the chunk batch, keep-alive, ping and teleport packets, which every client answers.
 pub fn answer_upkeep(
     connection: &mut RawConnection,
     id: i32,
@@ -91,7 +80,6 @@ pub fn answer_upkeep(
     Ok(Upkeep::Handled)
 }
 
-/// Tells the server that the client is in the world and flies; sent after the first teleport.
 pub fn announce_loaded(connection: &mut RawConnection) {
     connection.write_packet(&ServerboundPlayerLoaded);
     connection.write_packet(&ServerboundPlayerAbilities { flying: true });

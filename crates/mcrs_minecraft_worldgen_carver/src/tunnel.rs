@@ -3,9 +3,6 @@ use crate::target::CarveTarget;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 
-/// Which sine table index a walk takes. Beta's `MathHelper` scales an `f32`;
-/// 26.3's `Mth` takes a `double`. The table entries are the same, the index is
-/// not, and one step in a few thousand lands on a different one.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TrigIndex {
     Beta,
@@ -30,8 +27,6 @@ impl TrigIndex {
     }
 }
 
-/// How thick a tunnel is and how its radii are scaled. Beta leaves every
-/// multiplier at one; the modern carvers sample each from a provider.
 #[derive(Clone, Copy)]
 pub struct TunnelShape {
     pub thickness: f32,
@@ -41,17 +36,12 @@ pub struct TunnelShape {
     pub trig: TrigIndex,
 }
 
-/// Which generator seeds a split tunnel. The two draw from different streams —
-/// Beta from the source's own generator, the modern carvers from the tunnel's —
-/// and that is the one place their trajectories genuinely part.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SplitSeeding {
     FromTunnel,
     FromParent,
 }
 
-/// `WorldCarver.canReach`: give up once the target chunk is further away than
-/// the steps left could possibly carry the tunnel.
 pub fn can_reach(
     chunk_x: i32,
     chunk_z: i32,
@@ -68,17 +58,12 @@ pub fn can_reach(
     dx * dx + dz * dz - remaining * remaining <= reach * reach
 }
 
-/// Walk one tunnel, marking an ellipsoid at each step it does not skip.
-///
-/// `room` is Beta's single-step start: it takes the step draw out of the loop
-/// and stops after the first ellipsoid that actually rasterises, which is why
-/// the water abort has to be answered here rather than in the substance pass.
-///
-/// A split hands each child the `live` its parent holds, so a column that ends
-/// in one child is still live in its sibling.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the position, shape, angles, step counts, room flag, split seeding and both random sources of one tunnel walk, which the reference passes as separate values"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "the position, the angles and the step change as the walk recurses into branches, and each branch passes its own values"
+    )
 )]
 pub fn walk_tunnel_into<T: CarveTarget, R: Random>(
     target: &mut T,

@@ -14,8 +14,6 @@ use crate::MobPassenger;
 use crate::MoveControl;
 use crate::Rotations;
 
-/// The guidance of one mob: the follower, the move control, the jump control, the look control
-/// and the body rotation. The host keeps it next to the row of the mob.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MobControl {
     defaults: LookDefaults,
@@ -39,21 +37,16 @@ impl MobControl {
         }
     }
 
-    /// The last applied path intent and whether its path runs: the `path` of the view of the mob
-    /// in the next snapshot.
     #[must_use]
     pub const fn applied(&self) -> Applied {
         self.follower.applied()
     }
 
-    /// The mob has a path that is not done.
     #[must_use]
     pub const fn has_path(&self) -> bool {
         self.follower.is_running()
     }
 
-    /// Applies the intents of one decision, at the start of the tile task, before
-    /// [`MobControl::before_travel`]. `position` is the position of the mob then.
     pub fn apply(&mut self, intents: &Intents, position: DVec3) {
         if let Some(path) = &intents.path {
             self.follower.apply(path, position);
@@ -63,9 +56,6 @@ impl MobControl {
         }
     }
 
-    /// The controls of one tick before the step of the row, in the order of AIT-VAN-001: the goal
-    /// tick of the look around, the follower, the move control, the look control and the jump
-    /// control.
     pub fn before_travel(&mut self, input: &ControlInput) -> ControlOutput {
         let followed = self.follower.step(input);
         if let Some(wanted) = followed.wanted {
@@ -95,8 +85,6 @@ impl MobControl {
         }
     }
 
-    /// The body rotation after the step of the row. `start` is the position before the step,
-    /// `rotations` the rotations after it; the result holds the new head yaw and body yaw.
     #[must_use]
     pub fn after_travel(
         &mut self,

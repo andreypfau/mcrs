@@ -2,19 +2,13 @@ use core::fmt;
 
 use mcrs_minecraft_pack_file::SyntaxError;
 
-/// A content error that rejects a whole geometry file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LoadError {
-    /// The text is not lenient JSON.
     Syntax(SyntaxError),
-    /// The root of the file is not an object.
     NotAnObject,
-    /// The file has no `format_version` string.
     MissingFormatVersion,
-    /// No shape has this `format_version`.
     UnsupportedFormat { version: String },
-    /// A file of the current shape has no array `minecraft:geometry`.
     MissingGeometries,
 }
 

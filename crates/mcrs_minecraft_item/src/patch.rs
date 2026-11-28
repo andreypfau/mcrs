@@ -9,14 +9,13 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::deserialize_unit;
+use crate::component_value_seed::ComponentValueSeed;
 use crate::data_component_type_keys::DataComponentType;
 use crate::kind::decode_component_value;
 use crate::kind::{ItemComponentValue, ItemDataComponent};
 use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt, ensure};
 use std::io::Write;
 
-/// Values set on top of an item's prototype and kinds removed from it; a kind
-/// appears at most once across both lists.
 #[derive(Clone, Debug)]
 pub struct ComponentPatch<M: Refs = Resolved> {
     pub added: Vec<ItemComponentValue<M>>,
@@ -29,7 +28,6 @@ impl<M: Refs> Default for ComponentPatch<M> {
     }
 }
 
-/// Order is not part of the value.
 impl<M: Refs> PartialEq for ComponentPatch<M> {
     fn eq(&self, other: &Self) -> bool {
         self.added.len() == other.added.len()
@@ -131,7 +129,6 @@ impl FromWire for ComponentPatch {
     }
 }
 
-/// Unlike `Vec::from_wire`, an error carries no index, as the `Resolve` impls of a patch do.
 fn values_from_wire<C: WireNames>(
     wire: Vec<ItemComponentValue<Wire>>,
     ctx: &C,
@@ -200,8 +197,6 @@ impl<'de> Deserialize<'de> for ComponentPatch<Named> {
                 f.write_str("a map of component ids to values")
             }
 
-            /// `"x"` and `"!x"` are distinct keys to the dispatched map, and the
-            /// later one wins when the map collapses to a patch.
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
                 let mut patch = ComponentPatch::EMPTY;
                 let mut seen = Vec::new();
@@ -219,7 +214,7 @@ impl<'de> Deserialize<'de> for ComponentPatch<Named> {
                         map.next_value_seed(EmptyMapSeed)?;
                         patch.remove(kind);
                     } else {
-                        patch.set_value(map.next_value_seed(kind)?);
+                        patch.set_value(map.next_value_seed(ComponentValueSeed(kind))?);
                     }
                 }
                 Ok(patch)
@@ -299,8 +294,6 @@ impl<M: Refs> ComponentMap<M> {
         map
     }
 
-    /// The patch that turns this prototype into `other`, normalised: no addition
-    /// equal to the prototype value, no removal of a kind the prototype lacks.
     pub fn diff(&self, other: &ComponentMap<M>) -> ComponentPatch<M> {
         let mut patch = ComponentPatch::EMPTY;
         for value in &other.0 {
@@ -347,7 +340,9 @@ impl<'de> Deserialize<'de> for ComponentMap<Named> {
                     if values.get_value(kind).is_some() {
                         return Err(A::Error::custom(format_args!("Duplicate key '{key}'")));
                     }
-                    values.0.push(map.next_value_seed(kind)?);
+                    values
+                        .0
+                        .push(map.next_value_seed(ComponentValueSeed(kind))?);
                 }
                 Ok(values)
             }
@@ -357,8 +352,6 @@ impl<'de> Deserialize<'de> for ComponentMap<Named> {
     }
 }
 
-/// Vanilla names the parsed identifier, so a bare path is reported with its
-/// default namespace.
 fn unknown_component_error(id: &str) -> String {
     let namespace = if id.contains(':') { "" } else { "minecraft:" };
     format!("No component with type: '{namespace}{id}'")
@@ -397,36 +390,6 @@ fn decode_with<'a>(
         patch.remove(DataComponentType::decode(r)?);
     }
     Ok(patch)
-}
-
-/// Every added value behind its byte length.
-pub fn encode_delimited_patch(patch: &ComponentPatch<Wire>, w: impl Write) -> Result<()> {
-    encode_with(patch, w, |value, w| {
-        let mut bytes = Vec::new();
-        value.encode(&mut bytes)?;
-        VarInt(bytes.len() as i32).encode(&mut *w)?;
-        Ok(w.write_all(&bytes)?)
-    })
-}
-
-/// The bytes a value leaves unread inside its length prefix are skipped:
-/// the declared size is advanced unconditionally.
-pub fn decode_delimited_patch(r: &mut &[u8]) -> Result<ComponentPatch<Wire>> {
-    decode_with(r, |kind, r| {
-        let len = VarInt::decode(r)?.0;
-        ensure!(len >= 0, "negative component length");
-        let len = len as usize;
-        ensure!(
-            len <= r.len(),
-            "component {} declares {len} bytes but {} remain",
-            kind.location(),
-            r.len()
-        );
-        let (mut slice, rest) = r.split_at(len);
-        let value = decode_component_value(kind, &mut slice)?;
-        *r = rest;
-        Ok(value)
-    })
 }
 
 impl Encode for ComponentPatch<Wire> {

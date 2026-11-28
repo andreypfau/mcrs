@@ -3,9 +3,6 @@ use bevy_ecs::prelude::Component;
 use bevy_math::*;
 use mcrs_minecraft_core::Look;
 
-/// Yaw and pitch in degrees. Pitch is clamped to `[-90, 90]`. Yaw keeps the raw value the client
-/// sent: the client turns its input with the sine of the raw yaw in f32, and a wrapped yaw gives
-/// another rounding, so the server copy of a player would drift from the client.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Rotation {
     yaw: f32,
@@ -36,7 +33,6 @@ impl Rotation {
         self.pitch
     }
 
-    /// Adds the turn of the mouse, already scaled, to the yaw and the pitch.
     #[inline]
     #[must_use]
     pub fn turn(self, yaw: f32, pitch: f32) -> Self {
@@ -101,9 +97,6 @@ impl Default for Transform {
         Self::IDENTITY
     }
 }
-
-#[derive(Copy, Clone, Debug, Component, Deref)]
-pub struct OldTransform(pub Transform);
 
 #[derive(Copy, Clone, Debug, Deref, DerefMut, Component)]
 pub struct Velocity(pub DVec3);

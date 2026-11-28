@@ -2,7 +2,6 @@ use std::fmt;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-/// The Xbox Live user id of a Bedrock player.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Xuid(pub u64);
 

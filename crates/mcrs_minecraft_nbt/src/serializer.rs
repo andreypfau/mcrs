@@ -30,10 +30,6 @@ impl<W: Write, E: NbtEncoding> WriteAdaptor<W, E> {
         }
     }
 
-    pub fn inner_mut(&mut self) -> &mut W {
-        &mut self.writer
-    }
-
     pub fn into_inner(self) -> W {
         self.writer
     }
@@ -70,7 +66,6 @@ impl<W: Write, E: NbtEncoding> WriteAdaptor<W, E> {
         E::write_i64(&mut self.writer, value)
     }
 
-    // Vanilla's float and double tags fold -0.0 into +0.0 as they are made.
     #[inline]
     pub fn write_f32(&mut self, value: f32) -> Result<()> {
         E::write_f32(&mut self.writer, value + 0.0)
@@ -118,22 +113,18 @@ fn write_root<E: NbtEncoding, T: Serialize>(
     tag.serialize_data(&mut w)
 }
 
-/// Serializes struct using Serde Serializer to unnamed (network) NBT with standard BigEndian encoding
 pub fn to_bytes_unnamed<T: Serialize>(value: &T, w: impl Write) -> Result<()> {
     to_bytes_unnamed_with::<BigEndian, T>(value, w)
 }
 
-/// Serializes struct using Serde Serializer to unnamed NBT with specified encoding
 pub fn to_bytes_unnamed_with<E: NbtEncoding, T: Serialize>(value: &T, w: impl Write) -> Result<()> {
     write_root::<E, T>(value, None, w)
 }
 
-/// Serializes struct using Serde Serializer to normal named NBT with standard BigEndian encoding
 pub fn to_bytes_named<T: Serialize>(value: &T, name: String, w: impl Write) -> Result<()> {
     to_bytes_named_with::<BigEndian, T>(value, name, w)
 }
 
-/// Serializes struct using Serde Serializer to normal named NBT with specified encoding
 pub fn to_bytes_named_with<E: NbtEncoding, T: Serialize>(
     value: &T,
     name: String,
@@ -142,12 +133,10 @@ pub fn to_bytes_named_with<E: NbtEncoding, T: Serialize>(
     write_root::<E, T>(value, Some(name), w)
 }
 
-/// Serializes struct using Serde Serializer with standard BigEndian encoding and empty root name
 pub fn to_bytes<T: Serialize>(value: &T, w: impl Write) -> Result<()> {
     to_bytes_with::<BigEndian, T>(value, w)
 }
 
-/// Serializes struct using Serde Serializer with specified encoding and empty root name
 pub fn to_bytes_with<E: NbtEncoding, T: Serialize>(value: &T, w: impl Write) -> Result<()> {
     to_bytes_named_with::<E, T>(value, String::new(), w)
 }

@@ -1,7 +1,3 @@
-//! Bedrock Edition protocol: batch framing, batch compression and the handshake packets.
-
-// std: flate2
-
 mod batch_compression;
 mod batch_decoder;
 mod batch_encoder;

@@ -85,8 +85,6 @@ pub fn define(f: &mut Functions) {
     f.define(TOP_SLIDE, Df::y_gradient(104, 128, 0.0, 1.0));
 }
 
-/// The octaves of the beta noises. The sampler seeds them its own way from the
-/// ids alone, so these entries are only what the loader finds under the ids.
 pub fn noises() -> impl Iterator<Item = (ResourceLocationBuf, NoiseParam)> {
     [
         (rl!("mcrs:beta/climate_detail"), -1, 2),

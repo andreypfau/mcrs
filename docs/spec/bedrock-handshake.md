@@ -10,12 +10,6 @@ This document states the packets and the order of the Bedrock Edition connection
 protocol 729. The handshake starts with the first batch of the client. It ends when the client
 accepts the resource pack stack. The game packets that follow are in `bedrock-game-packets.md`.
 
-This document does not state these items. A later specification states each one:
-
-- the check of the identity chain in `Login`, and Xbox Live authentication;
-- the key exchange and the cipher layer;
-- the transfer of resource pack data in chunks.
-
 ## 0. Conventions
 
 ### 0.1 Terms
@@ -465,7 +459,7 @@ None.
 - **Prediction risk**: none.
 - **Parity list**: none.
 
-## 6. Open questions
+## 6. Unresolved
 
 - **Q1.** The meaning of the three client throttle fields of `NetworkSettings` is not known. The
   server writes false, 0 and 0.0.

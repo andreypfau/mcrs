@@ -15,11 +15,6 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 const MAGIC: &[u8; 8] = b"MCDFORCL";
-/// The strict profile is the oracle and must reproduce the dumps bit for bit.
-/// The fast profile reassociates and fuses roundings by design, so it is held to
-/// a divergence budget instead — the divergence is measured, not waived. The
-/// observed worst is 3.3e-6 on `final_density`; a break in the function itself
-/// would be orders of magnitude wider.
 #[cfg(not(feature = "fast"))]
 const DIVERGENCE_BUDGET: Option<f32> = None;
 #[cfg(feature = "fast")]
@@ -137,7 +132,7 @@ fn fill(router: &NoiseRouter, root: usize, v: &DumpVolume) -> Vec<f32> {
     );
     let mut out = vec![f32::NAN; volume.len()];
     let mut ws = Workspace::new();
-    router.program.fill(&mut ws, &volume, root, &mut out);
+    router.program().fill(&mut ws, &volume, root, &mut out);
     out
 }
 
@@ -222,16 +217,11 @@ fn supported_roots_match_the_vanilla_oracle_at_the_origin() {
 mod exhaustive {
     use super::*;
 
-    /// Every root the compiler supports, over every lattice dump.
     #[test]
     fn supported_roots_match_the_vanilla_oracle() {
         assert_supported_roots_match_the_vanilla_oracle(&lattice_dumps());
     }
 
-    /// The dense dump is the only fixture that reaches the off-lattice interpolation
-    /// path: on the lattice dumps the interpolated values are surface levels, exact
-    /// multiples of eight, so no rounding happens and the interpolation order cannot
-    /// be distinguished.
     #[test]
     fn final_density_matches_the_dense_oracle() {
         let dump = dense_dump();

@@ -1,16 +1,12 @@
 # Molang: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Language | Molang of Bedrock Edition, rules of `min_engine_version` 1.19.60 and later |
-| Reference pack | `Mojang/bedrock-samples`, resource pack `1.26.60.5` |
+Language: Molang of Bedrock Edition, rules of `min_engine_version` 1.19.60 and later.
 
 This document states the syntax and the meaning of Molang, the expression language of Bedrock
 Edition resource packs. The client uses Molang in entity geometry, animations, animation
 controllers, render controllers and client entity files. The block definitions under
 `assets/mcrs/block_definition/` use Molang in their permutation conditions. One implementation
 serves all of these consumers. `molang-queries.md` states the queries that the host supplies.
-The document does not prescribe an architecture.
 
 ## 0. Conventions
 
@@ -97,7 +93,7 @@ state these.
 - **Postconditions:** each Molang field gives one expression.
 
 Provenance: `documentation`; item 4: `documentation` (particle reference, "Legacy Molang
-Expression"). Kind: semantic. Confidence: medium. Milestone: 1.
+Expression"). Kind: semantic. Confidence: medium.
 
 ### MOL-LOAD-002: Script arrays are one expression
 
@@ -113,9 +109,7 @@ Expression"). Kind: semantic. Confidence: medium. Milestone: 1.
   entry and closes `};` in a later entry.
 
 Provenance: `documentation` (bedrock-samples, `entity/zombie.entity.json`, `entity/pig.entity.json`).
-Kind: semantic. Confidence: medium. Milestone: 1. Experiment: in Bedrock, put
-`"t.a = 1;"` and `"v.b = t.a;"` in two entries of `pre_animation`. Show `v.b` through a
-render-controller colour. The colour shows `v.b = 1`.
+Kind: semantic. Confidence: medium.
 
 ### MOL-LOAD-003: One set of language rules
 
@@ -130,7 +124,7 @@ render-controller colour. The colour shows `v.b = 1`.
 - **Postconditions:** the result of an expression does not depend on the version of its pack.
 
 Provenance: `documentation` (versioned changes table); one set of rules for each version:
-`design` (MOL-DEV-001). Kind: semantic. Confidence: high. Milestone: 1.
+`design` (MOL-DEV-001). Kind: semantic. Confidence: high.
 
 ### MOL-LOAD-004: Load errors
 
@@ -158,7 +152,7 @@ Provenance: `documentation` (versioned changes table); one set of rules for each
   logs the error with the file and the JSON path.
 
 Provenance: `documentation` (content errors of 1.17.40). Kind: semantic. Confidence: medium.
-Milestone: 1.
+
 
 ### MOL-LOAD-005: Load warnings
 
@@ -178,7 +172,7 @@ Milestone: 1.
 
 Provenance: `documentation`; postconditions 2 and 3: `design`, so that a pack with many
 references to one unsupported query gives one line in the log. Kind: semantic. Confidence:
-medium. Milestone: 1.
+medium.
 
 ### MOL-LOAD-006: Versioned values
 
@@ -200,7 +194,7 @@ Provenance: `documentation` for the form (particle reference, "Legacy Molang Exp
 items 3 and 4: `design`, from the decision of one set of language rules (MOL-DEV-001). The
 documentation does not state the meaning of the number. Item 4 counts the rows of the table
 of versioned changes from `1`, and `7` is the row of `1.19.60` (section 13). Kind: semantic.
-Confidence: low for item 4; medium for the other items. Milestone: 1.
+Confidence: low for item 4; medium for the other items.
 
 ---
 
@@ -221,7 +215,7 @@ Confidence: low for item 4; medium for the other items. Milestone: 1.
 - **Postconditions:** the compiler folds letters outside strings to lower case before it
   compares names.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### MOL-LEX-002: Literals
 
@@ -237,7 +231,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
 - **Example:** `1`, `1.25`, `.5`, `0.2f`, `'minecraft:pig'`, `''`.
 
 Provenance: `documentation`; the `f` suffix: bedrock-samples. The form `"." digits`: an mcrs
-choice. Kind: semantic. Confidence: medium. Milestone: 1.
+choice. Kind: semantic. Confidence: medium.
 
 ### MOL-LEX-003: Names and keywords
 
@@ -266,7 +260,7 @@ choice. Kind: semantic. Confidence: medium. Milestone: 1.
      error `reserved`.
 - **Postconditions:** each reference starts with a namespace, or is a keyword.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### MOL-LEX-004: Operator tokens
 
@@ -274,7 +268,7 @@ The tokens are `!`, `-`, `+`, `*`, `/`, `<`, `<=`, `>`, `>=`, `==`, `!=`, `&&`, 
 `:`, `??`, `=`, `->`, `(`, `)`, `{`, `}`, `[`, `]`, `,`, `;` and `.`. The lexer takes the
 longest token at each position. Thus `??` is one token, and `<=` is one token.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -350,9 +344,7 @@ lvalue       = variable_ref | postfix "->" variable_ref ;
      statement (MOL-EVAL-005).
 
 Provenance: `documentation`; empty statements and trailing commas: community test; items 7
-to 9: bedrock-samples, the particle files use these forms (`docs/molang-corpus.md`,
-section 10). Kind: semantic. Confidence: medium. Milestone: 1, except `loop`, `for_each`,
-`break`, `continue` and `->`, which are `later`. A member path of a query result is not a
+to 9: bedrock-samples, the particle files use these forms. Kind: semantic. Confidence: medium. A member path of a query result is not a
 load error `unsupported` in milestone 1. No query of milestones 1 and 2 has a `struct`
 result, so the path reads as missing (`molang-queries.md`, MOLQ-KNOWN-001).
 
@@ -380,7 +372,7 @@ The grammar of MOL-SYN-001 gives this precedence, from the highest to the lowest
   3. `v.x = 1 ? 5 : 6` stores `5` in `v.x`.
 
 Provenance: `documentation` (rules of 1.18.10 and 1.18.20); item 3: community test. Kind:
-semantic. Confidence: high. Milestone: 1.
+semantic. Confidence: high.
 
 ---
 
@@ -414,7 +406,7 @@ of a condition uses truthy numbers.
 Provenance: `documentation`; the struct results of queries: documentation of
 `query.bone_origin`, `query.bone_orientation_trs` and `query.spellcolor`; postconditions 2 and
 3: `design`. Kind: semantic. Confidence: high for the types; medium for the postconditions.
-Milestone: 1, except entity reference and struct, which are `later`.
+
 
 ### MOL-VAL-002: Operators and types
 
@@ -444,7 +436,7 @@ Milestone: 1, except entity reference and struct, which are `later`.
 
 Provenance: `documentation`; item 3: `design`; item 7: `design`, so that each operand has one
 type at load and the compiler needs no type tag at run time. Kind: semantic. Confidence:
-medium. Milestone: 1.
+medium.
 
 ---
 
@@ -462,7 +454,7 @@ medium. Milestone: 1.
 - **Postconditions:** each side effect occurs in source order. A side effect is an assignment
   or a draw of a random number.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ### MOL-EVAL-002: Arithmetic, relational and unary operators
 
@@ -483,7 +475,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
   4. `!` of NaN is `0.0`.
 
 Provenance: `documentation`; division by zero: community test; the sign of division: rule of
-1.19.60. Kind: semantic. Confidence: high. Milestone: 1.
+1.19.60. Kind: semantic. Confidence: high.
 
 ### MOL-EVAL-003: Logical operators
 
@@ -496,7 +488,7 @@ Provenance: `documentation`; division by zero: community test; the sign of divis
 - **Postconditions:** the result is always `1.0` or `0.0`. An operand that is not evaluated
   has no side effect.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### MOL-EVAL-004: Conditional operators
 
@@ -516,7 +508,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
 
 Provenance: `documentation`; item 5: the form comes from bedrock-samples, the value `0.0` is
 `design`, equal to the value of a block. Kind: semantic. Confidence: high for items 1 to 4;
-medium for item 5. Milestone: 1.
+medium for item 5.
 
 ### MOL-EVAL-005: Null coalescing
 
@@ -547,10 +539,7 @@ Provenance: `documentation`; item 2: community implementations agree; item 4: th
 from bedrock-samples, the value `0.0` is `design`, equal to the value of a block; items 5
 and 6: `design`; item 7: `design`, because the value of an inner `??` is defined, and a reader
 sees the scope of each `??` in the text (molangjs keeps one flag for the whole run and gives
-`5.0`, see `tools/molang-diff/README.md`). Kind: semantic. Confidence: medium. Milestone: 1;
-item 5: `later`, with struct variables (MOL-VAR-005). Experiments: in Bedrock, evaluate
-`(v.unset + 1) ?? 5` in a render-controller colour; the channel shows `5`. Evaluate
-`((v.unset ?? 0) + 1) ?? 5`; the channel shows `1` when item 7 agrees with Bedrock.
+`5.0`, see `tools/molang-diff/README.md`). Kind: semantic. Confidence: medium.
 
 ### MOL-EVAL-006: Errors at run time
 
@@ -565,7 +554,7 @@ item 5: `later`, with struct variables (MOL-VAR-005). Experiments: in Bedrock, e
   `0.0`. The run continues, except for item 5. An error at run time is not logged for each
   run.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -583,7 +572,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
 - **Postconditions:** `v.x = 1; v.x * 2` gives `0.0`. `v.x = 1; return v.x * 2;` gives `2.0`.
   `1;` is complex and gives `0.0`. `1` is simple and gives `1.0`.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### MOL-STMT-002: Assignment
 
@@ -606,7 +595,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
 
 Provenance: `documentation`; items 4 and 5: `design`; item 5 lets a counter start from a
 variable that has no assignment, which is the common form in packs. Kind: semantic. Confidence: medium.
-Milestone: 1; an `lvalue` with `->` is `later`.
+
 
 ### MOL-STMT-003: Blocks
 
@@ -619,7 +608,7 @@ Milestone: 1; an `lvalue` with `->` is `later`.
 - **Postconditions:** the value of a block is `0.0`.
 
 Provenance: `documentation`; item 3: documentation states "C rules", community tests show
-one scope for the whole run. Kind: semantic. Confidence: medium. Milestone: 1.
+one scope for the whole run. Kind: semantic. Confidence: medium.
 
 ### MOL-STMT-004: `loop`
 
@@ -631,7 +620,7 @@ one scope for the whole run. Kind: semantic. Confidence: medium. Milestone: 1.
   4. `break` ends the innermost loop. `continue` starts the next pass of the innermost loop.
 - **Postconditions:** a loop never runs its block more than 1024 times. Loops can be nested.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: later.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ### MOL-STMT-005: `for_each`
 
@@ -643,7 +632,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: late
   4. `break` and `continue` act as in MOL-STMT-004.
 - **Postconditions:** the variable holds the last element that the loop stored.
 
-Provenance: `documentation`. Kind: semantic. Confidence: low. Milestone: later.
+Provenance: `documentation`. Kind: semantic. Confidence: low.
 
 ---
 
@@ -660,7 +649,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: low. Milestone: later.
 | `math.` | yes | no | constant |
 | `geometry.`, `material.`, `texture.`, `array.` | yes | no | the resource set of a render controller (MOL-RES-001) |
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### MOL-VAR-002: Entity variables
 
@@ -676,7 +665,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** a run of one expression can read a variable that a run of another
   expression wrote on the same subject.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### MOL-VAR-003: Context values
 
@@ -687,7 +676,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
   2. A context name that the consumer does not supply is missing.
 - **Postconditions:** a run cannot change a context value.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ### MOL-VAR-004: Temporary variables
 
@@ -700,7 +689,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
   same subject.
 
 Provenance: `documentation`; item 2: community test. Kind: semantic. Confidence: medium.
-Milestone: 1.
+
 
 ### MOL-VAR-005: Struct variables
 
@@ -717,7 +706,7 @@ Milestone: 1.
 - **Postconditions:** an implementation can store each path as one variable, because each
   path is known at load.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: later.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ### MOL-VAR-006: Entity references and `->`
 
@@ -738,7 +727,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: late
   the client evaluates the subjects of one frame.
 
 Provenance: `documentation` (items 1–4); items 5 and 6: `design`, see section 13. Kind:
-semantic. Confidence: low. Milestone: later.
+semantic. Confidence: low.
 
 ### MOL-VAR-007: `this`
 
@@ -750,7 +739,7 @@ semantic. Confidence: low. Milestone: later.
   channel of an animation, `entity-animation.md` states it. For a colour channel of a render
   controller, `client-entity-definition.md`, CENT-RC-006, states it.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### MOL-VAR-008: Variables that the engine supplies
 
@@ -771,8 +760,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
   2. The consumers of milestones 1 and 2 declare no engine variable.
 
 Provenance: `documentation` (variables are missing until a write); items 1, 3 and 4:
-`design`. bedrock-samples reads 242 variables that no expression of the pack writes
-(`docs/molang-corpus.md`, section 7). Kind: semantic. Confidence: medium. Milestone: 1.
+`design`. bedrock-samples reads 242 variables that no expression of the pack writes. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -793,7 +781,7 @@ Provenance: `documentation` (variables are missing until a write); items 1, 3 an
 - **Postconditions:** a resource value can only be the result of the expression, a branch of
   `?`, or an array element.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ### MOL-RES-002: Arrays
 
@@ -806,7 +794,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
   4. An array name that the render controller does not define is a load error `misplaced`.
 - **Postconditions:** an index never selects an element outside the array.
 
-Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -824,7 +812,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: medium. Milestone: 1.
   `+`, `-`, `*`, `/`, the comparisons and the functions that MOL-MATH-002 marks exact. A GPU
   evaluation can give other bits (MOL-NUM-005).
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### MOL-NUM-002: Non-finite values
 
@@ -837,7 +825,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
   this holds through the clamp of MOL-NUM-005, item 7.
 
 Provenance: `documentation`; item 1: community test. Kind: semantic. Confidence: medium.
-Milestone: 1.
+
 
 ### MOL-NUM-003: Limits on optimisation
 
@@ -854,7 +842,7 @@ Milestone: 1.
   3. `(a + b) + c` is not `a + (b + c)`.
   4. A batch evaluation and a scalar evaluation of the same lane give the same bits.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### MOL-NUM-004: Accuracy of transcendental functions
 
@@ -872,7 +860,7 @@ Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
   test compares these functions within the error of item 3.
 
 Provenance: `design`; the error bound is that of `sin` and `cos` in WGSL. Kind:
-unspecified. Confidence: high. Milestone: 1.
+unspecified. Confidence: high.
 
 ### MOL-NUM-005: Evaluation on a GPU
 
@@ -898,7 +886,7 @@ unspecified. Confidence: high. Milestone: 1.
   consumer.
 
 Provenance: `design`; the error bound of item 2 is that of `/` in WGSL. Kind: unspecified for
-the bits; semantic for items 1, 4 and 5. Confidence: medium. Milestone: 1.
+the bits; semantic for items 1, 4 and 5. Confidence: medium.
 
 ---
 
@@ -914,7 +902,7 @@ the bits; semantic for items 1, 4 and 5. Confidence: medium. Milestone: 1.
   4. A name that MOL-MATH-002 does not list is a load error `unknown_function`.
 - **Postconditions:** each function is pure, except the random functions (MOL-RAND-001).
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### MOL-MATH-002: Function definitions
 
@@ -963,9 +951,7 @@ error `arity`.
 Provenance: `documentation`; `round`: community test; `sign(0)`: the documentation text,
 section 13; `min_angle` and `lerprotate`: the formula is `design` for the documented
 meaning; the `-0`/`+0` result of `min` and `max`: `design`, so that the result has one
-defined sign bit. Kind: semantic. Confidence: medium. Milestone: 1 for `cos`, `sin`, `clamp`
-and `lerp`; 2 for each other function except the random functions, which are later
-(MOL-RAND-002).
+defined sign bit. Kind: semantic. Confidence: medium.
 
 ### MOL-MATH-003: Easing functions
 
@@ -999,10 +985,7 @@ and `lerp`; 2 for each other function except the random functions, which are lat
 - **Postconditions:** `f(0) = 0` and `f(1) = 1` for each function.
 
 Provenance: `documentation` (names); the formulas are the common easing formulas, `design`. Kind: semantic. Confidence: low for `back`, `elastic` and `bounce` with `in_out`;
-medium for the other functions. Milestone: 2; the functions are pure and the scalar and batch
-paths compute them at no extra cost. Experiment: in Bedrock, show
-`math.ease_in_out_back(0, 1, 0.25)` through a render-controller colour. Compare the channel
-value with the formula.
+medium for the other functions.
 
 ---
 
@@ -1027,7 +1010,7 @@ value with the formula.
      GPU.
 
 Provenance: `documentation` (items 2 and 3); items 1 and 4: `design`. Kind:
-unspecified. Confidence: high. Milestone: later.
+unspecified. Confidence: high.
 
 ### MOL-RAND-002: Random functions
 
@@ -1039,7 +1022,7 @@ unspecified. Confidence: high. Milestone: later.
 | `die_roll_integer(n, lo, hi)` | the sum of `trunc(n)` draws of `random_integer(lo, hi)`; `0.0` when `trunc(n) ≤ 0` |
 
 Provenance: `documentation`; equal and reversed limits: community test; the conversion of
-`random_integer` limits: `design`. Kind: semantic. Confidence: medium. Milestone: later.
+`random_integer` limits: `design`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -1055,15 +1038,12 @@ Provenance: `documentation`; equal and reversed limits: community test; the conv
 - **Visible to the client:** yes, for a pack with an old `min_engine_version` and an
   expression that the old rules evaluate differently. An animation or a selection of a
   texture can differ.
-- **Test:** a differential test uses the rules of 1.19.60 for each expression. It does not
-  compare an expression from a pack with an older version.
 
 ---
 
-## 13. Open questions
+## 13. Unresolved
 
-- `sign(0)`: the documentation text gives `-1.0`. No in-game test is known. Experiment: in
-  Bedrock, show `math.sign(0)` through a render-controller colour.
+- `sign(0)`: the documentation text gives `-1.0`. No in-game test is known.
 - Script arrays: Bedrock can join entries with a separator. With no separator, two names in
   adjacent entries can become one name. No vanilla file has such a pair.
 - Number literals of the form `.5`: the documentation does not state them.
@@ -1072,11 +1052,10 @@ Provenance: `documentation`; equal and reversed limits: community test; the conv
   that does not depend on the order of evaluation.
 - Assignment of a missing value (MOL-STMT-002, items 4 and 5): Bedrock can store `0.0`.
 - Nested `??` (MOL-EVAL-005, item 7): Bedrock can keep one missing flag for the whole run,
-  as molangjs does. The experiment of MOL-EVAL-005 decides.
+  as molangjs does.
 - One statement with no `;` (MOL-SYN-001, postcondition 4): Bedrock can reject `v.x = 1` as a
   simple expression. mcrs accepts it, so that a pack with this text loads.
 - The meaning of `context.` names for each consumer: each consumer specification lists them.
 - The `version` member of a versioned value (MOL-LOAD-006): the documentation gives no map
   from the number to a row of the table of versioned changes. The value `12` in the vanilla
-  particles is consistent with a count of the rows from `1`. Experiment: none is necessary,
-  because mcrs applies one set of rules; only the warning of item 4 depends on the map.
+  particles is consistent with a count of the rows from `1`.

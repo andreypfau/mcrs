@@ -5,23 +5,14 @@ use mcrs_minecraft_model_file::face_bake_error::FaceBakeError;
 
 use crate::sprite_error::SpriteError;
 
-/// Why the model of one block state does not bake.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum BakeError {
-    /// The elements of a model do not bake into faces.
     Face { model: String, cause: FaceBakeError },
-    /// The property values name no state of the block.
     NotAState { state: String },
-    /// A fluid block has no fluid data.
     NoFluid { block: String },
-    /// A baked face names a quad that the baked model lacks. This is a defect of the bake, not of a
-    /// pack file.
     PastQuads,
-    /// A baked quad names a sprite that the table of the baked model lacks. This is a defect of
-    /// the bake, not of a pack file.
     PastSprites,
-    /// A sprite of the model cannot be read.
     Sprite(SpriteError),
 }
 

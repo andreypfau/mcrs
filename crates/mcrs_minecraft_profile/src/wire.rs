@@ -3,6 +3,7 @@ use std::io::Write;
 use mcrs_minecraft_wire::{Bounded, Decode, Encode, ErrorKind, Result};
 use uuid::Uuid;
 
+use crate::property::is_grouped_by_name;
 use crate::*;
 
 struct WireProperty<'a> {
@@ -37,6 +38,9 @@ fn encode_properties(properties: &[Property], w: impl Write) -> Result<()> {
             max: MAX_PROPERTIES,
         }
         .into());
+    }
+    if !is_grouped_by_name(properties) {
+        return Err(ErrorKind::Invalid("properties are not grouped by name".into()).into());
     }
     let wire: Vec<WireProperty> = properties
         .iter()

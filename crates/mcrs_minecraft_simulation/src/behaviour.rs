@@ -49,18 +49,14 @@ pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
     ) {
     }
 
-    /// The random ticks that `state` takes. The step asks once for each state.
     fn random_ticks(&self, _state: BlockStateId) -> RandomTicks {
         RandomTicks::empty()
     }
 
-    /// The footprint bound of the handlers of `state` (SIM-MODEL-009). The step asks once for
-    /// each state.
     fn reach(&self, _state: BlockStateId) -> u8 {
         Footprints::DEFAULT
     }
 
-    /// A random pick of a section found `state`, which takes block random ticks, at `at`.
     fn random_tick<V: SimulationVolume, F: BlockFacts<K>>(
         &self,
         _cx: &mut Cx<'_, K, V, F, Self>,
@@ -70,8 +66,6 @@ pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
     ) {
     }
 
-    /// A random pick of a section found `state`, whose fluid takes random ticks, at `at`. It
-    /// runs after the block random tick of the same pick, with the state that the pick read.
     fn fluid_random_tick<V: SimulationVolume, F: BlockFacts<K>>(
         &self,
         _cx: &mut Cx<'_, K, V, F, Self>,
@@ -82,8 +76,6 @@ pub trait BlockBehaviour<K: Kinds>: Sync + Sized {
     ) {
     }
 
-    /// A precipitation pick hit the column of the block column `(x, z)`. The rules find its
-    /// surface and what the weather does there.
     fn precipitation<V: SimulationVolume, F: BlockFacts<K>>(
         &self,
         _cx: &mut Cx<'_, K, V, F, Self>,

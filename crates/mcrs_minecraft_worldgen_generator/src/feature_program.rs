@@ -158,33 +158,19 @@ use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
 
-/// What one feature of a step actually runs, once every name in it is a number.
 pub enum Generator {
     Ore(CompiledOre),
     Tree(Box<CompiledTree>),
-    /// `random_selector`: one draw per entry in list order, the first hit
-    /// placing that nested placed feature through its own modifier chain.
     RandomSelector {
         features: Vec<(f32, Nested)>,
         default: Box<Nested>,
     },
-    /// `weighted_random_selector`: one draw over the total weight, then the
-    /// cumulative weights walked in list order. An empty list places nothing
-    /// and draws nothing.
-    ///
-    /// `simple_random_selector` compiles to this with every weight 1: the
-    /// reference's `nextInt(size)` and the cumulative walk over `size` ones
-    /// pick the same entry from the same single draw.
     WeightedRandomSelector(Vec<(i32, Nested)>),
-    /// `random_boolean_selector`: one `nextBoolean`, which on a Xoroshiro
-    /// source is the low bit of a whole long rather than a bounded int.
     RandomBooleanSelector {
         feature_true: Box<Nested>,
         feature_false: Box<Nested>,
     },
     FallenTree(Box<CompiledFallenTree>),
-    /// The nested tree runs its own placed feature, so the generator carries it
-    /// beside the configuration rather than resolving it.
     RootSystem {
         config: Box<CompiledRootSystem>,
         feature: Box<Nested>,
@@ -195,11 +181,7 @@ pub enum Generator {
     MultifaceGrowth(Box<CompiledMultifaceGrowth>),
     Vines([VoxelId; 6]),
     RandomNeighborSpread(Box<CompiledNeighborSpread>),
-    /// Every entry runs, whatever the ones before it did.
     Overlay(Vec<Nested>),
-    /// The first entry that places nothing ends the run, so an entry this build
-    /// cannot place would swallow every later entry's draws; the compile refuses
-    /// a sequence unless all of it runs.
     Sequence(Vec<Nested>),
     ScatteredOre(CompiledOre),
     VegetationPatch {
@@ -228,12 +210,8 @@ pub enum Generator {
     Iceberg(CompiledIceberg),
     Spike(CompiledSpike),
     Speleothem(Box<CompiledSpeleothem>),
-    /// The nested feature places each block of the shape, so a refusal from it
-    /// is what ends a trunk or a branch.
     CoralTree(Box<Nested>),
     CoralClaw(Box<Nested>),
-    /// A pillar with no `cap_feature` still runs to the end of its column; the
-    /// cap is what the corpus hangs the surrounding scatter off.
     SingleBlockPillar {
         config: Box<CompiledSingleBlockPillar>,
         cap: Option<Box<Nested>>,
@@ -241,9 +219,6 @@ pub enum Generator {
     ProjectedPatchySquare(Box<CompiledProjectedPatchySquare>),
     SculkPatch(Box<CompiledSculkPatch>),
     SteppedColumnCluster(Box<CompiledSteppedColumnCluster>),
-    /// Places nothing and draws nothing, which is not the same as having no
-    /// generator: a sequence ends at the first entry that places nothing, and
-    /// this one succeeds.
     NoOp,
     EndPlatform(CompiledEndPlatform),
     VoidStartPlatform(CompiledVoidStartPlatform),
@@ -252,27 +227,17 @@ pub enum Generator {
     EndIsland(CompiledEndIsland),
     EndSpikes(Box<CompiledEndSpikes>),
     FillLayer(CompiledFillLayer),
-    /// Always reports success, so a sequence holding one does not end on it.
     ReplaceSingleBlock(CompiledReplaceSingleBlock),
     BetaPopulate(Box<BetaPopulate>),
     Template(Box<CompiledTemplateFeature>),
     Fossil(Box<CompiledFossil>),
 }
 
-/// `minecraft:template`: one weighted draw picks the template, one bounded
-/// draw its rotation, and the palette and loot seeds come off the same stream.
-// The reference leaves `knownShape` false here and re-derives every
-// placed block's shape from its neighbours afterwards, which a sulfur spike at
-// a template's edge can feel; the upgrade is that post pass over the region.
 pub struct CompiledTemplateFeature {
     entries: Vec<(i32, FrozenTemplate, Vec<Rotation>)>,
     chain: CompiledChain,
 }
 
-/// `minecraft:fossil`: one draw picks the rotation, one the fossil and its
-/// overlay, one the depth below the lowest ocean floor under the footprint;
-/// then both templates place at that corner with their rot processors
-/// drawing from the same stream.
 pub struct CompiledFossil {
     pairs: Vec<(FrozenTemplate, FrozenTemplate)>,
     fossil_chain: CompiledChain,
@@ -280,14 +245,10 @@ pub struct CompiledFossil {
     max_empty_corners: usize,
 }
 
-/// One template pool element with every name in it resolved: what a jigsaw
-/// piece places.
 pub enum CompiledElement {
     Single {
         template: Arc<FrozenTemplate>,
         manifest: Arc<TemplateManifest>,
-        /// `None` when the processor list has a shape this build cannot run;
-        /// the piece then places nothing.
         chain: Option<Arc<CompiledChain>>,
         liquid: Option<LiquidSettings>,
     },
@@ -296,8 +257,6 @@ pub enum CompiledElement {
     Empty,
 }
 
-/// One hardcoded structure type's tables with every name resolved: what its
-/// pieces place. Each type adds its variant with its generator.
 #[derive(Clone)]
 pub enum CompiledStructure {
     DesertPyramid(Box<DesertPyramidBlocks>),
@@ -317,89 +276,35 @@ pub enum CompiledStructure {
     WoodlandMansion(Box<WoodlandMansionBlocks>),
 }
 
-/// Beta's populate step for the column the origin is in. It draws from one
-/// legacy stream seeded by the chunk, never from the source its step hands it.
 pub struct BetaPopulate {
     ids: BetaOreBlockIds,
     world_seed: i64,
 }
 
-/// A placed feature written inside another feature: its own chain, its own
-/// generator, and no place in any step's index.
-///
-/// A nested feature this build cannot run keeps its entry, its chance draw and
-/// its chain's draws, and places nothing. Unlike a skipped top-level feature,
-/// which owns a seeded source of its own, it draws from the parent's source, so
-/// spending fewer draws there moves the parent's every later object.
 pub struct Nested {
     pub placement: Vec<Modifier>,
     pub generator: Option<Generator>,
 }
 
-/// One dimension's decoration program, ready to run.
 pub struct FeatureProgram {
-    /// Index-aligned with [`FeatureTables::steps`], so a feature's position is
-    /// still the index its seed is drawn from. A feature this build has no
-    /// code for keeps its slot with no generator and is skipped, so the seeds
-    /// of everything after it are unchanged.
     features: Vec<Vec<Nested>>,
     per_biome: Vec<Vec<FixedBitSet>>,
-    /// Per step, the token of each entry's placed feature.
     token: Vec<Vec<usize>>,
-    /// Per biome slot, a bit per token it names at any step. The reference's
-    /// `hasFeature` is a set over the biome's whole list, so the `biome` filter
-    /// is step-agnostic even though the candidate set of a step is not.
     carried: Vec<FixedBitSet>,
-    /// The palette's biome byte to its row of `per_biome`. A biome the source
-    /// cannot answer with has no row, so a lookup is also the intersection with
-    /// `possibleBiomes`.
     biome_slot: [Option<u16>; 256],
     trees: Arc<TreeTables>,
-    /// `pale_moss` runs `minecraft:pale_moss_patch` as a bare feature on the
-    /// tree's own source, so it is one program-wide generator rather than part
-    /// of any tree's configuration.
     moss_patch: Option<Box<Generator>>,
-    /// Indexed by `ElementId`; empty for a dimension without structures.
     elements: Vec<CompiledElement>,
-    /// Indexed by `StructureId`; `None` for a jigsaw structure, whose pieces
-    /// are elements, and for a type this build has no generator for.
     structures: Vec<Option<CompiledStructure>>,
     rungs: Arc<[Range<usize>]>,
     pub world: Arc<WorldStates>,
-    /// Indexed by the biome id [`WorldGenVolume::biome`] answers with.
     pub climate: Arc<[BiomeClimate]>,
 }
 
-/// `GenerationStep.Decoration.values().length`: the reference walks at least
-/// this many steps whether or not any biome lists features for them, and a
-/// structure's step may lie past the last feature step.
 const DECORATION_STEPS: usize = DecorationStep::TopLayerModification as usize + 1;
 
-/// The first step of each rung after the first: a column runs the steps of one
-/// rung against a neighbourhood in which every earlier rung is already merged,
-/// so a cut here is a point where every column in the world agrees on the
-/// blocks before any of them reads them again.
-///
-/// Ores are cut off from structures because an ore only replaces the rock it
-/// reads: a vein spilling from a neighbour that still sees the rock a
-/// structure has since hollowed out lands in the structure's air. Vegetation
-/// is cut off from what shapes the ground because it is the only thing that
-/// asks whether a block can stand where it was put: a lake that arrives after
-/// a plant leaves the plant in the air. The top layer is cut off from
-/// vegetation for the same reason in the other direction — snow settles on
-/// what grew.
-///
-/// Every cut costs two rings of halo around each column, so the list is short
-/// on purpose.
-const RUNG_STARTS: [usize; 3] = [
-    6,  // underground_ores
-    9,  // vegetal_decoration
-    10, // top_layer_modification
-];
+const RUNG_STARTS: [usize; 3] = [6, 9, 10];
 
-/// The rungs `RUNG_STARTS` cuts the steps into, with the ones this dimension
-/// has no feature for dropped: an empty rung is a barrier nothing waits on and
-/// two rings of halo nobody needs.
 fn rungs_of(steps: &[Vec<Nested>], structures: &[FrozenStructure]) -> Arc<[Range<usize>]> {
     let bounds = std::iter::once(0)
         .chain(RUNG_STARTS)
@@ -417,12 +322,9 @@ fn rungs_of(steps: &[Vec<Nested>], structures: &[FrozenStructure]) -> Arc<[Range
 }
 
 impl FeatureProgram {
-    /// Resolve every name the tables carry, or say which asset does not
-    /// resolve. A feature whose shape this build has no code for is not an
-    /// error: it is logged, keeps its slot and places nothing.
     #[expect(
         clippy::too_many_lines,
-        reason = "resolves every name the feature tables carry in one pass, from the climate and resolver to the trees and the steps, so an unresolved asset is reported where the build reaches it"
+        reason = "one pass reports an unresolved asset where the build reaches it"
     )]
     pub fn build(
         tables: &FeatureTables,
@@ -560,8 +462,6 @@ impl FeatureProgram {
         &self.features[step][index].placement
     }
 
-    /// The steps of each rung, in order. A column climbs one rung at a time and
-    /// reads its neighbours only between them.
     pub fn rungs(&self) -> &[Range<usize>] {
         &self.rungs
     }
@@ -571,11 +471,6 @@ impl FeatureProgram {
         self.biome_slot[usize::from(byte)].map(usize::from)
     }
 
-    /// Whether one biome carries the feature at `(step, index)` — the test the
-    /// `biome` placement filter makes.
-    ///
-    /// The biome names it at any step, not at this one: a placed feature a biome
-    /// lists at step 5 passes the filter for the same object reached at step 3.
     pub fn carries(&self, palette_biome: u16, step: usize, index: usize) -> bool {
         self.slot_of(palette_biome).is_some_and(|slot| {
             self.token
@@ -585,7 +480,6 @@ impl FeatureProgram {
         })
     }
 
-    /// The features of each step the region's biomes ask for.
     pub fn present(&self, slots: &[usize]) -> Vec<FixedBitSet> {
         self.features
             .iter()
@@ -602,8 +496,6 @@ impl FeatureProgram {
             .collect()
     }
 
-    /// `scratch` is the pool of placer stacks nested features borrow from,
-    /// handed back by [`Run::finish`] so a worker keeps them warm.
     pub fn run(&self, scratch: RunScratch) -> Run<'_> {
         Run {
             spawns: Vec::new(),
@@ -616,8 +508,6 @@ impl FeatureProgram {
         self.features.get(step)?.get(index)?.generator.as_ref()
     }
 
-    /// `BlockState.canSurvive` for the state at a position. A block outside the
-    /// families overrides nothing, and `BlockBehaviour.canSurvive` is true.
     pub fn would_survive(
         &self,
         state: VoxelId,
@@ -631,16 +521,12 @@ impl FeatureProgram {
     }
 }
 
-/// What every generator of one column's run shares: the entities it spawns and
-/// the bare `pale_moss_patch` a tree decorator runs on the tree's own source.
 pub struct Run<'a> {
     pub spawns: Vec<GeneratedEntity>,
     pub moss_patch: Option<&'a Generator>,
     scratch: RunScratch,
 }
 
-/// The buffers one column's run refills rather than reallocates: the stack a
-/// nested placement takes one of, and the ore vein's own pair.
 #[derive(Default)]
 pub struct RunScratch {
     placers: Vec<PlacerScratch>,
@@ -653,16 +539,13 @@ impl Run<'_> {
     }
 }
 
-/// A tree's moss patch is the program's own `pale_moss_patch` on the tree's source.
-struct TreeRun<'r, 'a, 'c> {
+struct TreeRun<'r, 'a, 'c, C> {
     run: &'r mut Run<'a>,
-    carries: &'c dyn Fn(u16) -> bool,
+    carries: &'c C,
 }
 
-impl<W: WorldGenVolume> TreeSink<W> for TreeRun<'_, '_, '_> {
+impl<W: WorldGenVolume, C: Fn(u16) -> bool> TreeSink<W> for TreeRun<'_, '_, '_, C> {
     fn moss_patch(&mut self, region: &mut W, rng: &mut WorldgenRandom, at: BlockPos) {
-        // A tree that decorates with moss made the build resolve the patch, so
-        // nothing to run here is a bug in the compile.
         if let Some(generator) = self.run.moss_patch {
             generator.place(self.run, region, rng, at, self.carries);
         }
@@ -677,18 +560,13 @@ impl Nested {
             .is_some_and(Generator::places_something)
     }
 
-    /// A nested feature draws from its parent's source, so its chain runs
-    /// whether or not this build can place its leaf; skipping the chain would
-    /// move every later draw of the same object. The outer stack machine is
-    /// still walking its scratch, so a nested placement takes one from the
-    /// run's pool.
     pub fn place<W: WorldGenVolume>(
         &self,
         run: &mut Run,
         region: &mut W,
         rng: &mut WorldgenRandom,
         at: BlockPos,
-        carries: &dyn Fn(u16) -> bool,
+        carries: &impl Fn(u16) -> bool,
     ) -> bool {
         let generator = self.generator.as_ref();
         let mut scratch = run.scratch.placers.pop().unwrap_or_default();
@@ -699,7 +577,7 @@ impl Nested {
             at,
             rng,
             carries,
-            &mut |region, rng, pos| {
+            |region, rng, pos| {
                 generator.is_some_and(|generator| generator.place(run, region, rng, pos, carries))
             },
         );
@@ -709,11 +587,6 @@ impl Nested {
 }
 
 impl Generator {
-    /// Whether anything this feature reaches can write a block.
-    ///
-    /// A container whose every entry is a shape this build has no code for
-    /// still compiles — the entries keep their chains and their draws — so
-    /// having a generator is not the same as placing something.
     #[cfg(any(test, feature = "test-support"))]
     pub fn places_something(&self) -> bool {
         let any = |nested: &[Nested]| nested.iter().any(Nested::places_something);
@@ -733,8 +606,6 @@ impl Generator {
             Generator::CoralTree(nested) | Generator::CoralClaw(nested) => {
                 nested.places_something()
             }
-            // These write on their own account and only then run the nested
-            // feature, so an entry this build cannot place does not empty them.
             Generator::RootSystem { .. }
             | Generator::VegetationPatch { .. }
             | Generator::SingleBlockPillar { .. } => true,
@@ -743,18 +614,14 @@ impl Generator {
         }
     }
 
-    /// Place this feature at `at`; true when it wrote anything.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one arm per generator kind, each placing a feature the way the reference's feature of that kind does"
-    )]
+    #[expect(clippy::too_many_lines, reason = "one arm per generator kind")]
     pub fn place<W: WorldGenVolume>(
         &self,
         run: &mut Run,
         region: &mut W,
         rng: &mut WorldgenRandom,
         at: BlockPos,
-        carries: &dyn Fn(u16) -> bool,
+        carries: &impl Fn(u16) -> bool,
     ) -> bool {
         match self {
             Generator::Ore(ore) => place_modern_ore(ore, region, rng, at, &mut run.scratch.ore),
@@ -790,7 +657,7 @@ impl Generator {
                 place_fallen_tree(tree, region, rng, &mut TreeRun { run, carries }, at)
             }
             Generator::RootSystem { config, feature } => {
-                place_root_system(config, region, rng, at, &mut |region, rng, pos| {
+                place_root_system(config, region, rng, at, |region, rng, pos| {
                     feature.place(run, region, rng, pos, carries)
                 })
             }
@@ -802,17 +669,15 @@ impl Generator {
             Generator::RandomNeighborSpread(config) => {
                 place_random_neighbor_spread(config, region, rng, at)
             }
-            // Every entry runs; the feature placed if any did.
             Generator::Overlay(features) => features.iter().fold(false, |placed, nested| {
                 nested.place(run, region, rng, at, carries) | placed
             }),
-            // The first refusal ends the run, so later entries spend no draws.
             Generator::Sequence(features) => features
                 .iter()
                 .all(|nested| nested.place(run, region, rng, at, carries)),
             Generator::ScatteredOre(ore) => place_scattered_ore(ore, region, rng, at),
             Generator::VegetationPatch { config, feature } => {
-                place_vegetation_patch(config, region, rng, at, &mut |region, rng, pos| {
+                place_vegetation_patch(config, region, rng, at, |region, rng, pos| {
                     feature.place(run, region, rng, pos, carries)
                 })
             }
@@ -841,17 +706,17 @@ impl Generator {
             Generator::Spike(config) => place_spike(config, region, rng, at),
             Generator::Speleothem(config) => place_speleothem(config, region, rng, at),
             Generator::CoralTree(feature) => {
-                place_coral_tree(region, rng, at, &mut |region, rng, pos| {
+                place_coral_tree(region, rng, at, |region, rng, pos| {
                     feature.place(run, region, rng, pos, carries)
                 })
             }
             Generator::CoralClaw(feature) => {
-                place_coral_claw(region, rng, at, &mut |region, rng, pos| {
+                place_coral_claw(region, rng, at, |region, rng, pos| {
                     feature.place(run, region, rng, pos, carries)
                 })
             }
             Generator::SingleBlockPillar { config, cap } => {
-                place_single_block_pillar(config, region, rng, at, &mut |region, rng, pos| {
+                place_single_block_pillar(config, region, rng, at, |region, rng, pos| {
                     cap.as_ref()
                         .is_some_and(|cap| cap.place(run, region, rng, pos, carries))
                 })
@@ -869,8 +734,6 @@ impl Generator {
             Generator::EndPodium(config) => place_end_podium(config, region, at),
             Generator::EndGateway(config) => place_end_gateway(config, region, at),
             Generator::EndIsland(config) => place_end_island(config, region, rng, at),
-            // An end crystal is an entity, and worldgen has no entity channel;
-            // its yaw draw still happens, so nothing after it moves.
             Generator::EndSpikes(config) => place_end_spike(config, region, rng, at),
             Generator::FillLayer(config) => place_fill_layer(config, region, at),
             Generator::BetaPopulate(populate) => {
@@ -1196,7 +1059,7 @@ fn compile_structures(
 
 #[expect(
     clippy::too_many_lines,
-    reason = "compiles each feature type to its generator with one arm per type, so every arm reads against the reference's feature of that type"
+    reason = "compiles each feature type to its generator with one arm per type"
 )]
 fn compile_generator(
     feature: &Feature,
@@ -1294,8 +1157,6 @@ fn compile_generator(
             allowed_tree_position,
         } => {
             let hanging = compile_provider(hanging_root_state_provider, resolver)?;
-            // Only a constant provider names one block, so only it can be answered;
-            // anything else survives, which is the default `canSurvive`.
             let hanging_survive = match &hanging {
                 StateProvider::Simple(state) => {
                     crate::block_state::state_of(resolver.blocks, *state).and_then(|state| {
@@ -1420,8 +1281,6 @@ fn compile_generator(
                 .iter()
                 .map(|holder| compile_nested(holder, trees, resolver, corpus))
                 .collect::<Compiled<_>>()?;
-            // The first refusal ends the run, so an entry this build cannot
-            // place would swallow every later entry's draws.
             if entries.iter().any(|nested| nested.generator.is_none()) {
                 return Err(FeatureCompileError::Unsupported(
                     "a sequence entry this build cannot place".to_owned(),
@@ -1766,8 +1625,6 @@ fn compile_generator(
         Feature::ChorusPlant => {
             let plant = resolver.block_of(Block::ChorusPlant.id())?;
             let flower = resolver.block_of(Block::ChorusFlower.id())?;
-            // The index is the six faces as bits, `down` highest, in
-            // `connection_index` order.
             let mut plant_by_connections = [VoxelId(0); 64];
             for (bits, slot) in plant_by_connections.iter_mut().enumerate() {
                 let faces = ["down", "up", "north", "east", "south", "west"];
@@ -1884,8 +1741,6 @@ fn compile_generator(
         }),
         Feature::EndSpikes { spikes, .. } => {
             let bars = resolver.block_of(Block::IronBars.id())?;
-            // The index is the four sides as bits, `north` highest, in
-            // `iron_bars_index` order.
             let mut iron_bars = [VoxelId(0); 16];
             for (bits, slot) in iron_bars.iter_mut().enumerate() {
                 let sides = ["north", "south", "west", "east"];
@@ -2141,8 +1996,6 @@ fn fluid_state_number(fluid: Option<mcrs_minecraft_block::definition::FluidState
     })
 }
 
-/// The block a fluid state is written as: the first state of the block named
-/// like the fluid that holds it, a source of any level counting as full.
 pub(crate) fn spring_state(state: &FluidState, resolver: &Resolver<'_>) -> Option<VoxelId> {
     let Some(mut fluid) = state.0 else {
         return Some(resolver.default_state_of(Block::Air.id()));
@@ -2163,7 +2016,6 @@ fn unsupported(what: &str) -> FeatureCompileError {
     FeatureCompileError::Unsupported(what.to_owned())
 }
 
-/// `None` names a block or state the corpus does not hold.
 fn default_state_named(resolver: &Resolver<'_>, state: &BlockState) -> Compiled<VoxelId> {
     let block = missing(
         resolver.blocks.id_of(state.name.as_str()),
@@ -2176,7 +2028,6 @@ pub(super) fn missing<T>(value: Option<T>, what: impl std::fmt::Display) -> Comp
     value.ok_or_else(|| FeatureCompileError::UnknownBlockState(what.to_string()))
 }
 
-/// One block's state under the given properties, dry and waterlogged.
 fn waterlogged_pair(
     resolver: &Resolver<'_>,
     block: Block,
@@ -2195,7 +2046,6 @@ fn waterlogged_pair(
     Ok([dry, VoxelId::from(wet.number())])
 }
 
-/// `BlockState.setValue` at freeze, naming the state it could not reach.
 pub(super) fn set(
     entry: &BlockEntry,
     id: BlockStateId,
@@ -2208,8 +2058,6 @@ pub(super) fn set(
     )
 }
 
-/// The default state with each of `properties` set from one bit of `bits`,
-/// the first property the highest bit.
 fn with_bits(entry: &BlockEntry, properties: &[&str], bits: usize) -> Option<VoxelId> {
     with_bits_from(entry, entry.default_state_id, properties, bits)
 }
@@ -2248,15 +2096,9 @@ pub(super) fn union_masks(masks: &[&StateMask]) -> StateMask {
     Arc::new(out)
 }
 
-/// The two halves of every double plant, keyed by the lower one the provider
-/// hands back. A block whose `half` runs `lower`/`upper` is one; `top`/`bottom`
-/// is a stair or a slab and never reaches here.
-/// Every state of `pale_moss_carpet` both ways, and the four masks a side
-/// asks of the block it would climb. `None` where the corpus has no such
-/// block, which is what a datapack that drops it leaves behind.
 #[expect(
     clippy::excessive_nesting,
-    reason = "builds the property list of every carpet state in both directions with the boolean spelled in place, so each state reads as it is looked up"
+    reason = "boolean spelled in place so each state reads as it is looked up"
 )]
 fn mossy_carpet_states(resolver: &Resolver<'_>) -> Compiled<Option<MossyCarpetStates>> {
     const BLOCK: Block = Block::PaleMossCarpet;
@@ -2299,7 +2141,6 @@ fn mossy_carpet_states(resolver: &Resolver<'_>) -> Compiled<Option<MossyCarpetSt
         }
     }
 
-    // The carpet climbs the neighbour's face that points back at it.
     let mut attaches = Vec::with_capacity(4);
     for direction in Direction::HORIZONTAL {
         attaches.push(resolver.mask(StateQuery::SturdyFace(direction.opposite()))?);
@@ -2345,7 +2186,6 @@ fn double_plant_table(blocks: &BlockDefinitions) -> FxHashMap<u16, DoublePlant> 
     table
 }
 
-/// Every state carrying `snowy`, mapped to the same state with it set.
 fn snowy_table(blocks: &BlockDefinitions) -> FxHashMap<VoxelId, VoxelId> {
     with_property(blocks, "snowy")
         .filter_map(|(state, _)| {
@@ -2368,7 +2208,6 @@ fn waterlogging(blocks: &BlockDefinitions, water: VoxelId) -> Waterlogging {
     Waterlogging { water, flooded }
 }
 
-/// One block's states in `Direction::HORIZONTAL` order, by its `facing` property.
 fn horizontal_facings(blocks: &BlockDefinitions, block: Id<Block>) -> Option<[VoxelId; 4]> {
     let entry = blocks.entry(block)?;
     let mut states = [VoxelId(0); 4];
@@ -2379,7 +2218,6 @@ fn horizontal_facings(blocks: &BlockDefinitions, block: Id<Block>) -> Option<[Vo
     Some(states)
 }
 
-/// `minecraft:vine` attached on each single face, in `Direction::all()` order.
 fn vine_states(blocks: &BlockDefinitions) -> Option<[VoxelId; 6]> {
     let default = state_of(blocks, Block::Vine.id(), &[])?;
     let mut states = [default; 6];
@@ -2394,7 +2232,6 @@ fn vine_states(blocks: &BlockDefinitions) -> Option<[VoxelId; 6]> {
 fn multiface_states(blocks: &BlockDefinitions, block: &str) -> Option<MultifaceStates> {
     let entry = blocks.block(block)?;
     let mut by_faces = [[VoxelId(0); 64]; 2];
-    // The first face is the lowest bit here, so the property list is reversed.
     let mut faces_high_first = Direction::all().map(|direction| direction.name());
     faces_high_first.reverse();
     for (waterlogged, row) in by_faces.iter_mut().enumerate() {
@@ -2429,8 +2266,6 @@ fn multiface_states(blocks: &BlockDefinitions, block: &str) -> Option<MultifaceS
     Some(MultifaceStates { by_faces, of_state })
 }
 
-/// Every state of every block declaring the five `HugeMushroomBlock` faces,
-/// with the state reached by setting each combination of them.
 fn mushroom_faces(blocks: &BlockDefinitions) -> MushroomFaces {
     const FACES: [&str; 5] = ["up", "west", "east", "north", "south"];
     let mut table = MushroomFaces::default();
@@ -2503,10 +2338,6 @@ fn compile_nested(
     compile_placed(placed, trees, resolver, corpus)
 }
 
-/// One placed feature, top-level or nested: its chain, and its generator when
-/// this build has code for the shape. A nested feature without one keeps its
-/// chain and its draws, so an unsupported leaf is not an error here; the
-/// top level decides what a missing generator means.
 fn compile_placed(
     placed: &PlacedFeature,
     trees: &Arc<TreeTables>,
@@ -2536,7 +2367,6 @@ fn compile_placed(
     })
 }
 
-/// A `would_survive` in the chain naming a state no family answers.
 fn unsupported_survive_state(
     placement: &[Modifier],
     trees: &TreeTables,
@@ -2584,8 +2414,6 @@ fn compile_ore(
     })
 }
 
-/// A block's properties as the digits of its state ids, the way
-/// `BlockEntry::with` computes them.
 fn block_layout(entry: &BlockEntry) -> BlockLayout {
     let properties = &entry.properties.0;
     BlockLayout {
@@ -2622,26 +2450,17 @@ fn block_layout(entry: &BlockEntry) -> BlockLayout {
 pub struct Resolver<'a> {
     pub blocks: &'a BlockDefinitions,
     pub world: WorldStates,
-    /// The state tables no feature configures, beside the world-wide state sets
-    /// and resolved with them: one per dimension, shared by every feature that
-    /// reads one.
     pub tables: Arc<BlockTables>,
     registries: &'a Registries,
     tags: Tags<Block>,
     fluid_tags: Tags<Fluid>,
     biome_tags: Tags<Biome>,
-    /// The geode's noise and the End's spike ring are drawn from the world seed
-    /// rather than from the object's own source, so they belong to the freeze.
     pub world_seed: i64,
-    /// Indexed by the biome id [`WorldGenVolume::biome`] answers with.
     pub climate: &'a [BiomeClimate],
     pub block_state_providers: &'a BTreeMap<ResourceLocationBuf, DirectBlockStateProvider<Named>>,
     shape_masks: ShapeMasks,
 }
 
-/// The state sets that are a function of each state's shapes, indexed over
-/// `Direction::all()`. Template processors ask for them hundreds of times, and
-/// voxelizing every shape per ask dominated the freeze.
 struct ShapeMasks {
     full_outline: StateMask,
     sturdy_face: [StateMask; 6],
@@ -2717,9 +2536,6 @@ impl<'a> Resolver<'a> {
         Ok(resolver)
     }
 
-    /// Every table that is a function of the block definitions alone. Built
-    /// here so the corpus's seventy-five `simple_block` entries share one copy
-    /// rather than each compiling its own.
     fn block_tables(&self) -> Compiled<BlockTables> {
         let water = self.blocks.default_state_of(Block::Water.id());
         Ok(BlockTables {
@@ -2732,7 +2548,6 @@ impl<'a> Resolver<'a> {
         })
     }
 
-    /// The world-wide state sets, resolved once for every feature to share.
     fn world_states(&self) -> WorldStates {
         let water = self.states(StateQuery::Fluids(
             &named(Fluid::Water.location().into()),
@@ -2825,7 +2640,6 @@ impl<'a> Resolver<'a> {
         VoxelId::from(self.blocks.default_state_of(block).number())
     }
 
-    /// Every state `keep` answers for.
     pub fn state_mask(&self, keep: impl Fn(&BlockStateData) -> bool) -> StateMask {
         let mut mask: FixedBitSet = self
             .blocks
@@ -2837,8 +2651,6 @@ impl<'a> Resolver<'a> {
         Arc::new(mask)
     }
 
-    /// The biomes cold enough for the lake's ice pass, which is the reference's
-    /// `coldEnoughToSnow` reduced to the base temperature.
     pub fn freezing_biomes(&self) -> BiomeMask {
         let mut mask: FixedBitSet = (0..self.climate.len())
             .filter(|&slot| self.climate[slot].base_temperature < 0.15)
@@ -2855,8 +2667,6 @@ impl<'a> Resolver<'a> {
         self.mask(StateQuery::Block(block))
     }
 
-    /// The default state of every block of a set, in the set's own order — what
-    /// `random_block_provider` draws one of.
     pub fn block_set_defaults(&self, set: &KeySet<Block>) -> Option<Vec<VoxelId>> {
         self.resolved(set)?
             .ids(&self.tags)
@@ -2874,8 +2684,6 @@ impl<'a> Resolver<'a> {
         IdSet::resolve(set.clone(), self.registries).ok()
     }
 
-    /// The block's name when no `canSurvive` rule covers it, which makes a
-    /// `would_survive` naming it unanswerable.
     pub fn without_survive_rule(&self, trees: &TreeTables, state: VoxelId) -> Option<String> {
         let block = self
             .blocks
@@ -2909,9 +2717,6 @@ impl<'a> Resolver<'a> {
         properties: &StatePropertiesPredicate,
     ) -> Option<StateMask> {
         let set = self.resolved(set)?;
-        // No block definition interns `minecraft:empty`, but the
-        // reference's fluid-less states all carry it, so it matches
-        // everything that holds no fluid rather than nothing at all.
         let empty =
             set.contains(&self.fluid_tags, Fluid::Empty.id()) && properties.matches_fluid(None);
         Some(self.state_mask(|state| match &state.fluid {

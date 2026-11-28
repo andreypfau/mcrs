@@ -12,24 +12,17 @@ use crate::view::View;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
 
-/// What the muxer keeps of one viewer.
 #[derive(Debug)]
 pub(crate) struct Viewer {
     pub(crate) view: View,
     pub(crate) subscriptions: BTreeMap<TileKey, Subscription>,
-    /// The subjects that the client of the viewer holds.
     pub(crate) held: BTreeSet<EntityId>,
     pub(crate) chunks: Vec<Bytes>,
-    /// The chunks that the budget has counted.
     pub(crate) counted: usize,
-    /// The bytes of a tick as a moving average over 16 ticks, times 16.
     average_sixteenths: u64,
     pub(crate) measured: Measured,
-    /// The position of the last plan, when that plan changed nothing.
     pub(crate) settled_at: Option<Point>,
-    /// The tiles where the viewer can hold ranged subjects, with their reach from `tracked_at`.
     pub(crate) region: BTreeMap<TileKey, TileReach>,
-    /// The position that `region` was measured from.
     pub(crate) tracked_at: Option<Point>,
 }
 
@@ -49,8 +42,6 @@ impl Viewer {
         }
     }
 
-    /// Appends the bytes of `blob`, the tier `tier` of `tile`, for each layer that the viewer
-    /// receives at that tier, without its own subject and the subjects it gains in this tick.
     pub(crate) fn append_tier(
         &mut self,
         tile: TileKey,
@@ -78,8 +69,6 @@ impl Viewer {
         }
     }
 
-    /// Counts the bytes that came since the last count into the moving average, against
-    /// `budget` bytes a tick.
     pub(crate) fn measure(&mut self, budget: u64) {
         let new = self.chunks.get(self.counted..).unwrap_or_default();
         let bytes: u64 = new.iter().map(|chunk| chunk.len() as u64).sum();
@@ -106,7 +95,6 @@ impl Viewer {
     }
 }
 
-/// A subject that a client gains in a tick, at the tier of its layer.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Gain {
     pub(crate) subject: EntityId,

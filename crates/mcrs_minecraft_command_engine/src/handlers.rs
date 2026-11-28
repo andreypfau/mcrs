@@ -5,11 +5,9 @@ use bevy_ecs::prelude::In;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::SystemId;
 
-/// The command a node runs: the dimension worlds resolve it to their own handler system.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct HandlerKey(pub(crate) u16);
 
-/// The handlers of one output type, indexed by [`HandlerKey`].
 #[derive(Resource)]
 pub(crate) struct Handlers<O: Send + Sync + 'static>(
     pub(crate) Vec<Option<Vec<Option<SystemId<In<Invocation>, O>>>>>,
@@ -22,8 +20,6 @@ impl<O: Send + Sync + 'static> Default for Handlers<O> {
 }
 
 impl<O: Send + Sync + 'static> Handlers<O> {
-    /// Sets the systems of `key`, one per branch in the order of the branch index. A branch
-    /// that the table does not serve has none.
     pub(crate) fn insert(
         &mut self,
         key: HandlerKey,
@@ -38,7 +34,6 @@ impl<O: Send + Sync + 'static> Handlers<O> {
         }
     }
 
-    /// `None` when the key has no handler or `branch` is outside its table.
     pub(crate) fn get(&self, key: HandlerKey, branch: u16) -> Option<SystemId<In<Invocation>, O>> {
         let branches = self.0.get(usize::from(key.0))?.as_ref()?;
         branches.get(usize::from(branch)).copied().flatten()

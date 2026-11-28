@@ -1,26 +1,25 @@
 # mcrs_minecraft_client_recorder
 
 Records the client ticks of a vanilla client for the player experiments of
-`docs/spec/entity-physics.md`, section 15: E9 to E14 and E21 to E23, and for the conformance
-tests C1 to C7 of `docs/spec/movement-checks.md`, section 14.2. The tool starts the
+`docs/spec/entity-physics.md`: E9 to E14 and E21 to E23, and for the conformance
+tests C1 to C7 of `docs/spec/movement-checks.md`. The tool starts the
 vanilla dedicated server of the corpus version, listens as a proxy in front of it, and sets
 each step of an experiment up through the server console. A human plays the vanilla client, or
 the input agent of `tools/vanilla-client` plays it (see "Record without a human"). The tool writes one recording for each step. These tests read the recordings:
 
 - `own_player_follows_the_recorded_client_ticks` in
-  `crates/mcrs_minecraft_physics/tests/recorded_player.rs` reads
+  `crates/mcrs_minecraft_physics/tests/it/recorded_player.rs` reads
   `crates/mcrs_minecraft_physics/tests/fixtures/player`.
-- `a_vanilla_client_raises_no_flag` in `crates/mcrs_minecraft_move_predict/tests/conformance.rs`
+- `a_vanilla_client_raises_no_flag` in `crates/mcrs_minecraft_move_predict/tests/it/conformance.rs`
   reads the same directory and `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`,
-  subdirectories included. It prints the number of predicted ticks N and the bound 3/N of the
-  false positive rate. With no recording, it prints that it skipped.
+  subdirectories included.
 - `each_recording_of_a_predicted_cheat_module_is_flagged` in the same file reads
   `crates/mcrs_minecraft_move_predict/tests/fixtures/cheats/<module>` and prints the detection
   rate of each module. Each recording of `fly`, `speed`, `no_fall`, `phase` and `step` must have a
   flag. Layer 2 does not see `timer`, so its rate is only printed.
 
 Run them with
-`cargo nextest run -p mcrs_minecraft_move_predict --test conformance --no-capture`.
+`cargo nextest run -p mcrs_minecraft_move_predict conformance --no-capture`.
 
 ## Record one experiment
 
@@ -50,8 +49,11 @@ After the last step the tool stops the server. Make sure that each file
 experiment again.
 
 The second argument of `record.sh` is the output directory `<out>`. Without it, the recordings
-of `e9` to `e23` go to `crates/mcrs_minecraft_physics/tests/fixtures/player`, and the others go
-to `crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`.
+of `e9` to `e23` go to `crates/mcrs_minecraft_physics/tests/fixtures/player`, the recordings of
+the scenarios `pose_*` (the experiments of `docs/spec/player-pose.md`, section 9) go to
+`recordings/pose` in this directory, the recordings of the scenarios `inventory_*` go to
+`recordings/inventory` in this directory, and the others go to
+`crates/mcrs_minecraft_move_predict/tests/fixtures/conformance`.
 
 ## Record without a human
 
@@ -94,20 +96,6 @@ ping -i 0.1 -c 3000 <host> | sed -nE 's/.*time=([0-9.]+) ms/\1/p' \
 Record one trace for each of these connections: a wired home connection, a home Wi-Fi with
 other traffic, a mobile connection, and a host on another continent. Write the connection and the
 date in a comment on the first line.
-
-The traces in `traces/` come from one machine in Tokyo on a home Wi-Fi, on 2026-11-07. The
-machine had no wired connection and no mobile connection, so these traces do not exist yet. The
-first line of each trace names the host and its address.
-
-| Trace | Host | Median round trip |
-|-------|------|-------------------|
-| `lan` | the Wi-Fi gateway | 6 ms |
-| `tokyo` | `ntp.nict.jp`, Tokyo | 12 ms |
-| `us_east` | `mirror.math.princeton.edu`, New Jersey | 187 ms |
-| `europe` | `speedtest.tele2.net`, Sweden | 278 ms |
-| `south_america` | `speedtest.sao1.edgoo.net`, São Paulo | 282 ms |
-
-No trace has a median near 500 ms. C4 uses `south_america`, the trace with the largest median.
 
 The trace of C7 stalls each direction for 3 seconds after 900 frames, again and again:
 
@@ -153,7 +141,7 @@ Do not commit a cheat client. Commit only the recordings.
 
 The recordings in `cheats/` are proxy-emulated: no cheat client made them. A real cheat client of
 this version does not exist. With `CHEAT=<module>`, an honest vanilla client plays, and the proxy
-changes the serverbound movement as the module does. The client does not see the change. The
+changes the serverbound packets as the module does. The client does not see the change. The
 server then has `allow-flight=true`, so that it does not kick a player that floats. A step in
 which the proxy changed no packet gives no recording.
 
@@ -165,6 +153,28 @@ which the proxy changed no packet gives no recording.
 | `phase` | Each reported position is 0.5 blocks lower, in the floor. |
 | `step` | A position on the ground with a horizontal collision is reported 1 block higher. |
 | `timer` | After each fourth client tick, the proxy sends the last move packet and `client_tick_end` again. |
+| `start_fall_flying` | When `player_input` turns the jump flag on, the proxy sends `player_command` with the action `start_fall_flying` after it. |
+| `no_shift_input` | `player_input` never has the shift flag. |
+| `shift_before_loaded` | Before each `player_loaded`, the proxy sends `player_input` with the shift flag. |
+| `remove:<packet>` | The proxy removes each serverbound packet with the name `<packet>` of the protocol table. When a removed packet gives an event, the recording writes it as `> removed <event>`. |
+
+The last three modules are for experiment E8 of `docs/spec/player-pose.md`, section 9. Each
+module has its scenario: `pose_e8_1` for `start_fall_flying`, `pose_e8_2` for `no_shift_input`
+and `pose_e8_3` for `shift_before_loaded`. A recording shows each packet that the server
+receives, the packets of the proxy included. A packet that the proxy changes before the client
+has loaded the world changes each step.
+
+```sh
+MINECRAFT_EULA=true AUTOPLAY=true CHEAT=start_fall_flying \
+    tools/mcrs_minecraft_client_recorder/record.sh pose_e8_1
+```
+
+The scenario `inventory_e17` is experiment E17 of `docs/spec/inventory-transactions.md`. It
+uses `remove:player_action`. The fixture `inventory_e17` of `tools/fixtures.json` records it:
+
+```sh
+MINECRAFT_EULA=true cargo run -p mcrs_minecraft_update -- recapture inventory_e17
+```
 
 C1 has no wall, so `step` changes nothing in it. E13 has a wall:
 
@@ -213,15 +223,51 @@ line is a tick in which the client sent no move packet.
 | `< remove_effect <name>` | `remove_mob_effect` |
 | `< block <x> <y> <z> <state>` | `block_update`, or one entry of `section_blocks_update` |
 | `< forget <x> <z>` | `forget_level_chunk` |
+| `< data <entity> <index> <value>` | one entry of `set_entity_data` |
+| `< slot <container> <state> <slot> <stack>` | `container_set_slot` |
+| `< content <container> <state> <cursor> <stack>...` | `container_set_content`, with each slot in order |
+| `< cursor <stack>` | `set_cursor_item` |
 | `> input <keys>` | `player_input` |
 | `> sprint <true or false>` | `player_command` that starts or stops the sprint state |
+| `> command <action>` | `player_command` with another action |
+| `> interact <true or false>` | `interact`; true when its secondary action flag is on |
 | `> use_item`, `> release_use_item` | `use_item`, `player_action` that releases the item |
+| `> action <action>` | `player_action` with another action |
+| `> click <container> <state> <slot> <button> <input> <cursor> [<slot>=<stack>]...` | `container_click`, with the changed slots last |
+| `> removed <event>` | a serverbound packet that a proxy module removed; the server did not receive it |
 | `> move <x,y,z or -> <yaw,pitch or -> <flags>` | one of the four move packets |
 | `> tick` | `client_tick_end` |
 
 A list of flags or keys has commas between its names, or is `none`. Each floating-point value is
 the shortest decimal text that gives the same value again. The events before the first teleport
-give the abilities, the attributes and the effects of the player at the start of the step.
+give the abilities, the attributes, the effects and the last entity data entries of the player at
+the start of the step.
+
+The `<entity>` of a `data` event is `self` for the player of the recording, or else the network
+id of the entity. The `<value>` is one word, `<serializer>:<text>`:
+
+| Serializer | Value |
+|------------|-------|
+| 0, byte | `byte:0x82`, two hexadecimal digits |
+| 1, VarInt | `int:20` |
+| 3, float | `float:20` |
+| 8, boolean | `bool:true` |
+| 10 and 11, block position and optional block position | `block_pos:2,100,0`, or `block_pos:-` when empty |
+| 20, pose | `pose:crouching`, the pose name of `docs/spec/player-pose.md`, POSE-NET-001 |
+| each other serializer | `serializer:<id>`; the value is not kept |
+
+A particle, a list of particles or a profile ends the entries of its packet: the tool does not
+decode their length, so the entries after them are not kept.
+
+The `<action>` of a `command` event is `stop_sleeping`, `start_riding_jump`, `stop_riding_jump`,
+`open_inventory` or `start_fall_flying`. The `<action>` of an `action` event is the name of the
+action in snake case, for example `drop_item` or `swap_item_with_offhand`. The `<input>` of a
+`click` event is the click kind in snake case, for example `pickup`.
+
+A `<stack>` is one word. It is `-` for the empty stack, or else `<item>*<count>`. A stack of a
+clientbound packet adds `{<component>,!<component>}` when it has a patch: the names of the
+added and of the removed components. A hashed stack of `container_click` adds
+`{<component>=<hash>,!<component>}`.
 
 ## The scenario format
 
@@ -244,7 +290,12 @@ conformance tests; C2 is C1 at other frame rates. A line that starts with `#` is
 | `at <tick> <command>` | a console command at a client tick of the step |
 
 The arena must have at most 32768 blocks, the limit of `fill`. The keys of `input` are `none`
-or a comma list of `forward`, `backward`, `left`, `right`, `jump`, `shift`, `sprint` and `use`.
+or a comma list of `forward`, `backward`, `left`, `right`, `jump`, `shift`, `sprint`, `use`,
+`leave_bed`, `drop`, `swap_hands`, `inventory`, `close` and `click:<slot>`. `leave_bed` is not a
+key: at the tick of its line, the input agent presses Escape on the bed screen, which sends what
+the leave button sends. The input agent presses `drop`, `swap_hands` and `inventory` once at
+the tick of their line. At that tick, `close` closes the open screen, and `click:<slot>` clicks
+with the primary button on the slot of that index in the open container screen.
 The input agent takes the client tick after it sees the title `Go` as the tick after `go`.
 With a delay, the title comes later, and so do the inputs.
 

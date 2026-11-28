@@ -18,53 +18,32 @@ use mcrs_minecraft_block_entity::BEE_MIN_TICKS_IN_HIVE;
 use mcrs_minecraft_block_entity::{BeeOccupant, GeneratedBlockEntity};
 use mcrs_minecraft_random::{shuffle, shuffled};
 
-/// The four sides a bee nest may sit on: the horizontals minus the one it would
-/// face away from, since it always faces south.
 const HIVE_SIDES: [Direction; 3] = [Direction::East, Direction::South, Direction::West];
 
 const BEE_NEST_FACING: Direction = Direction::South;
 
-/// Every state and set of states a decorator names, resolved once.
 #[derive(Clone, Debug)]
 pub struct TreePalette {
     pub vines: StateMask,
     pub shelf_mushrooms: StateMask,
-    /// A vine attached on one side only, indexed over [`Direction::HORIZONTAL`].
     pub vine_side: [VoxelId; 4],
-    /// Facing [`BEE_NEST_FACING`].
     pub bee_nest: VoxelId,
-    /// `[age][facing]`, the facing over [`Direction::HORIZONTAL`].
     pub cocoa: [[VoxelId; 4]; 3],
-    /// `[age][facing]`, the facing over [`Direction::HORIZONTAL`].
     pub shelf_mushroom: [[VoxelId; 4]; 2],
-    /// Indexed by the `tip` property.
     pub pale_hanging_moss: [VoxelId; 2],
     pub creaking_heart: VoxelId,
 }
 
-/// What a decorator sees of the tree that just went in: the blocks it wrote,
-/// each list ordered bottom to top, and the volume under them.
-pub struct DecoratorContext<'a, W> {
+pub struct DecoratorContext<'a, W, S> {
     pub volume: &'a mut W,
     pub tables: &'a TreeTables,
-    pub sink: &'a mut dyn TreeSink<W>,
+    pub sink: &'a mut S,
     logs: Vec<BlockPos>,
     leaves: Vec<BlockPos>,
     roots: Vec<BlockPos>,
     decorations: Vec<BlockPos>,
 }
 
-/// `java.util.HashSet` iteration order over `BlockPos`, which is the order the
-/// reference's decorator context starts from before its stable sort on Y.
-///
-/// The tree feature accumulates its trunk, foliage and root positions in a
-/// `HashSet`, so within one Y the order is the table's, not the placer's, and
-/// every decorator that shuffles or walks a list starts from that permutation.
-/// The set also deduplicates, which a placer revisiting a position relies on.
-///
-/// Known ceiling: a bin of eight or more once the table holds sixty-four
-/// entries becomes a red-black tree in the JVM and iterates in a different
-/// order. `BlockPos` hashes spread well enough that a tree never reaches it.
 pub(crate) fn java_set_order(positions: &[BlockPos]) -> Vec<BlockPos> {
     let mut table: Vec<Vec<(u32, BlockPos)>> = vec![Vec::new(); 16];
     let mut size = 0usize;
@@ -98,11 +77,11 @@ pub(crate) fn java_set_order(positions: &[BlockPos]) -> Vec<BlockPos> {
     table.into_iter().flatten().map(|(_, pos)| pos).collect()
 }
 
-impl<'a, W: WorldGenVolume> DecoratorContext<'a, W> {
+impl<'a, W: WorldGenVolume, S: TreeSink<W>> DecoratorContext<'a, W, S> {
     pub fn new(
         volume: &'a mut W,
         tables: &'a TreeTables,
-        sink: &'a mut dyn TreeSink<W>,
+        sink: &'a mut S,
         logs: &[BlockPos],
         leaves: &[BlockPos],
         roots: &[BlockPos],
@@ -124,8 +103,6 @@ impl<'a, W: WorldGenVolume> DecoratorContext<'a, W> {
         }
     }
 
-    /// The positions the decorators wrote, which join the tree's bounding box
-    /// and pre-fill the leaf relaxation's shape.
     pub fn into_decorations(self) -> Vec<BlockPos> {
         self.decorations
     }
@@ -167,21 +144,13 @@ impl<'a, W: WorldGenVolume> DecoratorContext<'a, W> {
     }
 }
 
-/// A tree decorator with the block state provider four of them carry resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledTreeDecorator(pub TreeDecorator<StateProvider>);
 
-/// The bare `pale_moss_patch` some of a tree's decorators run on the tree's own source.
 pub trait TreeSink<W> {
-    /// `pale_moss` runs a whole feature on the tree's source, and that feature
-    /// lives outside this crate.
     fn moss_patch(&mut self, volume: &mut W, rng: &mut WorldgenRandom, at: BlockPos);
 }
 
-/// A sink with no patch to run: it drops the moss.
-///
-/// Only right where the corpus carries no `pale_moss` decorator — a tree that
-/// does grows nothing where its patch belongs.
 #[cfg(any(test, feature = "test-support"))]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NoMoss;
@@ -194,15 +163,15 @@ impl<W> TreeSink<W> for NoMoss {
 impl CompiledTreeDecorator {
     #[expect(
         clippy::too_many_lines,
-        reason = "one arm per tree decorator kind, in the reference's declaration order, so each reads against its kind"
+        reason = "one arm per tree decorator kind, in the reference's declaration order"
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "tests the air at each candidate position inside the arm of its decorator kind, so each kind keeps the reference's order of draws"
+        reason = "tests the air at each candidate position inside the arm of its decorator kind"
     )]
     pub fn place<W: WorldGenVolume>(
         &self,
-        ctx: &mut DecoratorContext<W>,
+        ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
         rng: &mut WorldgenRandom,
     ) {
         match &self.0 {
@@ -450,7 +419,6 @@ impl CompiledTreeDecorator {
     }
 }
 
-/// The order the vine decorators walk their four sides in.
 const VINE_SIDES: [Direction; 4] = [
     Direction::West,
     Direction::East,
@@ -458,8 +426,6 @@ const VINE_SIDES: [Direction; 4] = [
     Direction::South,
 ];
 
-/// The entry of a table over [`Direction::HORIZONTAL`] for `side`, which a
-/// vertical has none of.
 fn by_horizontal<T: Copy>(by_side: &[T; 4], side: Direction) -> Option<T> {
     Direction::HORIZONTAL
         .iter()
@@ -467,7 +433,11 @@ fn by_horizontal<T: Copy>(by_side: &[T; 4], side: Direction) -> Option<T> {
         .find_map(|(each, &value)| (*each == side).then_some(value))
 }
 
-fn hang_vine<W: WorldGenVolume>(ctx: &mut DecoratorContext<W>, pos: BlockPos, side: Direction) {
+fn hang_vine<W: WorldGenVolume>(
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
+    pos: BlockPos,
+    side: Direction,
+) {
     ctx.place_vine(pos, side);
     let mut cursor = pos + IVec3::NEG_Y;
     let mut left = 4;
@@ -479,7 +449,7 @@ fn hang_vine<W: WorldGenVolume>(ctx: &mut DecoratorContext<W>, pos: BlockPos, si
 }
 
 fn hang_moss<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     pos: BlockPos,
     rng: &mut WorldgenRandom,
 ) {
@@ -493,7 +463,7 @@ fn hang_moss<W: WorldGenVolume>(
 }
 
 fn place_circle<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     provider: &StateProvider,
     rng: &mut WorldgenRandom,
     centre: BlockPos,
@@ -519,7 +489,7 @@ fn place_circle<W: WorldGenVolume>(
 }
 
 fn place_beehive<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     rng: &mut WorldgenRandom,
     probability: f32,
 ) {
@@ -564,7 +534,7 @@ fn place_beehive<W: WorldGenVolume>(
 }
 
 fn place_mushrooms_on_standing_tree<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     rng: &mut WorldgenRandom,
     base_y: i32,
 ) {
@@ -594,7 +564,7 @@ fn place_mushrooms_on_standing_tree<W: WorldGenVolume>(
 }
 
 fn place_mushrooms_on_fallen_log<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     rng: &mut WorldgenRandom,
     first: BlockPos,
     last: BlockPos,
@@ -624,20 +594,23 @@ fn place_mushrooms_on_fallen_log<W: WorldGenVolume>(
 }
 
 fn replaceable_with_shelf_mushroom<W: WorldGenVolume>(
-    ctx: &DecoratorContext<W>,
+    ctx: &DecoratorContext<W, impl TreeSink<W>>,
     pos: BlockPos,
 ) -> bool {
     ctx.holds(&ctx.volume.world().replaceable, pos) && !ctx.is_water_or_water_nearby(pos)
 }
 
-fn shelf_mushroom_beside<W: WorldGenVolume>(ctx: &DecoratorContext<W>, pos: BlockPos) -> bool {
+fn shelf_mushroom_beside<W: WorldGenVolume>(
+    ctx: &DecoratorContext<W, impl TreeSink<W>>,
+    pos: BlockPos,
+) -> bool {
     Direction::HORIZONTAL
         .iter()
         .any(|side| ctx.holds(&ctx.tables.palette.shelf_mushrooms, pos + side.normal()))
 }
 
 fn place_shelf_mushroom<W: WorldGenVolume>(
-    ctx: &mut DecoratorContext<W>,
+    ctx: &mut DecoratorContext<W, impl TreeSink<W>>,
     pos: BlockPos,
     facing: Direction,
     rng: &mut WorldgenRandom,
@@ -658,9 +631,6 @@ fn place_shelf_mushroom<W: WorldGenVolume>(
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    /// Measured against a JDK `HashSet<BlockPos>`: five logs sharing one Y come
-    /// out 100, 104, 103, 102, 101, and a 2×2 trunk's y=65 layer comes out
-    /// (0,1), (1,0), (1,1), (0,0) — neither is the order they were written in.
     #[test]
     fn the_decorator_lists_start_from_java_s_set_order() {
         let line: Vec<BlockPos> = (0..5).map(|i| BlockPos::new(100 + i, 64, -37)).collect();
@@ -746,9 +716,6 @@ mod tests {
         block_entities: Vec<GeneratedBlockEntity>,
     }
 
-    /// Runs a decorator over a bare column of logs and leaves, then checks the
-    /// draw sequence it is claimed to spend by replaying that sequence from the
-    /// same start: equal states mean the claim holds.
     fn decorator(json: &str, provider: Option<StateProvider>) -> CompiledTreeDecorator {
         let proto: TreeDecorator = serde_json::from_str(json).unwrap();
         CompiledTreeDecorator(
@@ -845,9 +812,6 @@ mod tests {
         assert_eq!(hanging, [70, 69, 68, 67, 66]);
     }
 
-    /// The occupant draws sit inside the reference's `ifPresent`, so a
-    /// generated column that carried no block entities would spend fewer draws
-    /// and shift everything after it.
     #[test]
     fn beehive_always_spends_its_occupant_draws() {
         let mut expected_bees = 0;
@@ -878,8 +842,6 @@ mod tests {
         assert_eq!(*y, 67, "one below the lowest leaf");
     }
 
-    /// Without leaves the hive height is drawn instead of derived, and the
-    /// three sides of a one-log layer shuffle in two draws.
     #[test]
     fn beehive_draws_its_height_when_the_tree_has_no_leaves() {
         place(
@@ -945,7 +907,7 @@ mod tests {
     #[test]
     #[expect(
         clippy::excessive_nesting,
-        reason = "replays the draws per log height and facing and skips the blocked cells, so the expected draw count is visible beside the placement"
+        reason = "replays the draws per log height and facing and skips the blocked cells"
     )]
     fn cocoa_draws_the_age_only_where_it_writes() {
         let placed = place(

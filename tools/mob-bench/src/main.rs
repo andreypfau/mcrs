@@ -1,6 +1,3 @@
-//! Starts one server in a fresh folder, builds the pig scene through its console, and measures
-//! each phase. See `README.md` in `benchmarks/mob-bench` for the method.
-
 use anyhow::bail;
 use mcrs_mob_bench::{args, run};
 

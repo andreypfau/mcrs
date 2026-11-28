@@ -1,23 +1,15 @@
-//! Parity with the vanilla frames of the scene `pig_walk` (`tools/scenes/pig_walk.json`).
-//!
-//! The record holds the state of the drawn pig at three frames, not the packets that the vanilla
-//! client received, so the interpolated position cannot be replayed exactly. The test replays
-//! the scene with the packets that its commands imply and checks what the record pins down
-//! without them: the ticks of a frozen world, the body and head of a pig that walks straight,
-//! and the walk accumulator against the distance that the pig covered.
-
 use glam::DVec3;
-use mcrs_minecraft_client_entity::FrameValues;
-use mcrs_minecraft_client_entity::walk::{self, Walk};
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_visual::FrameValues;
+use mcrs_minecraft_entity_visual::walk::{self, Walk};
 use mcrs_minecraft_fixtures::fixture;
+use mcrs_minecraft_pose::Pose;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::PositionFlags;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundTeleportEntity, ClientboundTickingState, ClientboundTickingStep,
 };
-use mcrs_minecraft_protocol_game::entity::Pose;
 use serde::Deserialize;
 
 use crate::{Client, add_entity};
@@ -75,9 +67,6 @@ fn recorded_pigs() -> Vec<RecordedPig> {
         .collect()
 }
 
-/// `0.6 · speed + 0.4 · position` of a walk that starts at rest grows by `0.4 · target` in each
-/// tick, so while no target reaches 1 it is `1.6` times the distance covered, whatever the
-/// distance of each tick.
 fn walk_invariant(position: f32, speed: f32) -> f32 {
     0.6 * speed + 0.4 * position
 }
@@ -129,7 +118,6 @@ fn a_replay_of_the_scene_ticks_and_turns_the_pig_as_the_record() {
             relatives: PositionFlags::default(),
             on_ground: true,
         });
-        // The scene waits 5 frozen ticks; none of them ticks the pig.
         for _ in 0..5 {
             client.tick();
         }

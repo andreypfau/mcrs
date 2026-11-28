@@ -56,6 +56,9 @@
         "seconds_to_destroy": 0.2
       },
       "minecraft:loot": "minecraft:blocks/dark_oak_leaves",
+      "minecraft:support": {
+        "boxes": []
+      },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,

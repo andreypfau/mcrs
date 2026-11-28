@@ -1,5 +1,3 @@
-//! The systems that spawn and release the sections the tickets load.
-
 use std::collections::VecDeque;
 
 use crate::entity::physics::Transform;
@@ -19,33 +17,24 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_voxel::SectionPos;
 
-/// Symmetric with the spawn cap: a pipeline that admits sections faster than it retires them
-/// leaves dead sections sitting on the positions live ones are waiting for.
 const MAX_DESPAWNS_PER_TICK: usize = MAX_SPAWNS_PER_TICK;
-/// A view's row is 27 columns of 24 sections, and a column whose sections straddle two ticks
-/// is sent a tick late, so the cap holds several rows. The view sizes its own intake against
-/// this: raising more columns a tick than this can spawn grows the queue without bound.
 pub const MAX_SPAWNS_PER_TICK: usize = 4096;
 
 pub struct TicketPlugin;
 
-/// Turns the tick's new tickets into chunk entities. It runs in `FixedUpdate` so the tickets a
-/// view raised this tick become entities this tick, and whatever queues them can follow.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ChunkSpawnSet;
 
-/// Runs right before the sections of the columns that stopped being loaded are let go, while
-/// they still hold their blocks: the place to take the last version of such a column.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnCoolSet;
 
-/// The part of [`ChunkSpawnSet`] that spawns and despawns the sections the tickets load.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SectionEntitySet;
 
 impl Plugin for TicketPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<SectionStageChanged>();
+        app.init_resource::<Condemned>();
         app.init_resource::<SimulationDistance>();
         app.add_observer(raise_simulation_ticket);
         app.add_observer(release_simulation_ticket);
@@ -66,9 +55,7 @@ impl Plugin for TicketPlugin {
                     .before(SectionEntitySet),
                 (
                     release_sections.after(ColumnCoolSet),
-                    // Before the spawn, so a section it takes leaves the index in the same run
-                    // that could hand its position to a fresh one.
-                    despawn_chunks,
+                    despawn_chunks.run_if(on_message::<SectionStageChanged>.or_else(any_condemned)),
                     spawn_chunks,
                 )
                     .chain()
@@ -79,7 +66,7 @@ impl Plugin for TicketPlugin {
 }
 
 fn release_sections(
-    mut dims: Query<(&mut ColumnLoading, &SectionIndex)>,
+    mut dims: Populated<(&mut ColumnLoading, &SectionIndex)>,
     mut stages: SectionStages,
 ) {
     for (mut loading, section_index) in &mut dims {
@@ -98,7 +85,6 @@ fn release_sections(
             let Some(section) = section_index.get(pos) else {
                 return false;
             };
-            // Spawned this run, so its stage lands with the next flush.
             if stages.get(section).is_none() {
                 return true;
             }
@@ -108,16 +94,22 @@ fn release_sections(
     }
 }
 
-/// The queue outlives the tick because of the cap. An entry whose section was taken back
-/// in the meantime no longer holds `Unloading` and is dropped when it comes up.
+#[derive(Resource, Default)]
+struct Condemned(VecDeque<Entity>);
+
+fn any_condemned(condemned: Res<Condemned>) -> bool {
+    !condemned.0.is_empty()
+}
+
 fn despawn_chunks(
     mut commands: Commands,
     mut changes: MessageReader<SectionStageChanged>,
-    mut condemned: Local<VecDeque<Entity>>,
+    mut condemned: ResMut<Condemned>,
     mut dims: Query<(&mut SectionIndex, &mut ColumnLoading)>,
     sections: Query<(&SectionStage, &SectionPos, &InDimension)>,
     mut random_ticks: Option<ResMut<RandomTickIndex>>,
 ) {
+    let condemned = &mut condemned.0;
     condemned.extend(
         changes
             .read()
@@ -141,9 +133,6 @@ fn despawn_chunks(
         let Ok((mut section_index, mut loading)) = dims.get_mut(dim.0) else {
             continue;
         };
-        // Loaded again while it was on its way out. `spawn_chunks` takes it back with the blocks
-        // it already holds, which is the whole point of leaving it alone: taking it now would
-        // mean generating the same terrain twice.
         if loading.is_loaded(*pos) {
             loading.pending_spawn.insert(*pos);
             continue;
@@ -154,9 +143,6 @@ fn despawn_chunks(
     }
 }
 
-/// Squared distance to the nearest player, or zero when the dimension holds none: with nobody
-/// to be near, every section is equally worth spawning.
-/// A section that waits to spawn, with its distance to the nearest player.
 #[derive(Clone, Copy)]
 pub struct PendingSpawn {
     distance_sq: i32,
@@ -171,8 +157,15 @@ fn nearest_player_distance_sq(pos: SectionPos, centers: &[SectionPos]) -> i32 {
         .unwrap_or(0)
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the column trace log stamps wall-clock times only when the trace log exists, which a debug run enables"
+    )
+)]
 pub fn spawn_chunks(
-    mut dims: Query<(
+    mut dims: Populated<(
         Entity,
         &mut ColumnLoading,
         &mut SectionIndex,
@@ -190,9 +183,6 @@ pub fn spawn_chunks(
             continue;
         }
 
-        // The backlog outlives the walk that raised it, so what is spawned first is chosen
-        // against where the players stand now. Ticketing a section the player has since flown
-        // past ahead of the one under their feet is what leaves a hole underneath them.
         centers.clear();
         centers.extend(
             players
@@ -223,7 +213,7 @@ pub fn spawn_chunks(
                 trace::mark(traces.as_deref(), pos.into(), ColumnStage::Spawned);
                 let mut section = commands.spawn(SectionBundle::new(InDimension(dim), pos));
                 if let Some(simulation) = simulation {
-                    simulation.mark_spawned(&mut section, pos);
+                    simulation.mark_spawned(section.reborrow(), pos);
                 }
                 let section = section.id();
                 section_index.insert(pos, section);
@@ -231,9 +221,6 @@ pub fn spawn_chunks(
                 continue;
             };
 
-            // A section on its way out still holds the blocks it was generated with, so taking
-            // it back is far cheaper than despawning it and generating the same terrain again.
-            // One condemned before its blocks arrived has nothing to keep and is generated again.
             if stages.get(section) == Some(SectionStage::Unloading) {
                 let back = if section_index.blocks(pos).is_some() {
                     SectionStage::Loaded
@@ -335,8 +322,6 @@ mod tests {
         assert!(section_index(&app, dim).is_empty());
     }
 
-    /// Two views raise the same ticket on a column they both see, and only the last one to let
-    /// go may unload it.
     #[test]
     fn a_ticket_raised_twice_holds_until_both_let_go() {
         let mut loading = ColumnLoading::bounded(0..=0);
@@ -353,16 +338,12 @@ mod tests {
         assert!(!loading.has_ticket(column));
     }
 
-    /// The backlog can hold more than a tick's worth of spawns, and what the player needs is
-    /// what is under them, not what they asked for first.
     #[test]
     fn a_backlog_spawns_the_sections_nearest_the_player_first() {
         let (mut app, dim) = app_with_dimension(0..=0);
         app.world_mut()
             .spawn((Player, Transform::default(), InDimension(dim)));
 
-        // Raised first and far away, five columns apart so the loaded squares do not overlap:
-        // insertion order alone would fill the whole tick.
         let far_columns = (MAX_SPAWNS_PER_TICK / 25) as i32 + 1;
         for x in 0..far_columns {
             loading(&mut app, dim).add_ticket(ColumnPos::new(1000 + 5 * x, 0));
@@ -383,9 +364,6 @@ mod tests {
         );
     }
 
-    /// Flying back over ground you just left is the common case at a large render distance.
-    /// The section still holds its blocks, so taking it back is a great deal cheaper than
-    /// despawning it and generating the same terrain again.
     #[test]
     fn a_ticket_arriving_before_the_despawn_takes_the_section_back() {
         let (mut app, dim) = app_with_dimension(0..=0);
@@ -433,15 +411,12 @@ mod tests {
         );
     }
 
-    /// A ticket raised after the section is gone must still land, or the view believes it
-    /// asked for something nothing will ever deliver.
     #[test]
     fn a_ticket_outlives_the_chunk_it_arrived_too_late_for() {
         let (mut app, dim) = app_with_dimension(0..=0);
         let pos = SectionPos::new(0, 0, 0);
         let dying = condemned_section(&mut app, dim, pos, true);
 
-        // Nobody wants it, so it goes.
         app.world_mut().run_schedule(FixedUpdate);
         assert!(app.world().get_entity(dying).is_err());
 

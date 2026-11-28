@@ -1,7 +1,3 @@
-//! The command source, permissions, identifiers and the error text that the vanilla argument
-//! families share, and the `commands` and suggestion packets of a player.
-
-// std: mcrs_minecraft_core needs it.
 mod error;
 mod identifier;
 mod packet;

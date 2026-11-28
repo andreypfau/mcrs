@@ -1,6 +1,3 @@
-//! The arctangent tables, copied from the numeric artefact: a standard library sine or
-//! arcsine can differ from them in the last bit.
-
 pub(crate) const ARCSINE_BITS: [u64; 257] = [
     0x0000000000000000,
     0x3f700002aaabdddf,

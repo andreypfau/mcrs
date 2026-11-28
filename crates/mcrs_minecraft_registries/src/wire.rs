@@ -7,6 +7,7 @@ use derive_where::derive_where;
 use mcrs_minecraft_core::Bounded;
 use mcrs_minecraft_core::codec::CompactList;
 use mcrs_minecraft_resource::{Id, Registered, ResourceLocationBuf, TagKeyBuf};
+use mcrs_minecraft_static_registry::{decode_registry_id, encode_registry_id};
 use mcrs_minecraft_wire::{Context, Decode, Encode, ErrorKind, Result, VarInt};
 
 use crate::Namer;
@@ -14,9 +15,6 @@ use crate::refs::{Checked, Named, Ref, Refs, ResolveError, Resolved, Resolver};
 use crate::static_key::StaticEntry;
 use crate::tags::IdSet;
 
-/// The form a value crosses the network in: an id is the sixteen-bit number the peer sent, not
-/// yet checked against any registry, and a tag is its name. A value that the wire writes as named
-/// NBT keeps its [`Named`] form inside.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Wire;
 
@@ -68,7 +66,6 @@ pub enum WireSet<R> {
     List(Box<[WireId<R>]>),
 }
 
-/// The block states, which the block definitions number and no registry holds.
 pub trait BlockStates {
     fn block_state(
         &self,
@@ -82,14 +79,10 @@ pub trait BlockStates {
     ) -> Result<u16, ResolveError>;
 }
 
-/// What a wire value is checked against: the registries both ends number alike, and the block
-/// states.
 pub trait WireNames: Resolver + Namer + BlockStates {}
 
 impl<C: Resolver + Namer + BlockStates> WireNames for C {}
 
-/// A value whose wire form is checked against the registries before it is trusted. Only this
-/// step reads the registries; the wire form encodes and decodes without them.
 pub trait FromWire: Sized {
     type Wire;
 
@@ -253,8 +246,6 @@ impl<T: FromWire> FromWire for Box<T> {
     }
 }
 
-/// Implements [`FromWire`] for a value that the wire writes as named NBT: its wire form is its
-/// [`Named`] form, so the check is [`Resolve`].
 #[macro_export]
 macro_rules! wire_as_named {
     (impl<$param:ident: $bound:path> $value:ty) => {
@@ -287,18 +278,6 @@ macro_rules! wire_as_named {
     };
 }
 
-pub fn encode_registry_id(id: u16, w: impl Write) -> Result<()> {
-    VarInt(i32::from(id)).encode(w)
-}
-
-pub fn decode_registry_id(r: &mut &[u8]) -> Result<u16> {
-    let VarInt(raw) = VarInt::decode(r)?;
-    u16::try_from(raw)
-        .ok()
-        .with_context(|| format!("registry id {raw} is outside 0..=65535"))
-}
-
-/// A holder writes a registry id one above its number, and zero for an inline value.
 pub fn encode_holder_id(reference: Option<u16>, w: impl Write) -> Result<()> {
     VarInt(reference.map_or(0, |id| i32::from(id).saturating_add(1))).encode(w)
 }

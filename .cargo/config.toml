@@ -1,53 +1,27 @@
+[build]
+rustc-workspace-wrapper = "scripts/rustc-wrapper"
+
 [env]
-# bevy_asset::get_base_path consults BEVY_ASSET_ROOT lazily inside any
-# thread that touches an AssetPlugin worker. Test binaries that need the
-# workspace assets directory used to set this via unsafe std::env::set_var
-# guarded by OnceLock, which races other threads in 2024-edition because
-# parallel tests in the same binary can read the variable concurrently.
-# Setting it here puts the value in the process environment before any
-# thread starts, which is the safe alternative.
-#
-# `relative = true` resolves the value against the directory holding this
-# config file (the workspace root), so the path stays portable across
-# clones.
 BEVY_ASSET_ROOT = { value = ".", relative = true }
+MCRS_LINT_TICK_SCHEDULES = "TickDimensions,OutboundFlush"
 
-# getrandom has no default entropy source on wasm32-unknown-unknown; the
-# `wasm_js` backend routes it through `crypto.getRandomValues`. The crate
-# feature of the same name is required alongside this flag.
-#
-# web-sys keeps the WebTransport bindings behind `web_sys_unstable_apis`; the
-# browser client's only transport is built on them.
 [target.wasm32-unknown-unknown]
-rustflags = ['--cfg', 'getrandom_backend="wasm_js"', '--cfg', 'web_sys_unstable_apis']
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"', '--cfg', 'web_sys_unstable_apis', '-Zcodegen-backend=llvm']
 
-# `share-generics` stops every crate from monomorphizing the same Bevy generic
-# again; `threads=0` runs the parallel frontend on all cores; `cache-proc-macros`
-# keeps derive expansions in the incremental cache.
+[target.wasm32v1-none]
+rustflags = ['-Zcodegen-backend=llvm']
+
 [target.aarch64-apple-darwin]
-rustflags = ["-Zshare-generics=y", "-Zthreads=0", "-Zcache-proc-macros"]
+rustflags = ["-Zshare-generics=y", "-Zthreads=4", "-Zcache-proc-macros"]
 
-# Metadata is duplicated into every rlib otherwise, which this workspace pays
-# for across 650 dependencies.
-#
-# `fine-grain-locking` lets two builds of one checkout, say the editor's check
-# and a test run, proceed at once instead of queueing on one lock.
-#
-# `checksum-freshness` keeps a crate fresh when a checkout or rebase rewrites
-# its files without changing them. `mtime-on-use` touches every artifact a
-# build uses, which is what lets `scripts/prune-build-dir.sh` tell a live unit
-# from an abandoned one.
 [unstable]
+codegen-backend = true
 embed-metadata = false
 fine-grain-locking = true
 checksum-freshness = true
 mtime-on-use = true
 feature-unification = true
 
-# Each `-p` selection otherwise resolves its own feature set, and every set
-# rebuilds Bevy and the members under new hashes into the same build directory.
-# A check that needs one package's own features passes
-# `--config resolver.feature-unification="selected"`.
 [resolver]
 feature-unification = "workspace"
 

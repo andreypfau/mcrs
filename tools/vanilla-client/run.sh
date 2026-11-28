@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# Provisions the vanilla client of the corpus version under target/vanilla-client, verified
-# against the package descriptor pinned in release.json, and starts it with an offline name and
-# the input agent of this directory. The client joins SERVER at once. Usage:
-#   MINECRAFT_EULA=true tools/vanilla-client/run.sh SERVER INPUT_FILE [MAX_FPS]
-# INPUT_FILE is the script that the agent plays; see the README. The window stays in the
-# background and never takes the keyboard focus. Without MAX_FPS, the window is minimised, and the
-# client then draws 10 frames each second.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
-# shellcheck source=../vanilla-server/run.sh
 source "$root/tools/vanilla-server/run.sh"
 
 if [ "${MINECRAFT_EULA:-}" != true ]; then
@@ -35,7 +27,6 @@ fetch_verified "$work/client.jar" \
     "$(jq -r '.downloads.client.sha1' "$package")" \
     "$(jq -r '.downloads.client.size' "$package")" || exit 2
 
-# Each rule of the package names one operating system; a library without a rule is for all.
 classpath=
 while IFS=$'\t' read -r path url sha1 size; do
     mkdir -p "$(dirname "$libraries/$path")"
@@ -70,8 +61,6 @@ jar --create --file "$agent" --manifest "$classes/manifest.txt" -C "$classes" mc
 
 game="$work/game"
 mkdir -p "$game"
-# The options keep the client from pausing and from showing the first-start screens, and set
-# the frame rate of C2. Vsync off lets the frame rate reach maxFps.
 cat >"$game/options.txt" <<EOF
 version:5127
 onboardAccessibility:false
@@ -90,7 +79,6 @@ fullscreen:false
 EOF
 
 cd "$game"
-# SDL takes these hints from the environment: an accessory application that never activates.
 SDL_MAC_BACKGROUND_APP=1 SDL_WINDOW_ACTIVATE_WHEN_SHOWN=0 exec java \
     -XstartOnFirstThread -Xmx2G -XX:+UseZGC \
     --enable-native-access=ALL-UNNAMED --add-exports java.base/jdk.internal.misc=ALL-UNNAMED \

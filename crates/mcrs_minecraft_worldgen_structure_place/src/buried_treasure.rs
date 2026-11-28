@@ -15,14 +15,13 @@ use mcrs_minecraft_block::block_keys::Block;
 pub struct BuriedTreasureBlocks {
     pub sand: VoxelId,
     pub resting: StateMask,
-    /// `isAir` or the water or lava block: what the walk fills in around the chest.
     pub open: StateMask,
     pub chest: ChestStates,
 }
 
 impl BuriedTreasureBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let mut open = fixedbitset::FixedBitSet::clone(&world.air_states);
@@ -46,10 +45,6 @@ impl BuriedTreasureBlocks {
     }
 }
 
-/// `BuriedTreasurePiece.postProcess`: down the piece's column from the ocean
-/// floor to the first block resting on stone or sandstone, its open neighbours
-/// filled, then the chest. The neighbour writes are not clipped, as the
-/// reference's are not; they never leave the piece's column.
 pub fn paint_buried_treasure<W: WorldGenVolume, R: Random>(
     b: &BuriedTreasureBlocks,
     c: &mut PieceCanvas<'_, W>,

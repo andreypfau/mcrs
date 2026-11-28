@@ -1,11 +1,11 @@
+use bevy::ecs::entity::Entity;
 use bevy::math::{DVec3, IVec3};
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_voxel::BlockPos;
 
-/// The ranges of the player, as the attributes `minecraft:block_interaction_range` and
-/// `minecraft:entity_interaction_range` give them.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Reach {
     pub block: f64,
@@ -13,24 +13,12 @@ pub struct Reach {
 }
 
 impl Reach {
-    const BASE: Reach = Reach {
-        block: 4.5,
-        entity: 3.0,
-    };
-    const CREATIVE: Reach = Reach {
-        block: 5.0,
-        entity: 5.0,
-    };
-
-    /// The client does not read `update_attributes` yet, so it takes the values that a vanilla
-    /// server gives each game mode: the base values, and in creative mode the creative range
-    /// modifiers added to them.
     #[must_use]
-    pub fn of(mode: GameMode) -> Reach {
-        match mode {
-            GameMode::Creative => Reach::CREATIVE,
-            _ => Reach::BASE,
-        }
+    pub fn from_instances(instances: &AttributeInstances) -> Option<Reach> {
+        Some(Reach {
+            block: instances.value(Attribute::BlockInteractionRange)?,
+            entity: instances.value(Attribute::EntityInteractionRange)?,
+        })
     }
 
     fn ray_length(self) -> f64 {
@@ -38,7 +26,6 @@ impl Reach {
     }
 }
 
-/// A block that the ray of the player hits.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BlockHit {
     pub pos: BlockPos,
@@ -46,22 +33,56 @@ pub struct BlockHit {
     pub point: DVec3,
 }
 
-/// The block target of a ray from `eye` along the unit vector `direction`, or `None` for a miss.
-/// `outline_at` gives the outline shape of the block at a position, in the coordinates of that
-/// position. The client tests no entities, so no entity target hides a block.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EntityBox {
+    pub entity: Entity,
+    pub min: DVec3,
+    pub max: DVec3,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EntityHit {
+    pub entity: Entity,
+    pub point: DVec3,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Target {
+    Block(BlockHit),
+    Entity(EntityHit),
+}
+
 #[must_use]
-pub fn block_target<'s>(
+pub fn target<'s>(
     eye: DVec3,
     direction: DVec3,
     reach: Reach,
     outline_at: impl Fn(BlockPos) -> &'s [Aabb],
-) -> Option<BlockHit> {
-    let hit = cast(eye, direction, reach.ray_length(), outline_at)?;
-    (hit.point.distance(eye) < reach.block).then_some(hit)
+    entities: impl IntoIterator<Item = EntityBox>,
+) -> Option<Target> {
+    let block = cast(eye, direction, reach.ray_length(), outline_at);
+    let limit = block.map_or(reach.ray_length(), |hit| hit.point.distance(eye));
+    let mut nearest: Option<(f64, Entity)> = None;
+    for candidate in entities {
+        let Some((t, _)) = enter(eye, direction, candidate.min, candidate.max) else {
+            continue;
+        };
+        if t < limit && nearest.is_none_or(|(best, _)| t < best) {
+            nearest = Some((t, candidate.entity));
+        }
+    }
+    match (nearest, block) {
+        (Some((t, entity)), _) => (t < reach.entity).then(|| {
+            Target::Entity(EntityHit {
+                entity,
+                point: eye + direction * t,
+            })
+        }),
+        (None, Some(hit)) => (hit.point.distance(eye) < reach.block).then_some(Target::Block(hit)),
+        (None, None) => None,
+    }
 }
 
-/// Visits the positions that the ray crosses, from the one that holds `eye`, and answers the
-/// first hit on an outline shape.
 fn cast<'s>(
     eye: DVec3,
     direction: DVec3,
@@ -112,7 +133,6 @@ fn axis_step(d: f64) -> i32 {
     }
 }
 
-/// The nearest hit of the ray on the boxes of one position, within `length`.
 fn clip(
     eye: DVec3,
     direction: DVec3,
@@ -139,8 +159,6 @@ fn clip(
     })
 }
 
-/// Where the ray goes into the box, and through which side. A ray that starts inside the box
-/// enters at the eye, through the side that points against the main axis of the ray.
 fn enter(eye: DVec3, direction: DVec3, min: DVec3, max: DVec3) -> Option<(f64, Direction)> {
     if eye.cmpge(min).all() && eye.cmple(max).all() {
         return Some((
@@ -191,6 +209,10 @@ fn facing_against(direction: DVec3, axis: usize) -> Direction {
 mod tests {
     use super::*;
     use bevy::math::Vec3;
+    use mcrs_minecraft_entity::entity_type_keys::EntityType;
+    use mcrs_minecraft_entity_attribute::{AttributeModifier, ModifierOperation};
+    use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
+    use mcrs_minecraft_resource::rl;
 
     const FULL: &[Aabb] = &[Aabb {
         min: Vec3::ZERO,
@@ -201,8 +223,151 @@ mod tests {
         max: Vec3::new(1.0, 0.5, 1.0),
     }];
 
+    fn player() -> AttributeInstances {
+        AttributeInstances::new(
+            mcrs_minecraft_entity::attribute_bases(EntityType::Player)
+                .expect("a player has attributes"),
+        )
+    }
+
+    fn reach(instances: &AttributeInstances) -> Reach {
+        Reach::from_instances(instances).expect("a player has both ranges")
+    }
+
+    fn creative() -> AttributeInstances {
+        let mut instances = player();
+        for entry in [
+            AttributeSnapshot {
+                attribute: Attribute::BlockInteractionRange.into(),
+                base: 4.5,
+                modifiers: vec![AttributeModifier {
+                    id: rl!("minecraft:creative_mode_block_range"),
+                    amount: 0.5,
+                    operation: ModifierOperation::AddValue,
+                }],
+            },
+            AttributeSnapshot {
+                attribute: Attribute::EntityInteractionRange.into(),
+                base: 3.0,
+                modifiers: vec![AttributeModifier {
+                    id: rl!("minecraft:creative_mode_entity_range"),
+                    amount: 2.0,
+                    operation: ModifierOperation::AddValue,
+                }],
+            },
+        ] {
+            let _change = instances
+                .receive(&entry)
+                .expect("each range is in the registry");
+        }
+        instances
+    }
+
+    fn block_target<'s>(
+        eye: DVec3,
+        direction: DVec3,
+        reach: Reach,
+        outline_at: impl Fn(BlockPos) -> &'s [Aabb],
+    ) -> Option<BlockHit> {
+        match target(eye, direction, reach, outline_at, []) {
+            Some(Target::Block(hit)) => Some(hit),
+            Some(Target::Entity(_)) | None => None,
+        }
+    }
+
     fn one_block(at: BlockPos, shape: &'static [Aabb]) -> impl Fn(BlockPos) -> &'static [Aabb] {
         move |pos| if pos == at { shape } else { &[] }
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Picked {
+        Entity,
+        Block,
+        Miss,
+    }
+
+    struct PickRow {
+        name: &'static str,
+        entity_front: f64,
+        block_z: i32,
+        look: DVec3,
+        picked: Picked,
+    }
+
+    const PICK_ROWS: &[PickRow] = &[
+        PickRow {
+            name: "an entity nearer than the block",
+            entity_front: 2.0,
+            block_z: 3,
+            look: DVec3::Z,
+            picked: Picked::Entity,
+        },
+        PickRow {
+            name: "a block nearer than the entity",
+            entity_front: 2.5,
+            block_z: 2,
+            look: DVec3::Z,
+            picked: Picked::Block,
+        },
+        PickRow {
+            name: "an entity just inside the entity range",
+            entity_front: 2.999,
+            block_z: 10,
+            look: DVec3::Z,
+            picked: Picked::Entity,
+        },
+        PickRow {
+            name: "an entity at the entity range",
+            entity_front: 3.0,
+            block_z: 10,
+            look: DVec3::Z,
+            picked: Picked::Miss,
+        },
+        PickRow {
+            name: "an entity out of range before a block in range",
+            entity_front: 3.2,
+            block_z: 4,
+            look: DVec3::Z,
+            picked: Picked::Miss,
+        },
+        PickRow {
+            name: "a look that misses both",
+            entity_front: 2.0,
+            block_z: 3,
+            look: DVec3::Y,
+            picked: Picked::Miss,
+        },
+    ];
+
+    #[test]
+    fn cbk_tgt_009_the_nearer_hit_is_the_target_within_its_range() {
+        let eye = DVec3::new(0.5, 0.5, 0.0);
+        for row in PICK_ROWS {
+            let pig = EntityBox {
+                entity: Entity::PLACEHOLDER,
+                min: DVec3::new(0.05, 0.0, row.entity_front),
+                max: DVec3::new(0.95, 0.9, row.entity_front + 0.9),
+            };
+            let picked = match target(
+                eye,
+                row.look,
+                reach(&player()),
+                one_block(BlockPos::new(0, 0, row.block_z), FULL),
+                [pig],
+            ) {
+                Some(Target::Entity(hit)) => {
+                    assert!(
+                        (hit.point.z - row.entity_front).abs() < 1e-9,
+                        "{}: the hit point is on the front of the box",
+                        row.name
+                    );
+                    Picked::Entity
+                }
+                Some(Target::Block(_)) => Picked::Block,
+                None => Picked::Miss,
+            };
+            assert_eq!(picked, row.picked, "{}", row.name);
+        }
     }
 
     #[test]
@@ -210,13 +375,8 @@ mod tests {
         let block = BlockPos::new(3, 64, -2);
         let eye = DVec3::new(0.5, 66.62, -1.5);
         let direction = (DVec3::new(3.5, 65.0, -1.5) - eye).normalize();
-        let hit = block_target(
-            eye,
-            direction,
-            Reach::of(GameMode::Creative),
-            one_block(block, FULL),
-        )
-        .expect("the ray reaches the top of the block");
+        let hit = block_target(eye, direction, reach(&creative()), one_block(block, FULL))
+            .expect("the ray reaches the top of the block");
         assert_eq!((hit.pos, hit.face), (block, Direction::Up));
         assert!((hit.point.y - 65.0).abs() < 1e-9, "{:?}", hit.point);
     }
@@ -230,7 +390,7 @@ mod tests {
             pos if pos == behind => FULL,
             _ => &[],
         };
-        let reach = Reach::of(GameMode::Creative);
+        let reach = reach(&creative());
         let east = DVec3::X;
 
         let above_the_slab = block_target(DVec3::new(0.5, 0.75, 0.5), east, reach, outline_at);
@@ -247,9 +407,10 @@ mod tests {
         let block = BlockPos::new(0, 0, 5);
         let north = DVec3::Z;
         let eye = |z: f64| DVec3::new(0.5, 0.25, z);
-        let creative = Reach::of(GameMode::Creative);
-        let survival = Reach::of(GameMode::Survival);
+        let survival = reach(&player());
+        let creative = reach(&creative());
 
+        assert!(block_target(eye(0.01), north, survival, one_block(block, FULL)).is_none());
         assert!(block_target(eye(0.01), north, creative, one_block(block, FULL)).is_some());
         assert!(block_target(eye(0.0), north, creative, one_block(block, FULL)).is_none());
         assert!(block_target(eye(0.0), north, survival, one_block(block, FULL)).is_none());
@@ -264,7 +425,7 @@ mod tests {
         let hit = block_target(
             eye,
             down_and_east,
-            Reach::of(GameMode::Creative),
+            reach(&creative()),
             one_block(block, FULL),
         )
         .expect("the eye is inside the block");

@@ -5,12 +5,13 @@ use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, FloatArgument, NodeId};
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
 use mcrs_minecraft_command_argument::ResourceArgument;
-use mcrs_minecraft_command_argument_entity::EntityArgument;
+use mcrs_minecraft_command_argument_entity::{Candidate, EntityArgument};
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
 };
-use mcrs_minecraft_damage::{Hit, HitOutcome, preview};
-use mcrs_minecraft_physics::Living;
+use mcrs_minecraft_damage::{
+    DamageSource, DamageTypeRules, Defence, Hit, HitOutcome, HurtRules, Vitals, preview,
+};
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_text::Text;
 
@@ -61,9 +62,6 @@ pub(crate) fn build(
     })
 }
 
-/// The network id of the damage type `name`: its position in the registry that the clients got.
-/// A type the registry does not hold fails the command, since another id would hurt with an
-/// unrelated type.
 pub(crate) fn damage_type_id(
     context: &VanillaContext,
     name: ResourceLocation<'_>,
@@ -78,13 +76,13 @@ pub(crate) fn damage_type_id(
         .ok_or_else(CommandFailure::failed)
 }
 
-/// CMD-DMG-001 to CMD-DMG-004, for a mob target and a source with no entity and no position: one
-/// hit of the amount and the damage type, `minecraft:generic` by default.
 pub(crate) fn run(
     In(call): In<Call<(), DamageCommand>>,
     context: VanillaContext,
     mut output: CommandOutput,
     mut hits: ResMut<EffectQueue<HitMob>>,
+    living: Query<(&Vitals, Option<&Defence>)>,
+    types: Option<Res<DamageTypeRules>>,
     mut found: Local<SelectionBuffers>,
 ) -> CommandResult {
     let command = call.command;
@@ -95,23 +93,32 @@ pub(crate) fn run(
     };
     found.with(|targets| {
         select(&context, &call.invocation, command.target, targets)?;
-        let view = targets.single_mob()?;
-        let Some(living) = view.state.living.filter(Living::is_alive) else {
+        let view = targets.first().ok_or_else(CommandFailure::failed)?;
+        let Some((target, vitals, defence)) = view
+            .entity()
+            .filter(|_| view.alive())
+            .and_then(|entity| {
+                let (vitals, defence) = living.get(entity).ok()?;
+                Some((entity, vitals, defence.copied().unwrap_or_default()))
+            })
+            .filter(|(_, vitals, _)| vitals.is_alive())
+        else {
             return Err(CommandFailure::translate(
                 "commands.damage.invulnerable",
                 vec![],
             ));
         };
-        // A hit that the cooldown rejects still resets the idle time (CMD-DMG-003), so it goes
-        // to the row before the command fails.
-        output.effect(
-            &mut hits,
-            HitMob {
-                at: view.at,
-                hit: Hit::new(amount, damage_type),
-            },
+        let hit = Hit::new(amount, DamageSource::of(damage_type));
+        output.effect(&mut hits, HitMob { target, hit });
+        let no_rules = DamageTypeRules::default();
+        let report = preview(
+            vitals,
+            &defence,
+            types.as_deref().unwrap_or(&no_rules),
+            &HurtRules::default(),
+            hit,
         );
-        if preview(&living, amount) == HitOutcome::Rejected {
+        if report.outcome == HitOutcome::Rejected {
             return Err(CommandFailure::translate(
                 "commands.damage.invulnerable",
                 vec![],

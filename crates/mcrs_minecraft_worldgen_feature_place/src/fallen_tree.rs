@@ -13,12 +13,9 @@ use crate::tree::decorator::{CompiledTreeDecorator, DecoratorContext, TreeSink};
 use crate::tree::provider::StateProvider;
 use crate::tree::trunk::random_horizontal;
 
-/// `FALLEN_LOG_MAX_FALL_HEIGHT_TO_GROUND` — the drop the log start is allowed
-/// to search downward through, plus the one step up it begins from.
 const MAX_FALL_HEIGHT: i32 = 6;
 const MAX_GROUND_GAP: i32 = 2;
 
-/// One `fallen_tree` feature with every name it carries already resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledFallenTree {
     pub trunk_provider: StateProvider,
@@ -28,13 +25,11 @@ pub struct CompiledFallenTree {
     pub tables: Arc<TreeTables>,
 }
 
-/// `FallenTreeFeature.place`, which always reports success: the stump goes in
-/// unconditionally and only the log can be refused.
 pub fn place_fallen_tree<W: WorldGenVolume>(
     tree: &CompiledFallenTree,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    sink: &mut dyn TreeSink<W>,
+    sink: &mut impl TreeSink<W>,
     origin: BlockPos,
 ) -> bool {
     let stump = place_log(tree, volume, rng, origin, None);
@@ -86,15 +81,10 @@ fn is_valid<W: WorldGenVolume>(tree: &CompiledFallenTree, volume: &W, pos: Block
     volume.holds(&tree.tables.states.valid_tree_pos, pos)
 }
 
-/// `isFaceSturdy(UP)` as the full-collision-cube flag: a top slab or a farmland
-/// block reads as no ground where the reference accepts it, and every surface
-/// the corpus's fallen trees land on is a full cube.
 fn is_over_solid_ground<W: WorldGenVolume>(volume: &W, pos: BlockPos) -> bool {
     volume.holds(&volume.world().sturdy_up, pos - IVec3::Y)
 }
 
-/// The whole log is refused unless every cell is free and no more than two in
-/// a row hang over nothing.
 fn can_place_entire_log<W: WorldGenVolume>(
     tree: &CompiledFallenTree,
     volume: &W,
@@ -121,14 +111,12 @@ fn can_place_entire_log<W: WorldGenVolume>(
     true
 }
 
-/// A fallen tree hands its decorators logs and nothing else — no leaves, no
-/// roots — and drops what they wrote: there is no leaf relaxation to seed.
 fn decorate<W: WorldGenVolume>(
     tree: &CompiledFallenTree,
     decorators: &[CompiledTreeDecorator],
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    sink: &mut dyn TreeSink<W>,
+    sink: &mut impl TreeSink<W>,
     logs: &[BlockPos],
 ) {
     if decorators.is_empty() {
@@ -159,8 +147,6 @@ mod tests {
     const DIRT: VoxelId = VoxelId(1);
     const LOG: VoxelId = VoxelId(2);
 
-    /// Dirt at y = 63 under air, and a trunk provider that draws once per log
-    /// so the anchor below sees the log count.
     fn fixture() -> (CompiledFallenTree, FakeVolume) {
         let states = TreeStates {
             valid_tree_pos: mask_of([AIR]),
@@ -219,9 +205,6 @@ mod tests {
 
     const ORIGIN: BlockPos = BlockPos::new(0, 64, 0);
 
-    /// The draw order of `FallenTreeFeature.placeFallenTree`: the stump's own
-    /// provider, then the fall direction, then the log's length, then the gap
-    /// between stump and log, then one provider draw per log block.
     #[test]
     fn a_fallen_tree_lays_a_stump_and_a_log_and_spends_the_draws_in_that_order() {
         let (tree, mut volume) = fixture();
@@ -258,8 +241,6 @@ mod tests {
         assert!(volume.block_entities.is_empty());
     }
 
-    /// `canPlaceEntireFallenLog` refuses a log that would hang over more than
-    /// two cells of nothing, and the stump stays where it went in.
     #[test]
     fn a_log_over_a_hole_is_refused_and_the_stump_stays() {
         let (mut tree, mut volume) = fixture();

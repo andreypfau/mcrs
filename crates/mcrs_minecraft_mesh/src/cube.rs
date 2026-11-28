@@ -49,7 +49,6 @@ fn face_attr(
     ];
     let front_index = border_index(front[0], front[1], front[2]);
     let front_state = cell(&*scratch.states, front_index);
-    // A lowered top lies inside its own cell, touches nothing above it and has no cullface.
     if !lowered_top && face_hidden(info, block_info(catalog, front_state), face) {
         return None;
     }
@@ -62,7 +61,6 @@ fn face_attr(
     let direction = face_direction(face);
     let positions = smooth_light::corners(direction, Vec3::ZERO, Vec3::new(1.0, height, 1.0));
     let path = LightPath::choose(scratch.smooth_light, &info.light, info.ambient_occlusion);
-    // A lowered top lies inside its own cell and has no cull face.
     let cull = (!lowered_top).then_some(direction);
     let values = smooth_light::light_quad(path, &positions, direction, cull, |offset| {
         scratch.sample(
@@ -82,8 +80,6 @@ fn face_attr(
     Some((cube.pass | drop << PASS_KEY_BITS, words))
 }
 
-/// A cube face keeps its occlusion byte as its distance below 255 in steps of 51: a corner shade
-/// is the mean of four occlusion shades of `0.2` or `1.0`, so no other byte occurs.
 fn ao_code(occlusion: f32) -> u32 {
     let byte = u32::from(smooth_light::shade_byte(occlusion, 1.0));
     debug_assert_eq!(

@@ -3,9 +3,6 @@ use std::sync::Arc;
 
 use crate::SectionNibbles;
 
-/// `Eq` is load-bearing: `Arc` compares its pointers first only when the payload
-/// is `Eq`, and that shortcut is why the dense payload is shared rather than
-/// owned.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum LightStorage {
     #[default]
@@ -15,12 +12,7 @@ pub enum LightStorage {
 }
 
 impl LightStorage {
-    /// One byte per cell, in [`SectionNibbles::index`] order — the layout the
-    /// working field uses. Storage stays nibble-packed; the hot loop never does.
     pub fn from_field(cells: &[u8; SectionPos::VOLUME]) -> Self {
-        // Most sections of a working field come back dark or fully lit, and
-        // packing 2048 bytes only to throw them away is the whole cost of
-        // reading a section back.
         let first = cells[0] & 0x0F;
         if cells.iter().all(|&c| c & 0x0F == first) {
             return match first {
@@ -35,11 +27,6 @@ impl LightStorage {
         LightStorage::Dense(Arc::new(arr))
     }
 
-    /// Whether a working field already holds what this storage does.
-    ///
-    /// Answering without packing is the point: most sections of an epoch's field
-    /// come back with the light they went in with, and packing two kilobytes and
-    /// allocating an `Arc` to discover that is what reading a section back costs.
     pub fn matches_field(&self, cells: &[u8; SectionPos::VOLUME]) -> bool {
         match self {
             LightStorage::Empty => cells.iter().all(|&cell| cell & 0x0F == 0),
@@ -50,6 +37,32 @@ impl LightStorage {
                 .zip(cells.as_chunks::<2>().0)
                 .all(|(byte, pair)| *byte == (pair[0] & 0x0F) | ((pair[1] & 0x0F) << 4)),
         }
+    }
+
+    pub fn to_nibbles(&self) -> SectionNibbles {
+        match self {
+            LightStorage::Empty => SectionNibbles::zeros(),
+            LightStorage::Uniform(value) => SectionNibbles::filled(*value),
+            LightStorage::Dense(packed) => (**packed).clone(),
+        }
+    }
+
+    pub fn from_nibbles(nibbles: &SectionNibbles) -> Self {
+        let Some(&first) = nibbles.0.first() else {
+            return LightStorage::Empty;
+        };
+        let first = first & 0x0F;
+        if nibbles
+            .0
+            .iter()
+            .all(|byte| byte & 0x0F == first && byte >> 4 == first)
+        {
+            return match first {
+                0 => LightStorage::Empty,
+                value => LightStorage::Uniform(value),
+            };
+        }
+        LightStorage::Dense(Arc::new(nibbles.clone()))
     }
 
     pub fn write_field(&self, cells: &mut [u8; SectionPos::VOLUME]) {

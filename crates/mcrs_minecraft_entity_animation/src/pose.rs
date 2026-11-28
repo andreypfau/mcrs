@@ -7,14 +7,11 @@ use crate::entity_animation::EntityAnimation;
 use crate::pose_binding::PoseBinding;
 use crate::rig::{AnimateTarget, Rig};
 
-/// The pose of one bone of a rig in file space.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PoseBone {
-    /// The rotation in degrees that the clips add to the rest rotation.
     pub rotation: Vec3,
     pub position: Vec3,
     pub scale: Vec3,
-    /// A clip sets `relative_to.rotation` to `"entity"` for the bone in this frame.
     pub relative_to_entity: bool,
 }
 
@@ -27,8 +24,6 @@ impl PoseBone {
     };
 }
 
-/// The pose of each bone of a rig in one frame, in the order of [`Rig::bones`]. Each geometry
-/// of the entity takes the pose by bone name.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pose {
     pub bones: Vec<PoseBone>,
@@ -43,7 +38,6 @@ impl Pose {
     }
 }
 
-/// A channel of a pose bone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ChannelKind {
     Rotation,
@@ -52,7 +46,6 @@ pub(crate) enum ChannelKind {
 }
 
 impl ChannelKind {
-    /// The value of an axis that `this` reads: the pose before the instance applies it.
     pub fn current(self, bone: &PoseBone, rest: Vec3, axis: usize) -> f32 {
         let value = match self {
             Self::Rotation => rest + bone.rotation,
@@ -62,7 +55,6 @@ impl ChannelKind {
         value.to_array().get(axis).copied().unwrap_or(0.0)
     }
 
-    /// Adds a sample with the weight `weight`. An axis that is not finite changes nothing.
     pub fn apply(self, bone: &mut PoseBone, sample: [f32; 3], weight: f32) {
         let target = match self {
             Self::Rotation => &mut bone.rotation,
@@ -92,8 +84,6 @@ impl ClipBone {
         ]
     }
 
-    /// Prepares the bone before `clip` applies its channels: an override resets it, and a
-    /// rotation relative to the entity marks it.
     pub(crate) fn begin(&self, clip: &Clip, bone: &mut PoseBone) {
         if clip.override_previous {
             bone.rotation = Vec3::ZERO;
@@ -107,9 +97,6 @@ impl ClipBone {
 }
 
 impl EntityAnimation {
-    /// Samples the channels of the play list of this frame into `pose`, after
-    /// [`EntityAnimation::update`]. `binding` gives the rest rotations that `this` and an
-    /// override read.
     pub fn pose(&mut self, rig: &Rig, vm: &mut ScalarVm, binding: &PoseBinding, pose: &mut Pose) {
         pose.bones.clear();
         pose.bones.resize(rig.bones.len(), PoseBone::REST);
@@ -133,7 +120,10 @@ impl EntityAnimation {
         self.set_number(rig.queries.key_frame_lerp_time, 0.0);
     }
 
-    #[expect(clippy::too_many_arguments, reason = "one clip of one frame")]
+    #[cfg_attr(
+        mcrs_lint,
+        expect(mcrs::too_many_arguments, reason = "one clip of one frame")
+    )]
     fn apply_clip(
         &mut self,
         rig: &Rig,

@@ -5,7 +5,47 @@ use mcrs_minecraft_game_mode::GameMode;
 pub enum Screen {
     #[default]
     None,
-    Inventory,
+    Title,
+    Menu,
     GameModeSwitcher(GameMode),
     Chat,
+    Pause,
+    Death,
+    Options,
+    VideoSettings,
+    AccessibilitySettings(AccessibilityParent),
+    Controls(ControlsParent),
+    MouseSettings(ControlsParent),
+    SelectWorld,
+    WorldListError,
+    DeleteWorldConfirmation,
+    CreateWorld(CreateWorldParent),
+    Message(ScreenMessage),
+    LevelLoading,
+    Disconnected,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScreenMessage {
+    ReadingWorldData,
+    PreparingWorldCreation,
+    SavingWorld,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CreateWorldParent {
+    SelectWorld,
+    Title,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ControlsParent {
+    Options,
+    AccessibilitySettings(AccessibilityParent),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AccessibilityParent {
+    Options,
+    Title,
 }

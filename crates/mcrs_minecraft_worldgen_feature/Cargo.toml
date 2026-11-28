@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_worldgen_feature"
-description = "Configured and placed features, placement modifiers, structure templates and the feature generators"
+description = "Configured and placed features: placement modifiers, tree placers, rule tests, template pools and structure templates; the generators are in worldgen_feature_place"
 version.workspace = true
 edition.workspace = true
 
@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_anvil.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_registries.workspace = true
@@ -44,5 +45,4 @@ mcrs_minecraft_worldgen_feature = { path = ".", default-features = false, featur
 [features]
 default = ["fast"]
 fast = ["mcrs_minecraft_noise/fast", "mcrs_minecraft_worldgen_density/fast", "mcrs_minecraft_worldgen_surface/fast"]
-# A window over an owned box, for tests of anything that takes a `WindowAccess`.
 test-support = []

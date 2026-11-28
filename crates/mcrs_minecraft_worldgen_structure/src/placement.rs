@@ -147,8 +147,6 @@ pub fn select_with_removal<T: Copy>(
     None
 }
 
-// Math.round(double): ties go toward +∞, and `floor(v + 0.5)` is not it —
-// that rounds 0.49999999999999994 up.
 fn java_round(value: f64) -> i32 {
     let floor = value.floor();
     (if value - floor >= 0.5 {
@@ -172,9 +170,6 @@ pub fn ring_positions(
         .collect()
 }
 
-/// Each ring position's unadjusted column and the fork its biome search draws
-/// from. The forks are taken in ring order, so the searches can run in any
-/// order, or in parallel, and still land where the sequential walk would.
 pub fn ring_starts(
     seed: i64,
     distance: i32,

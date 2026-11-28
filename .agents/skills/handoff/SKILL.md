@@ -1,9 +1,11 @@
 ---
 name: handoff
-description: Write the prompt that lets a new session or a new agent continue the current work in mcrs. Load when the owner asks for a prompt for a fresh session, when a context passes 200k tokens, or before you replace a long-lived agent. Triggers - handoff, hand off, prompt for a new session, fresh session, continue in a new chat, context is full.
+description: Write the prompt that lets a new session or a new agent continue the current work in mcrs. Load when the owner asks for a prompt for a fresh session, when a context passes 150k tokens, or before you replace a long-lived agent. Triggers - handoff, hand off, prompt for a new session, fresh session, continue in a new chat, context is full.
 ---
 
 # Hand-off prompt
+
+The main session writes the hand-off at 150k tokens of context. An agent reports and stops at 200k (see `orchestrate`).
 
 Write the prompt to a file outside the tracked tree, and print the path. The reader has none
 of this conversation. The prompt holds only what the reader can not get from the repository.

@@ -5,31 +5,21 @@ use crate::block_state_file_error::BlockStateFileError;
 use crate::face_bake_error::FaceBakeError;
 use crate::model_file_error::ModelFileError;
 
-/// A defect in one file of a pack. The file is skipped and the bake goes on.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContentError {
-    /// The pack path of the file, or the identifier of the model for a defect of its chain.
     pub path: String,
     pub kind: ContentErrorKind,
 }
 
-/// What is wrong with a file of a pack.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ContentErrorKind {
-    /// The model file is wrong.
     Model(ModelFileError),
-    /// The blockstate file, or one key of it, is wrong.
     BlockState(BlockStateFileError),
-    /// The faces of a model do not bake.
     FaceBake(FaceBakeError),
-    /// A model that a file names is not in the pack.
     NoModel,
-    /// The pack has no blockstate file for a block.
     NoBlockState,
-    /// The parent chain of a model leads back to `parent`.
     ModelCycle { parent: String },
-    /// The blockstate file has no part for the state, given as property value indices.
     NoPart { state: Vec<usize> },
 }
 

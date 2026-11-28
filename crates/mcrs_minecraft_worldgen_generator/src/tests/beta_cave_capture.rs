@@ -13,18 +13,16 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
-use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use super::beta_surface::build_beta_biome_source;
 use super::beta_surface_capture::{ColumnFixture, load_corpus};
 use super::build_beta_router;
+use super::counting_rng::CountingRng;
 use crate::ColumnBlocks;
 use crate::modern_carvers::CarverBiomeTable;
 use crate::stages::extent;
 use crate::task::CancellationToken;
 use crate::{BetaCaveBlockIds, apply_beta_carvers, apply_beta_surface, generate_column};
-
-// ── Block ID mapping ──────────────────────────────────────────────────────────
 
 fn modern_id_for_beta(beta_id: u8) -> BlockStateId {
     match beta_id {
@@ -99,9 +97,6 @@ fn beta_id_for_modern(modern: BlockStateId) -> u8 {
     0
 }
 
-// ── Carving helper ────────────────────────────────────────────────────────────
-
-/// Beta's carving of one column, through the carver loop every dimension shares.
 fn carve(
     column: &ColumnBlocks,
     chunk_x: i32,
@@ -123,117 +118,13 @@ fn carve(
     );
 }
 
-// ── Draw-count instrumentation ────────────────────────────────────────────────
-
-/// A LegacyRandom wrapper that counts every LCG advance (every call that
-/// advances the generator by at least one step).
-///
-/// Used to produce a deterministic draw-count pin for the 17x17 seed loop.
-#[derive(Clone)]
-struct CountingRng {
-    inner: LegacyRandom,
-    draws: std::rc::Rc<std::cell::Cell<u64>>,
-}
-
-impl CountingRng {
-    fn new(seed: u64, draws: std::rc::Rc<std::cell::Cell<u64>>) -> Self {
-        CountingRng {
-            inner: LegacyRandom::new(seed),
-            draws,
-        }
-    }
-
-    fn inc(&self) {
-        self.draws.set(self.draws.get() + 1);
-    }
-}
-
-impl TryRng for CountingRng {
-    type Error = Infallible;
-
-    fn try_next_u32(&mut self) -> Result<u32, Infallible> {
-        self.inc();
-        self.inner.try_next_u32()
-    }
-
-    fn try_next_u64(&mut self) -> Result<u64, Infallible> {
-        self.inc();
-        self.inner.try_next_u64()
-    }
-
-    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
-        let n = dst.len().div_ceil(8);
-        for _ in 0..n {
-            self.inc();
-        }
-        self.inner.try_fill_bytes(dst)
-    }
-}
-
-impl Random for CountingRng {
-    fn is_legacy(&self) -> bool {
-        true
-    }
-
-    fn next_bool(&mut self) -> bool {
-        self.inc();
-        self.inner.next_bool()
-    }
-
-    fn next_u32_bound(&mut self, bound: u32) -> u32 {
-        self.inc();
-        self.inner.next_u32_bound(bound)
-    }
-
-    fn next_f32(&mut self) -> f32 {
-        self.inc();
-        self.inner.next_f32()
-    }
-
-    fn next_f64(&mut self) -> f64 {
-        // next_f64 in LegacyRandom advances twice (30 bits + one advance).
-        self.inc();
-        self.inc();
-        self.inner.next_f64()
-    }
-
-    fn next_gaussian(&mut self) -> f64 {
-        self.inner.next_gaussian()
-    }
-
-    fn fork(&mut self) -> Self {
-        self.inc();
-        CountingRng {
-            inner: self.inner.fork(),
-            draws: self.draws.clone(),
-        }
-    }
-
-    fn fork_at<T: Into<glam::IVec3>>(&mut self, pos: T) -> Self {
-        self.inc();
-        CountingRng {
-            inner: self.inner.fork_at(pos),
-            draws: self.draws.clone(),
-        }
-    }
-
-    fn fork_hash(&mut self, seed: impl AsRef<[u8]>) -> Self {
-        self.inc();
-        CountingRng {
-            inner: self.inner.fork_hash(seed),
-            draws: self.draws.clone(),
-        }
-    }
-}
-
-/// Count the total RNG draw operations consumed by the 17x17 loop for one chunk.
 fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64 {
     let draws = std::rc::Rc::new(std::cell::Cell::new(0u64));
 
     let mut seed_rng = LegacyRandom::new(world_seed as u64);
     let l: i64 = seed_rng.next_i64() / 2 * 2 + 1;
     let i1: i64 = seed_rng.next_i64() / 2 * 2 + 1;
-    draws.set(draws.get() + 2); // two draws for l and i1
+    draws.set(draws.get() + 2);
 
     let water = WaterMask::default();
     let mut mask = CarvingMask::new(1, 120);
@@ -263,18 +154,7 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
     draws.get()
 }
 
-// ── Parity test ───────────────────────────────────────────────────────────────
-
-/// LegacyRandom draw-count regression pin for chunk (0,0) at seed 12345.
-///
-/// Counts total RNG advances consumed by the 17x17 carve loop over a
-/// stone-filled chunk. This pin detects accidental algorithm changes that
-/// alter the draw sequence without necessarily changing the carved output.
-///
-/// Value recorded on the first green run and asserted on every subsequent run.
 const DRAW_COUNT_CHUNK_0_0_SEED_12345: u64 = 1883;
-
-// ── Integration smoke test ────────────────────────────────────────────────────
 
 mod exhaustive {
     use super::*;
@@ -339,22 +219,12 @@ mod exhaustive {
         }
     }
 
-    /// Carve-mask parity gate: for each chunk in the fixture corpus, build a full
-    /// 16x16 section palette from `pre_cave` bytes, carve it at seed
-    /// 12345, convert the result back to Beta block IDs, and assert equality with
-    /// `post_cave`.
-    ///
-    /// The fixed-terrain input (pre_cave from the corpus) removes f32 terrain
-    /// divergence by construction, so any carve-mask mismatch is a real parity bug.
     #[test]
     #[expect(
         clippy::too_many_lines,
-        reason = "one parity gate: carves the captured chunk, converts the result back to Beta blocks and compares it with the capture, so the setup and the comparison read together"
+        reason = "one parity gate keeps setup and comparison together"
     )]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "compares each cell of the carved chunk with the capture across the chunk's three axes, so a mismatch names its position"
-    )]
+    #[expect(clippy::excessive_nesting, reason = "a mismatch names its position")]
     fn beta_cave_parity_gate() {
         let corpus = load_corpus();
         let router = build_beta_router();
@@ -479,7 +349,6 @@ mod exhaustive {
         let count = count_rng_draws_for_chunk(0, 0, 12345);
 
         if DRAW_COUNT_CHUNK_0_0_SEED_12345 == 0 {
-            // First run: print the value for pinning.
             println!("DRAW COUNT PIN (chunk 0,0 seed 12345): {}", count);
             assert!(count > 0, "carver must consume RNG draws");
         } else {
@@ -491,13 +360,8 @@ mod exhaustive {
         }
     }
 
-    /// Integration smoke: a Beta column generated through the full path (terrain +
-    /// surface + caves) at seed 12345 has cave air below the surface and lava at/below Y 10.
     #[test]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "finds the surface from the top of each carved column, then checks for cave air and lava below it section by section, with the per-cell test inline"
-    )]
+    #[expect(clippy::excessive_nesting, reason = "per-cell test inline in one scan")]
     fn generate_column_beta_has_caves() {
         let pipeline = BetaPipeline::new();
         let y_sections = &pipeline.y_sections;
@@ -512,7 +376,6 @@ mod exhaustive {
 
         for local_x in 0..16i32 {
             for local_z in 0..16i32 {
-                // Find surface Y (topmost non-air).
                 let mut surface_y = 0i32;
                 'surface: for si in (0..y_sections.len()).rev() {
                     let sy = y_sections[si];
@@ -529,7 +392,6 @@ mod exhaustive {
                     }
                 }
 
-                // Check below surface for cave air, and at/below Y 10 for lava.
                 for (si, &sy) in y_sections.iter().enumerate() {
                     if let Some(Some((blocks, _))) = sections.get(si) {
                         let base_y = sy * 16;
@@ -562,16 +424,8 @@ mod exhaustive {
         );
     }
 
-    /// Real-pipeline proof: run generate_column + apply_beta_surface + apply_beta_carvers
-    /// (exactly as `chunk.rs` does) across an 8x8 chunk grid at seed 12345 and count
-    /// air voxels strictly below Y 32. Beta produces no noise caverns, so any air that
-    /// deep can only come from the carver. Prints per-chunk counts and requires at
-    /// least one chunk to contain deep cave air.
     #[test]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "scans the sections below Y 32 of every generated chunk for cave air cell by cell, with the per-cell test inline"
-    )]
+    #[expect(clippy::excessive_nesting, reason = "per-cell test inline in one scan")]
     fn beta_real_pipeline_has_cave_air_below_y32() {
         let pipeline = BetaPipeline::new();
         let y_sections = &pipeline.y_sections;

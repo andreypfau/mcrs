@@ -3,8 +3,6 @@ use mcrs_minecraft_nbt::from_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::{Deserialize, Deserializer, de};
 
-/// A tagged map read without serde's `Content` buffer: the compound keeps
-/// every NBT tag as it came, and the variant is picked from `action`.
 pub(crate) fn tagged_compound<'de, D: Deserializer<'de>>(
     d: D,
     tag: &str,

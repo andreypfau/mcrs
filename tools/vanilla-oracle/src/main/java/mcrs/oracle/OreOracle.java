@@ -42,11 +42,6 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.RuleTest;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.ticks.ProtoChunkTicks;
 
-/**
- * Runs the game's `OreFeature.place` on a stub level whose chunk sections are
- * stone from y -64 to 319 and records every block a section is asked to write,
- * in write order, together with the random state the call leaves behind.
- */
 public final class OreOracle {
     private static final byte[] MAGIC = "MCOREVN0".getBytes(StandardCharsets.US_ASCII);
     private static final int FORMAT_VERSION = 1;

@@ -6,8 +6,6 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_voxel::BlockPos;
 
-/// The four stalk states are the reference's constants over `bamboo`, resolved
-/// once: `age=1, stage=0, leaves=none` for the shaft, then the three tips.
 #[derive(Clone, Debug)]
 pub struct CompiledBamboo {
     pub probability: f32,
@@ -20,10 +18,6 @@ pub struct CompiledBamboo {
     pub top_small: VoxelId,
 }
 
-/// A stalk of bamboo, with a disc of podzol under it at the given probability.
-///
-/// Reports success for any air origin, ground or no ground, and the ground test
-/// gates every draw: an origin that is air over the wrong block spends nothing.
 pub fn place_bamboo<W: WorldGenVolume>(
     cfg: &CompiledBamboo,
     volume: &mut W,
@@ -64,7 +58,6 @@ pub fn place_bamboo<W: WorldGenVolume>(
         y += 1;
     }
 
-    // The cap overwrites whatever stopped the shaft, air or not.
     if y - at.y >= 3 {
         volume.set(BlockPos::new(at.x, y, at.z), cfg.final_large);
         volume.set(BlockPos::new(at.x, y - 1, at.z), cfg.top_large);
@@ -115,9 +108,6 @@ mod tests {
         volume
     }
 
-    /// The shaft runs to its drawn height and the three tip states sit on top,
-    /// and the draws are exactly the height, the podzol roll and — only when it
-    /// hits — the disc radius.
     #[test]
     fn a_stalk_grows_to_its_height_and_the_disc_costs_one_more_draw() {
         let cfg = config(1.0);
@@ -155,8 +145,6 @@ mod tests {
         );
     }
 
-    /// A probability of zero costs the roll and nothing else, and leaves the
-    /// ground alone.
     #[test]
     fn without_podzol_the_radius_is_never_drawn() {
         let cfg = config(0.0);
@@ -174,9 +162,6 @@ mod tests {
         );
     }
 
-    /// Air over the wrong ground still reports success — the reference counts
-    /// the origin, not the stalk — and a blocked origin is the one failure.
-    /// Neither draws anything.
     #[test]
     fn wrong_ground_and_a_blocked_origin_draw_nothing() {
         for (stone_at, succeeds) in [(ORIGIN.y - 1, true), (ORIGIN.y, false)] {
@@ -191,8 +176,6 @@ mod tests {
         }
     }
 
-    /// A ceiling three blocks up leaves the shaft too short for the tip, so the
-    /// three tip states are never written.
     #[test]
     fn a_shaft_under_three_blocks_gets_no_tip() {
         let cfg = config(0.0);

@@ -3,7 +3,6 @@ use std::io::Write;
 use crate::impls::take;
 use crate::{Decode, Encode, ErrorKind, Result};
 
-/// An `i64` encoded with variable length.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
@@ -23,12 +22,8 @@ impl From<VarLong> for i64 {
 }
 
 impl VarLong {
-    /// The maximum number of bytes a `VarLong` can occupy when read from and
-    /// written to the Minecraft protocol.
     pub const MAX_SIZE: usize = 10;
 
-    /// Returns the exact number of bytes this varlong will write when
-    /// [`Encode::encode`] is called, assuming no error occurs.
     pub fn written_size(self) -> usize {
         match self.0 {
             0 => 1,
@@ -50,8 +45,6 @@ impl Encode for VarLong {
 }
 
 impl Decode<'_> for VarLong {
-    /// Decodes a variable-length long integer, failing if it exceeds ten bytes or contains
-    /// out-of-range bits in the tenth byte.
     fn decode(r: &mut &[u8]) -> Result<Self> {
         let mut val = 0;
         for i in 0..Self::MAX_SIZE {

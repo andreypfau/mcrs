@@ -1,9 +1,3 @@
-//! The stir: a hit of 0 `minecraft:drown` on every pig once each [`PERIOD`] game ticks, spread
-//! evenly over those ticks. Only a non-spectator player within 32 blocks or a hit resets the idle
-//! time of a pig, and the stroll goal is eligible only in the 99 AI steps after a reset
-//! (`docs/spec/mob-goals.md`, GOAL-STR-004, GOAL-WAKE-020). The hit takes no health, gives no
-//! knockback and no velocity, and does not make the pig panic.
-
 use std::str::FromStr;
 
 use anyhow::bail;
@@ -11,18 +5,13 @@ use serde::Serialize;
 
 use crate::scene::{self, Area, FLOOR_Y};
 
-/// Game ticks between two hits of one pig: below the 99 steps of the stroll window, with room
-/// for a pig that walks into the next strip.
 pub const PERIOD: i64 = 80;
 const SLOTS: usize = PERIOD as usize;
 
-/// How the console addresses the pigs of one tick of the stir.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
-    /// One `execute as @e[type=minecraft:pig,<box>]` line a tick, over a 1/80 strip of the area.
     Strip,
-    /// One `damage <uuid>` line a pig, for the pigs whose index is the tick modulo 80.
     Uuid,
 }
 
@@ -38,18 +27,15 @@ impl FromStr for Mode {
     }
 }
 
-/// The stir of one pig population.
 #[derive(Clone, Copy, Debug)]
 pub struct Stir {
     pub mode: Mode,
     pub area: Area,
-    /// Blocks beyond the area that the strips still cover, for pigs that strolled out of it.
     pub margin: i32,
     pub generation: u32,
     pub count: usize,
 }
 
-/// One strip: blocks x from `min_x` to `min_x + width`, z from `min_z` to `min_z + depth`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Strip {
     min_x: i32,
@@ -59,14 +45,12 @@ struct Strip {
 }
 
 impl Stir {
-    /// The lines of game tick `tick`.
     #[must_use]
     pub fn lines(&self, tick: i64) -> Vec<String> {
         let slot = tick.rem_euclid(PERIOD) as usize;
         match self.mode {
             Mode::Strip => {
                 let strip = self.strip(slot);
-                // A box option spans `d + 1` blocks (ARG-ENT-009).
                 vec![format!(
                     "execute as @e[type=minecraft:pig,x={},y={},z={},dx={},dy=8,dz={}] run damage @s 0 minecraft:drown",
                     strip.min_x,
@@ -88,7 +72,6 @@ impl Stir {
         }
     }
 
-    /// Strips of a whole number of blocks: the span grows past `margin` to a multiple of 80.
     fn strip(&self, slot: usize) -> Strip {
         let least = self.area.size + 2 * self.margin;
         let width = (least + PERIOD as i32 - 1) / PERIOD as i32;

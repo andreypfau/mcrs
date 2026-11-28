@@ -1,5 +1,3 @@
-//! OS counters over a measured window: per-core utilisation, the server process, everything else.
-
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -31,17 +29,11 @@ pub struct Snapshot {
 
 #[derive(Debug, Serialize)]
 pub struct CpuReport {
-    /// Busy share of each logical CPU over the window, in percent, in the kernel's CPU order.
     pub per_core_percent: Vec<f64>,
-    /// The sum of the busy shares, as cores.
     pub busy_cores: f64,
-    /// CPU time of the server process over the window, as cores.
     pub server_cores: f64,
-    /// CPU time of this harness, its watcher and its client process over the window, as cores.
     pub harness_cores: f64,
-    /// `busy_cores` less the server and the harness: every other process, the kernel included.
     pub other_cores: f64,
-    /// The heaviest other processes that this user may read.
     pub top_other_processes: Vec<OtherProcess>,
 }
 

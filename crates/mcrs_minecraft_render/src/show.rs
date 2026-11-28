@@ -1,27 +1,26 @@
 use bevy::core_pipeline::FullscreenShader;
 use bevy::prelude::*;
-use bevy::render::render_resource::binding_types::{texture_2d, texture_depth_2d};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
-use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
+use bevy::render::view::ViewDepthStencilTexture;
 use bevy::shader::ShaderDefVal;
 
-use crate::pipeline::common;
+use crate::gbuffer::{WORLD_IMAGE_FORMAT, nearest_sampler};
+use crate::pass::loaded;
+use crate::pipeline::descriptor;
+use crate::shared_bindings::show;
 use crate::terrain::Terrain;
 
-/// Draws reverse-Z depth over the whole view as greyscale: near white, far dark, sky black.
 #[derive(Resource)]
 pub struct DepthDisplay {
-    shader: Handle<Shader>,
-    depth_layout: BindGroupLayoutDescriptor,
-    pyramid_layout: BindGroupLayoutDescriptor,
-    depth: Option<CachedRenderPipelineId>,
-    pyramid: Option<CachedRenderPipelineId>,
+    layout: BindGroupLayoutDescriptor,
+    nearest: Sampler,
+    depth: CachedRenderPipelineId,
+    pyramid: CachedRenderPipelineId,
 }
 
 pub enum DepthSource<'a> {
     Depth(&'a ViewDepthStencilTexture),
-    /// The first level of the terrain's depth pyramid.
     Pyramid(&'a Terrain),
 }
 
@@ -29,34 +28,39 @@ impl DepthDisplay {
     pub fn draw(
         &self,
         ctx: &mut RenderContext,
-        target: &ViewTarget,
+        target: &TextureView,
         source: DepthSource,
         cache: &PipelineCache,
         device: &RenderDevice,
     ) {
-        let (pipeline, layout, texture) = match source {
+        let (pipeline, texture) = match source {
+            DepthSource::Pyramid(terrain) => {
+                let Some(pyramid) = terrain.depth_pyramid() else {
+                    return;
+                };
+                (self.pyramid, pyramid.clone())
+            }
             DepthSource::Depth(depth) => (
                 self.depth,
-                &self.depth_layout,
                 depth.texture().create_view(&TextureViewDescriptor {
                     label: Some("show depth"),
                     aspect: TextureAspect::DepthOnly,
                     ..default()
                 }),
             ),
-            DepthSource::Pyramid(terrain) => {
-                (self.pyramid, &self.pyramid_layout, terrain.hiz.view.clone())
-            }
         };
-        let Some(pipeline) = pipeline.and_then(|id| cache.get_render_pipeline(id)) else {
+        let Some(pipeline) = cache.get_render_pipeline(pipeline) else {
             return;
         };
         let bind_group = device.create_bind_group(
             "show depth",
-            &cache.get_bind_group_layout(layout),
-            &BindGroupEntries::single(&texture),
+            &cache.get_bind_group_layout(&self.layout),
+            &show::entries(show::Entries {
+                source: &texture,
+                nearest: &self.nearest,
+            }),
         );
-        let color_attachments = [Some(target.get_color_attachment())];
+        let color_attachments = [Some(loaded(target))];
         let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("show depth"),
             color_attachments: &color_attachments,
@@ -71,47 +75,25 @@ impl DepthDisplay {
     }
 }
 
-pub(crate) fn init_depth_display(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.insert_resource(DepthDisplay {
-        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/core/show.wesl"),
-        depth_layout: BindGroupLayoutDescriptor::new(
-            "show depth",
-            &BindGroupLayoutEntries::single(ShaderStages::FRAGMENT, texture_depth_2d()),
-        ),
-        pyramid_layout: BindGroupLayoutDescriptor::new(
-            "show depth pyramid",
-            &BindGroupLayoutEntries::single(
-                ShaderStages::FRAGMENT,
-                texture_2d(TextureSampleType::Float { filterable: false }),
-            ),
-        ),
-        depth: None,
-        pyramid: None,
-    });
-}
-
-pub(crate) fn prepare_depth_display(
-    mut display: ResMut<DepthDisplay>,
-    views: Query<&ExtractedView, With<Camera3d>>,
+pub(crate) fn init_depth_display(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    device: Res<RenderDevice>,
     fullscreen: Res<FullscreenShader>,
     cache: Res<PipelineCache>,
 ) {
-    if display.depth.is_some() {
-        return;
-    }
-    let Some(view) = views.iter().next() else {
-        return;
-    };
-    let queue = |label: &str, layout: &BindGroupLayoutDescriptor, defs: Vec<ShaderDefVal>| {
+    let shader = asset_server.load("embedded://mcrs_minecraft_render/shaders/core/show.wesl");
+    let layout = show::layout();
+    let queue = |label: &str, defs: Vec<ShaderDefVal>| {
         let mut descriptor = RenderPipelineDescriptor {
             vertex: fullscreen.to_vertex_state(),
-            ..common(
+            ..descriptor(
                 label.into(),
                 vec![layout.clone()],
-                &display.shader,
+                &shader,
                 String::new(),
                 "show".into(),
-                view,
+                WORLD_IMAGE_FORMAT,
                 None,
             )
         };
@@ -120,12 +102,12 @@ pub(crate) fn prepare_depth_display(
         }
         cache.queue_render_pipeline(descriptor)
     };
-    let depth = queue("show depth", &display.depth_layout, Vec::new());
-    let pyramid = queue(
-        "show depth pyramid",
-        &display.pyramid_layout,
-        vec!["PYRAMID".into()],
-    );
-    display.depth = Some(depth);
-    display.pyramid = Some(pyramid);
+    let depth = queue("show depth", Vec::new());
+    let pyramid = queue("show depth pyramid", vec!["PYRAMID".into()]);
+    commands.insert_resource(DepthDisplay {
+        layout,
+        nearest: nearest_sampler(&device),
+        depth,
+        pyramid,
+    });
 }

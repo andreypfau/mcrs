@@ -11,31 +11,23 @@ use mcrs_voxel::{LocalPos, SectionPos};
 use std::cell::Cell;
 use std::sync::Arc;
 
-/// Topmost non-air block. The upper bound of every other map.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct SurfaceHeightmap(pub ColumnHeights);
 
-/// Topmost block that blocks motion, leaves included, fluids excluded.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct SolidHeightmap(pub ColumnHeights);
 
-/// Topmost block that blocks motion or holds a fluid.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct MotionHeightmap(pub ColumnHeights);
 
-/// Topmost block that blocks motion without being leaves, or holds a fluid.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct NoLeavesHeightmap(pub ColumnHeights);
 
 bitflags::bitflags! {
-    /// The four heightmap predicates, as one bitmask per block state.
-    ///
-    /// `SOLID` implies `MOTION` and `NO_LEAVES` implies `MOTION` inside a single
-    /// mask, so a descent that closes one closes the other in the same step.
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub struct HeightmapKinds: u8 {
         const SURFACE = 1 << 0;
@@ -45,8 +37,6 @@ bitflags::bitflags! {
     }
 }
 
-/// Which of the four predicates each block state satisfies, indexed by
-/// [`VoxelId`].
 #[derive(Clone, Debug)]
 pub struct HeightmapPredicates(Arc<[HeightmapKinds]>);
 
@@ -97,8 +87,6 @@ pub fn heightmap_predicates(blocks: &Blocks, tags: &Tags<Block>) -> HeightmapPre
     HeightmapPredicates(table.into())
 }
 
-/// The four maps of one column, built off-thread before the column entity
-/// exists and inserted on it whole.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::bundle::Bundle))]
 pub struct ColumnHeightmapSet {
@@ -157,14 +145,12 @@ impl ColumnHeightmapSet {
     }
 }
 
-/// Carry one block write through the four maps.
-///
-/// The order is mandatory: `MOTION`'s descent stops at the topmost `SOLID`
-/// block, which satisfies `MOTION` too, so `SOLID` must already carry this
-/// write before `MOTION` is asked.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the four heightmaps one block write updates, the block's position, the kinds it touches, the predicates and the reader of the column below"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one block write"
+    )
 )]
 pub fn apply_write(
     surface: &mut ColumnHeights,
@@ -200,8 +186,6 @@ pub fn apply_write(
     );
 }
 
-/// One descending pass over the column that closes every map at the first block
-/// satisfying it.
 pub fn build_column_heightmaps(
     sections: &[Option<(BlockPalette, BiomePalette)>],
     y_sections: &[i32],
@@ -218,8 +202,6 @@ pub fn build_column_heightmaps(
     )
 }
 
-/// The `wanted` maps of a column held as one dense buffer per section, or `None` when a buffer
-/// is not a whole section.
 pub fn build_dense_heightmaps<'a>(
     y_sections: &[i32],
     wanted: HeightmapKinds,
@@ -237,10 +219,6 @@ pub fn build_dense_heightmaps<'a>(
     )
 }
 
-/// A section's blocks as the descent reads them: the fill's dense buffer, or a
-/// packed palette, which settles all 256 columns from one lookup when it is
-/// homogeneous, so the empty air above the terrain and the open water of an
-/// ocean each cost one test rather than one per block.
 enum SectionCells<'a> {
     Dense(&'a [Cell<VoxelId>]),
     Palette(&'a PalettedContainer<VoxelId, { SectionPos::SIZE }>),
@@ -321,7 +299,6 @@ fn descend<'a>(
     Some(set)
 }
 
-/// Returns whether this block closed the column's last open map.
 #[inline]
 fn close(
     set: &mut ColumnHeightmapSet,
@@ -344,9 +321,12 @@ fn close(
     open.is_empty()
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the heightmap an edit moves and its kind, the block's position, the kinds the write touches, the floor, the predicates and the reader of the column"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one block write"
+    )
 )]
 fn apply_edit(
     map: &mut ColumnHeights,

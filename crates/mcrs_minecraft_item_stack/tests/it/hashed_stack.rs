@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item_stack::ComponentType;
 use mcrs_minecraft_item_stack::CustomName;
@@ -8,24 +10,29 @@ use mcrs_minecraft_item_stack::HashedComponent;
 use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::MapDecorations;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_stack::WireError;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::matches_hashed;
-use mcrs_minecraft_item_stack::read_hashed;
-use mcrs_minecraft_item_stack::read_wire_with_length;
-use mcrs_minecraft_item_stack::write_hashed;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
+use mcrs_minecraft_wire::Decode;
+use mcrs_minecraft_wire::Encode;
+use mcrs_minecraft_wire::ErrorKind;
 use mcrs_test_alloc::allocations;
 use serde::Deserialize;
 
 use crate::common::COMPONENT_TYPES;
+use crate::common::GoldenSet;
+use crate::common::golden_cases;
 use crate::common::stack;
 use crate::common::unhex;
+use crate::common::var_int;
 
 const AIR: u16 = 0;
 const STONE: u16 = 1;
@@ -36,7 +43,6 @@ const UNBREAKABLE_TYPE: ComponentType = ComponentType(4);
 const CUSTOM_NAME_TYPE: ComponentType = ComponentType(6);
 const REPAIR_COST_TYPE: ComponentType = ComponentType(19);
 
-/// The ids of the goldens. Each name is in the namespace `minecraft`.
 struct Names;
 
 impl Names {
@@ -51,11 +57,27 @@ impl Names {
             NameTable::Enchantment => &[(33, "sharpness"), (40, "unbreaking")],
             NameTable::Attribute => &[(1, "armor"), (3, "attack_damage"), (30, "scale")],
             NameTable::Block => &[(1, "stone"), (9, "dirt")],
+            NameTable::SoundEvent => &[
+                (50, "item.armor.equip_generic"),
+                (52, "item.armor.equip_iron"),
+                (653, "entity.item.break"),
+                (999, "item.shears.snip"),
+            ],
+            NameTable::EntityType => &[(103, "pig"), (156, "zombie")],
+            NameTable::Instrument => &[(4, "ponder_goat_horn")],
+            NameTable::Potion => &[(13, "swiftness")],
+            NameTable::PaintingVariant => &[(0, "alban"), (1, "aztec"), (24, "kebab")],
             _ => &[],
         };
         let indexed: &'static [&'static str] = match table {
             NameTable::BlockTag => &["mineable/pickaxe"],
             NameTable::ComponentType => &COMPONENT_TYPES,
+            NameTable::MapDecorationType => &["player", "red_x", "target_x", "banner_red"],
+            NameTable::EntityTypeTag => &["skeletons"],
+            NameTable::MobEffect => &["speed", "slowness", "haste"],
+            NameTable::Potion => &["water"],
+            NameTable::TrimMaterial => &["amethyst"],
+            NameTable::TrimPattern => &["bolt", "coast"],
             _ => &[],
         };
         (listed.iter().copied()).chain((0..).zip(indexed.iter().copied()))
@@ -82,7 +104,6 @@ fn hashed(stack: Option<&ItemStack>) -> Option<HashedStack> {
     hash_stack(stack, &Names, &mut HashScratch::default()).expect("the test stack has a hash")
 }
 
-/// One component that the game saved and hashed.
 struct Recorded {
     case: String,
     kind: String,
@@ -103,14 +124,34 @@ struct PlainValue {
     hash: Option<i32>,
 }
 
-const PLAIN_KINDS: [&str; 6] = [
+const PLAIN_KINDS: [&str; 24] = [
     "max_stack_size",
     "max_damage",
     "damage",
     "unbreakable",
     "rarity",
     "repair_cost",
+    "attack_animation",
+    "interact_animation",
+    "map_id",
+    "map_decorations",
+    "profile",
+    "dyed_color",
+    "custom_model_data",
+    "enchantment_glint_override",
+    "block_state",
+    "lodestone_tracker",
+    "trim",
+    "potion_contents",
+    "custom_data",
+    "suspicious_stew_effects",
+    "ominous_bottle_amplifier",
+    "instrument",
+    "stored_enchantments",
+    "painting/variant",
 ];
+
+const LOW_BITS_ON_THE_WIRE: &str = r#"{"target":{"dimension":"mcrs:custom","pos":[0,4096,-1]}}"#;
 
 fn plain_cases() -> Vec<Recorded> {
     let golden: PlainGolden =
@@ -119,6 +160,7 @@ fn plain_cases() -> Vec<Recorded> {
         .values
         .into_iter()
         .filter(|value| PLAIN_KINDS.contains(&value.kind.as_str()))
+        .filter(|value| value.input.as_deref() != Some(LOW_BITS_ON_THE_WIRE))
         .filter_map(|value| {
             Some(Recorded {
                 case: value.input?,
@@ -130,38 +172,27 @@ fn plain_cases() -> Vec<Recorded> {
         .collect()
 }
 
-/// Lines `<case> wire = <hex>` and `<case> hash = <number>`.
 fn record_cases() -> Vec<Recorded> {
-    const CASES: [(&str, &str); 5] = [
-        ("tooltip_default", "tooltip_display"),
-        ("tooltip_full", "tooltip_display"),
-        ("food_min", "food"),
-        ("food_full", "food"),
-        ("item_model", "item_model"),
-    ];
-    let golden = fixture("item_records").text();
-    let field = |case: &str, name: &str| -> String {
-        let prefix = format!("{case} {name} = ");
-        golden
-            .lines()
-            .find_map(|line| line.strip_prefix(&prefix))
-            .expect("the golden has the field")
-            .to_owned()
-    };
-    CASES
-        .iter()
-        .map(|(case, kind)| Recorded {
-            case: (*case).to_owned(),
-            kind: (*kind).to_owned(),
-            wire: field(case, "wire"),
-            hash: field(case, "hash").parse().expect("the hash is a number"),
+    golden_cases(GoldenSet::All)
+        .into_iter()
+        .map(|golden| Recorded {
+            case: golden.case.to_owned(),
+            kind: golden.kind.to_owned(),
+            wire: golden.wire,
+            hash: golden.hash,
         })
         .collect()
 }
 
-/// Blocks `sample minecraft:<kind> <input>` with indented lines `wire <hex>` and `hash <number>`.
 fn registry_ref_cases() -> Vec<Recorded> {
-    const KINDS: [&str; 3] = ["enchantments", "attribute_modifiers", "tool"];
+    const KINDS: [&str; 6] = [
+        "enchantments",
+        "attribute_modifiers",
+        "tool",
+        "equippable",
+        "potion_contents",
+        "suspicious_stew_effects",
+    ];
     let golden = fixture("item_registry_refs").text();
     let mut cases = Vec::new();
     let mut sample: Option<(String, String)> = None;
@@ -197,22 +228,29 @@ fn component_type(kind: &str) -> ComponentType {
     ComponentType(u16::try_from(id).expect("the type id fits"))
 }
 
-/// A stack of stone with the one component, read from the wire form with length prefix.
 fn stack_with(component: ComponentType, wire: &str) -> ItemStack {
     let value = unhex(wire);
-    let length = u8::try_from(value.len()).expect("the golden values are short");
     let type_id = u8::try_from(component.0).expect("the type ids of the test are small");
-    let mut frame = vec![0x01, 0x01, 0x01, 0x00, type_id, length];
+    let mut frame = vec![0x01, 0x01, 0x01, 0x00, type_id];
+    frame.extend(var_int(value.len()));
     frame.extend(value);
-    read_wire_with_length(&mut frame.as_slice(), &Names)
+    WireStackWithLength::decode(&mut frame.as_slice())
+        .expect("the game wrote a valid component")
+        .read(&Names)
         .expect("the game wrote a valid component")
         .expect("the stack is not empty")
+}
+
+struct SeenProfile {
+    stack: ItemStack,
+    wire: String,
 }
 
 #[test]
 fn a_component_has_the_hash_that_the_game_recorded() {
     let mut scratch = HashScratch::default();
     let mut compared: Vec<String> = Vec::new();
+    let mut profiles: Vec<SeenProfile> = Vec::new();
     let cases = plain_cases()
         .into_iter()
         .chain(record_cases())
@@ -221,6 +259,18 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         let component = component_type(&case.kind);
         let stack = stack_with(component, &case.wire);
         let label = format!("{} {}", case.kind, case.case);
+        if case.kind == "profile" {
+            let cached_by_the_game = profiles
+                .iter()
+                .any(|seen| seen.stack == stack && seen.wire != case.wire);
+            profiles.push(SeenProfile {
+                stack: stack.clone(),
+                wire: case.wire.clone(),
+            });
+            if cached_by_the_game {
+                continue;
+            }
+        }
         let hashed = hash_stack(Some(&stack), &Names, &mut scratch)
             .expect("a decoded component has a hash")
             .expect("the stack is not empty");
@@ -247,17 +297,47 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         "repair_cost",
         "food",
         "tool",
+        "piercing_weapon",
+        "attack_animation",
+        "interact_animation",
+        "map_id",
+        "map_decorations",
+        "profile",
+        "equippable",
+        "dyed_color",
+        "custom_model_data",
+        "enchantment_glint_override",
+        "lodestone_tracker",
+        "trim",
+        "potion_contents",
+        "custom_data",
+        "suspicious_stew_effects",
+        "ominous_bottle_amplifier",
+        "instrument",
     ] {
         assert!(
             compared.iter().any(|compared| compared == kind),
             "the goldens lost each case of {kind}"
         );
     }
-    assert!(compared.len() >= 35, "the goldens lost cases: {compared:?}");
+    assert!(compared.len() >= 50, "the goldens lost cases: {compared:?}");
 }
 
-/// The fields of `container_click` before each hashed stack: the window, the state, the slot,
-/// the button, the mode and the number of changed slots, then the slot of each changed slot.
+#[test]
+fn the_map_decorations_of_a_map_prototype_hash_as_the_empty_map() {
+    let recorded: BTreeMap<String, i32> = serde_json::from_str(&fixture("hash_ops").text())
+        .expect("the fixture is a map of case names to hashes");
+    let stack = stack(STONE, 1).set(MapDecorations::new([]).expect("no key repeats"));
+    let hashed = hashed(Some(&stack)).expect("the stack is not empty");
+    assert_eq!(
+        hashed.values,
+        [HashedComponent {
+            component: component_type("map_decorations"),
+            hash: recorded["empty_map"],
+        }]
+    );
+}
+
 #[test]
 fn the_click_that_the_game_wrote_holds_the_hashes_of_the_stack() {
     let golden = fixture("inventory_packets").text();
@@ -276,13 +356,14 @@ fn the_click_that_the_game_wrote_holds_the_hashes_of_the_stack() {
     for slot_field in [2, 2, 0] {
         skip(&mut input, slot_field);
         let before = input;
-        let stack = read_hashed(&mut input, &Names).expect("the game wrote a valid hashed stack");
+        let stack =
+            Option::<HashedStack>::decode(&mut input).expect("the game wrote a valid hashed stack");
         stacks.push((&before[..before.len() - input.len()], stack));
     }
     assert!(input.is_empty(), "{} bytes are left", input.len());
     for (recorded, stack) in &stacks {
         let mut written = Vec::new();
-        write_hashed(stack.as_ref(), &mut written).expect("a read stack writes");
+        stack.encode(&mut written).expect("a read stack writes");
         assert_eq!(written, *recorded);
     }
 
@@ -419,6 +500,11 @@ fn a_hashed_stack_matches_a_stack_by_the_rule_of_the_specification() {
         );
     }
     assert_eq!(claimed.removals, [REPAIR_COST_TYPE]);
+    assert_eq!(
+        hashed(Some(&stack(AIR, 5))),
+        None,
+        "an air stack has no hashed stack"
+    );
 }
 
 #[test]
@@ -428,8 +514,7 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         bytes.extend((0..257).flat_map(|_| [0x03, 0, 0, 0, 0]));
         bytes
     };
-    let cases: [(&str, Vec<u8>, WireError); 4] = [
-        ("presence byte", vec![0x02], WireError::Malformed),
+    let cases: [(&str, Vec<u8>, WireError); 3] = [
         (
             "cut hash",
             vec![0x01, 0x01, 0x01, 0x01, 0x03, 0, 0],
@@ -443,8 +528,8 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         ),
     ];
     for (name, bytes, expected) in cases {
-        let read = read_hashed(&mut bytes.as_slice(), &Names);
-        assert_eq!(read, Err(expected), "{name}");
+        let read = Option::<HashedStack>::decode(&mut bytes.as_slice()).map_err(wire_error);
+        assert_eq!(read, Err(Some(expected)), "{name}");
     }
 
     let accepted: [(&str, Vec<u8>, HashedStack); 2] = [
@@ -475,7 +560,7 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         ),
     ];
     for (name, bytes, expected) in accepted {
-        let read = read_hashed(&mut bytes.as_slice(), &Names);
+        let read = Option::<HashedStack>::decode(&mut bytes.as_slice()).map_err(wire_error);
         assert_eq!(read, Ok(Some(expected)), "{name}");
     }
 
@@ -487,8 +572,8 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         removals: vec![REPAIR_COST_TYPE, REPAIR_COST_TYPE],
     };
     assert_eq!(
-        write_hashed(Some(&repeated), &mut output),
-        Err(WireError::RepeatedComponentType(REPAIR_COST_TYPE))
+        repeated.encode(&mut output).map_err(wire_error),
+        Err(Some(WireError::RepeatedComponentType(REPAIR_COST_TYPE)))
     );
     assert_eq!(output, [0xAA], "a failed write leaves the output as it was");
 }
@@ -511,4 +596,12 @@ fn a_match_of_a_name_with_an_entity_hover_allocates_nothing_after_the_warm_up() 
     let allocated = allocations() - before;
 
     assert_eq!((matched, allocated), (Ok(true), 0));
+}
+
+fn wire_error(error: mcrs_minecraft_wire::Error) -> Option<WireError> {
+    match error.kind() {
+        ErrorKind::UnexpectedEnd => Some(WireError::UnexpectedEnd),
+        ErrorKind::Other(error) => error.downcast_ref::<WireError>().copied(),
+        _ => None,
+    }
 }

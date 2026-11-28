@@ -2,35 +2,17 @@ use glam::IVec3;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_minecraft_worldgen_density::router_key::RouterKey;
 use std::collections::HashMap;
 
-/// The lattice node columns the height probes of one router have sampled.
-///
-/// A probe fills the density of one block column, which interpolates between
-/// the four node columns around it. The probes of a structure stand close
-/// together, so most of those node columns are ones an earlier probe sampled.
-/// A node's value is a function of the node and the router alone, never of
-/// the volume it was sampled as part of, so a kept column is the column a new
-/// sample would give.
-///
-/// It grows by at most four node columns a probe and lives as long as the
-/// view that owns it.
 #[derive(Default)]
 pub struct ProbeLattice {
-    /// Which router the columns belong to: a node's value differs by seed and
-    /// by graph.
-    owner: Option<(usize, u64)>,
+    owner: Option<RouterKey>,
     columns: HashMap<(i32, i32), Box<[f32]>>,
     values: Vec<f32>,
 }
 
 impl ProbeLattice {
-    /// Pins in `ws` the cell lattice around the block column at `(x, z)`, over
-    /// the whole noise range, so the fill of that column interpolates from it.
-    ///
-    /// Pins nothing for a router with no interpolated input, no single cell
-    /// lattice, or cells that do not tile the noise range; the fill then
-    /// samples its own.
     pub(crate) fn pin(&mut self, router: &NoiseRouter, ws: &mut Workspace, x: i32, z: i32) {
         let Some(cell) = router.cell_size() else {
             return;
@@ -43,7 +25,7 @@ impl ProbeLattice {
         if inputs.is_empty() {
             return;
         }
-        let owner = (std::ptr::from_ref(router) as usize, router.world_seed);
+        let owner = router.key();
         if self.owner != Some(owner) {
             self.owner = Some(owner);
             self.columns.clear();
@@ -74,8 +56,6 @@ impl ProbeLattice {
     }
 }
 
-/// Copies one node column, laid out one run of rows per input, to its place
-/// in the values of `lattice`, laid out one lattice per input.
 fn place(values: &mut [f32], lattice: &SampleGrid, node_x: i32, node_z: i32, column: &[f32]) {
     let rows = lattice.size().y as usize;
     for (input, sampled) in column.chunks(rows).enumerate() {

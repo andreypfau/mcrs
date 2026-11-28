@@ -6,18 +6,14 @@ use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_snbt::SnbtError;
 use mcrs_minecraft_text::{Color, IntoText, Text, TranslateArg};
 
-/// The errors of an identifier and of the arguments that read a registry entry or a tag.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ResourceError {
-    /// The text is no identifier.
     IdInvalid,
-    /// The registry holds no entry with the identifier at `span`.
     ResourceNotFound {
         span: Span,
         registry: ResourceLocation<'static>,
     },
-    /// The registry holds no tag with the identifier at `span`.
     ResourceTagNotFound {
         span: Span,
         registry: ResourceLocation<'static>,
@@ -36,7 +32,6 @@ impl fmt::Display for ResourceError {
 
 impl core::error::Error for ResourceError {}
 
-/// The translated text of an argument error. Text from the command line is a span of `input`.
 pub trait ErrorText {
     fn text(&self, input: &str) -> Text;
 }
@@ -161,7 +156,6 @@ pub fn snbt_text(input: &str, error: SnbtError) -> Text {
     Text::translate(error.kind.key(), with)
 }
 
-/// The message of a syntax error, without its context text.
 pub fn error_message<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Text {
     match &error.kind {
         ErrorKind::Library(kind) => library_text(input, *kind),
@@ -171,15 +165,12 @@ pub fn error_message<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Text 
 
 const CONTEXT_AMOUNT: usize = 10;
 
-/// The text before the byte offset `position`, cut back to a character boundary.
 fn before(input: &str, position: usize) -> &str {
     input
         .get(..input.floor_char_boundary(position))
         .unwrap_or_default()
 }
 
-/// The context text of an error: up to ten characters before the position, after
-/// an ellipsis when more come before them.
 fn context_text(input: &str, position: usize) -> String {
     let before = before(input, position);
     let count = before.chars().count();
@@ -195,8 +186,6 @@ fn context_text(input: &str, position: usize) -> String {
     }
 }
 
-/// The error line the chat screen shows over a command input. `input` holds the
-/// `/`, and so does the position.
 pub fn parse_error_line<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Text {
     let message = error_message(input, error);
     let position = before(input, error.position).chars().count();
@@ -212,8 +201,6 @@ pub fn parse_error_line<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> Te
     )
 }
 
-/// The context line of an error: up to ten characters before the
-/// position, then the rest of the line in red and underlined, then `command.context.here`.
 fn error_context(input: &str, position: usize) -> Text {
     let position = position.min(input.len());
     let mut context = context_text(input, position).into_text();
@@ -230,7 +217,6 @@ fn error_context(input: &str, position: usize) -> Text {
         .on_click_suggest_command(format!("/{input}"))
 }
 
-/// The two system messages a player receives for a command line that does not parse.
 pub fn error_feedback<E: ErrorText>(input: &str, error: &SyntaxError<E>) -> [Text; 2] {
     [
         error_message(input, error).color(Color::RED),

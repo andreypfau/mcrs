@@ -16,7 +16,6 @@ use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt, ensure};
 use std::io::Write;
 
-/// The length check the transparent `Bounded` serde lacks.
 pub fn size_limited<'de, D: Deserializer<'de>, T: DeserializeOwned, const MAX: usize>(
     d: D,
 ) -> Result<Bounded<Vec<T>, MAX>, D::Error> {
@@ -95,9 +94,6 @@ pub struct WrittenBookContent<M: Refs = Resolved> {
     pub resolved: bool,
 }
 
-/// A page is measured by the length of its flat JSON text in UTF-16 units, as
-/// Gson's `JsonWriter` emits it, which also escapes U+2028 and U+2029 as six
-/// characters.
 fn restricted_pages<'de, D: Deserializer<'de>, T: Serialize + DeserializeOwned>(
     d: D,
 ) -> Result<Vec<Filterable<T>>, D::Error> {

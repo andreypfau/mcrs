@@ -1,13 +1,18 @@
+use crate::attribute_state::AttributeState;
 use crate::mob_signal::MobSignal;
 use crate::mob_spawn::MobSpawn;
 use crate::mob_state::MobState;
+use mcrs_minecraft_protocol_game::ProtoStack;
+use mcrs_minecraft_protocol_game::entity::MetadataEntry;
+use mcrs_minecraft_registries::Wire;
 
-/// What a world publishes about a mob in a tile delta. A spawn carries [`MobReport::Spawn`], a
-/// move [`MobReport::Move`], and a data event [`MobReport::Signal`].
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum MobReport {
     Spawn(MobSpawn),
-    /// The state of a mob at the end of a tick in which it changed.
     Move(MobState),
     Signal(MobSignal),
+    Stack(ProtoStack<Wire>),
+    Entries(Vec<MetadataEntry<'static>>),
+    Attribute(AttributeState),
 }

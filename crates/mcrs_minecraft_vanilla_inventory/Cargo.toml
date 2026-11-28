@@ -1,0 +1,51 @@
+[package]
+name = "mcrs_minecraft_vanilla_inventory"
+description = "The gameplay of the player inventory: the hand actions, the close, the drops and the player file"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_inventory_menu.workspace = true
+mcrs_minecraft_engine_item.workspace = true
+mcrs_minecraft_engine_registries.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity_attribute.workspace = true
+mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_inventory_file.workspace = true
+mcrs_minecraft_inventory_menu.workspace = true
+mcrs_minecraft_inventory_player.workspace = true
+mcrs_minecraft_inventory_transaction.workspace = true
+mcrs_minecraft_item_entity.workspace = true
+mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_player_holders.workspace = true
+mcrs_minecraft_pose = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_vanilla_item_entity.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+bevy_time.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_menu_key.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_save.workspace = true
+mcrs_minecraft_text.workspace = true

@@ -12,9 +12,6 @@ use crate::node_hash::ListHash;
 use crate::node_hash::MapEntry;
 use crate::node_hash::NodeHash;
 
-/// The hash of the tree that `value` serializes to: a boolean is a boolean node and each number
-/// keeps its kind, which the NBT form of the tree loses. A map sorts its entries in `entries` and
-/// leaves it as it found it.
 pub(crate) fn hash_of<T: Serialize + ?Sized>(
     value: &T,
     entries: &mut Vec<MapEntry>,
@@ -24,7 +21,6 @@ pub(crate) fn hash_of<T: Serialize + ?Sized>(
         .ok_or(Unhashable)
 }
 
-/// The value serializes to a shape that has no node.
 #[derive(Debug)]
 pub(crate) struct Unhashable;
 
@@ -42,7 +38,6 @@ impl ser::Error for Unhashable {
     }
 }
 
-// `None` is an absent value, which a map omits as the saved form does.
 type Node = Option<NodeHash>;
 
 struct NodeSerializer<'scratch> {
@@ -258,8 +253,6 @@ list_serializer!(
     SerializeTupleStruct::serialize_field
 );
 
-// The entries of the map stand in `entries` from `start` on. A nested map adds its entries after
-// them and removes them when it ends, so one buffer serves each level.
 struct MapSerializer<'scratch> {
     entries: &'scratch mut Vec<MapEntry>,
     start: usize,

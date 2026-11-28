@@ -2,7 +2,6 @@ use crate::Collider;
 use crate::EntityCollider;
 use crate::GridRow;
 
-/// The buffers that one task reuses between steps, so a step does not allocate.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Scratch {
     pub(crate) colliders: Vec<Collider>,

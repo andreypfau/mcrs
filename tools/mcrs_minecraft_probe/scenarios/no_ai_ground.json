@@ -1,0 +1,86 @@
+{
+  "target": { "operators": ["noaiprobealice"] },
+  "observe": { "sound": true, "swing": true },
+  "steps": [
+    { "id": "prepare_peaceful", "console": { "lines": ["difficulty peaceful", "gamerule spawn_mobs false", "gamerule natural_health_regeneration false"] } },
+    { "id": "join_alice", "join": "noaiprobealice" },
+    { "id": "prepare_alice", "console": { "lines": ["kill @e[type=!minecraft:player]", "gamemode survival noaiprobealice", "clear noaiprobealice", "tp noaiprobealice 0.5 -60 0.5 0 0", "tick freeze"] } },
+    { "id": "sync_alice", "sync_position": "noaiprobealice" },
+    { "id": "summon_targets", "console": { "lines": [
+      "summon minecraft:pig 0.5 -60 2.5 {NoAI:1b,Tags:[\"g\"]}",
+      "summon minecraft:sheep 2.5 -58 0.5 {NoAI:1b,Tags:[\"a\"]}",
+      "summon minecraft:cow -1.5 -60 0.5 {Tags:[\"c\"]}",
+      "summon minecraft:cow -2.5 -60 -2.5 {OnGround:1b,Tags:[\"d\"]}"
+    ] } },
+    { "id": "wait_tracked", "wait": { "ms": 1500 } },
+    { "id": "t0", "console": { "lines": [
+      "data get entity @e[tag=g,limit=1] OnGround",
+      "data get entity @e[tag=a,limit=1] OnGround",
+      "data get entity @e[tag=c,limit=1] OnGround",
+      "data get entity @e[tag=d,limit=1] OnGround"
+    ] } },
+    { "id": "t1", "sequence": { "steps": [
+      { "advance_ticks": { "ticks": 1 } },
+      { "console": { "lines": [
+        "data get entity @e[tag=c,limit=1] OnGround",
+        "data get entity @e[tag=c,limit=1] Motion",
+        "data get entity @e[tag=d,limit=1] OnGround",
+        "data get entity @e[tag=d,limit=1] Motion"
+      ] } }
+    ] } },
+    { "id": "t2", "sequence": { "steps": [
+      { "advance_ticks": { "ticks": 1 } },
+      { "console": { "lines": [
+        "data get entity @e[tag=c,limit=1] OnGround",
+        "data get entity @e[tag=c,limit=1] Motion",
+        "data get entity @e[tag=d,limit=1] OnGround",
+        "data get entity @e[tag=d,limit=1] Motion"
+      ] } }
+    ] } },
+    { "id": "t22", "sequence": { "steps": [
+      { "advance_ticks": { "ticks": 20 } },
+      { "console": { "lines": [
+        "data get entity @e[tag=g,limit=1] OnGround",
+        "data get entity @e[tag=g,limit=1] Pos",
+        "data get entity @e[tag=a,limit=1] OnGround",
+        "data get entity @e[tag=a,limit=1] Pos",
+        "data get entity @e[tag=a,limit=1] Motion",
+        "data get entity @e[tag=c,limit=1] OnGround"
+      ] } }
+    ] } },
+    { "id": "hit_pig", "attack": { "client": "noaiprobealice", "target": "minecraft:pig" } },
+    { "id": "hit_pig_after", "console": { "lines": [
+      "data get entity @e[tag=g,limit=1] Health",
+      "data get entity @e[tag=g,limit=1] Motion"
+    ] } },
+    { "id": "charge_1", "wait": { "ms": 1500 } },
+    { "id": "hit_sheep", "attack": { "client": "noaiprobealice", "target": "minecraft:sheep" } },
+    { "id": "hit_sheep_after", "console": { "lines": [
+      "data get entity @e[tag=a,limit=1] Health",
+      "data get entity @e[tag=a,limit=1] Motion"
+    ] } },
+    { "id": "after_20", "sequence": { "steps": [
+      { "advance_ticks": { "ticks": 20 } },
+      { "console": { "lines": [
+        "data get entity @e[tag=g,limit=1] Pos",
+        "data get entity @e[tag=g,limit=1] Motion",
+        "data get entity @e[tag=a,limit=1] Pos",
+        "data get entity @e[tag=a,limit=1] Motion"
+      ] } }
+    ] } },
+    { "id": "charge_2", "wait": { "ms": 1500 } },
+    { "id": "hit_cow", "attack": { "client": "noaiprobealice", "target": "minecraft:cow" } },
+    { "id": "hit_cow_after", "console": { "lines": [
+      "data get entity @e[tag=c,limit=1] Health",
+      "data get entity @e[tag=c,limit=1] OnGround",
+      "data get entity @e[tag=c,limit=1] Motion"
+    ] } },
+    { "id": "cow_step", "sequence": { "steps": [
+      { "advance_ticks": { "ticks": 1 } },
+      { "console": { "lines": [
+        "data get entity @e[tag=c,limit=1] Motion",
+        "data get entity @e[tag=c,limit=1] OnGround"
+      ] } }
+    ] } }
+  ]
+}

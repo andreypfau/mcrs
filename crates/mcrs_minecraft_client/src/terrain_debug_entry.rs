@@ -8,6 +8,15 @@ use mcrs_minecraft_render::{DebugViews, SelectedView};
 
 pub const GROUP: ResourceLocation<'static> = rl!("minecraft:terrain");
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only while the debug screen collects, and the displayer takes each line as an owned string"
+    )
+)]
+#[cfg_attr(all(mcrs_lint, target_os = "macos"), mcrs::alloc_sites(9))]
+#[cfg_attr(all(mcrs_lint, not(target_os = "macos")), mcrs::alloc_sites(8))]
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     cave: Res<CaveCull>,

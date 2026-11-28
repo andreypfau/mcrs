@@ -1,7 +1,10 @@
 use bitfield_struct::bitfield;
 use mcrs_minecraft_wire::{Decode, Encode};
 
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug, Encode, Decode)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, Default, Debug, Encode, Decode, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
 pub enum ChatMode {
     Enabled,
     CommandsOnly,

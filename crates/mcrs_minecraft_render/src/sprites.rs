@@ -2,30 +2,24 @@ use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
+use super::render_path::RenderPath;
+use super::shared_types::AnimationFrame;
 use super::terrain::Terrain;
 use super::texture::{
     AtlasSlot, AtlasWriter, array_view, atlas_sampler, atlas_staging, blank_atlas, create_lightmap,
     create_tints,
 };
+use super::words::{Staged, Words};
 use super::{Animation, Budget, PinnedTick, SpriteEntry, SpriteUpload};
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 
 const TICKS_PER_SECOND: f64 = 20.0;
 
-#[derive(Copy, Clone, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-struct AnimationFrame {
-    layer: u32,
-    next: u32,
-    blend: f32,
-    _pad: u32,
-}
-
 const UNWRITTEN: AnimationFrame = AnimationFrame {
     layer: u32::MAX,
     next: u32::MAX,
     blend: 0.0,
-    _pad: 0,
+    _pad_12: 0,
 };
 
 impl Animation {
@@ -41,7 +35,7 @@ impl Animation {
             } else {
                 0.0
             },
-            _pad: 0,
+            _pad_12: 0,
         }
     }
 }
@@ -55,14 +49,25 @@ pub struct Sprites {
     pub(crate) lightmap: Texture,
     pub(crate) lightmap_view: TextureView,
     pub(crate) lightmap_sampler: Sampler,
-    pub frames: Buffer,
-    pub table: Buffer,
+    pub frames: Words,
+    pub table: Words,
     animations: Vec<Animation>,
     written: Vec<AnimationFrame>,
 }
 
 impl Sprites {
-    pub(crate) fn new(budget: &Budget, device: &RenderDevice) -> Self {
+    #[must_use]
+    pub fn lightmap_view(&self) -> &TextureView {
+        &self.lightmap_view
+    }
+
+    #[must_use]
+    pub fn lightmap_sampler(&self) -> &Sampler {
+        &self.lightmap_sampler
+    }
+
+    pub(crate) fn new(path: RenderPath, budget: &Budget, device: &RenderDevice) -> Self {
+        let table = |label, row: usize| Words::new(path, label, (MAX_SPRITES * row) as u64, device);
         let (tints, tint_sampler) = create_tints(budget, device);
         let (lightmap, lightmap_sampler) = create_lightmap(device);
         Self {
@@ -74,30 +79,24 @@ impl Sprites {
             lightmap_view: lightmap.create_view(&TextureViewDescriptor::default()),
             lightmap,
             lightmap_sampler,
-            frames: frame_buffer(device),
-            table: table_buffer(device),
+            frames: table("terrain animation frames", size_of::<AnimationFrame>()),
+            table: table("terrain sprite table", size_of::<SpriteEntry>()),
             animations: Vec::new(),
             written: Vec::new(),
         }
     }
 
-    /// Takes the layers and sprites the bake added and the animation table as it now stands.
-    /// Returns the bytes staged and whether a texture was replaced, which is when the bind
-    /// groups follow.
     pub(crate) fn update(
         &mut self,
         upload: &SpriteUpload,
         device: &RenderDevice,
-        encoder: &mut CommandEncoder,
-        belt: &mut wgpu::util::StagingBelt,
+        staged: &mut Staged,
     ) -> (usize, bool) {
-        // Uploads come in a burst at load and rarely after, so the buffer is not kept between
-        // them: holding the largest one ever made would pin tens of megabytes for good.
         let mut staging = atlas_staging(FIRST_STAGING_BYTES, device);
         let mut writer = AtlasWriter {
             device,
-            encoder,
-            belt,
+            encoder: &mut *staged.encoder,
+            belt: &mut *staged.belt,
             staging: &mut staging,
             used: 0,
         };
@@ -113,16 +112,9 @@ impl Sprites {
         }
         let mut spent = writer.used as usize;
         let bytes: &[u8] = bytemuck::cast_slice(table);
-        if let Some(size) = BufferSize::new(bytes.len() as u64) {
-            belt.write_buffer(
-                encoder,
-                &self.table,
-                u64::from(*table_from) * size_of::<SpriteEntry>() as u64,
-                size,
-            )
-            .copy_from_slice(bytes);
-            spent += bytes.len();
-        }
+        let offset = u64::from(*table_from) * size_of::<SpriteEntry>() as u64;
+        self.table.stage(offset, bytes, staged);
+        spent += bytes.len();
         info!(
             layers = ?atlases.iter().map(|u| (u.size, u.layers - u.first)).collect::<Vec<_>>(),
             sprites = table.len(),
@@ -139,17 +131,12 @@ impl Sprites {
 
 const FIRST_STAGING_BYTES: u64 = 1 << 20;
 
-/// Steps every animation on the CPU once a frame, so a fragment reads its two layers and a
-/// blend instead of dividing and taking modulos of the clock.
 pub(super) fn write_animation_frames(
-    terrain: Option<ResMut<Terrain>>,
+    If(mut terrain): If<ResMut<Terrain>>,
     time: Res<Time>,
     pinned: Option<Res<PinnedTick>>,
     queue: Res<RenderQueue>,
 ) {
-    let Some(mut terrain) = terrain else {
-        return;
-    };
     let sprites = &mut terrain.sprites;
     let ticks = match pinned {
         Some(pinned) => pinned.0 as f64,
@@ -162,25 +149,7 @@ pub(super) fn write_animation_frames(
         *written = frame;
     }
     if changed {
-        queue.write_buffer(&sprites.frames, 0, bytemuck::cast_slice(&sprites.written));
+        let frames = bytemuck::cast_slice(&sprites.written);
+        sprites.frames.write(0, frames, &queue);
     }
-}
-
-/// Sized once for every sprite an id can name, so neither table ever moves.
-fn frame_buffer(device: &RenderDevice) -> Buffer {
-    device.create_buffer(&BufferDescriptor {
-        label: Some("terrain animation frames"),
-        size: (MAX_SPRITES * size_of::<AnimationFrame>()) as u64,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    })
-}
-
-fn table_buffer(device: &RenderDevice) -> Buffer {
-    device.create_buffer(&BufferDescriptor {
-        label: Some("terrain sprite table"),
-        size: (MAX_SPRITES * size_of::<SpriteEntry>()) as u64,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    })
 }

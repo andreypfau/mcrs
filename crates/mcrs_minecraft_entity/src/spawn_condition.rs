@@ -2,12 +2,8 @@ use mcrs_minecraft_registries::{Refs, Resolved, dispatch, registry_value};
 use mcrs_minecraft_value_provider::bounds::MinMaxBounds;
 use serde::{Deserialize, Serialize};
 
-/// An entry of `worldgen/structure`. A crate of world generation holds its value, so a spawn
-/// condition names its structures without that crate.
 pub enum Structure {}
 
-/// One `spawn_conditions` entry of a variant asset: a priority, and a
-/// condition that an absent field leaves always true.
 #[registry_value]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

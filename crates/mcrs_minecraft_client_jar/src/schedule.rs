@@ -15,7 +15,6 @@ pub(crate) const REST: u32 = 5;
 
 const CHUNK: u64 = 1 << 20;
 
-/// Disjoint, sorted byte ranges.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Ranges(Vec<Range<u64>>);
 
@@ -102,7 +101,6 @@ pub(crate) struct Chunk {
     pub(crate) range: Range<u64>,
 }
 
-/// The chunks still to fetch, ordered by priority group and then offset, and what is held.
 #[derive(Debug, Default)]
 pub(crate) struct Queue {
     pending: BTreeSet<(u32, u64, u64)>,
@@ -127,8 +125,6 @@ impl Queue {
         &self.held
     }
 
-    /// Queues the parts of `spans` nobody holds or fetches yet. Counted spans are what the
-    /// progress bar measures.
     pub(crate) fn enqueue(&mut self, group: u32, spans: &[Range<u64>], counted: bool) {
         for span in spans {
             if counted {
@@ -157,7 +153,6 @@ impl Queue {
         self.held.insert(range);
     }
 
-    /// Puts back whatever part of `chunk` from `reached` on did not arrive, at its own priority.
     pub(crate) fn release(&mut self, chunk: &Chunk, reached: u64) {
         if reached < chunk.range.end {
             self.pending
@@ -185,11 +180,9 @@ impl Queue {
     }
 }
 
-/// The bytes of one jar as they arrive, fetched by workers pulling chunks off the queue.
 pub(crate) trait Source {
     fn with_queue<R>(&self, act: impl FnOnce(&mut Queue) -> R) -> R;
 
-    /// Returns once the queue may have changed, or after a short while.
     async fn wait(&self);
 
     fn read(&self, span: Range<u64>) -> Result<Vec<u8>, String>;
@@ -226,11 +219,9 @@ fn unpack(
     directory.unpack(&views, pick)
 }
 
-/// Fetches the jar's `assets/` half in priority order: fonts, then the central directory,
-/// then textures, then everything else. Font files go to `fonts` as soon as they are in.
 #[expect(
     clippy::too_many_lines,
-    reason = "fetches the asset half in its fixed priority order, fonts then directory then textures then the rest, so the order reads top to bottom"
+    reason = "fixed priority order reads top to bottom"
 )]
 pub(crate) async fn assets(
     source: &impl Source,

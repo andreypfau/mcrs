@@ -2,16 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of the game values: `assets/minecraft/version.json`.
+| Version | see `assets/minecraft/version.json` |
 
 Some blocks have no visible shape in their block model. The block model gives only a particle
 texture, and the game draws the shape from an entity model. This document states which blocks
 these are, which shape and texture each block state shows, where the shape is in the block, and
 how the client adds the shape to the terrain mesh. The shapes are files of the entity pack, in
-the format of `entity-geometry.md`. The document does not prescribe an architecture.
+the format of `entity-geometry.md`.
 
 ## 0. Conventions
 
@@ -45,9 +42,7 @@ the format of `entity-geometry.md`. The document does not prescribe an architect
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
-section "Semantics, not accidents". Each rule has a Milestone line. `1` means the first release
-of these files, which replaces the present code. `later` means a rule that a later release
-implements.
+section "Semantics, not accidents".
 
 ### 0.3 ID prefixes
 
@@ -58,24 +53,7 @@ implements.
 | `BEM-DATA` | the data file of a static block entity |
 | `BEM-SHAPE` | the shapes, textures and placements of each block family |
 | `BEM-BAKE` | how the shapes enter the terrain mesh |
-| `BEM-LATER` | content that a later release adds |
-| `BEM-TEST` | parity tests |
 | `BEM-DEV` | intentional deviations |
-
-### 0.4 Scope
-
-In scope: chests, shulker boxes, banners, heads and skulls, decorated pots, the book of an
-enchanting table, the book of a lectern and the body of a bell. These shapes are static. They
-show the pose that the reference shows when nothing acts on the block.
-
-Signs and hanging signs are in scope only as BEM-SHAPE-010 states. Their shape is a block model,
-not a layer entry. `client-sign-text.md` states their text.
-
-Out of scope: beds, conduits, end portals, end gateways, beacons, spawner
-contents, copper golem statues, campfire items, shelf items and pistons. A later release can add
-them.
-
----
 
 ## 1. From an artefact entry to a geometry
 
@@ -110,7 +88,7 @@ them.
 Provenance: `source_suggested_black_box_confirmed` (the model artefact: `minecraft:dragon_skull`
 has the scale `0.75` on the part `head`; `minecraft:double_chest_left` lists five faces;
 `minecraft:decorated_pot_sides` lists one face; `minecraft:decorated_pot_base` has the cube `uv`
-`(−14, 13)`). Kind: semantic. Confidence: high. Milestone: 1. Experiment: BEM-TEST-001.
+`(−14, 13)`). Kind: semantic. Confidence: high.
 
 ### BEM-ART-002: Identifiers of the geometries
 
@@ -130,7 +108,7 @@ has the scale `0.75` on the part `head`; `minecraft:double_chest_left` lists fiv
 - **Postconditions:** each geometry of section 4 has one identifier.
 
 Provenance: `design`. Kind: unspecified for the file names; semantic for item 2. Confidence:
-high. Milestone: 1.
+high.
 
 ---
 
@@ -149,7 +127,7 @@ high. Milestone: 1.
   same vertex of the artefact face, transformed by the placement.
 
 Provenance: `design` (the composition of MPIG-ART-001 and EGEO-SPACE-002). Kind: semantic.
-Confidence: high. Milestone: 1. Experiment: BEM-TEST-001.
+Confidence: high.
 
 ---
 
@@ -180,7 +158,7 @@ Confidence: high. Milestone: 1. Experiment: BEM-TEST-001.
 - **Postconditions:** each block state has a list of drawn layers, which can be empty. An error
   in a file is a content error that names the file. A file with an error draws nothing.
 
-Provenance: `design`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ### BEM-DATA-002: Content of the data files
 
@@ -193,10 +171,10 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Milestone: 1.
      that the generator makes.
   3. A test runs the generator and compares its output with the files of the repository. A
      difference fails the test. The client does not read an artefact at run time.
-- **Postconditions:** BEM-TEST-001 passes for each block state of BEM-SHAPE-001 to BEM-SHAPE-009. A new version of
+- **Postconditions:** a new version of
   the artefacts changes the files only through the generator.
 
-Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ---
 
@@ -244,8 +222,8 @@ the other rules and tests of this document skip them.
 
 Provenance: `source_suggested_black_box_confirmed` (the placement cases `chest` of the pose
 artefact; the five faces of the double-chest entries of the model artefact; the texture files
-`assets/minecraft/textures/entity/chest/`). Kind: semantic. Confidence: high. Milestone: 1.
-Experiment: BEM-TEST-001 and BEM-TEST-002.
+`assets/minecraft/textures/entity/chest/`). Kind: semantic. Confidence: high.
+
 
 ### BEM-SHAPE-002: Christmas chests
 
@@ -255,7 +233,7 @@ Experiment: BEM-TEST-001 and BEM-TEST-002.
   The client reads the date one time, when it loads the data.
 - **Postconditions:** on those dates, a normal chest and a trapped chest look the same.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: later.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 Experiment: set the date of the computer to 25 December. Start the game. Put down a chest and a
 trapped chest. Both show the texture `entity/chest/christmas.png`.
 
@@ -285,7 +263,7 @@ trapped chest. Both show the texture `entity/chest/christmas.png`.
   lid is on the side that `facing` names.
 
 Provenance: `source_suggested_black_box_confirmed` (the placement cases `shulker_box` of the
-pose artefact). Kind: semantic. Confidence: high. Milestone: 1. Experiment: BEM-TEST-001.
+pose artefact). Kind: semantic. Confidence: high.
 
 ### BEM-SHAPE-004: Banners
 
@@ -308,7 +286,7 @@ pose artefact). Kind: semantic. Confidence: high. Milestone: 1. Experiment: BEM-
 
 Provenance: `source_suggested_black_box_confirmed` (the placement cases `standing_banner` and
 `wall_banner` and the pose cases `banner_flag` of the pose artefact). Kind: semantic.
-Confidence: high. Milestone: 1. Experiment: BEM-TEST-001.
+Confidence: high.
 
 ### BEM-SHAPE-005: Heads and skulls
 
@@ -342,8 +320,7 @@ Confidence: high. Milestone: 1. Experiment: BEM-TEST-001.
 Provenance: `source_suggested_black_box_confirmed` (the placement cases `standing_head` and
 `wall_head` and the pose cases `piglin_head` and `dragon_head` of the pose artefact); the
 textures and the player skin are `source_suggested`. Kind: semantic. Confidence: high for the
-geometry, medium for the player texture. Milestone: 1. Experiment: BEM-TEST-001; for the player
-head, BEM-TEST-002 with a player head that has no profile.
+geometry, medium for the player texture.
 
 ### BEM-SHAPE-006: Decorated pots
 
@@ -364,7 +341,7 @@ head, BEM-TEST-002 with a player head that has no profile.
 
 Provenance: `source_suggested_black_box_confirmed` (the placement cases `decorated_pot` of the
 pose artefact; the one face of each side in the model artefact). Kind: semantic. Confidence:
-high. Milestone: 1. Experiment: BEM-TEST-001.
+high.
 
 ### BEM-SHAPE-007: The book of an enchanting table
 
@@ -381,9 +358,8 @@ high. Milestone: 1. Experiment: BEM-TEST-001.
 
 Provenance: `source_suggested_black_box_confirmed` for the pose (the pose case
 `enchanting_table_book`); `source_suggested` for the placement. Kind: semantic. Confidence:
-medium. Milestone: 1. Experiment: put an enchanting table in a closed room with no player near
-it. Take a screenshot from the side at a known camera. Compare the book outline with
-BEM-TEST-002. BEM-DEV-001 records the motion of the reference.
+medium. Experiment: put an enchanting table in a closed room with no player near
+it. Take a screenshot from the side at a known camera. Compare the book outline in the reference and in the client. BEM-DEV-001 records the motion of the reference.
 
 ### BEM-SHAPE-008: The book of a lectern
 
@@ -411,9 +387,9 @@ BEM-TEST-002. BEM-DEV-001 records the motion of the reference.
   `20.4/16` block on Y.
 
 Provenance: `source_suggested_black_box_confirmed` for the pose (the pose case `lectern_book`);
-`source_suggested` for the placement. Kind: semantic. Confidence: medium. Milestone: 1.
+`source_suggested` for the placement. Kind: semantic. Confidence: medium.
 Experiment: put four lecterns with books, one for each `facing`. Take a screenshot from above
-at a known camera. Compare each book outline with BEM-TEST-002.
+at a known camera. Compare each book outline in the reference and in the client.
 
 ### BEM-SHAPE-009: The body of a bell
 
@@ -426,7 +402,7 @@ at a known camera. Compare each book outline with BEM-TEST-002.
   4. The surface is `opaque`. `back_faces` is `false`.
 - **Postconditions:** the body fills `[4/16, 12/16]` on X and Z and `[4/16, 13/16]` on Y.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment:
 put a bell on the floor, on a wall and under a block. Take a screenshot of each. The body is at
 the same place in each block.
 
@@ -461,8 +437,7 @@ the same place in each block.
 - **Postconditions:** the client draws a sign body with no entity pack file.
 
 Provenance: `black_box_confirmed` (the block model artefact; the model artefact and the pose
-artefact have no sign entries). Kind: semantic. Confidence: high. Milestone: 1. Experiment:
-none. BEM-TEST-001 does not apply to signs.
+artefact have no sign entries). Kind: semantic. Confidence: high. Experiment: none.
 
 ---
 
@@ -481,7 +456,7 @@ none. BEM-TEST-001 does not apply to signs.
   them with the other faces of the block.
 
 Provenance: `design` (the reference draws these shapes in each frame, as entities). Kind:
-semantic. Confidence: high. Milestone: 1. Experiment: BEM-TEST-002.
+semantic. Confidence: high.
 
 ### BEM-BAKE-002: Surface and back faces
 
@@ -493,11 +468,11 @@ semantic. Confidence: high. Milestone: 1. Experiment: BEM-TEST-002.
      `0.1` is not drawn.
   4. When `back_faces` is `false`, a face shows only from its front side. When it is `true`, a
      face shows from both sides.
-  5. In milestone 1, the terrain mesh draws a `blend` layer as `cutout`. BEM-DEV-002 records
+  5. The terrain mesh draws a `blend` layer as `cutout`. BEM-DEV-002 records
      this difference.
 - **Postconditions:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment:
 look into an open shulker box in the reference. The inner sides of the lid show. Look at a chest
 from inside a block with spectator mode. The inner sides of the chest do not show.
 
@@ -516,7 +491,7 @@ from inside a block with spectator mode. The inner sides of the chest do not sho
      (`block-face-bake.md`, BFB-OUT-003).
 - **Postconditions:** a shape has the shading of an entity, not the shading of a block face.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment:
 put a chest next to a stone block in full daylight. Take a screenshot. The top of the chest and
 the top of the stone have the same brightness. The north side of the chest is brighter than the
 north side of the stone.
@@ -537,7 +512,7 @@ north side of the stone.
 - **Postconditions:** a shape has one light value. A shape can be lighter or darker than the
   faces of its own block model.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment:
 put a double chest in a dark room. Put a torch next to one half only. Both halves have the same
 brightness.
 
@@ -559,67 +534,10 @@ brightness.
 
 - **Postconditions:** a banner flag has the colour of its block name.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1. Experiment: put
+Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: put
 the 16 standing banners in a row in full daylight. Take a screenshot. Sample the centre of each
 flag. Each colour is the texel of `entity/banner/base.png` multiplied by the table colour and by
 the shade and light of the face.
-
----
-
-## 6. Later work
-
-### BEM-LATER-001: Content that the first release leaves out
-
-- **Inputs:** none.
-- **Behavior:** the first release does not draw these. A later release can draw them:
-  - the patterns of a banner;
-  - the sherd patterns of a decorated pot;
-  - the skin of a player head from its profile;
-  - the motion of each shape: an open lid, the motion of the enchanting book, the wind on a
-    banner, a bell that rings, a pot that wobbles, the ears of a powered piglin head and the jaw
-    of a powered dragon head;
-  - the crack overlay of a block that a player breaks, on the faces of a shape;
-  - the shared light of the two halves of a double chest (BEM-BAKE-004, item 2).
-- **Postconditions:** none.
-
-Provenance: `design`. Kind: semantic. Confidence: high. Milestone: later.
-
----
-
-## 7. Parity tests
-
-### BEM-TEST-001: Baked vertices against the artefacts
-
-- **Inputs:** the model artefact, the pose artefact and the data files.
-- **Behavior:**
-  1. For each block state of BEM-SHAPE-001 to BEM-SHAPE-009, bake the drawn layers (BEM-BAKE-001).
-  2. For each layer, take the cubes of its layer entry in shape space, in the pose of section 4.
-     Transform each corner by the part transforms of the artefact header (translate by the
-     position, then rotate Z, Y, X, then scale), divide by 16, then apply the placement.
-  3. For the shapes of BEM-SHAPE-001 to BEM-SHAPE-006, take the placement matrix of the pose
-     artefact. For BEM-SHAPE-007 to BEM-SHAPE-009, take the formula of the rule.
-  4. Each baked vertex agrees with a vertex of step 2 within `1e-5` block. Each face has the
-     texture coordinates of the matching face of the model artefact within `1e-5`.
-  5. The number of faces of each cube agrees with `visible_faces`.
-- **Postconditions:** the test fails when one vertex, one texture coordinate or one face count
-  does not agree.
-
-Provenance: `source_suggested_black_box_confirmed` (both artefacts). Kind: semantic. Confidence:
-high. Milestone: 1.
-
-### BEM-TEST-002: Screenshot of the blocks
-
-- **Inputs:** a world with one block state of each row of section 4, in full daylight.
-- **Behavior:**
-  1. Put the blocks in a line on a flat floor, with one empty block between them.
-  2. Take a screenshot in the reference and in the client, at the same camera position and the
-     same field of view.
-  3. Compare the two images.
-- **Postconditions:** the outline of each shape agrees within one pixel at 1920 × 1080. The
-  colour of each face agrees within 3 of 255 in each channel. The texels of BEM-DEV-002 are not
-  compared.
-
-Provenance: `source_suggested`. Kind: layout. Confidence: medium. Milestone: 1.
 
 ---
 
@@ -648,7 +566,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Milestone: 1.
 
 ---
 
-## 9. Open questions
+## 9. Unresolved
 
 1. BEM-BAKE-002: the reference draws chests, banners, books, bells and pots with back faces
    hidden, and shulker boxes and heads with back faces shown. The experiment of BEM-BAKE-002

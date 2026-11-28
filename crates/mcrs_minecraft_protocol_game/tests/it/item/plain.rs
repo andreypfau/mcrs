@@ -1,16 +1,40 @@
-use crate::item::harness::decode_component;
+use crate::item::harness::{decode_component, wire_kind};
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_protocol::ErrorKind;
 use mcrs_minecraft_protocol_game::item::{
     AdditionalTradeCost, CreativeSlotLock, ItemComponentValue, MapPostProcessing,
     MinimumAttackCharge, PotionDurationScale, hash_ops,
 };
 use serde::Deserialize;
+use std::io::Cursor;
+
+use crate::common::sorted;
 
 use crate::item::harness::{
-    decode, from_json, hex, json_value, lookup, named, nbt_tree, persistent_json, wire,
+    WireCodec, decode, from_json, hex, json_value, lookup, named, nbt_tree, persistent_json,
+    try_from_json, wire,
 };
+
+struct Deviating {
+    deviation: &'static str,
+    kind: &'static str,
+    input: &'static str,
+    json: &'static str,
+}
+
+const DEVIATING: [Deviating; 1] = [Deviating {
+    deviation: "D13",
+    kind: "container_loot",
+    input: r#"{"loot_table":"minecraft:chests/x","seed":18446744073709551617}"#,
+    json: r#"{"loot_table":"minecraft:chests/x","seed":9223372036854775807}"#,
+}];
+
+const REFUSED_ON_THE_WIRE: [(&str, &str); 1] = [(
+    "lodestone_tracker",
+    r#"{"target":{"dimension":"mcrs:custom","pos":[0,4096,-1]}}"#,
+)];
 
 #[derive(Deserialize)]
 struct Golden {
@@ -60,6 +84,44 @@ fn kind(id: &str) -> DataComponentType {
     DataComponentType::read(id).unwrap_or_else(|| panic!("{id} is not a kind"))
 }
 
+fn whole_nbt_tree(bytes: &[u8]) -> NbtTag {
+    let mut cursor = Cursor::new(bytes);
+    let tree = mcrs_minecraft_nbt::from_bytes_unnamed(&mut cursor).unwrap();
+    assert_eq!(
+        cursor.position(),
+        u64::try_from(bytes.len()).unwrap(),
+        "the component is one NBT value with no trailing bytes"
+    );
+    sorted(tree)
+}
+
+fn wire_matches(kind: DataComponentType, ours: &[u8], vanilla: &[u8]) -> bool {
+    if kind == DataComponentType::MapDecorations {
+        whole_nbt_tree(ours) == whole_nbt_tree(vanilla)
+    } else {
+        ours == vanilla
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct TooLong {
+    len: usize,
+    max: usize,
+}
+
+fn too_long(message: &str) -> Option<TooLong> {
+    let (len, max) = message.split_once(" elements exceeded max size of: ")?;
+    Some(TooLong {
+        len: len.parse().ok()?,
+        max: max.parse().ok()?,
+    })
+}
+
+fn unknown_id(message: &str) -> Option<String> {
+    let id: u32 = message.strip_prefix("No value with id ")?.parse().ok()?;
+    Some(format!("has no id {id}"))
+}
+
 fn transient_value(kind: DataComponentType, text: &str) -> ItemComponentValue {
     match (kind, text) {
         (DataComponentType::AdditionalTradeCost, n) => {
@@ -72,37 +134,96 @@ fn transient_value(kind: DataComponentType, text: &str) -> ItemComponentValue {
     }
 }
 
+struct SeenProfile {
+    value: ItemComponentValue,
+    wire: String,
+}
+
+fn assert_saved_form_and_hash(
+    kind: DataComponentType,
+    value: &ItemComponentValue,
+    row: &Value,
+    input: &str,
+) {
+    let json = persistent_json(value);
+    assert_eq!(
+        json_value(value),
+        serde_json::from_str::<serde_json::Value>(row.json.as_ref().unwrap()).unwrap(),
+        "{kind:?} json of {input}"
+    );
+    let reread = from_json(kind, &json);
+    if kind == DataComponentType::CustomData {
+        let again = persistent_json(&reread);
+        assert_eq!(from_json(kind, &again), reread, "{kind:?} rereads {again}");
+    } else {
+        assert_eq!(&reread, value, "{kind:?} rereads {json}");
+    }
+
+    let mut nbt = Vec::new();
+    mcrs_minecraft_nbt::to_bytes_unnamed(&named(value), &mut nbt).unwrap();
+    assert_eq!(
+        nbt_tree(&nbt),
+        nbt_tree(&hex(row.nbt.as_ref().unwrap())),
+        "{kind:?} nbt of {input}"
+    );
+    assert_eq!(
+        hash_ops::hash(&named(value)).unwrap(),
+        row.hash.unwrap(),
+        "{kind:?} hash of {input}"
+    );
+}
+
 #[test]
 fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
     let lookup = lookup();
     let mut checked = 0;
+    let mut profiles: Vec<SeenProfile> = Vec::new();
     for row in golden().values {
         let Some(input) = &row.input else { continue };
         let kind = kind(&row.kind);
         let value = from_json(kind, input);
-        let json = persistent_json(&value);
-        assert_eq!(
-            json_value(&value),
-            serde_json::from_str::<serde_json::Value>(row.json.as_ref().unwrap()).unwrap(),
-            "{kind:?} json of {input}"
-        );
-        assert_eq!(from_json(kind, &json), value, "{kind:?} rereads {json}");
-
-        let mut nbt = Vec::new();
-        mcrs_minecraft_nbt::to_bytes_unnamed(&named(&value), &mut nbt).unwrap();
-        assert_eq!(
-            nbt_tree(&nbt),
-            nbt_tree(&hex(row.nbt.as_ref().unwrap())),
-            "{kind:?} nbt of {input}"
-        );
-        assert_eq!(
-            hash_ops::hash(&named(&value)).unwrap(),
-            row.hash.unwrap(),
-            "{kind:?} hash of {input}"
-        );
+        if let Some(case) = DEVIATING
+            .iter()
+            .find(|case| case.kind == row.kind && case.input == input)
+        {
+            assert_eq!(
+                json_value(&value),
+                serde_json::from_str::<serde_json::Value>(case.json).unwrap(),
+                "{}: {kind:?} json of {input}",
+                case.deviation
+            );
+            checked += 1;
+            continue;
+        }
+        let cached_by_the_game = kind == DataComponentType::Profile
+            && profiles
+                .iter()
+                .any(|seen| seen.value == value && seen.wire != row.wire);
+        if kind == DataComponentType::Profile {
+            profiles.push(SeenProfile {
+                value: value.clone(),
+                wire: row.wire.clone(),
+            });
+        }
+        if !cached_by_the_game {
+            assert_saved_form_and_hash(kind, &value, &row, input);
+        }
 
         let bytes = hex(&row.wire);
-        assert_eq!(wire(&lookup, &value), bytes, "{kind:?} wire of {input}");
+        if REFUSED_ON_THE_WIRE.contains(&(row.kind.as_str(), input.as_str())) {
+            assert!(
+                value.encode_checked(&lookup, &mut Vec::new()).is_err(),
+                "{kind:?} sent {input}"
+            );
+            assert_ne!(decode(&lookup, kind, &bytes), value, "{kind:?} of {input}");
+            checked += 1;
+            continue;
+        }
+        let ours = wire(&lookup, &value);
+        assert!(
+            wire_matches(kind, &ours, &bytes),
+            "{kind:?} wire of {input}: {ours:02x?} is not {bytes:02x?}"
+        );
         assert_eq!(
             decode(&lookup, kind, &bytes),
             value,
@@ -139,22 +260,20 @@ fn rejected_inputs_are_rejected_with_the_vanilla_range_messages() {
     let mut checked = 0;
     for row in golden().errors {
         let kind = kind(&row.kind);
-        let mut d = serde_json::Deserializer::from_str(&row.input);
-        let error = ItemComponentValue::deserialize_value(kind, &mut d)
+        let message = try_from_json(kind, &row.input)
             .err()
             .unwrap_or_else(|| panic!("{kind:?} accepted {}", row.input));
         if row.error.starts_with("Value must") {
-            let message = error.to_string();
             assert!(
                 message.starts_with(&row.error),
-                "{kind:?} on {}: {error} is not {}",
+                "{kind:?} on {}: {message} is not {}",
                 row.input,
                 row.error
             );
         }
         checked += 1;
     }
-    assert_eq!(checked, 49);
+    assert_eq!(checked, 118);
 }
 
 #[test]
@@ -192,15 +311,28 @@ fn wire_values_the_vanilla_constructor_refuses_fail_to_decode() {
         let error = decode_component(kind, &lookup(), &mut &bytes[..])
             .err()
             .unwrap_or_else(|| panic!("{kind:?} decoded {}", row.wire));
-        assert!(
-            format!("{error:#}").contains(&row.error),
-            "{kind:?} on {}: {error:#} is not {}",
-            row.wire,
-            row.error
-        );
+        match too_long(&row.error) {
+            Some(expected) => assert!(
+                matches!(
+                    wire_kind(&error),
+                    ErrorKind::TooLong { len, max } if TooLong { len: *len, max: *max } == expected
+                ),
+                "{kind:?} on {}: {error:#} is not {expected:?}",
+                row.wire
+            ),
+            None => {
+                let expected = unknown_id(&row.error).unwrap_or_else(|| row.error.clone());
+                assert!(
+                    format!("{error:#}").contains(&expected),
+                    "{kind:?} on {}: {error:#} is not {}",
+                    row.wire,
+                    row.error
+                );
+            }
+        }
         checked += 1;
     }
-    assert_eq!(checked, 2);
+    assert_eq!(checked, 10);
 }
 
 #[test]
@@ -261,5 +393,5 @@ fn out_of_range_wire_ids_decode_as_vanilla_does() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 32);
+    assert_eq!(checked, 40);
 }

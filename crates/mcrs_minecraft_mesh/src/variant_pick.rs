@@ -2,21 +2,16 @@ use glam::IVec3;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
 
-/// Where the selected parts of a state come from, which decides how the seed reaches each part.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PartSource {
     Variants,
     Multipart,
 }
 
-/// How a block state at a block position chooses one variant of each of its selected parts.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VariantPick {
-    /// Added to the block position before the position seed, so the two halves of a door, a
-    /// tall plant or a bed choose alike.
     pub seed_offset: [i32; 3],
     pub source: PartSource,
-    /// The weights of the variants of each selected part, in part order.
     pub weights: Vec<Vec<u32>>,
 }
 
@@ -32,7 +27,6 @@ impl VariantPick {
         )) as i64
     }
 
-    /// The index of the chosen variant of each part.
     #[must_use]
     pub fn chosen(&self, position: [i32; 3]) -> Vec<usize> {
         let mut chosen = Vec::with_capacity(self.weights.len());
@@ -40,8 +34,6 @@ impl VariantPick {
         chosen
     }
 
-    /// The chosen variants as one number: the index of each part's variant, in mixed radix
-    /// over the part sizes, the first part lowest.
     #[must_use]
     pub fn choice(&self, position: [i32; 3]) -> u32 {
         let mut choice = 0u32;
@@ -55,7 +47,6 @@ impl VariantPick {
         choice
     }
 
-    /// The number of distinct values of [`VariantPick::choice`], or `None` past `u32`.
     #[must_use]
     pub fn choices(&self) -> Option<u32> {
         self.weights

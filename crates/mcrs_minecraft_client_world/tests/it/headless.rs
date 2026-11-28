@@ -1,6 +1,5 @@
 use std::process::Command;
 
-/// A bot or a headless client built on the world state links no window, renderer or mesher.
 #[test]
 fn the_client_world_links_no_window_or_renderer() {
     let output = Command::new(env!("CARGO"))

@@ -5,16 +5,16 @@ description: Update the docs site docs-site/ of mcrs with what was merged into m
 
 # Update the mcrs docs
 
-You update the site `docs-site/` with what was merged into `origin/main` since the last check. Nobody will re-read your edits line by line, so the rule is one: each thing is written in the one way the table in step 5 gives, and everything you are not sure of goes into the report, not into the text.
+You update the site `docs-site/` with what was merged into `origin/main` since the last check. Nobody will re-read your edits line by line, so the rule is one: each thing is written in the one way `contributing/docs.mdx` gives, and everything you are not sure of goes into the report, not into the text.
 
 Before you start, read `docs-site/src/content/docs/en/contributing/docs.mdx` and `docs-site/README.md`. They are the contract of the site. If the contract and this file disagree on the syntax of a component, trust the code of the component in `docs-site/src/components/` and name the disagreement in the report.
 
 ## Limits
 
-- You edit `docs-site/` only. Do not touch `docs/`, `PERF.md`, the root `README.md` or the code of the crates. Do not add comments to Rust code for the docs (`AGENTS.md`: "Default to zero comments"). The code fragment of an `Example` is set by the props of the component; see them in `docs-site/src/components/Example.astro`.
+- You edit `docs-site/` only. Do not touch `docs/`, the root `README.md` or the code of the crates. Do not add comments to code for the docs (`AGENTS.md`: "No comments outside `examples/`"). The code fragment of an `Example` is set by the props of the component; see them in `docs-site/src/components/Example.astro`.
 - Create a new page or section only by the procedure of step 4: an analyst agent, then the explicit consent of the user. Without these two steps you do not create, delete, rename or move pages, and you do not move text between them.
 - Do not push and do not open a pull request. Commit to the working branch.
-- Do not invent. Every statement has a source: a file in the repository, an issue, a pull request, `PERF.md`. No source, no statement.
+- Do not invent. Every statement has a source: a file in the repository, an issue, a pull request. No source, no statement.
 - One run handles every change from the base to `origin/main`. If more than 15 pages are affected, show the list first and ask whether to go on.
 
 ## Step 0. Fetch the guide on AI writing
@@ -24,7 +24,7 @@ The guide "Signs of AI writing" of Wikipedia changes almost every day, so fetch 
 ```bash
 GUIDE=$(mktemp -t signs-of-ai-writing).txt
 curl -sfL -A "mcrs-update-docs" "https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&action=raw" -o "$GUIDE"
-wc -c "$GUIDE"     # about 180 KB in 2026-11; a few bytes means the fetch failed
+wc -c "$GUIDE"     # a few bytes means the fetch failed
 ```
 
 Step 9 uses this file. If the fetch fails, say so in the report and run step 9 with the rules of step 7 only. Do not use a copy from an earlier run.
@@ -150,21 +150,7 @@ Answer options: create as proposed, create without moving the old text, do not c
 
 ## Step 5. How to write. One way for each thing
 
-| What | The only way | Not like this |
-|---|---|---|
-| Issue | `<Status issue={N} />`. The state comes from `docs-site/src/data/issues.yml` | `#N` as text, `[#N](https://github.com/...)`, "issue 78", the state in words next to the link, `state=` next to `issue=` (the build fails) |
-| Pull request | `<Status pr={N} state="works" />` if the pull request merged the thing described | `[#N](.../pull/N)`, `[PR #N](...)` |
-| A file of the repository | `[path](https://github.com/andreypfau/mcrs/blob/main/<path>)`, the link text is the path as in the repository | relative links, links to a branch or a commit |
-| Another page of the site | `[Exact title of the page](/docs/en/<group>/<slug>/)`, in RU `/docs/ru/...`. The link text equals the `title` of the target page | relative paths, own names ("Crates overview" for the page "Crate map") |
-| Code from the repository | `<Example file="..." from="..." to="..." />`, cut by anchors in the code text | a hand-written ` ``` ` block of repository code, line numbers in prose |
-| Code not from the repository (Paper, Gradle) | a ` ```java ` block and the line "illustrative, not mcrs code" | - |
-| Something that does not exist yet, part of a page | `<Aside type="caution" title="WIP">` with a `Status` inside | italics, "(WIP)", "TODO", "coming soon" in the text |
-| Something that does not exist yet, a whole page | `stability: wip` and `tracking: [N]` in the EN frontmatter, no Aside at the top that repeats it | an apology Aside as the first block of the page |
-| A count that two pages repeat (crates, registries, commands) | `{fact('id')}` from `docs-site/src/data/facts.yml`, re-measured with its `how` | a number from memory, "about N", a change in one place |
-| Game version | `{fact('snapshot')}` | the version from memory |
-| A performance number | a number from `PERF.md` with the machine and the scenario next to it, and a link to the section | own measurements, comparisons with vanilla, Paper or other servers |
-| A command for the reader | only one you ran in this run and that worked | "we did not run this command", a command not run |
-| The state of an area | a row in `docs-site/src/data/status.yml` by the `status` schema of `docs-site/src/content.config.ts`: `title`, `works` and `missing` (each with `en` and `ru`), `state`, `issues`, `evidence`, `verified` | an own state table on a page |
+Write each thing the way the sections "Components" and "Style" of `docs-site/src/content/docs/en/contributing/docs.mdx` say. Write a state of an area as a row in `docs-site/src/data/status.yml` by the `status` schema of `docs-site/src/content.config.ts`. Run only commands for the reader that you ran in this run.
 
 ### Status for an issue
 
@@ -180,13 +166,13 @@ Run `gh issue view N -R andreypfau/mcrs --json state,stateReason,labels,title,cl
 
 | State | Condition |
 |---|---|
-| `works` | the issue is closed as completed, and a test or a section of `PERF.md` shows it. Name it in `sources` |
+| `works` | the issue is closed as completed, and a test shows it. Name it in `sources` |
 | `partial` | part is merged (a merged pull request or code exists), and the issue is open or the rest moved to another issue |
 | `wip` | the issue is open, and there is no code for it or the code is not merged |
 | `undecided` | the label `needs-decision`, or there is no issue at all |
 | `declined` | an issue with the label `decision` closed with a refusal, or closed as not planned |
 
-A closed issue without a test and without a measurement gets `partial`, not `works`, and goes into the report.
+A closed issue without a test gets `partial`, not `works`, and goes into the report.
 
 ## Step 6. Frontmatter and translation
 
@@ -199,36 +185,7 @@ A closed issue without a test and without a measurement gets `partial`, not `wor
 
 ## Step 7. Content and style
 
-Each rule below closes a mistake that the site already had.
-
-Content:
-- One fact sounds the same on the whole site. Before you write a number, a state or a limit, find its earlier mentions (`grep -rn` by a keyword in `docs-site/src`) and bring them to one value in the same commit.
-- No judgements of other projects and no comparisons with them, the page `start/philosophy` included. Do not write that another server is slow, that forks "sell" something, or that someone "is stuck on one thread". You may name Paper, Folia, Minestom and Velocity, neutrally and only about their public API.
-- The present tense only for what is in the code at `origin/main`. A goal or an example from the future is written as a goal, with an issue badge in the same sentence, not a paragraph below.
-- No absolute claims without a number: "costs nothing", "never", "always", "any". Either a number from `PERF.md`, or softer wording.
-- A tutorial leads the reader by the hand: the reader writes the code and runs the command, and the page shows what they will see. If a step can only be shown on a test of the repository, it is a how-to or an explanation, not a tutorial.
-- A command on a page was run by you in this run. Do not write "we did not run this": run it, or do not add the command.
-- A caveat lives in one place. Do not repeat the same paragraph word for word on several pages (no plugin loader, the benchmark machine, "before the alpha"): write it on one page and link to it. The exception is the warning about the missing authentication next to each command that starts the server.
-- A page does not start with an apology. The first screen answers the question of the reader. If the whole page is not ready, it is `stability: wip` in the frontmatter, and the banner draws itself.
-- Do not tell the reader how the docs were written: "this page copies", "read on 2026-11-09 from gh pr list", "(README, section such and such)". Sources live in the frontmatter `sources`.
-- The size of a page is 1-4 screens, about 1500 words. A page that grows past it is a candidate for a split, which is step 4.
-- A list does not merge into one sentence. Four items or more are a list or a table.
-
-English:
-- Plain language for a non-native reader: short sentences, active voice, one thought per sentence, at most 30 words.
-- American spelling: behavior, color, license. Two words: data pack, run time.
-- ASCII hyphen only. No long dashes, no typographic quotes, no ellipsis character.
-- No lists of the form "- **Title.** text". A table or plain sentences.
-- A paragraph is one line, no hard wrap.
-- Do not start a page or a section with "This page ...". Do not write "the owner", "the author", "we did not run". "We" only about actions of the project.
-
-Russian:
-- The way a developer explains to a colleague: meaning over the structure of the English sentence, verbs instead of chains of nouns.
-- No "является", "осуществлять", "данный". No "вы" where the phrase works without it.
-- Always "е", never the letter with two dots.
-- Do not translate settled terms: тик, чанк, крейт, плагин, снапшот, датапак, issue, PR. Issue titles stay in English.
-
-Both languages: clean room. No names of classes, methods or fields from the code of the game, except `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`, `PalettedContainer`.
+Follow the section "Style" of `docs-site/src/content/docs/en/contributing/docs.mdx`, and its section "Clean-room in docs".
 
 ## Step 8. Checks before a commit
 

@@ -187,8 +187,6 @@ pub(crate) fn build_one(
     })
 }
 
-/// The meshing geometry of a baked model: the cube faces that can merge with their
-/// neighbours, the model quads and what the block covers.
 struct Geometry {
     cube: Option<[CubeFace; 6]>,
     drop: u8,
@@ -293,7 +291,6 @@ fn model_quads(
     Ok(quads)
 }
 
-/// The faces of the static block entity shapes of `state`. A neighbour never hides them.
 fn shape_quads(
     pack: &ResourceSet,
     state: &BlockStateKey,
@@ -320,7 +317,6 @@ fn shape_quads(
     Ok(quads)
 }
 
-/// The terrain mesh has no blended pass for these faces yet, so `blend` draws as `cutout`.
 fn surface_pass(surface: Surface) -> Pass {
     match surface {
         Surface::Opaque => Pass::Solid,
@@ -330,8 +326,6 @@ fn surface_pass(surface: Surface) -> Pass {
 
 const FACE_GRID: usize = 16;
 
-/// The face occlusion shape of each side, on a sixteenth grid: the boxes that reach the
-/// side, seen along its normal.
 fn face_shapes(occlusion: &[Aabb]) -> Option<Box<FaceShapes>> {
     const EDGE: f32 = 1e-6;
     if occlusion.is_empty() {
@@ -365,8 +359,6 @@ fn face_shapes(occlusion: &[Aabb]) -> Option<Box<FaceShapes>> {
     Some(Box::new(faces))
 }
 
-/// Sets the cells a box's side spans: all it touches when rounding out, only those it fills when
-/// rounding in.
 fn mark(side: &mut SideCells, rows: (f32, f32), columns: (f32, f32), out: bool) {
     let steps = FACE_GRID as f32;
     let span = |(low, high): (f32, f32)| {
@@ -450,7 +442,6 @@ fn cover_face(side: &mut [u16; FACE_GRID], positions: &[Vec3; 4], dir: Direction
     }
 }
 
-/// The coordinate of `point` along `axis`, 0 for x, 1 for y and 2 for z.
 fn along(point: [f32; 3], axis: usize) -> f32 {
     let [x, y, z] = point;
     match axis {
@@ -460,7 +451,6 @@ fn along(point: [f32; 3], axis: usize) -> f32 {
     }
 }
 
-/// The two axes across a face whose normal runs along `normal`, in axis order.
 fn tangents(normal: usize) -> (usize, usize) {
     match normal {
         0 => (1, 2),
@@ -487,7 +477,6 @@ fn face_group(positions: &[Vec3; 4]) -> Option<u8> {
     Some(Direction::all().len() as u8 + diagonal as u8)
 }
 
-/// The colour each block multiplies into the faces that name a tint layer. A layer past the block's list, or a block with none, is left untinted.
 fn tint_of(state: &BlockStateKey, layer: Option<u32>) -> Tint {
     let Some(layer) = layer else {
         return Tint::None;
@@ -535,9 +524,6 @@ fn split_cube(quads: &[BakedFace]) -> (Option<[usize; 6]>, Vec<usize>) {
     (Some(faces), extras)
 }
 
-/// A box as wide as its cell standing on the cell's floor, its top and bottom textured the way a
-/// cube's are: they tile across neighbours like cube faces, the top dropped below the cell's by
-/// a whole number of `MODEL_STEPS`. Answers the top, the bottom and the drop.
 fn split_lowered(quads: &[BakedFace]) -> Option<(usize, usize, u8)> {
     let bottom = quads
         .iter()

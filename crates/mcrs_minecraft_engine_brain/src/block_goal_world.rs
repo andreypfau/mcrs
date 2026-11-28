@@ -15,14 +15,10 @@ use mcrs_voxel::BlockPos;
 
 use crate::sight_blocks::SightBlocks;
 
-/// The walk value above `grass_block`, and elsewhere on a server without a light engine
-/// (GOAL-POS-006).
 const GRASS_WALK_VALUE: f32 = 10.0;
 const OTHER_WALK_VALUE: f32 = 0.5;
-/// The longest line of sight (GOAL-QRY-003).
 const SIGHT_RANGE: f64 = 128.0;
 
-/// A block of a section that is not loaded: no mob walks, stands or sees through it.
 const UNLOADED: StateCollision = StateCollision {
     class: ShapeClass::FullCube,
     flags: BlockFlags::LEGACY_SOLID,
@@ -30,7 +26,6 @@ const UNLOADED: StateCollision = StateCollision {
     ..StateCollision::AIR
 };
 
-/// The blocks of a dimension as the goals of a mob of width 1 read them.
 #[derive(Debug)]
 pub struct BlockGoalWorld<'a, V> {
     blocks: &'a V,
@@ -52,8 +47,6 @@ impl<'a, V: BlockVolume> BlockGoalWorld<'a, V> {
         }
     }
 
-    /// The state at `at`: air outside the volume, and a blocked full cube in a section that is
-    /// not loaded.
     fn state(&self, at: BlockPos) -> StateCollision {
         match self
             .blocks
@@ -65,8 +58,6 @@ impl<'a, V: BlockVolume> BlockGoalWorld<'a, V> {
         }
     }
 
-    /// The top of the collision shape of the block `at` for the move control, in world
-    /// coordinates; `None` for an empty shape or a door or a fence (PATH-MOV-002).
     #[must_use]
     pub fn feet_top(&self, at: BlockPos) -> Option<f64> {
         let state = self.state(at);
@@ -77,7 +68,6 @@ impl<'a, V: BlockVolume> BlockGoalWorld<'a, V> {
         Some(f64::from(at.y) + shape.top())
     }
 
-    /// The block path type at `at` (PATH-TYP-003).
     fn block_path_type(
         &self,
         at: BlockPos,

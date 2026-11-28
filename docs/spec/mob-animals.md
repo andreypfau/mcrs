@@ -1,9 +1,9 @@
 # The basic farm animals: pig, cow, sheep and chicken
 
+Version: see `assets/minecraft/version.json`.
+
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Entity types | `minecraft:pig`, `minecraft:cow`, `minecraft:sheep`, `minecraft:chicken` |
 | Data | `assets/mcrs/reports/registries.json`, the data pack of the server jar |
 
@@ -14,14 +14,12 @@ It covers these subjects:
 - the interactions of a player and the work of each tick that is not a goal;
 - the drops, the save and the parts of the spawn rules that belong to the type.
 
-The document states semantic rules. It does not state an algorithm of the reference. Each rule has
-a fidelity class (section 0.3). The fidelity class tells the design what it must keep and what it
-can change. Section 13 states the state that each group of rules reads and writes, so that a design
-can tick many animals in parallel.
+The document states semantic rules. Each rule has a fidelity class (section 0.3). The fidelity
+class tells the design what it must keep and what it can change.
 
 `mob-goals.md` (prefix `GOAL`) states the goals: float, panic, breed, tempt, follow parent, stroll,
 look at a player, look around and eat grass. A goal that needs a value of an animal cites the rule
-of this document that owns the value. Section 15 lists these rules.
+of this document that owns the value. Section 16 lists these rules.
 
 ## 0. Conventions
 
@@ -829,72 +827,17 @@ saved.
 
 ## 12. Experiments
 
-The experiments ran on a vanilla dedicated server `26.4-snapshot-7` on 2026-11-08, with a flat
-world, `difficulty=easy`, no player, and commands on the console. `fillbiome` set `snowy_plains` and
-`desert` in two areas. `data get entity` and `execute if entity ... nbt=` read the state.
+ANIM-E1 to ANIM-E8 ran on a vanilla dedicated server in a flat world with commands on the console.
+The rules cite them as provenance.
 
-| Experiment | Steps | Result | Rules |
-|------------|-------|--------|-------|
-| ANIM-E1 | Run `summon pig 0.5 -60 0.5 {}`. Read the entity. | `variant` `temperate`, `sound_variant` `classic`, `Age` 0, `ForcedAge` 0, `AgeLocked` false, `InLove` 0, `Health` 10.0, `attributes` empty. | ANIM-SPAWN-001, ANIM-SAVE-002, TRK-TYPE-004 |
-| ANIM-E2 | Summon 300 pigs without `nbt` in `plains`. Count the values. | 300 adults, 300 `temperate`. Sound variants: `classic` 90, `big` 99, `mini` 111. `LeftHanded` 14. `attributes`: `movement_speed` base 0.25, `follow_range` base 16 with `random_spawn_bonus` 0.0170. | ANIM-VAR-003, ANIM-VAR-004, ANIM-SPAWN-001, ANIM-SPAWN-002 |
-| ANIM-E3 | Summon pigs, cows and chickens without `nbt` in `snowy_plains`, `desert` and `plains`. Count each variant. | `snowy_plains` gives `cold`, `desert` gives `warm`, `plains` gives `temperate`, for each type. Chickens: 16 of 30 `picky`. | ANIM-VAR-002, ANIM-VAR-003 |
-| ANIM-E4 | Summon 600 sheep without `nbt`, 200 in each of the three biomes. Count each `Color`. | Only `white` 182, `brown` 180, `black` 168, `gray` 39, `light_gray` 31. Some sheep died of cramming before the count. | ANIM-VAR-005 |
-| ANIM-E5 | Summon chickens with `{EggLayTime:5,NoAI:1b}`, with the variants `warm` and `cold`, and a baby with `Age:-100`. Wait 50 ticks. | One `brown_egg` and one `blue_egg`. The adults have new timers 8505 and 10672. The baby keeps 5, and its age is −50. | ANIM-TICK-001, ANIM-AGE-002 |
-| ANIM-E6 | Summon two sheep with `InLove:600` and the colours `red` and `yellow`. Summon two cold pigs with `InLove:600` and `sound_variant` `big`. Wait. | Each pair makes one baby at the position of one parent, age −24000. Parents 6000, and one parent is one tick behind the other. Lamb `orange`. Piglet `cold` with `sound_variant` `classic`. Two orbs, each of value 7. Rotation `[0, 0]`. | ANIM-BREED-001 to ANIM-BREED-003, ANIM-DEV-002 |
-| ANIM-E7 | With `NoAI`, kill 20 sheep of `light_blue`, a baby sheep, a sheared sheep, a cow with `Fire:200s`, a pig with a saddle from `equipment`, and a pig with the saddle and `drop_chances:{saddle:2.0f}`. | 32 `mutton` for 21 adults, 20 `light_blue_wool`, nothing from the baby. `cooked_beef` 2 and no leather from the burning cow. No saddle from the first pig. The saddle from the second pig. No experience orb. | ANIM-DROP-001, ANIM-DROP-002, ANIM-DROP-004, ANIM-DROP-005 |
-| ANIM-E8 | Summon a cow with `{NoAI:1b,Age:-24000,AgeLocked:1b}`. Wait 100 ticks. | `Age` stays −24000. | ANIM-AGE-002 |
-
-These experiments are planned. They need a client in the world.
-
-| Experiment | Steps | Rules |
-|------------|-------|-------|
-| ANIM-E9 | Capture the spawn bundle of a pig with the variant `cold` and `sound_variant` `big`, and of a sheep with `Color:14b,Sheared:1b`. | TRK-DATA-006 |
-| ANIM-E10 | Feed a baby cow with the age −24000 five times. Read `Age` and `ForcedAge` after each feed. Feed until it is an adult and read `Age`. | ANIM-AGE-003, ANIM-AGE-005 |
-| ANIM-E11 | Feed an adult cow, read `InLove`, hit it, read `InLove`. | ANIM-LOVE-001, ANIM-LOVE-002 |
-| ANIM-E12 | Shear 100 sheep and count the wool of each shear. | ANIM-INT-004 |
-| ANIM-E13 | Ride a saddled pig with a carrot on a stick. Boost. Record the entry 18 and the damage of the item. Boost again at once. | ANIM-RIDE-003, ANIM-RIDE-004 |
-| ANIM-E14 | Use `golden_dandelion` on a baby two times within 40 ticks, then after 40 ticks. Read `AgeLocked`, `Age` and `PersistenceRequired`. | ANIM-AGE-006 |
-| ANIM-E15 | Drop a chicken from 20 blocks. Record `set_entity_motion` and the fall damage. | ANIM-TICK-002 |
-| ANIM-E16 | Record the times of the ambient sounds of one pig with `NoAI` for 20000 ticks. | ANIM-TICK-004 |
-
-## 13. Parallelism notes
-
-This section helps the design of a tick that runs 50,000 animals in parallel. "Own state" is the
-state of one animal. A rule that only reads and writes own state can run for each animal in any
-order. A rule that changes another entity or the world needs a merge point.
-
-| Group | Rules | Reads | Writes | Cadence | Effects on other entities |
-|-------|-------|-------|--------|---------|---------------------------|
-| age step | ANIM-AGE-002 | age, age lock, alive | age; entry 16 and the box at a crossing | each tick | none. A crossing changes the box, so the grid sees it at the next freeze |
-| love step | ANIM-LOVE-002 | age, love time | love time | each tick | none |
-| growth particles | ANIM-AGE-007 | two timers | two timers; particle packets | each tick while a timer is more than 0 | packets only |
-| egg | ANIM-TICK-001 | egg timer, age, alive, jockey flag, variant | egg timer | each tick; an event about one time in 9000 ticks | a new item entity, and a sound. The item is a spawn request with a new UUID of the kind `entity` |
-| chicken fall | ANIM-TICK-002 | on-ground flag, velocity | velocity | each tick, inside the hot tick after the push | none |
-| ambient sound | ANIM-TICK-004 | counter, alive | counter | each tick | a sound packet, about one time in 400 ticks |
-| boost | ANIM-RIDE-003 | boost state, controller | boost state | each tick with a controller | none |
-| breed | ANIM-BREED-001 | both parents | both parents; a child; an orb; a statistic | an event | a pair action at the merge point (AIT-CPL-004); the child and the orb are spawn requests |
-| interactions | section 8 | the animal, the item in the hand | the animal, the stack, the inventory | an event of a packet | the item stack of the player and new item entities. The player domain applies the stack change |
-| death drops | section 11 | the animal at its death, the attacker | none | an event | item entities and orbs as spawn requests |
-| lightning | ANIM-TICK-005 | the pig | removal and a new mob | an event | a spawn request and a removal request |
-
-These conclusions follow:
-
-- The per-tick work of an animal that is not a goal reads and writes only its own state. It needs
-  four small counters (age, love time, ambient counter, egg timer) and two short timers. Each can
-  run in the tile task of the animal.
-- An idle animal at rest changes no entity data in most ticks. The tracker sends an update only
-  for the crossings of the age and the rare events.
-- An animal at rest with no event due can skip its work in a tick. The skip must keep the
-  counters exact. For example, the egg timer and the age can advance by `n` at a later
-  tick, when nothing reads them before. A random event in the skipped ticks must keep its
-  distribution. The ambient counter can find the tick of the next sound in one draw, from the
-  distribution of ANIM-TICK-004.
-- Each random value of these rules is a keyed random value (ANIM-DEV-001). The purpose of a value
-  names the rule, for example "egg timer" or "ambient". Thus the result does not depend on the
-  order of the tiles.
-- Each new entity of these rules is a spawn request with a new UUID of the kind `entity` and the
-  UUID of the animal as its source key. The sequence counts the requests of one animal in one tick. The life
-  cycle of `DomainInput` applies them in the order of their UUIDs.
+- ANIM-E1: summon a pig with `{}` and read the entity.
+- ANIM-E2: summon 300 pigs without `nbt` in `plains` and count the values.
+- ANIM-E3: summon pigs, cows and chickens in `snowy_plains`, `desert` and `plains` and count each variant.
+- ANIM-E4: summon 600 sheep without `nbt` in three biomes and count each `Color`.
+- ANIM-E5: summon chickens with an egg timer, in two variants, and a baby, and wait 50 ticks.
+- ANIM-E6: summon pairs of sheep and of pigs with `InLove` and wait for the baby.
+- ANIM-E7: kill sheep, a cow and pigs with `NoAI` and read the drops.
+- ANIM-E8: summon a cow with an age lock and wait 100 ticks.
 
 ## 14. Intentional deviations
 
@@ -907,7 +850,6 @@ These conclusions follow:
   on the order of the entities.
 - **This server:** each value is a keyed random value. The distribution stays the same.
 - **Visible to the client:** no, as a distribution.
-- **Test:** a differential test compares distributions over many runs.
 
 ### ANIM-DEV-002: The order of the breeds in one tick
 
@@ -920,7 +862,6 @@ These conclusions follow:
   the smaller UUID is the initiator. Both parents then do the age step in the same tick, so
   their ages are equal.
 - **Visible to the client:** no. The age of a parent differs by at most 1 tick.
-- **Test:** a test accepts a difference of 1 in the ages of the parents.
 
 ### ANIM-DEV-003: Two recipes for one pair of colours
 
@@ -932,7 +873,6 @@ These conclusions follow:
   not matter.
 - **Visible to the client:** only with a data pack that adds such a recipe. The vanilla data pack
   has none.
-- **Test:** no test with the vanilla data.
 
 ### Known vanilla quirks
 
@@ -949,14 +889,13 @@ These quirks are vanilla behaviour. This server keeps them.
 
 ## 15. Unresolved
 
-- **U1**: ANIM-E9 to ANIM-E16 need a client. The values of ANIM-AGE-003, ANIM-RIDE-003 and
-  ANIM-TICK-004 have no capture.
+- **U1**: the values of ANIM-AGE-003, ANIM-RIDE-003 and ANIM-TICK-004 have no capture.
 - **U2**: the exact form of the particle positions of ANIM-AGE-007 is an envelope. No test captured
   them.
 - **U3**: `natural-spawning.md` must state how one spawn event forms a spawn group for
   ANIM-SPAWN-002. This applies to natural spawning and to the spawn of a chunk at its generation.
 - **U4**: the entry `follow_range` is not syncable. This document assumes that the spawn bundle
-  holds `movement_speed` with the base of the type (TRK-DATA-004). ANIM-E9 checks it.
+  holds `movement_speed` with the base of the type (TRK-DATA-004).
 
 ## 16. Rules that `mob-goals.md` uses
 

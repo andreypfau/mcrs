@@ -18,7 +18,7 @@ mcrs_voxel.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_entity_key.workspace = true
 mcrs_minecraft_game_rule.workspace = true
-mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_stack.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_derive.workspace = true
@@ -34,15 +34,13 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_volume.workspace = true
 rustc-hash.workspace = true
-smallvec.workspace = true
 tracing.workspace = true
-uuid = { workspace = true, features = ["v4"] }
 
 [features]
 telemetry-tracy = []
 
 [dev-dependencies]
-criterion = { version = "0.7", default-features = false }
+criterion = { workspace = true }
 mcrs_minecraft_random.workspace = true
 
 [[bench]]

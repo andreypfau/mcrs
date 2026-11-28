@@ -1,11 +1,3 @@
-//! The reads of a column of another cell of the world. The owner of a column that holds it hot
-//! may hold changes that it did not write to the data layer yet, so a cell asks the owner for
-//! such a column and asks the data layer only for a column that is cold in its owner.
-//!
-//! Each cell tells the other cells when a column that they can read becomes hot in it, goes
-//! cold, or is written. With these reports a cell sends each read to the owner, to the data
-//! layer or to generation at once, in the tick that needs the column.
-
 use bevy_ecs::prelude::{Added, Query, Res, ResMut};
 use mcrs_engine_cell::CellIndex;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
@@ -16,16 +8,14 @@ use rustc_hash::FxHashSet;
 
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::ColumnStoreLink;
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
-/// A cell asks the owner of `column` for it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ColumnAsk {
     pub(crate) from: CellIndex,
     pub(crate) column: ColumnPos,
 }
 
-/// The owner of `column` answers the cell `to`.
 #[derive(Clone, Debug)]
 pub struct ColumnAnswer {
     pub(crate) to: CellIndex,
@@ -35,14 +25,10 @@ pub struct ColumnAnswer {
 
 #[derive(Clone, Debug)]
 pub(crate) enum OwnerReply {
-    /// The blocks of the column at the end of the tick of the answer. The changes of that tick
-    /// also reach the halo, so the column misses none of them.
     Snapshot(Box<StoredColumn>),
-    /// The owner does not hold the column any more.
     NotHeld,
 }
 
-/// A change of a column that other cells can read, in its owner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ColumnHold {
     pub(crate) column: ColumnPos,
@@ -56,22 +42,16 @@ pub(crate) enum Hold {
     Written,
 }
 
-/// Where a cell gets a column that it does not hold.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ColumnOrigin {
-    /// The owner holds the column hot.
     Owner,
-    /// A cell wrote the column, and the owner does not hold it.
     DataLayer,
-    /// No cell wrote the column, and the owner does not hold it.
     Generation,
 }
 
-/// What a cell knows of the columns of the other cells that it can read, from their reports.
 #[derive(Debug, Default)]
 pub(crate) struct OtherColumns {
     hot: FxHashSet<ColumnPos>,
-    /// The data layer has no disk under it, so the writes are the only columns it holds.
     written: FxHashSet<ColumnPos>,
 }
 
@@ -105,10 +85,21 @@ impl OtherColumns {
     }
 }
 
-/// Answers the asks of the other cells after every change of the tick: with the column when
-/// its sections have landed, and with [`OwnerReply::NotHeld`] when no ticket loads it. An ask
-/// for a column that still lands waits. It also reports each column that other cells can read
-/// and that became hot.
+pub(crate) fn column_asks_pending(
+    store: Res<ColumnStoreLink>,
+    spawned: Query<(), Added<ColumnPosComponent>>,
+) -> bool {
+    store.has_asks() || !spawned.is_empty()
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "a snapshot is boxed only for a column that another cell asks for, and it moves into the answer mail"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 pub(crate) fn answer_column_asks(
     mut store: ResMut<ColumnStoreLink>,
     owned: Res<OwnedColumns>,
@@ -124,7 +115,6 @@ pub(crate) fn answer_column_asks(
             });
         }
     }
-    // A dimension world holds one dimension.
     let dim = dims.iter().next();
     store.answer_asks(|column| {
         let Some((_, index)) = dim.filter(|(loading, _)| loading.is_column_loaded(column)) else {

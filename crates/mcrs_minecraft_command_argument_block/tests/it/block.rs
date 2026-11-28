@@ -14,8 +14,6 @@ use mcrs_minecraft_text::{IntoText, Text};
 use mcrs_voxel::BlockStateId;
 use std::sync::LazyLock;
 
-/// `oak_stairs` and `wheat` with their vanilla properties, `stone`, `chest` with a block
-/// entity, and the tag `logs` of `oak_log`.
 struct Blocks {
     stairs: Vec<BlockProperty>,
     wheat: Vec<BlockProperty>,
@@ -341,7 +339,6 @@ fn entry(identifier: &str, properties: Vec<BlockProperty>, base: u16) -> BlockEn
         default_state_id: BlockStateId::checked(base, usize::MAX).unwrap(),
         state_count: count,
         properties: BlockProperties(properties),
-        placement_filter: None,
         container_slots: None,
     }
 }

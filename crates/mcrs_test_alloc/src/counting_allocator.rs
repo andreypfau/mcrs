@@ -5,8 +5,6 @@ thread_local! {
     static ALLOCATIONS: Cell<usize> = const { Cell::new(0) };
 }
 
-/// The allocations that the calling thread made since it started. A `realloc` and an
-/// `alloc_zeroed` count as one allocation each.
 #[must_use]
 pub fn allocations() -> usize {
     ALLOCATIONS.try_with(Cell::get).unwrap_or(0)
@@ -16,8 +14,6 @@ fn count() {
     let _ = ALLOCATIONS.try_with(|count| count.set(count.get().wrapping_add(1)));
 }
 
-/// Forwards to `System` and counts every request for memory. Declare it as the
-/// `#[global_allocator]` of a test binary.
 pub struct CountingAllocator;
 
 // SAFETY: every call forwards to `System` with the arguments it got, so `System` upholds the

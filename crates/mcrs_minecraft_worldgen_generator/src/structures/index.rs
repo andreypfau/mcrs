@@ -49,7 +49,6 @@ pub enum BiomeLookup {
     None,
 }
 
-/// The five biomes the end's biome source draws from, as registry ids of type `T`.
 #[derive(Clone, Copy, Debug)]
 pub struct EndBiomes<T = u16> {
     pub end: T,
@@ -60,8 +59,6 @@ pub struct EndBiomes<T = u16> {
 }
 
 impl<T: Copy> EndBiomes<T> {
-    /// The end biome of a chunk: the end itself within 64 chunks of the origin, elsewhere a pick
-    /// by `erosion`, read at the chunk's centre column.
     pub(crate) fn pick(&self, chunk_x: i32, chunk_z: i32, erosion: impl FnOnce() -> f64) -> T {
         if is_central_end_chunk(chunk_x, chunk_z) {
             return self.end;
@@ -111,7 +108,6 @@ impl EndBiomes {
         })
     }
 
-    /// The end biome at `quart`, by [`EndBiomes::pick`] at the height of the quart.
     pub(crate) fn at(&self, router: &NoiseRouter, ws: &mut Workspace, quart: IVec3) -> u16 {
         let block: IVec3 = quart << 2;
         let chunk_x = block.x >> 4;
@@ -129,7 +125,6 @@ impl EndBiomes {
     }
 }
 
-/// Whether a chunk lies within the 64 chunks around the origin that are the end biome itself.
 pub(crate) fn is_central_end_chunk(chunk_x: i32, chunk_z: i32) -> bool {
     i64::from(chunk_x).pow(2) + i64::from(chunk_z).pow(2) <= 4096
 }
@@ -137,24 +132,19 @@ pub(crate) fn is_central_end_chunk(chunk_x: i32, chunk_z: i32) -> bool {
 pub(crate) const CLIMATE_ROOTS: [usize; 6] =
     [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
 
-/// How far from a column, in chunks, a start can still reach it.
 pub const MAX_STRUCTURE_DISTANCE: i32 = 8;
 
-/// A square of `SIDE` chunks per side whose structure starts are computed together.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct StartTile {
     pub x: i32,
     pub z: i32,
 }
 
-// A larger tile lets `StartTile::reaching` return a tile no chunk of the square lies in, a smaller one lets the square meet three tiles a side.
 const _: () = assert!(StartTile::SIDE == 2 * MAX_STRUCTURE_DISTANCE);
 
 impl StartTile {
-    /// Chunks per side of a tile.
     pub const SIDE: i32 = 16;
 
-    /// The tile that holds `chunk`.
     pub fn containing(chunk: ColumnPos) -> StartTile {
         StartTile {
             x: chunk.x.div_euclid(Self::SIDE),
@@ -162,7 +152,6 @@ impl StartTile {
         }
     }
 
-    /// The tiles that hold the chunks within [`MAX_STRUCTURE_DISTANCE`] of `column`: always two by two.
     pub fn reaching(column: ColumnPos) -> [StartTile; 4] {
         let first = Self::containing(ColumnPos::new(
             column.x - MAX_STRUCTURE_DISTANCE,
@@ -185,7 +174,6 @@ impl StartTile {
         ]
     }
 
-    /// The chunks of this tile, `x` outer and `z` inner.
     pub fn chunks(self) -> impl Iterator<Item = ColumnPos> {
         let (min_x, min_z) = (self.x * Self::SIDE, self.z * Self::SIDE);
         (min_x..min_x + Self::SIDE)
@@ -214,14 +202,16 @@ pub struct StructureIndex {
     accessor_min_y: i32,
     accessor_height: i32,
     rings: RingSets,
-    // Unbounded; `tile_starts` and `reaching` give the same starts without it, for one owner to keep and evict by tile.
     starts: Mutex<HashMap<(SetId, ColumnPos), StartCell>>,
 }
 
 impl StructureIndex {
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the structure tables and seed, the noise router, the biome lookup, the heightmap predicates, the world states, the climate, and the accessor's bottom and height of one dimension's structure index"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one dimension's structure index"
+        )
     )]
     pub fn new(
         tables: Arc<DimensionStructureTables>,
@@ -308,12 +298,12 @@ impl StructureIndex {
         }
     }
 
-    fn context<'a>(
+    fn context<'a, 'v>(
         &'a self,
-        view: &'a mut View<'_>,
+        view: &'a mut View<'v>,
         chunk: ColumnPos,
         structure: StructureId,
-    ) -> Context<'a> {
+    ) -> Context<'a, View<'v>> {
         Context {
             frozen: &self.tables.frozen,
             structure: &self.tables.frozen.structures[usize::from(structure.0)],
@@ -339,7 +329,6 @@ impl StructureIndex {
         site(&mut self.context(view, chunk, structure))
     }
 
-    /// The start of one structure at one chunk, whatever its set's draw would select there.
     pub fn start_of(&self, chunk: ColumnPos, structure: StructureId) -> Option<Start> {
         let mut view = self.view();
         let site = self
@@ -375,7 +364,6 @@ impl StructureIndex {
         Start::new(frozen, structure, pieces)
     }
 
-    /// Whether any live structure places in one of `steps`.
     pub fn places_in(&self, steps: &Range<usize>) -> bool {
         let frozen = &self.tables.frozen;
         self.tables.live.iter().any(|(_, structures)| {
@@ -385,7 +373,6 @@ impl StructureIndex {
         })
     }
 
-    /// The structure starts of every chunk of `tile`, chunk by chunk and a chunk's in the order of the live sets, computed with one view and kept nowhere.
     pub fn tile_starts(&self, tile: StartTile) -> Vec<(ColumnPos, Start)> {
         let mut view = self.view();
         let mut starts = Vec::new();
@@ -401,7 +388,6 @@ impl StructureIndex {
         starts
     }
 
-    /// What [`Self::starts_reaching`] answers, from the [`Self::tile_starts`] of the four tiles `tile` hands over for [`StartTile::reaching`].
     pub fn reaching<'a>(
         &self,
         column: ColumnPos,
@@ -424,10 +410,6 @@ impl StructureIndex {
         starts
     }
 
-    /// Every start whose bounds cross `column`, from every chunk within
-    /// [`MAX_STRUCTURE_DISTANCE`] of it, in `(step, step_index, chunk.x, chunk.z)`
-    /// order.
-    // Starts of one structure are ordered by chunk, where the game's order is a hash order; only a column two starts of one structure both cross can tell the difference.
     pub fn starts_reaching(&self, column: ColumnPos) -> Vec<(ColumnPos, Start)> {
         if self.tables.live.is_empty() {
             return Vec::new();
@@ -459,13 +441,10 @@ impl StructureIndex {
         });
     }
 
-    /// The terrain adaptation term of `column`, or `None` where it is zero
-    /// throughout.
     pub fn beard(&self, column: ColumnPos) -> Option<Beard> {
         self.beard_from(column, &self.starts_reaching(column))
     }
 
-    /// [`Self::beard`] from the starts [`Self::starts_reaching`] or [`Self::reaching`] gave for `column`.
     pub fn beard_from(&self, column: ColumnPos, starts: &[(ColumnPos, Start)]) -> Option<Beard> {
         let frozen = &self.tables.frozen;
         let pieces = starts.iter().flat_map(|(_, start)| {
@@ -529,7 +508,6 @@ impl StructureIndex {
             .map(|(structure, _)| structure)
     }
 
-    /// The set's draw with removal at `chunk`: the first structure whose site passes its biome test, with that site.
     fn selected_site(
         &self,
         view: &mut View<'_>,
@@ -552,8 +530,6 @@ impl StructureIndex {
         Some((structure, accepted?))
     }
 
-    /// The registry id of the biome the biome source gives at the quart that holds a block, as
-    /// structure placement reads it.
     pub fn noise_biomes(&self) -> impl FnMut(IVec3) -> Option<u16> + '_ {
         let mut view = self.view();
         move |block| view.biome_at(block)
@@ -673,7 +649,7 @@ fn plane_admits(
     );
     let mut values = vec![0.0f32; CLIMATE_ROOTS.len() * cells];
     router.fill_roots(ws, &volume, &CLIMATE_ROOTS, &mut values);
-    let mut last = None;
+    let mut cursor = table.cursor();
     (0..cells)
         .map(|at| {
             let target = TargetPoint::new(
@@ -684,9 +660,9 @@ fn plane_admits(
                 values[4 * cells + at],
                 values[5 * cells + at],
             );
-            table
-                .biome_at_from(target, &mut last)
-                .is_some_and(|biome| preferred.contains(usize::from(biome)))
+            cursor
+                .find_value(target)
+                .is_some_and(|&biome| preferred.contains(usize::from(biome)))
         })
         .collect()
 }

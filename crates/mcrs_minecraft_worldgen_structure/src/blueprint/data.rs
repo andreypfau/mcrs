@@ -55,10 +55,6 @@ fn bucket(name: &str, buckets: u32) -> u32 {
     (hash ^ (hash >> 16)) & (buckets - 1)
 }
 
-/// The fields of every layer, a later layer replacing what an earlier one
-/// says. Stored templates list an entity's fields as a hash map of them
-/// iterates: by bucket, the table doubling from 16 while more than three
-/// quarters full, and by name within a bucket.
 pub fn layered(layers: &[Fields]) -> NbtCompound {
     let mut fields: Vec<(&str, Tag)> = Vec::new();
     for (name, tag) in layers.iter().copied().flatten() {

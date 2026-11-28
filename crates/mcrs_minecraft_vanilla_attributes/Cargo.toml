@@ -1,0 +1,23 @@
+[package]
+name = "mcrs_minecraft_vanilla_attributes"
+description = "Vanilla sources of attribute modifiers on the players of a dimension world: the sprint state and creative mode"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_mob_attributes.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_resource.workspace = true

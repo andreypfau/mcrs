@@ -57,8 +57,6 @@ fn corpus_registries() -> Corpus {
     }
 }
 
-/// One variant registry's assets by id in registry order, which is the
-/// alphabetical order the snapshot assigns; only the spawn conditions are read.
 fn variant_selectors(
     registry: &str,
 ) -> BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<mcrs_minecraft_registries::Named>>> {
@@ -359,7 +357,6 @@ fn parse<T: serde::de::DeserializeOwned>(
 }
 
 #[cfg(test)]
-/// Freeze a synthetic corpus with no templates loaded.
 fn try_freeze(
     sets: &[(&str, &str)],
     structures: &[(&str, &str)],

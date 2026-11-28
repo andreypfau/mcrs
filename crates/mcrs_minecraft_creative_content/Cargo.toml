@@ -1,0 +1,27 @@
+[package]
+name = "mcrs_minecraft_creative_content"
+description = "The tab lists and the search list of the creative screen, built from the creative report and the session"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_creative_report.workspace = true
+mcrs_minecraft_enchantment.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_potion.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true

@@ -80,21 +80,11 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlac
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import net.minecraft.world.level.storage.LevelStorageSource;
 
-/**
- * Whole starts generated over a flat world with one biome and placed chunk by
- * chunk into a stub level, the way `ChunkGenerator.applyBiomeDecoration` places
- * them: what every column of the start writes, which block entities it loads
- * and which entities it spawns.
- */
 public final class StructureGeometryOracle {
     private static final byte[] MAGIC = "MCSTRGE0".getBytes(StandardCharsets.US_ASCII);
     private static final long WORLD_SEED = StubLevel.WORLD_SEED;
     private static final List<ChunkPos> CHUNKS = List.of(new ChunkPos(0, 0), new ChunkPos(7, -3), new ChunkPos(-12, 25));
 
-    /// The order a start's chunks decorate in: nearest the origin first, as a
-    /// player walking out from spawn or a pregenerator's spiral loads them.
-    /// Placement flags a start's chunks share (`hasPlacedSpider`) then fall
-    /// the way the port decides them.
     private static final Comparator<ChunkPos> DECORATES_FIRST = Comparator
         .comparingLong((ChunkPos chunk) -> {
             long x = chunk.x() * 16L + 8;
@@ -103,8 +93,6 @@ public final class StructureGeometryOracle {
         })
         .thenComparingInt(ChunkPos::x)
         .thenComparingInt(ChunkPos::z);
-    /// The jigsaw structures placed here: the codec path exists for them, so
-    /// they prove the placement harness; their template entities are none.
     private static final List<String> JIGSAW_CASES = List.of("minecraft:trail_ruins");
     private static final int FULL_EVERY = 50;
     private static final int ENTITY_DATA_EOF = 255;
@@ -178,11 +166,6 @@ public final class StructureGeometryOracle {
         System.exit(0);
     }
 
-    /// Every non-jigsaw structure of the registry plus the jigsaw smoke cases,
-    /// in registry order, each in the first dimension whose sets place it, at
-    /// every case chunk. `index` is the structure's position among the
-    /// structures of its step in registry order, as `applyBiomeDecoration`
-    /// counts it.
     private static List<Case> cases(final RegistryAccess.Frozen loaded) throws Exception {
         List<PlacementOracle.Dim> dims = PlacementOracle.dims(loaded);
         Map<String, Dimension> dimensions = new LinkedHashMap<>();
@@ -223,16 +206,7 @@ public final class StructureGeometryOracle {
     private static final Field IS_BEACHED;
     private static final Field BEACHED_TEMPLATES;
     private static final Field SETUPS;
-    /// Template pieces place with `knownShape` false, which runs
-    /// `updateFromNeighbourShapes` over every placed block against the live
-    /// world's light and neighbours; the port does not reproduce that pass,
-    /// so it is switched off here exactly as the template placement dump does.
     private static final Field PLACE_SETTINGS;
-    /// A spider corridor's spawner goes to whichever of its chunks decorates
-    /// first with a section inside it, and every later chunk skips the draw:
-    /// a flag on the shared piece, so the answer is the player's route. The
-    /// port places per column, so the flag is cleared before every chunk and
-    /// the dump records what each chunk does on its own.
 
     static {
         try {
@@ -259,15 +233,12 @@ public final class StructureGeometryOracle {
         };
     }
 
-    /// A ruined portal whose every setup sits on the ocean floor.
     @SuppressWarnings("unchecked")
     private static boolean onOceanFloor(final Structure structure) throws IllegalAccessException {
         List<RuinedPortalStructure.Setup> setups = (List<RuinedPortalStructure.Setup>) SETUPS.get(structure);
         return setups.stream().allMatch(s -> s.placement() == RuinedPortalPiece.VerticalPlacement.ON_OCEAN_FLOOR);
     }
 
-    /// Layers from the dimension floor up; `null` is air. Every base ends at
-    /// y = 63 so the overworld sea level sits one above it.
     private static BlockState[] layers(final Base base, final int minY) {
         BlockState stone = Blocks.STONE.defaultBlockState();
         BlockState[] layers = new BlockState[64 - minY];
@@ -375,14 +346,6 @@ public final class StructureGeometryOracle {
         return true;
     }
 
-    /// A beached shipwreck that fits its region is lowered by the first chunk
-    /// that decorates it, from that chunk's live heightmaps and a `nextInt(3)`
-    /// of that chunk's placement stream. The port fixes the height at layout
-    /// and spends the draw at the end of the layout stream, so the piece is
-    /// lowered here before any chunk is placed: the same footprint walk
-    /// `ShipwreckPiece.postProcess` makes, over the stub's heights, with the
-    /// draw taken from the layout's `WorldgenRandom` replayed past the
-    /// rotation and template picks of `ShipwreckStructure.generatePieces`.
     private static void lowerBeachedShipwreck(final StructureStart start, final StubLevel level, final ChunkPos chunk)
         throws IllegalAccessException {
         for (StructurePiece piece : start.getPieces()) {
@@ -413,8 +376,6 @@ public final class StructureGeometryOracle {
         };
     }
 
-    /// The chunk's writes as the template placement dump records a placement:
-    /// first write fixes the order, last write fixes the state.
     private int writeWrites(final OutputStream out, final List<StubLevel.Write> log) throws IOException {
         Map<BlockPos, BlockState> written = new LinkedHashMap<>();
         for (StubLevel.Write write : log) {
@@ -456,9 +417,6 @@ public final class StructureGeometryOracle {
         }
     }
 
-    /// Each spawned entity as it arrived at `addFreshEntity`: its save tag with
-    /// every value the entity drew from its own random masked, and the packed
-    /// non-default synched data a client would be sent at pairing.
     private void writeEntities(final OutputStream out, final List<StubLevel.RecordedEntity> spawned) throws IOException {
         Bin.i32(out, spawned.size());
         for (StubLevel.RecordedEntity recorded : spawned) {
@@ -481,11 +439,6 @@ public final class StructureGeometryOracle {
         }
     }
 
-    /// What an entity draws from `Entity.random`, which is seeded from the
-    /// clock: its `UUID`; the yaw `LivingEntity`'s constructor rolls, kept only
-    /// by the shulker since every other mob is snapped to a heading; and the
-    /// two attribute rolls of `Zombie.handleAttributes`. Passengers carry the
-    /// same fields under their own id.
     private static void mask(final CompoundTag tag, final String type) {
         tag.remove("UUID");
         if (type.equals("minecraft:shulker")) {
@@ -524,11 +477,6 @@ public final class StructureGeometryOracle {
         Bin.i32(out, pos.getZ());
     }
 
-    /**
-     * A chunk generator that is a flat floor with one biome: what a layout may
-     * read of a world (`getBaseColumn`, the sea level and the
-     * height range), answered from the layers, and nothing else.
-     */
     static final class FlatGenerator extends ChunkGenerator {
         private final BlockState[] layers;
         private final int minY;

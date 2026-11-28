@@ -1,0 +1,1036 @@
+{
+  "version": {
+    "name": "26.4 Snapshot 7",
+    "protocol": 1073742169
+  },
+  "steps": [
+    {
+      "id": "join_first",
+      "observed": "joined",
+      "swings": []
+    },
+    {
+      "id": "prepare",
+      "observed": {
+        "console": {
+          "output": [
+            "The difficulty has been set to Peaceful",
+            "Game rule spawn_mobs is now set to false",
+            "No entity was found",
+            "No blocks were filled",
+            "Successfully filled 154 block(s)"
+          ],
+          "chat": [
+            {
+              "client": "reachplacer1",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.difficulty.success",
+                    "with": [
+                      {
+                        "translate": "options.difficulty.peaceful"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer1",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamerule.set",
+                    "with": [
+                      "spawn_mobs",
+                      "false"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer1",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.fill.success",
+                    "with": [
+                      154
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "setup_survival_5_4",
+      "observed": {
+        "console": {
+          "output": [
+            "No items were found on player reachplacer1",
+            "Replaced 1 slot(s) on reachplacer1 with [Dirt]",
+            "Changed the block at 0, -59, 6",
+            "Could not set the block",
+            "Teleported reachplacer1 to 0.500000, -60.000000, 0.600000"
+          ],
+          "chat": [
+            {
+              "client": "reachplacer1",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.item.entity.replace.success.single.known_item",
+                    "with": [
+                      1,
+                      {
+                        "text": "reachplacer1",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer1 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1775053640,
+                            1777352208,
+                            -1302204685,
+                            -1110486508
+                          ],
+                          "name": "reachplacer1"
+                        },
+                        "insertion": "reachplacer1"
+                      },
+                      {
+                        "translate": "chat.square_brackets",
+                        "with": [
+                          {
+                            "text": "",
+                            "extra": [
+                              {
+                                "translate": "block.minecraft.dirt"
+                              }
+                            ]
+                          }
+                        ],
+                        "color": "white",
+                        "hover_event": {
+                          "action": "show_item",
+                          "id": "minecraft:dirt"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer1",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.setblock.success",
+                    "with": [
+                      0,
+                      -59,
+                      6
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer1",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachplacer1",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer1 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1775053640,
+                            1777352208,
+                            -1302204685,
+                            -1110486508
+                          ],
+                          "name": "reachplacer1"
+                        },
+                        "insertion": "reachplacer1"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.600000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "sync_survival_5_4",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "position_survival_5_4",
+      "observed": {
+        "console": {
+          "output": [
+            "reachplacer1 has the following entity data: [0.5d, -60.0d, 0.6d]",
+            "The value of attribute Block Interaction Range for entity reachplacer1 is 4.5"
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "place_survival_5_4",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "read_survival_5_4",
+      "observed": {
+        "console": {
+          "output": [
+            "Test passed"
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "leave_survival_5_4",
+      "observed": "left",
+      "swings": []
+    },
+    {
+      "id": "join_survival_5_5",
+      "observed": "joined",
+      "swings": []
+    },
+    {
+      "id": "setup_survival_5_5",
+      "observed": {
+        "console": {
+          "output": [
+            "No items were found on player reachplacer2",
+            "Replaced 1 slot(s) on reachplacer2 with [Dirt]",
+            "Could not set the block",
+            "Changed the block at 0, -58, 6",
+            "Teleported reachplacer2 to 0.500000, -60.000000, 0.500000"
+          ],
+          "chat": [
+            {
+              "client": "reachplacer2",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.item.entity.replace.success.single.known_item",
+                    "with": [
+                      1,
+                      {
+                        "text": "reachplacer2",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer2 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1442826317,
+                            1778398644,
+                            -1890461232,
+                            557273797
+                          ],
+                          "name": "reachplacer2"
+                        },
+                        "insertion": "reachplacer2"
+                      },
+                      {
+                        "translate": "chat.square_brackets",
+                        "with": [
+                          {
+                            "text": "",
+                            "extra": [
+                              {
+                                "translate": "block.minecraft.dirt"
+                              }
+                            ]
+                          }
+                        ],
+                        "color": "white",
+                        "hover_event": {
+                          "action": "show_item",
+                          "id": "minecraft:dirt"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer2",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.setblock.success",
+                    "with": [
+                      0,
+                      -58,
+                      6
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer2",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachplacer2",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer2 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            1442826317,
+                            1778398644,
+                            -1890461232,
+                            557273797
+                          ],
+                          "name": "reachplacer2"
+                        },
+                        "insertion": "reachplacer2"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.500000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "sync_survival_5_5",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "position_survival_5_5",
+      "observed": {
+        "console": {
+          "output": [
+            "reachplacer2 has the following entity data: [0.5d, -60.0d, 0.5d]",
+            "The value of attribute Block Interaction Range for entity reachplacer2 is 4.5"
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "place_survival_5_5",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "read_survival_5_5",
+      "observed": {
+        "console": {
+          "output": [
+            "Test failed"
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "leave_survival_5_5",
+      "observed": "left",
+      "swings": []
+    },
+    {
+      "id": "join_survival_5_6",
+      "observed": "joined",
+      "swings": []
+    },
+    {
+      "id": "setup_survival_5_6",
+      "observed": {
+        "console": {
+          "output": [
+            "No items were found on player reachplacer3",
+            "Replaced 1 slot(s) on reachplacer3 with [Dirt]",
+            "Could not set the block",
+            "Could not set the block",
+            "Teleported reachplacer3 to 0.500000, -60.000000, 0.400000"
+          ],
+          "chat": [
+            {
+              "client": "reachplacer3",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.item.entity.replace.success.single.known_item",
+                    "with": [
+                      1,
+                      {
+                        "text": "reachplacer3",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer3 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            424687180,
+                            1392326596,
+                            -1488320263,
+                            -899288969
+                          ],
+                          "name": "reachplacer3"
+                        },
+                        "insertion": "reachplacer3"
+                      },
+                      {
+                        "translate": "chat.square_brackets",
+                        "with": [
+                          {
+                            "text": "",
+                            "extra": [
+                              {
+                                "translate": "block.minecraft.dirt"
+                              }
+                            ]
+                          }
+                        ],
+                        "color": "white",
+                        "hover_event": {
+                          "action": "show_item",
+                          "id": "minecraft:dirt"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer3",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachplacer3",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer3 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            424687180,
+                            1392326596,
+                            -1488320263,
+                            -899288969
+                          ],
+                          "name": "reachplacer3"
+                        },
+                        "insertion": "reachplacer3"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.400000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "sync_survival_5_6",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "position_survival_5_6",
+      "observed": {
+        "console": {
+          "output": [
+            "reachplacer3 has the following entity data: [0.5d, -60.0d, 0.4d]",
+            "The value of attribute Block Interaction Range for entity reachplacer3 is 4.5"
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "place_survival_5_6",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "read_survival_5_6",
+      "observed": {
+        "console": {
+          "output": [
+            "Test failed"
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "leave_survival_5_6",
+      "observed": "left",
+      "swings": []
+    },
+    {
+      "id": "join_creative_5_9",
+      "observed": "joined",
+      "swings": []
+    },
+    {
+      "id": "setup_creative_5_9",
+      "observed": {
+        "console": {
+          "output": [
+            "Set reachplacer4's game mode to Creative Mode",
+            "No items were found on player reachplacer4",
+            "Replaced 1 slot(s) on reachplacer4 with [Dirt]",
+            "Could not set the block",
+            "Could not set the block",
+            "Teleported reachplacer4 to 0.500000, -60.000000, 0.100000"
+          ],
+          "chat": [
+            {
+              "client": "reachplacer4",
+              "text": {
+                "translate": "gameMode.changed",
+                "with": [
+                  {
+                    "translate": "gameMode.creative"
+                  }
+                ]
+              }
+            },
+            {
+              "client": "reachplacer4",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamemode.success.other",
+                    "with": [
+                      {
+                        "text": "reachplacer4",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer4 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            817826879,
+                            1028734882,
+                            -1530147671,
+                            -272718951
+                          ],
+                          "name": "reachplacer4"
+                        },
+                        "insertion": "reachplacer4"
+                      },
+                      {
+                        "translate": "gameMode.creative"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer4",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.item.entity.replace.success.single.known_item",
+                    "with": [
+                      1,
+                      {
+                        "text": "reachplacer4",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer4 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            817826879,
+                            1028734882,
+                            -1530147671,
+                            -272718951
+                          ],
+                          "name": "reachplacer4"
+                        },
+                        "insertion": "reachplacer4"
+                      },
+                      {
+                        "translate": "chat.square_brackets",
+                        "with": [
+                          {
+                            "text": "",
+                            "extra": [
+                              {
+                                "translate": "block.minecraft.dirt"
+                              }
+                            ]
+                          }
+                        ],
+                        "color": "white",
+                        "hover_event": {
+                          "action": "show_item",
+                          "id": "minecraft:dirt"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer4",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachplacer4",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer4 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            817826879,
+                            1028734882,
+                            -1530147671,
+                            -272718951
+                          ],
+                          "name": "reachplacer4"
+                        },
+                        "insertion": "reachplacer4"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.100000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "sync_creative_5_9",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "position_creative_5_9",
+      "observed": {
+        "console": {
+          "output": [
+            "reachplacer4 has the following entity data: [0.5d, -60.0d, 0.1d]",
+            "The value of attribute Block Interaction Range for entity reachplacer4 is 5.0"
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "place_creative_5_9",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "read_creative_5_9",
+      "observed": {
+        "console": {
+          "output": [
+            "Test passed"
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "leave_creative_5_9",
+      "observed": "left",
+      "swings": []
+    },
+    {
+      "id": "join_creative_6_0",
+      "observed": "joined",
+      "swings": []
+    },
+    {
+      "id": "setup_creative_6_0",
+      "observed": {
+        "console": {
+          "output": [
+            "Set reachplacer5's game mode to Creative Mode",
+            "No items were found on player reachplacer5",
+            "Replaced 1 slot(s) on reachplacer5 with [Dirt]",
+            "Could not set the block",
+            "Changed the block at 0, -58, 6",
+            "Teleported reachplacer5 to 0.500000, -60.000000, 0.000000"
+          ],
+          "chat": [
+            {
+              "client": "reachplacer5",
+              "text": {
+                "translate": "gameMode.changed",
+                "with": [
+                  {
+                    "translate": "gameMode.creative"
+                  }
+                ]
+              }
+            },
+            {
+              "client": "reachplacer5",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamemode.success.other",
+                    "with": [
+                      {
+                        "text": "reachplacer5",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer5 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            64577063,
+                            1457404564,
+                            -1249480627,
+                            1228481393
+                          ],
+                          "name": "reachplacer5"
+                        },
+                        "insertion": "reachplacer5"
+                      },
+                      {
+                        "translate": "gameMode.creative"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer5",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.item.entity.replace.success.single.known_item",
+                    "with": [
+                      1,
+                      {
+                        "text": "reachplacer5",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer5 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            64577063,
+                            1457404564,
+                            -1249480627,
+                            1228481393
+                          ],
+                          "name": "reachplacer5"
+                        },
+                        "insertion": "reachplacer5"
+                      },
+                      {
+                        "translate": "chat.square_brackets",
+                        "with": [
+                          {
+                            "text": "",
+                            "extra": [
+                              {
+                                "translate": "block.minecraft.dirt"
+                              }
+                            ]
+                          }
+                        ],
+                        "color": "white",
+                        "hover_event": {
+                          "action": "show_item",
+                          "id": "minecraft:dirt"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer5",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.setblock.success",
+                    "with": [
+                      0,
+                      -58,
+                      6
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachplacer5",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachplacer5",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachplacer5 "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            64577063,
+                            1457404564,
+                            -1249480627,
+                            1228481393
+                          ],
+                          "name": "reachplacer5"
+                        },
+                        "insertion": "reachplacer5"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.000000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "sync_creative_6_0",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "position_creative_6_0",
+      "observed": {
+        "console": {
+          "output": [
+            "reachplacer5 has the following entity data: [0.5d, -60.0d, 0.0d]",
+            "The value of attribute Block Interaction Range for entity reachplacer5 is 5.0"
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "place_creative_6_0",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "read_creative_6_0",
+      "observed": {
+        "console": {
+          "output": [
+            "Test failed"
+          ]
+        }
+      },
+      "swings": []
+    },
+    {
+      "id": "leave_creative_6_0",
+      "observed": "left",
+      "swings": []
+    }
+  ]
+}

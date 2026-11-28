@@ -19,6 +19,7 @@ use mcrs_minecraft_volume::{
     Access, BiomeVolume, BlockEntityVolume, BlockEntityVolumeMut, ColumnLayout, Denied,
     HeightVolume, Unavailable, Volume, VoxelStore, VoxelStoreMut,
 };
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placer::{
@@ -38,7 +39,6 @@ use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, carve_unsurfaced, modern_carving_mask,
 };
 use crate::multi_noise_biomes::PresetBiomeTables;
-use crate::saved::{SavedColumns, column_sections, saved_block_entities};
 use crate::staging::{
     ColumnDelta, FilledSnapshot, RegionSnapshots, TerrainHeightmaps, cell_index, rank,
     region_column, region_slot,
@@ -47,9 +47,9 @@ use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::place::{column_clip, place_structures};
 use crate::task::{CancellationToken, ColumnSource};
 use crate::{
-    BetaCaveBlockIds, ColumnBiomes, ColumnBlocks, SurfaceIds, SurfaceStates, apply_beta_carvers,
-    apply_beta_surface, apply_material_surface, beta_surface_rng, fill_column_dense_any,
-    spans_dimension,
+    BetaCaveBlockIds, ClimateBox, ColumnBiomes, ColumnBlocks, SurfaceIds, SurfaceStates,
+    apply_beta_carvers, apply_beta_surface, apply_material_surface, beta_surface_rng,
+    fill_column_dense_any, spans_dimension,
 };
 use mcrs_minecraft_heightmap::{
     ColumnHeightmapSet, HeightmapKinds, HeightmapPredicates, build_column_heightmaps,
@@ -57,29 +57,19 @@ use mcrs_minecraft_heightmap::{
 };
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
-/// Everything a column stage reads that is the same for every column of one
-/// dimension, built once when the dimension spawns. Every field is a handle,
-/// so a clone per dispatch is a refcount.
 #[derive(Clone)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct FillContext {
-    /// `None` for a flat dimension, which fills no density graph.
     pub router: Option<Arc<NoiseRouter>>,
-    /// `None` for a router compiled without material rules, whose columns get no surface.
     pub material: Option<Arc<MaterialProgram>>,
     pub blocks: Arc<BlockDefinitions>,
-    /// The section list every column of the dimension is generated over: a
-    /// delta names a cell by its index in it, so it is one list, not one per
-    /// dispatch.
     pub y_sections: Arc<[i32]>,
     pub biome: Option<Arc<BiomeSource>>,
-    pub predicates: Option<HeightmapPredicates>,
-    pub saved: Option<SavedColumns>,
+    pub predicates: HeightmapPredicates,
     pub program: ColumnProgram,
     pub structures: Option<Arc<StructureIndex>>,
 }
 
-/// What the fill and the run do to a column past the density fill.
 #[derive(Clone)]
 pub struct ColumnProgram {
     pub generator: ColumnGenerator,
@@ -88,8 +78,6 @@ pub struct ColumnProgram {
     pub features: Option<Arc<FeatureProgram>>,
 }
 
-/// Where Beta and the modern generator part, chosen by the dimension's biome
-/// source: the surface, and what a carved block becomes.
 #[derive(Clone)]
 pub enum ColumnGenerator {
     Beta(Arc<BetaCaveBlockIds>),
@@ -97,15 +85,12 @@ pub enum ColumnGenerator {
         surface: Option<(Arc<SurfaceIds>, SurfaceStates)>,
         carver_blocks: Arc<ModernCarverBlockIds>,
     },
-    /// Fixed layers, with no noise, surface, carver or feature.
     Flat(Arc<FlatLayers>),
 }
 
-/// What a dimension generates its columns from.
 pub enum GeneratorSetup {
     Noise {
         router: Arc<NoiseRouter>,
-        /// `None` for a router compiled without material rules, whose columns get no surface.
         material: Option<Arc<MaterialProgram>>,
     },
     Flat(Arc<FlatLayers>),
@@ -127,11 +112,12 @@ impl ColumnProgram {
 }
 
 impl FillContext {
-    /// One context for a dimension, with every table its stages read resolved
-    /// here and never again per column.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the router, material rules, blocks, sections and biome source of one dimension and each optional table its column stages are built from, every one its own input"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "each stage input is independent and optional"
+        )
     )]
     pub fn build(
         setup: GeneratorSetup,
@@ -139,8 +125,7 @@ impl FillContext {
         y_sections: Arc<[i32]>,
         biome: Option<Arc<BiomeSource>>,
         preset_tables: &PresetBiomeTables,
-        predicates: Option<HeightmapPredicates>,
-        saved: Option<SavedColumns>,
+        predicates: HeightmapPredicates,
         carver_biomes: Option<Arc<CarverBiomeTable>>,
         surface_ids: Arc<SurfaceIds>,
         fill_ids: &FillIds,
@@ -156,7 +141,6 @@ impl FillContext {
                         ColumnBiomes::None
                     });
                 return FillContext {
-                    saved,
                     router: None,
                     material: None,
                     blocks,
@@ -199,7 +183,7 @@ impl FillContext {
                 router.world_seed as i64,
                 Arc::clone(&router),
                 biome_lookup,
-                predicates.clone(),
+                Some(predicates.clone()),
                 features
                     .as_ref()
                     .map_or_else(Default::default, |program| Arc::clone(&program.world)),
@@ -237,7 +221,6 @@ impl FillContext {
             features,
         };
         FillContext {
-            saved,
             router: Some(router),
             material,
             blocks,
@@ -249,8 +232,6 @@ impl FillContext {
         }
     }
 
-    /// The vertical extent the column stages read: the router's, or the section list's for a
-    /// dimension with no router.
     pub fn height_context(&self) -> HeightContext {
         match self.router.as_deref() {
             Some(router) => extent(router),
@@ -276,16 +257,11 @@ impl FillContext {
         self.program.features.as_deref()
     }
 
-    /// How many rungs of run-and-merge the dimension's columns climb. A
-    /// dimension that decorates nothing climbs none and goes from filled
-    /// straight to delivered.
     pub fn rungs(&self) -> usize {
         self.features().map_or(0, |program| program.rungs().len())
     }
 }
 
-/// One dense buffer per worker, reused column after column: a fresh one costs an
-/// allocation the size of the whole column.
 fn with_column_buffer<T>(f: impl FnOnce(&mut ColumnBlocks) -> T) -> T {
     thread_local! {
         static COLUMN: RefCell<ColumnBlocks> = RefCell::new(ColumnBlocks::new(&[]));
@@ -301,8 +277,6 @@ pub fn extent(router: &NoiseRouter) -> HeightContext {
     }
 }
 
-/// The terrain descent, over the dense buffer the fill still holds: the two
-/// maps a placement modifier reads as `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG`.
 pub fn build_terrain_heightmaps(
     column: &ColumnBlocks,
     predicates: &HeightmapPredicates,
@@ -320,69 +294,24 @@ pub fn build_terrain_heightmaps(
 }
 
 fn terrain_maps(ctx: &FillContext, column: &ColumnBlocks) -> Option<TerrainHeightmaps> {
-    ctx.predicates.as_ref().and_then(|p| {
-        let _span = info_span!("world::column_terrain_maps").entered();
-        build_terrain_heightmaps(column, p)
-    })
+    let _span = info_span!("world::column_terrain_maps").entered();
+    build_terrain_heightmaps(column, &ctx.predicates)
 }
 
-/// `Filled`: the terrain of one column, its packed palettes and its maps.
-///
-/// A column the save already holds returns here whole, with the block entities
-/// it was saved with, and never runs its own program again; it is still a
-/// legitimate input to its neighbours' runs. `None` means the column was
-/// cancelled part-way.
 #[expect(
     clippy::too_many_lines,
-    reason = "loads a saved column or runs the column's stages in order, so the order its neighbours rely on reads in one place"
+    reason = "loads a saved column or runs the column's stages in order"
 )]
 pub fn fill_column(
     ctx: &FillContext,
     col: ColumnPos,
     column: &mut ColumnBlocks,
+    climate: Option<&ClimateBox>,
+    cells: &mut AquiferCells,
     cancel: &CancellationToken,
 ) -> Option<FilledSnapshot> {
     let _span = info_span!("world::column_load").entered();
     let y_sections = &ctx.y_sections;
-
-    let loaded = ctx.saved.as_ref().and_then(|saved| {
-        let chunk = {
-            let _read = info_span!("world::column_read_saved").entered();
-            saved.read(col, &ctx.blocks)?
-        };
-        let _decode = info_span!("world::column_decode_saved").entered();
-        match saved_block_entities(&chunk) {
-            Ok(entities) => Some((column_sections(chunk.sections, y_sections), entities)),
-            Err(err) => {
-                error!(%err, x = col.x, z = col.z, "decoding a saved column");
-                None
-            }
-        }
-    });
-
-    if let Some((sections, block_entities)) = loaded {
-        let maps = ctx
-            .predicates
-            .as_ref()
-            .and_then(|p| build_column_heightmaps(&sections, y_sections, p));
-        // A save holds no terrain maps, so the maps it arrives with stand in
-        // for the pair.
-        let terrain = maps.as_ref().map(|maps| TerrainHeightmaps {
-            surface: maps.surface.0.clone(),
-            solid: maps.solid.0.clone(),
-        });
-        return Some(FilledSnapshot {
-            col,
-            y_sections: y_sections.clone(),
-            sections,
-            terrain,
-            maps,
-            source: ColumnSource::Saved,
-            block_entities,
-            entities: Vec::new(),
-            ticks: Vec::new(),
-        });
-    }
 
     if let ColumnGenerator::Flat(layers) = &ctx.program.generator {
         return Some(flat_column(ctx, col, column, layers));
@@ -408,14 +337,14 @@ pub fn fill_column(
             col.z,
             y_sections,
             router,
+            cells,
             &ctx.program.biomes,
+            climate,
             beard.as_ref(),
             cancel,
         )?
     };
 
-    // The carvers draw against the dimension, not against the slice of
-    // sections a dispatch happens to carry.
     let height = extent(router);
     let world_seed = router.world_seed as i64;
     let mut ws = Workspace::new();
@@ -491,9 +420,6 @@ pub fn fill_column(
         ColumnGenerator::Flat(_) => return None,
     }
 
-    // The reference keeps the two `_WG` maps live through the carvers and
-    // freezes them only when the terrain step ends, so a cave that opens the
-    // surface lowers them.
     let terrain = terrain_maps(ctx, column);
 
     Some(pack(ctx, col, column, &filled.biomes, terrain))
@@ -527,10 +453,7 @@ fn pack(
     terrain: Option<TerrainHeightmaps>,
 ) -> FilledSnapshot {
     let sections = column.into_sections(biomes);
-    let maps = ctx
-        .predicates
-        .as_ref()
-        .and_then(|p| build_column_heightmaps(&sections, &ctx.y_sections, p));
+    let maps = build_column_heightmaps(&sections, &ctx.y_sections, &ctx.predicates);
     FilledSnapshot {
         col,
         y_sections: ctx.y_sections.clone(),
@@ -544,12 +467,6 @@ fn pack(
     }
 }
 
-/// The 3×3 one unit's program reads and writes.
-///
-/// Reads answer, in order: the unit's own earlier write, then the filled block
-/// of the snapshot that holds the position, then — outside the 3×3 — air. Writes
-/// go to the dense centre buffer or to the target column's delta; a write past
-/// the 3×3 is a data error and is dropped.
 pub struct ColumnRegion<'a> {
     center: ColumnPos,
     layout: ColumnLayout,
@@ -560,18 +477,12 @@ pub struct ColumnRegion<'a> {
     maps: Option<ColumnHeightmapSet>,
     own: Vec<(u32, VoxelId)>,
     ring: [FxHashMap<u32, VoxelId>; 9],
-    /// What the generators asked the world to remember about a block they
-    /// wrote; they travel with the writes, in the delta of the column that
-    /// holds them.
     block_entities: Vec<GeneratedBlockEntity>,
-    /// What the generators spawned, routed the same way by position.
     entities: Vec<GeneratedEntity>,
-    /// The ticks the generators asked for, routed the same way by position.
     ticks: Vec<PendingTick<GenerationKinds>>,
 }
 
 impl<'a> ColumnRegion<'a> {
-    /// `blocks` must already hold the centre snapshot unpacked.
     pub fn new(
         snapshots: &'a RegionSnapshots,
         blocks: &'a ColumnBlocks,
@@ -614,8 +525,6 @@ impl<'a> ColumnRegion<'a> {
         ))
     }
 
-    /// The live centre map, or the ring column's frozen one; the two terrain
-    /// maps are frozen for every column of the region.
     pub fn map_height(&self, kind: HeightmapName, x: i32, z: i32) -> Option<i32> {
         let (slot, lx, lz) = self.locate(BlockPos::new(x, 0, z))?;
         let snapshot = &self.snapshots[slot];
@@ -637,7 +546,6 @@ impl<'a> ColumnRegion<'a> {
         Some(heights.get(lx, lz))
     }
 
-    /// The stored biome of the block, with the height clamped to the column.
     fn stored_biome(&self, p: BlockPos) -> Result<u16, Unavailable> {
         let slot = region_slot(
             self.center,
@@ -659,8 +567,6 @@ impl<'a> ColumnRegion<'a> {
         Ok(u16::from(biome))
     }
 
-    /// One delta per column this unit wrote into, its own included: the merge of
-    /// each target applies them in ascending rank, last write standing.
     pub fn finish(self) -> Vec<(ColumnPos, ColumnDelta)> {
         let source_rank = rank(self.center);
         let mut writes: [Vec<(u32, VoxelId)>; 9] = self.ring.map(|w| w.into_iter().collect());
@@ -758,7 +664,6 @@ impl Volume for ColumnRegion<'_> {
     }
 }
 
-/// What the snapshot held in a cell before this unit wrote it.
 fn filled_voxel(snapshot: &FilledSnapshot, section: usize, local: LocalPos) -> VoxelId {
     snapshot.sections[section]
         .as_ref()
@@ -819,7 +724,8 @@ impl VoxelStoreMut for ColumnRegion<'_> {
             .unwrap_or_default();
         self.blocks.set(lx as i32, p.y, lz as i32, state);
         self.own.push((cell, state));
-        if let (Some(predicates), Some(maps)) = (&self.ctx.predicates, self.maps.as_mut()) {
+        if let Some(maps) = self.maps.as_mut() {
+            let predicates = &self.ctx.predicates;
             let kinds = predicates.get(state);
             let read = |at: i32| {
                 self.blocks
@@ -850,7 +756,6 @@ impl BiomeVolume for ColumnRegion<'_> {
 impl BlockEntityVolume for ColumnRegion<'_> {
     type BlockEntity = GeneratedBlockEntity;
 
-    /// The unit's own write, then the one the snapshot of the column holds.
     fn block_entity(&self, at: BlockPos) -> Result<Option<&GeneratedBlockEntity>, Unavailable> {
         self.access(SectionPos::from(at)).check_read()?;
         if let Some(own) = self
@@ -880,7 +785,6 @@ impl BlockEntityVolumeMut for ColumnRegion<'_> {
         Ok(set_held(&mut self.block_entities, at, entity))
     }
 
-    /// The unit's own write only, like a removal.
     fn block_entity_mut(
         &mut self,
         at: BlockPos,
@@ -903,9 +807,6 @@ impl ScheduleTicks<GenerationKinds> for ColumnRegion<'_> {
 }
 
 impl WorldGenVolume for ColumnRegion<'_> {
-    /// Only a generator asks, and a dimension without a program runs none; a
-    /// default here would answer every state question with the empty set and
-    /// place blocks that belong nowhere.
     fn world(&self) -> &WorldStates {
         &self
             .ctx
@@ -937,8 +838,6 @@ impl WorldGenVolume for ColumnRegion<'_> {
     }
 }
 
-/// `Run`: the steps of one rung of a column's own program against its 3×3
-/// region, which holds every earlier rung of all nine columns already merged.
 pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
     let col = region.center();
     let Some(program) = ctx.features() else {
@@ -948,9 +847,6 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
         return;
     };
 
-    // The region's biomes are the distinct palette entries of all nine
-    // snapshots, and a biome the source cannot answer with has no slot, which
-    // is the reference's intersection with `possibleBiomes`.
     let mut slots: Vec<usize> = Vec::new();
     for snapshot in region.snapshots {
         for section in snapshot.sections.iter().flatten() {
@@ -991,16 +887,17 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
             decorate(
                 &present,
                 step..step + 1,
-                &|step, index| program.chain(step, index),
-                &|biome, step, index| program.carries(biome, step, index),
+                |step, index| program.chain(step, index),
+                |biome, step, index| program.carries(biome, step, index),
                 region,
                 scratch,
                 origin,
                 seed,
-                &mut |(step, index), region, rng, at, carries| match program
-                    .generator_at(step, index)
-                {
-                    Some(generator) => generator.place(&mut run, region, rng, at, carries),
+                |(step, index), region, rng, at| match program.generator_at(step, index) {
+                    Some(generator) => {
+                        let carries = |biome: u16| program.carries(biome, step, index);
+                        generator.place(&mut run, region, rng, at, &carries)
+                    }
                     None => false,
                 },
             );
@@ -1009,7 +906,6 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
     });
 }
 
-/// `setDecorationSeed`: the unit seed every object of one column is offset from.
 pub(crate) fn decoration_seed(world_seed: i64, origin_x: i32, origin_z: i32) -> i64 {
     let mut rng = WorldgenRandom::new(world_seed as u64);
     let a = rng.next_java_long() | 1;
@@ -1020,14 +916,10 @@ pub(crate) fn decoration_seed(world_seed: i64, origin_x: i32, origin_z: i32) -> 
         ^ world_seed
 }
 
-/// `Merged`: the column's own writes and the eight incoming deltas, applied in
-/// the order given — ascending rank, as the store hands them out — then the
-/// four maps rebuilt because a neighbour's write can raise them, and the block
-/// entities settled against the blocks that stand.
 pub fn merge_column(
     snapshot: &FilledSnapshot,
     deltas: &[Arc<ColumnDelta>],
-    predicates: Option<&HeightmapPredicates>,
+    predicates: &HeightmapPredicates,
     has_block_entity: Option<&StateMask>,
 ) -> FilledSnapshot {
     let _span = info_span!("world::column_merge").entered();
@@ -1035,9 +927,6 @@ pub fn merge_column(
         col: snapshot.col,
         y_sections: snapshot.y_sections.clone(),
         sections: snapshot.sections.clone(),
-        // The two `_WG` maps are the terrain's, and the reference stops
-        // updating them once the terrain step is done; a rung reads them, so
-        // they travel with the column rather than being dropped at the merge.
         terrain: snapshot.terrain.clone(),
         maps: snapshot.maps.clone(),
         source: snapshot.source,
@@ -1067,8 +956,7 @@ pub fn merge_column(
                 );
             }
         }
-        merged.maps = predicates
-            .and_then(|p| build_column_heightmaps(&merged.sections, &merged.y_sections, p));
+        merged.maps = build_column_heightmaps(&merged.sections, &merged.y_sections, predicates);
     }
     merged.block_entities = settle_block_entities(
         snapshot
@@ -1087,9 +975,6 @@ pub fn merge_column(
     merged
 }
 
-/// `WorldGenRegion.setBlock` drops the block entity at a position whenever the
-/// new state has none, so the entity that stands is the last one written on a
-/// block that can still hold it.
 fn settle_block_entities<'a>(
     entities: impl Iterator<Item = &'a GeneratedBlockEntity>,
     merged: &FilledSnapshot,
@@ -1118,16 +1003,30 @@ fn settle_block_entities<'a>(
     settled
 }
 
-/// [`fill_column`] over the worker's own reused buffer.
+pub fn fill_group_climate<I>(ctx: &FillContext, columns: I) -> Option<ClimateBox>
+where
+    I: IntoIterator<Item = ColumnPos>,
+    I::IntoIter: Clone,
+{
+    let ColumnBiomes::MultiNoise(table) = &ctx.program.biomes else {
+        return None;
+    };
+    if let ColumnGenerator::Flat(_) = ctx.program.generator {
+        return None;
+    }
+    ClimateBox::sample(ctx.router.as_deref()?, table, columns, &ctx.y_sections)
+}
+
 pub fn fill_pooled(
     ctx: &FillContext,
     col: ColumnPos,
+    climate: Option<&ClimateBox>,
+    cells: &mut AquiferCells,
     cancel: &CancellationToken,
 ) -> Option<FilledSnapshot> {
-    with_column_buffer(|column| fill_column(ctx, col, column, cancel))
+    with_column_buffer(|column| fill_column(ctx, col, column, climate, cells, cancel))
 }
 
-/// Unpack the centre snapshot into a worker's dense buffer and run one rung.
 pub fn run_region(
     ctx: &FillContext,
     snapshots: &RegionSnapshots,
@@ -1144,18 +1043,11 @@ pub fn run_region(
     })
 }
 
-/// The section list of a flat dimension: exactly the sections of its dimension type.
 pub fn flat_y_sections(min_y: i32, section_count: u32) -> Arc<[i32]> {
     let bottom = min_y >> SectionPos::BITS;
     (bottom..bottom + section_count as i32).collect()
 }
 
-/// The section list every column of one dimension is generated over.
-///
-/// One list for the whole dimension, not one per dispatch: a delta names a cell
-/// by its index in this list, so two columns that disagreed on it would write
-/// past each other, and the three stages of one column would not line up
-/// section for section.
 pub fn dimension_y_sections(router: &NoiseRouter, min_y: i32, section_count: u32) -> Arc<[i32]> {
     let config_bottom = min_y >> SectionPos::BITS;
     let noise_bottom = router.noise.min_y >> SectionPos::BITS;
@@ -1183,7 +1075,12 @@ mod tests {
     use super::*;
 
     use crate::staging::StagingStore;
-    use crate::tests::{bare_fill_context, build_beta_router};
+    use crate::tests::{bare_fill_context, block_tags, blocks, build_beta_router};
+    use mcrs_minecraft_heightmap::heightmap_predicates;
+
+    fn predicates() -> HeightmapPredicates {
+        heightmap_predicates(blocks(), block_tags())
+    }
 
     fn flat_snapshot(col: ColumnPos, y_sections: &Arc<[i32]>, fill: VoxelId) -> FilledSnapshot {
         crate::tests::flat_snapshot(col, y_sections, |_| Some(fill), None)
@@ -1193,8 +1090,6 @@ mod tests {
         crate::tests::region_of(center, |col| flat_snapshot(col, y_sections, fill))
     }
 
-    /// Pinned to the stream seeds `structure_geometry.bin` carries for world
-    /// seed 0x5EED, step 4, index 19.
     #[test]
     fn the_decoration_seed_is_the_reference_chain() {
         for (chunk_x, chunk_z, stream_seed) in [
@@ -1294,7 +1189,7 @@ mod tests {
                 entities: of(west).entities.clone(),
                 ticks: Vec::new(),
             })],
-            None,
+            &predicates(),
             None,
         );
         assert_eq!(merged.entities, vec![neighbour]);
@@ -1307,8 +1202,6 @@ mod tests {
         let snapshot = flat_snapshot(col, &y_sections, VoxelId(1));
         let cell = cell_index(0, LocalPos::new(5, 6, 7));
         let mut store = StagingStore::default();
-        // Ranks 7, 2 and 5 of the 3×3 around the origin, pushed in an order
-        // that is neither their rank nor their position.
         for source in [
             ColumnPos::new(-1, 1),
             ColumnPos::new(0, -1),
@@ -1328,7 +1221,7 @@ mod tests {
                 },
             );
         }
-        let merged = merge_column(&snapshot, &store.deltas(col, 0), None, None);
+        let merged = merge_column(&snapshot, &store.deltas(col, 0), &predicates(), None);
         let (palette, _) = merged.sections[0].as_ref().expect("the section survives");
         assert_eq!(
             palette.0.get(5, 6, 7),
@@ -1342,8 +1235,6 @@ mod tests {
         );
     }
 
-    /// A saved column merges against no deltas at all, so anything the save
-    /// held has only the snapshot to arrive in.
     #[test]
     fn a_merge_carries_the_block_entities_the_snapshot_arrived_with() {
         let y_sections: Arc<[i32]> = Arc::from(vec![0i32]);
@@ -1357,7 +1248,7 @@ mod tests {
             bees: Vec::new(),
         }];
 
-        let merged = merge_column(&snapshot, &[], None, None);
+        let merged = merge_column(&snapshot, &[], &predicates(), None);
         assert_eq!(
             merged.block_entities, snapshot.block_entities,
             "a saved column's block entities reach its delivery"
@@ -1374,7 +1265,7 @@ mod tests {
             entities: Vec::new(),
             ticks: Vec::new(),
         });
-        let merged = merge_column(&snapshot, std::slice::from_ref(&delta), None, None);
+        let merged = merge_column(&snapshot, std::slice::from_ref(&delta), &predicates(), None);
         assert_eq!(
             merged.block_entities.len(),
             2,
@@ -1385,17 +1276,13 @@ mod tests {
     mod exhaustive {
         use super::*;
 
-        /// A cave that opens the surface lowers `WORLD_SURFACE_WG`: the reference
-        /// keeps the pair live through the carvers, so at the fill the terrain
-        /// maps and the final maps are one descent over the same blocks.
         #[test]
         #[expect(
             clippy::excessive_nesting,
-            reason = "compares the terrain maps and the final maps of each column of the chunk with a loop per axis, so a mismatch names its cell"
+            reason = "loop per axis so a mismatch names its cell"
         )]
         fn the_terrain_maps_are_taken_after_the_carvers() {
-            use crate::tests::{beta_carver_table, block_tags, blocks};
-            use mcrs_minecraft_heightmap::heightmap_predicates;
+            use crate::tests::beta_carver_table;
 
             let router = Arc::new(build_beta_router());
             let (source, _) = crate::tests::beta_surface::build_beta_biome_source();
@@ -1404,8 +1291,7 @@ mod tests {
                 y_sections: dimension_y_sections(&router, -64, 24),
                 blocks: blocks().0.clone(),
                 biome: Some(Arc::clone(&source)),
-                predicates: Some(heightmap_predicates(blocks(), block_tags())),
-                saved: None,
+                predicates: heightmap_predicates(blocks(), block_tags()),
                 program: ColumnProgram {
                     generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(
                         &blocks().0,
@@ -1423,12 +1309,16 @@ mod tests {
 
             let cancel = CancellationToken::new();
             let mut buffer = ColumnBlocks::new(&carved.y_sections);
+            let mut cells = AquiferCells::default();
             let mut opened = 0;
             for x in -5..=5 {
                 for z in -5..=5 {
                     let col = ColumnPos::new(x, z);
-                    let after = fill_column(&carved, col, &mut buffer, &cancel).unwrap();
-                    let before = fill_column(&uncarved, col, &mut buffer, &cancel).unwrap();
+                    let after =
+                        fill_column(&carved, col, &mut buffer, None, &mut cells, &cancel).unwrap();
+                    let before =
+                        fill_column(&uncarved, col, &mut buffer, None, &mut cells, &cancel)
+                            .unwrap();
                     let (terrain, maps) = (after.terrain.unwrap(), after.maps.unwrap());
                     let before = before.terrain.unwrap();
                     for lx in 0..16 {
@@ -1480,7 +1370,7 @@ mod tests {
         let merged = merge_column(
             &snapshot,
             std::slice::from_ref(&placed),
-            None,
+            &predicates(),
             Some(&has_block_entity),
         );
         assert_eq!(merged.block_entities, vec![entity(1)], "the chest stands");
@@ -1495,7 +1385,7 @@ mod tests {
         let merged = merge_column(
             &snapshot,
             &[Arc::clone(&placed), replaced],
-            None,
+            &predicates(),
             Some(&has_block_entity),
         );
         assert_eq!(
@@ -1511,7 +1401,12 @@ mod tests {
             entities: Vec::new(),
             ticks: Vec::new(),
         });
-        let merged = merge_column(&snapshot, &[placed, buried], None, Some(&has_block_entity));
+        let merged = merge_column(
+            &snapshot,
+            &[placed, buried],
+            &predicates(),
+            Some(&has_block_entity),
+        );
         assert!(
             merged.block_entities.is_empty(),
             "a block without an entity buries the one written before it"

@@ -1,0 +1,111 @@
+---
+title: Client variables
+description: The variables and options the client reads, and the knobs that only change measurements.
+sidebar:
+  order: 3
+kind: reference
+audience: [player, contributor, rust]
+stability: changing
+tracking: [1033]
+sources:
+  - crates/mcrs_minecraft_client/src/config.rs
+  - crates/mcrs_minecraft_client/src/dev/knobs.rs
+  - crates/mcrs_minecraft_client/src/native.rs
+  - crates/mcrs_minecraft_client/src/game_directory.rs
+  - crates/mcrs_minecraft_client_options/src/client_options.rs
+  - crates/mcrs_minecraft_client/src/web.rs
+  - crates/mcrs_minecraft_client/src/lib.rs
+  - crates/mcrs_minecraft_client/src/options.rs
+  - crates/mcrs_minecraft_client/src/local_server.rs
+  - crates/mcrs_minecraft_render/src/arenas.rs
+  - crates/mcrs_minecraft_client_gui/src/debug_screen.rs
+  - crates/mcrs_minecraft_client/src/screenshot.rs
+  - crates/mcrs_minecraft_client/src/scene_capture.rs
+  - crates/mcrs_minecraft_client/src/dev/mod.rs
+  - crates/mcrs_minecraft_client/src/dev/light_guard.rs
+  - crates/mcrs_minecraft_client/src/dev/chunk_guard.rs
+  - crates/mcrs_minecraft_client/Cargo.toml
+  - crates/mcrs_minecraft_client_world/src/registries.rs
+  - pr:1057
+  - crates/mcrs_minecraft_client/src/dev/join_menu.rs
+  - crates/mcrs_minecraft_client/src/dev/play_world.rs
+  - crates/mcrs_minecraft_client_gui/src/creative_tab_content.rs
+  - issue:1033
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 9eac02a81
+  date: 2026-11-23
+---
+import Status from '~/components/Status.astro';
+
+This page lists the client's `MCRS_*` variables and options, plus the knobs that only change measurements. The variables of the server and the tests are on [Environment variables](/docs/en/reference/env-vars/).
+
+## Client
+
+The native binary collects `MCRS_*` variables and removes the prefix. If a name appears twice, the first value counts. The browser build reads supported settings from lower-case query parameters, for example `?time=6000`, and ignores empty values. Native file, window and integrated-server settings do not configure the browser. The entry points are `crates/mcrs_minecraft_client/src/native.rs` and `web.rs`.
+
+Parsing depends on the setting. Invalid values for validated settings such as `VIEW`, `OPTIONS` or `RESOLUTION` stop the native client with a message on stderr. On/off settings accept lower-case `on`, `1`, `true`, `yes`, `off`, `0`, `false` and `no`; an invalid spelling logs a message and keeps the default. Numeric budgets such as `ASYNC`, `MESH`, `MESH_FLIGHT` and `UPLOAD` fall back to their defaults when parsing fails. A bad `STATS` or `CENSUS` interval becomes one second.
+
+A native client built with `singleplayer` has an integrated server. It applies `MCRS_WORLD_SEED`, `MCRS_WORLD_PRESET` and `MCRS_DEFAULT_GAMEMODE` from the [server settings](/docs/en/reference/env-vars/#server); the other server variables are not applied by this entry point. `MCRS_OPEN_TO_LAN` controls its bind address, and the operating system chooses its port.
+
+| Variable | Default | What it does | File |
+|---|---|---|---|
+| `MCRS_SERVER` | none | Native: `host:port` of a server to join. Without it, a singleplayer build opens the title screen and hosts its own server for the world you pick. Web: `?server=` takes an HTTPS WebTransport URL together with `?cert=`; without both, the browser draws sky only. | `native.rs`, `web.rs` |
+| `MCRS_GAME_DIR` | the data folder of the platform | The game directory, which holds the worlds in `saves`, `options.json`, `command_history.txt` and the `ops.json` of the integrated server. Without the variable the client takes `~/Library/Application Support/mcrs` on macOS, `$XDG_DATA_HOME/mcrs` or `~/.local/share/mcrs` on Linux and `%APPDATA%\mcrs` on Windows. Without a game directory, automatic options and command-history paths are unavailable; `MCRS_OPTIONS` and `MCRS_HISTORY` can still supply explicit paths. | `game_directory.rs` |
+| `MCRS_USERNAME` | `Player` | Player name. | `config.rs` |
+| `MCRS_VIEW` | `96` | Render distance in columns, 2 to 96. Wins over the options file. | `config.rs` |
+| `MCRS_OPTIONS` | `options.json` in the game directory | Path to a JSON file with `fov`, `fov_effect_scale`, `smooth_light`, `clouds`, `brightness`, `view_distance`, `gui_scale`, `sensitivity`, `vsync`, `fullscreen`, `max_framerate`, `improved_transparency` and `operator_items_tab`. Unknown fields are an error. Without the variable, the client reads `options.json` in the game directory if it exists. The native client writes the options you change in the menus back to the file. | `options.rs` |
+| `MCRS_FULLSCREEN` | options file (off) | Take over a whole display. Wins over the options file. Ignored when `MCRS_RESOLUTION` is set. | `config.rs` |
+| `MCRS_OPEN_TO_LAN` | off | The integrated server listens on every interface and announces itself. There is no authentication, so anyone on the network can join under any name. | `config.rs` |
+| `MCRS_GUI_SCALE` | options file (`0`, auto) | Fixed GUI scale. Wins over the options file and the menu. | `config.rs` |
+| `MCRS_HISTORY` | `command_history.txt` in the game directory | File that keeps the command history. | `config.rs` |
+| `MCRS_VSYNC` | options file (off) | Vertical sync. Wins over the options file at startup. | `config.rs` |
+| `MCRS_OCCLUSION` | on | Depth pyramid occlusion test. `0` draws every group that passes the frustum and cave graph. | `config.rs` |
+| `MCRS_CAVE` | on | Cave graph culling. | `config.rs` |
+| `MCRS_CHUNK_MAP`, `MCRS_LIGHT_LEVELS` | off | Debug overlays. | `config.rs` |
+| `MCRS_ASYNC` | half the cores, at least 4 | Maximum threads of the native async compute pool (meshing, column decode, lighting). The browser entry point does not apply this setting. | `config.rs`, `native.rs` |
+| `MCRS_MESH`, `MCRS_MESH_FLIGHT` | 2048, 2048 (web: 32, 128) | Sections the mesher admits per frame, and how many jobs may be in flight. | `config.rs` |
+| `MCRS_UPLOAD` | `4` | Upload budget per frame, in MiB. | `config.rs` |
+| `MCRS_ARENA` | 192,640,512 (web: 32,208,80) | Base arena budgets in decimal MB for quads, models and faces, as `quads,models,faces`. The native entry point multiplies each budget by 4; the browser uses it as given. Buffers grow as needed. | `config.rs`, `native.rs`, `web.rs` |
+| `MCRS_CERT` | none | Certificate hash for a web client joining a server. Web build only. | `config.rs` |
+
+`operator_items_tab` defaults to `false`. Set it to `true` in the options file to allow the Operator Items tab when the player has operator permission. Controls has no button for this option yet.[^1033]
+
+## Measurement knobs
+
+Do not set the variables in this section for normal play. They change on purpose what the client draws or measures.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `MCRS_HOT` | off | Native, `dev` only. Keeps one CPU core spinning to prevent downclocking during measurements. |
+| `MCRS_GPU_HOT` | none | Burns that many GPU workgroups after the frame so the GPU stays at speed. |
+| `MCRS_STATS` | none | Seconds between F3 lines written to the log with the overlay hidden. |
+| `MCRS_PROBE` | auto | `0` disables GPU pass timestamps; `1` requests them every frame. Auto requests them for F3 or stats logging. Metal encoder timing disables pass timestamps. |
+| `MCRS_RESOLUTION` | none | Opens a window of exactly `<width>x<height>`. |
+| `MCRS_LATENCY` | none | Native, `dev` only. Positive swapchain frame-latency hint. |
+| `MCRS_MONITOR` | fastest display with `dev`, primary otherwise | Native, `dev` only. `primary` keeps the window on the primary display; other values select the display with the highest refresh rate. |
+| `MCRS_CENSUS` | none | `dev` only. Seconds between lines that count traced columns by stage. |
+| `MCRS_TRACY_PREVIEW` | off | Requires `dev` and `telemetry-tracy`. Streams frame images to Tracy at the cost of a readback per frame. |
+| `MCRS_CHUNK_GUARD`, `MCRS_LIGHT_GUARD` | off | Native, `dev` only. The chunk guard checks the player's column; the light guard checks sky-light differences between adjacent air cells in loaded columns with loaded neighbors. `warn` logs failures, `0` disables the check, and any other value panics on a failure. |
+| `MCRS_GPUTRACE` | none | macOS, `dev` only. Path for a GPU trace capture. |
+| `MCRS_RASTER` | none | `dev` only. Fraction above 0 and at most 1 for the raster pass. A bad value logs a message and is ignored. |
+| `MCRS_DRAWS` | all | `dev` only. Comma list of draw numbers to keep; invalid entries log a message and are skipped. |
+| `MCRS_SKY` | all | `dev` only. Comma list of sky passes to draw: `disc,twilight,celestial,stars,clouds`. |
+| `MCRS_FLY`, `MCRS_TURN` | none | Native, `dev` only. Scripted flight: the player flies forward at a sprint with this flying speed (the default ability is 0.05), and turns round once after `MCRS_TURN` seconds. |
+| `MCRS_TIME` | none | Pins every clock to a tick count. |
+| `MCRS_POS`, `MCRS_LOOK`, `MCRS_SCREEN`, `MCRS_CURSOR` | no override; `SCREEN=title` | Native capture settings: start position `x,y,z` in blocks, view `yaw,pitch` in degrees, a screen (`title`, `none`, `inventory`, `pause`, `options`, `video` or `accessibility`) and cursor `x,y` in GUI units. In the browser only `LOOK` is applied, and only to the sky-only view. |
+| `MCRS_MENU` | none | Native singleplayer build with `dev` only. Opens a sample container after joining: `generic_9x1` through `generic_9x6`, `generic_3x3` or `hopper`. |
+| `MCRS_PLAY` | off | Native singleplayer build with `dev` only. `1` starts the world folder given as the argument when it belongs to the game directory's `saves` list. |
+| `MCRS_CAPTURE` | none | Native only. Write one screenshot to a `.png` path after the scene settles and exit. |
+| `MCRS_SCREENSHOT_DIR` | `screenshots` | Native screenshot directory, relative to the working directory unless the path is absolute. |
+| `MCRS_SCENE_DIR`, `MCRS_SCENE_RECORD` | none | Native, `scene` only. Windowless scene capture directory, and a record of the vanilla client to take entities from. |
+
+The client reads these in `crates/mcrs_minecraft_client/src/config.rs`, `dev/knobs.rs` and `scene_capture.rs`. The default native build enables `singleplayer`. Build with `--features dev` for the `dev` variables.
+
+## Library configuration
+
+An application that hosts the client configures plugins through their public fields. `ClientRegistriesPlugin` from `mcrs_minecraft_client_world::registries` has `defer_definitions`, which defaults to `false` and loads block definitions synchronously. The native entry point sets it to `true` so its window can open while definitions load on a background task; the browser keeps the synchronous default. Packet delivery and terrain streaming wait for the definitions. This is a plugin field, with no environment variable or options-file key.[^1057]
+
+[^1057]: <Status pr={1057} state="works" /> Adds deferred loading of block definitions for the native client.
+
+[^1033]: <Status issue={1033} /> Tracks the Operator Items Tab button in Controls.

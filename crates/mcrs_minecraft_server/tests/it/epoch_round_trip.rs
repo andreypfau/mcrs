@@ -1,22 +1,6 @@
-//! A→B→A round-trip stale-epoch drop and current-epoch delivery.
-//!
-//! Simulates the hazard where a clientbound packet from a player's first visit
-//! to dimension A is still in transit when the player returns to A after
-//! visiting B (i.e., the A→B→A round trip).
-//!
-//! This is the filter half in isolation: it bumps the session epoch
-//! by mutating the session's placement directly so the test depends only on
-//! `bridge_outbound`. The WIRING half — that `bridge_player_transfer` actually
-//! performs the bump on each real dim change — is covered by
-//! `bridge_player_transfer_bumps_epoch_on_each_dim_change` in `world::bridge`.
-//!
-//! Assertions:
-//!   - epoch-0 packet (from the first A visit) is dropped after bump to epoch 1
-//!   - epoch-1 packet (from the return-to-A visit) is delivered
-
 use crate::mock_connection;
 
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
@@ -27,37 +11,25 @@ use mock_connection::{
     drain_queue, register_session, run_system, spawn_connection, write_packet_stamped,
 };
 
-/// Epoch-0 packets are dropped after the session epoch is bumped to 1, and
-/// epoch-1 packets are delivered. Models the A→B→A stale-drop invariant.
 #[test]
 fn epoch_round_trip() {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
 
-    // --- Connect a player: register session at epoch 0 (first Overworld visit) ---
     let session = PlayerSession(1);
     let socket = spawn_connection(&mut world);
     register_session(&mut world, session, socket, 0);
 
-    // --- Emit an epoch-0 packet (in-flight clientbound from the first A visit) ---
     write_packet_stamped(&mut world, session, 0, 1);
 
-    // --- Bump the session epoch to 1 (simulating Nether entry / dim B transition).
-    //
-    // bridge_player_transfer performs this bump in production on each real dim
-    // change (covered by bridge_player_transfer_bumps_epoch_on_each_dim_change).
-    // Here we mutate the placement directly to keep this test scoped to the
-    // bridge_outbound filter alone. ---
     let mut placements = world.query::<&mut SessionPlacement>();
     let mut placement = placements
         .single_mut(&mut world)
         .expect("session must be registered");
     *placement = SessionPlacement::new(placement.place(), 1);
 
-    // Run bridge_outbound: the epoch-0 packet is now stale (session.epoch == 1)
-    // and must be dropped by the strict-equality filter.
     run_system(&mut world, bridge_outbound);
 
     let queue = world
@@ -69,7 +41,6 @@ fn epoch_round_trip() {
         "epoch-0 packet must be dropped after session epoch bumped to 1 (A→B→A stale-drop)"
     );
 
-    // --- Emit an epoch-1 packet (clientbound from the return-to-A visit) ---
     write_packet_stamped(&mut world, session, 1, 2);
     run_system(&mut world, bridge_outbound);
 

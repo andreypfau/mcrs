@@ -120,7 +120,6 @@ impl Sample for CustomModelData {
     }
 }
 
-/// A linked set: the order is kept, a repeat is dropped.
 fn distinct(kinds: Vec<DataComponentType>) -> Vec<DataComponentType> {
     let mut seen = Vec::with_capacity(kinds.len());
     for kind in kinds {
@@ -131,8 +130,6 @@ fn distinct(kinds: Vec<DataComponentType>) -> Vec<DataComponentType> {
     seen
 }
 
-/// An unknown kind is worded as a registry lookup failure, unlike a patch's
-/// unknown key.
 fn distinct_kinds<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<DataComponentType>, D::Error> {
     Vec::<ResourceLocationBuf>::deserialize(d)?
         .iter()

@@ -1,8 +1,8 @@
 use crate::asset_reader_packs::AssetReaderPacks;
-use crate::item_definitions::load_item_definitions;
+use crate::item_definitions::load_items;
 use crate::loading_state::{check_registry_assets_ready, start_loading_data_pack};
 use crate::log_diagnostics::log_diagnostics;
-use crate::registry_snapshot::install_registries;
+use crate::registry_snapshot::{install_item_table, install_registries};
 use bevy_app::{App, AppExit, Plugin, PostStartup, Update};
 use bevy_asset::AssetServer;
 use bevy_ecs::prelude::*;
@@ -12,12 +12,9 @@ use mcrs_minecraft_assets::{AppState, LoadedRegistryAssets};
 use mcrs_minecraft_game_registries::registry_load::load_registries;
 use mcrs_minecraft_registries::NetworkSnapshot;
 
-/// What the configuration phase sends of the installed registries, encoded once per load.
 #[derive(Resource)]
 pub struct SyncedRegistries(pub NetworkSnapshot);
 
-/// Loads the registries, the block and item definitions and the block sound sets when the app
-/// finishes, and walks the app through loading the data pack to playing.
 pub struct RegistryLoadPlugin;
 
 impl Plugin for RegistryLoadPlugin {
@@ -41,7 +38,6 @@ impl Plugin for RegistryLoadPlugin {
     }
 }
 
-/// Loads the registries, the block and item definitions and the block sound sets into `world`.
 fn install(world: &mut World) -> Result<(), String> {
     let asset_server = world
         .get_resource::<AssetServer>()
@@ -89,8 +85,9 @@ fn install(world: &mut World) -> Result<(), String> {
         })
         .map_err(|key| format!("the block sound set {key} is not loaded"))?;
     let definitions = std::sync::Arc::new(definitions);
-    let items = load_item_definitions(&asset_server, &registries, &definitions)
-        .map_err(|error| error.to_string())?;
+    let loaded =
+        load_items(&asset_server, &registries, &definitions).map_err(|error| error.to_string())?;
+    let (items, item_table) = (loaded.definitions, loaded.table);
     tracing::info!(items = items.len(), "loaded item definitions");
     world.insert_resource(sound_sets);
     world.insert_resource(SyncedRegistries(synced));
@@ -100,10 +97,10 @@ fn install(world: &mut World) -> Result<(), String> {
         mcrs_minecraft_block::definition::Blocks(definitions),
         mcrs_minecraft_item::Items(std::sync::Arc::new(items)),
     );
+    install_item_table(world, item_table).map_err(|error| error.to_string())?;
     Ok(())
 }
 
-/// Enters `AppState::Playing`.
 pub fn transition_to_playing(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::Playing);
     tracing::info!("entering Playing state");

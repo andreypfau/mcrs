@@ -1,7 +1,3 @@
-//! Production-topology test verifying that the in-dim emitter routes the
-//! play-login packet through the bus to the host-resident connection without
-//! querying ServerSideConnection.
-
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -14,7 +10,7 @@ use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerTransferSnapshot,
+    OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::muxer::session::SessionBundle;
@@ -25,10 +21,6 @@ use mcrs_minecraft_engine_world::world::sub_app::{
 use mcrs_minecraft_protocol::uuid::Uuid;
 
 use crate::support;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 fn build_host_app() -> App {
     let mut app = App::new();
@@ -77,12 +69,6 @@ fn spawn_subapp(app: &mut App) -> Entity {
     handles[0]
 }
 
-// ---------------------------------------------------------------------------
-// play_login_targets_host_anchor
-// ---------------------------------------------------------------------------
-
-/// The PlayerLogin packet emitted by the in-dim system must target
-/// `PacketTarget::SinglePlayer(host_anchor)`, not the in-dim entity.
 #[test]
 fn play_login_targets_host_anchor() {
     let mut app = build_host_app();
@@ -102,6 +88,7 @@ fn play_login_targets_host_anchor() {
 
     {
         use mcrs_minecraft_engine::channel_types::ToDim;
+        use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
         let sent = app
             .world_mut()
             .resource_mut::<mcrs_minecraft_engine::muxer::dim_inputs::DimInputs>()
@@ -109,21 +96,19 @@ fn play_login_targets_host_anchor() {
                 dim_label,
                 ToDim::Spawn(InboundPlayerSpawn {
                     session,
-                    snapshot: PlayerTransferSnapshot {
-                        uuid: Uuid::new_v4(),
-                        username: "target_test".into(),
-                        position: DVec3::new(0.0, 64.0, 0.0),
-                        rotation: bevy_math::Vec2::ZERO,
-                        client_info: Some(crate::support::client_info_with_view_distance(12)),
-                    },
+                    snapshot: PersistedSnapshot::joining_player(
+                        Uuid::new_v4(),
+                        "target_test".into(),
+                        DVec3::new(0.0, 64.0, 0.0),
+                        bevy_math::Vec2::ZERO,
+                        Some(crate::support::client_info_with_view_distance(12)),
+                    ),
                     dimensions: Vec::new().into(),
                 }),
             );
         assert!(sent, "the dimension takes input");
     }
 
-    // The dimension spawns the player and hands over its play-login in the output of the
-    // tick, which the host takes into Messages<OutboundPlayerPacket>.
     app.update();
     take_dim_outputs(app.world_mut());
 

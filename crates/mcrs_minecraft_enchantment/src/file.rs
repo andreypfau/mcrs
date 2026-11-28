@@ -8,8 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_nbt::tag::NbtTag;
 
-/// An enchantment file as a data pack writes it, stored as its registry value
-/// and its effects column.
 #[registry_value]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

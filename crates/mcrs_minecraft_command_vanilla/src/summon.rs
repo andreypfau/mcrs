@@ -1,6 +1,7 @@
 use crate::mob_view::display_name;
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
+use bevy_ecs::system::SystemParam;
 use bevy_math::DVec3;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
@@ -16,10 +17,14 @@ use mcrs_minecraft_engine_world::entity_births::EntityBirths;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::registry_keys::ENTITY_TYPE;
-use mcrs_minecraft_entity_key::{BirthSequences, BirthSource};
+use mcrs_minecraft_entity_key::{BirthSequences, BirthSource, EntityUuid};
+use mcrs_minecraft_item_entity::ItemEntity;
+use mcrs_minecraft_item_stack::{ItemStack, read_saved};
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_text::Text;
+use mcrs_minecraft_vanilla_item_entity::ItemSpawnRequest;
 use mcrs_voxel::BlockPos;
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -31,8 +36,6 @@ pub(crate) struct SummonCommand {
     nbt: ArgumentHandle<NbtCompoundArgument>,
 }
 
-/// The summons of the current tick of this world: the sequence of each pair of a spawn point and
-/// a source block, and the UUIDs that the requests of the tick hold.
 #[derive(Default)]
 pub(crate) struct SummonOrder {
     tick: u64,
@@ -72,16 +75,73 @@ fn spawnable(position: DVec3) -> bool {
         && (-MAX_Y..MAX_Y).contains(&block.y)
 }
 
-/// TRK-SUM-002: one mob of the type at the position, or at the source, with the first spawn setup
-/// of its type. A summon without a UUID gives the mob a new one from the world seed, the
-/// dimension, the birth clock, the block of the spawn point, the block of the source and the
-/// sequence of that pair in the tick.
+#[derive(SystemParam)]
+pub(crate) struct Spawns<'w> {
+    mobs: ResMut<'w, EffectQueue<MobSpawnRequest>>,
+    items: ResMut<'w, EffectQueue<ItemSpawnRequest>>,
+    table: Option<Res<'w, ItemTable>>,
+}
+
+enum Summon {
+    Mob {
+        kind: &'static EntityTypeData,
+        setup: SpawnSetup,
+        extras: MobExtras,
+    },
+    Item(SummonedItem),
+}
+
+fn server_mob(entity_type: EntityType) -> Option<&'static EntityTypeData> {
+    match entity_type {
+        EntityType::Pig
+        | EntityType::Cow
+        | EntityType::Sheep
+        | EntityType::Chicken
+        | EntityType::ZombifiedPiglin => EntityTypeData::of(entity_type),
+        _ => None,
+    }
+}
+
+fn read_summon(
+    entity_type: EntityType,
+    nbt: Option<NbtCompound>,
+    table: Option<&ItemTable>,
+) -> Option<(Summon, Option<u128>)> {
+    if entity_type == EntityType::Item {
+        let item = read_item_keys(nbt?, table?)?;
+        let uuid = item.uuid;
+        return Some((Summon::Item(item), uuid));
+    }
+    let kind = server_mob(entity_type)?;
+    Some(match nbt {
+        None => (
+            Summon::Mob {
+                kind,
+                setup: SpawnSetup::First,
+                extras: MobExtras::default(),
+            },
+            None,
+        ),
+        Some(compound) => {
+            let Summoned { extras, uuid } = read_keys(compound)?;
+            (
+                Summon::Mob {
+                    kind,
+                    setup: SpawnSetup::None,
+                    extras,
+                },
+                uuid,
+            )
+        }
+    })
+}
+
 pub(crate) fn run(
     In(call): In<Call<(), SummonCommand>>,
     context: VanillaContext,
     births: EntityBirths,
     mut output: CommandOutput,
-    mut spawns: ResMut<EffectQueue<MobSpawnRequest>>,
+    mut spawns: Spawns,
     mut order: Local<SummonOrder>,
 ) -> CommandResult {
     let command = call.command;
@@ -105,16 +165,13 @@ pub(crate) fn run(
         ));
     }
     let failed = || CommandFailure::translate("commands.summon.failed", vec![]);
-    let Some(kind) = EntityTypeData::server_mob(entity_type) else {
-        return Err(failed());
-    };
-    let (setup, Summoned { extras, uuid }) = match context.opt(&call.invocation, command.nbt)? {
-        None => (SpawnSetup::First, Summoned::default()),
-        Some(text) => {
-            let compound = text.read().map_err(|_| failed())?;
-            (SpawnSetup::None, read_keys(compound).ok_or_else(failed)?)
-        }
-    };
+    let nbt = context
+        .opt(&call.invocation, command.nbt)?
+        .map(|text| text.read())
+        .transpose()
+        .map_err(|_| failed())?;
+    let (summon, uuid) =
+        read_summon(entity_type, nbt, spawns.table.as_deref()).ok_or_else(failed)?;
     if order.tick != births.tick() {
         *order = SummonOrder {
             tick: births.tick(),
@@ -134,23 +191,40 @@ pub(crate) fn run(
         source: BlockPos::from(source.position),
     };
     let sequence = order.sequences.next(births.tick(), &birth);
-    let uuid = uuid.unwrap_or_else(|| births.born(&birth, sequence).0);
+    let uuid = uuid.unwrap_or_else(|| births.born(&birth, sequence).as_u128());
     order.uuids.insert(uuid);
-    let name = display_name(
-        entity_type,
-        Uuid::from_u128(uuid),
-        extras.custom_name.as_deref(),
-    );
-    output.effect(
-        &mut spawns,
-        MobSpawnRequest {
+    let custom_name = match &summon {
+        Summon::Mob { extras, .. } => extras.custom_name.as_deref(),
+        Summon::Item(_) => None,
+    };
+    let name = display_name(entity_type, Uuid::from_u128(uuid), custom_name);
+    match summon {
+        Summon::Item(item) => output.effect(
+            &mut spawns.items,
+            ItemSpawnRequest {
+                stack: item.stack,
+                position,
+                key: EntityUuid::from_u128(uuid),
+                values: item.values,
+                owner: item.owner,
+                thrower: item.thrower,
+            },
+        ),
+        Summon::Mob {
             kind,
-            position,
-            uuid,
             setup,
             extras,
-        },
-    );
+        } => output.effect(
+            &mut spawns.mobs,
+            MobSpawnRequest {
+                kind,
+                position,
+                uuid,
+                setup,
+                extras,
+            },
+        ),
+    }
     output.success(
         &call.invocation,
         Text::translate("commands.summon.success", vec![name]),
@@ -159,9 +233,6 @@ pub(crate) fn run(
     Ok(1)
 }
 
-/// The engine refuses a spawn whose UUID a mob or an earlier request holds, and the request of a
-/// summon of this tick has no mob in the lookup yet. A UUID that the lookup finds leaves the
-/// requests of the tick, so a clock that stands still cannot keep it taken after the mob is gone.
 fn taken(order: &mut SummonOrder, context: &VanillaContext, uuid: u128) -> bool {
     if context.lookup().mob_by_uuid(uuid).is_some() {
         order.uuids.remove(&uuid);
@@ -170,17 +241,12 @@ fn taken(order: &mut SummonOrder, context: &VanillaContext, uuid: u128) -> bool 
     order.uuids.contains(&uuid)
 }
 
-/// What the keys of `<nbt>` set: the values of the new mob, and its UUID.
 #[derive(Default)]
 struct Summoned {
     extras: MobExtras,
     uuid: Option<u128>,
 }
 
-/// The keys of `<nbt>` that this server loads (TRK-SUM-003, TRK-DEV-002): `NoAI`, `CustomName`
-/// as a string, `Tags`, `UUID` as four ints, the most significant first, and
-/// `PersistenceRequired`, which changes nothing for a farm animal. `None` when the
-/// compound holds another key. A value with the wrong tag keeps the default.
 fn read_keys(compound: NbtCompound) -> Option<Summoned> {
     let mut summoned = Summoned::default();
     let extras = &mut summoned.extras;
@@ -193,6 +259,7 @@ fn read_keys(compound: NbtCompound) -> Option<Summoned> {
                 }
             }
             ("NoAI", NbtTag::Byte(value)) => extras.no_ai = value != 0,
+            ("OnGround", NbtTag::Byte(value)) => extras.on_ground = value != 0,
             ("CustomName", NbtTag::String(name)) => extras.custom_name = Some(name),
             ("Tags", NbtTag::List(tags)) => {
                 extras.tags = tags
@@ -203,9 +270,7 @@ fn read_keys(compound: NbtCompound) -> Option<Summoned> {
                     })
                     .collect();
             }
-            // `PersistenceRequired` only keeps a mob from the removal steps of the despawn check,
-            // which no farm animal takes (TRK-SUM-007).
-            ("NoAI" | "CustomName" | "Tags" | "UUID" | "PersistenceRequired", _) => {}
+            ("NoAI" | "OnGround" | "CustomName" | "Tags" | "UUID" | "PersistenceRequired", _) => {}
             _ => return None,
         }
     }
@@ -214,4 +279,53 @@ fn read_keys(compound: NbtCompound) -> Option<Summoned> {
 
 pub(crate) fn apply(worlds: &mut Worlds, request: MobSpawnRequest) {
     worlds.world_mut().write_message(request);
+}
+
+pub(crate) fn apply_item(worlds: &mut Worlds, request: ItemSpawnRequest) {
+    let world = worlds.world_mut();
+    if world.contains_resource::<Messages<ItemSpawnRequest>>() {
+        world.write_message(request);
+    }
+}
+
+struct SummonedItem {
+    stack: ItemStack,
+    values: ItemEntity,
+    owner: Option<u128>,
+    thrower: Option<u128>,
+    uuid: Option<u128>,
+}
+
+fn read_item_keys(compound: NbtCompound, table: &ItemTable) -> Option<SummonedItem> {
+    let mut stack = None;
+    let mut values = ItemEntity::default();
+    let (mut owner, mut thrower, mut uuid) = (None, None, None);
+    for (key, tag) in compound {
+        match (key.as_str(), tag) {
+            ("Item", NbtTag::Compound(saved)) => stack = Some(read_saved(&saved, table).ok()?),
+            ("Age", NbtTag::Short(age)) => values.age = age,
+            ("PickupDelay", NbtTag::Short(delay)) => values.pickup_delay = delay,
+            ("Health", NbtTag::Short(health)) => values.health = health,
+            ("Owner", NbtTag::IntArray(words)) => owner = uuid_of(&words),
+            ("Thrower", NbtTag::IntArray(words)) => thrower = uuid_of(&words),
+            ("UUID", NbtTag::IntArray(words)) => uuid = uuid_of(&words),
+            ("Item" | "Age" | "PickupDelay" | "Health" | "Owner" | "Thrower" | "UUID", _) => {}
+            _ => return None,
+        }
+    }
+    Some(SummonedItem {
+        stack: stack?,
+        values,
+        owner,
+        thrower,
+        uuid,
+    })
+}
+
+fn uuid_of(words: &[i32]) -> Option<u128> {
+    let [a, b, c, d] = words[..] else {
+        return None;
+    };
+    let word = |value: i32| u128::from(value.cast_unsigned());
+    Some(word(a) << 96 | word(b) << 64 | word(c) << 32 | word(d))
 }

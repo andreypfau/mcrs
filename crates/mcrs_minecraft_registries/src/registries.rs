@@ -17,10 +17,8 @@ pub(crate) fn key_of<R: Registered>() -> ResourceLocation<'static> {
     R::REGISTRY.location()
 }
 
-/// When a registry loads. A registry sees the entries of its own stage and of every earlier one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Stage {
-    /// The static registries, whose entries the game itself defines.
     Static,
     World,
     Dimension,
@@ -52,13 +50,9 @@ pub(crate) struct Table {
     pub(crate) kind: Kind,
     pub(crate) names: Arc<Names>,
     pub(crate) tags: Arc<TagTable>,
-    /// `None` for a static registry, one read by its names alone, and a data registry whose stage
-    /// is still decoding.
     pub(crate) registry: Option<Erased>,
 }
 
-/// The tables of one load, in the order of their declarations. While a load runs, the tables of
-/// the stages it has not reached are absent.
 #[derive(Clone)]
 pub struct Registries {
     tables: Arc<Vec<Table>>,
@@ -93,12 +87,10 @@ impl Registries {
             .downcast_ref::<Registry<V>>()
     }
 
-    /// The entries of the registry `R` names, whether it holds values or not.
     pub fn entries<R: Registered>(&self) -> Option<Entries<'_, R>> {
         Some(Entries::new(&self.table(key_of::<R>())?.names))
     }
 
-    /// The entry names of the registry `key`, in id order, for a caller that has no type for it.
     pub fn names_of<'k>(
         &self,
         key: impl Into<ResourceLocation<'k>>,
@@ -106,7 +98,6 @@ impl Registries {
         self.table(key.into()).map(|table| table.names.all())
     }
 
-    /// The id of the entry `name` in the registry `key`, for a caller that has no type for it.
     pub fn id_of<'k, 'n>(
         &self,
         key: impl Into<ResourceLocation<'k>>,
@@ -115,8 +106,6 @@ impl Registries {
         self.table(key.into())?.names.get(name.into())
     }
 
-    /// Each resolved tag of the registry `key` with its member ids, for a caller that has no type
-    /// for it.
     pub fn tags_of<'s>(
         &'s self,
         key: ResourceLocation<'_>,
@@ -145,7 +134,6 @@ impl Registries {
         self.world_stack.known_packs()
     }
 
-    /// Whether `a` and `b` are the same load, rather than two loads of equal data.
     pub fn ptr_eq(a: &Registries, b: &Registries) -> bool {
         Arc::ptr_eq(&a.tables, &b.tables)
     }
@@ -168,7 +156,7 @@ impl Registries {
         Arc::make_mut(&mut self.tables).push(table);
     }
 
-    pub(crate) fn stack(&self, stage: Stage) -> &PackStack {
+    pub fn stack(&self, stage: Stage) -> &PackStack {
         match stage {
             Stage::Reloadable => &self.reload_stack,
             _ => &self.world_stack,

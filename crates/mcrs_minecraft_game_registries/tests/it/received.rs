@@ -56,9 +56,6 @@ fn a_client_holds_the_synced_registries_and_tags_the_server_holds() {
     }
 }
 
-/// The client reads the vanilla entries of `left_out` from its own vanilla files and every other
-/// entry from the data sent; it then holds what it holds when the server sends every entry with
-/// its data.
 fn files_stand_for_the_data_sent(left_out: impl Fn(&ResourceLocationBuf) -> bool) {
     let with_data = sent_by(test_registries(), false);
     let mut without = sent_by(test_registries(), true);

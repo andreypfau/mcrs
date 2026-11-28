@@ -5,8 +5,8 @@
 //! Pass the blockstate to render as the first argument, in the same form the game writes it:
 //!
 //! ```text
-//! cargo run --example block_viewer -- "minecraft:oak_log[axis=x]"
-//! cargo run --example block_viewer -- glass
+//! cargo run --example block_viewer --features pbr -- "minecraft:oak_log[axis=x]"
+//! cargo run --example block_viewer --features pbr -- glass
 //! ```
 //!
 //! Drag with the left mouse button to orbit, scroll to zoom, press `F` to drop the block onto a
@@ -171,10 +171,6 @@ fn toggle_floor(keys: Res<ButtonInput<KeyCode>>, mut show: ResMut<ShowFloor>) {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 fn rebuild_scene(
     mut commands: Commands,
     target: Res<Target>,

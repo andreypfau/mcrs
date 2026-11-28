@@ -12,13 +12,11 @@ use crate::world::dimension::DimensionTypeConfig;
 use crate::world::storage::random_ticks::RandomTickIndex;
 use crate::world::storage::section::SectionIndex;
 
-/// Shared block access to the dimensions of a world.
 #[derive(SystemParam)]
 pub struct WorldView<'w, 's> {
     dimensions: Query<'w, 's, (&'static SectionIndex, &'static DimensionTypeConfig)>,
 }
 
-/// Block access to the dimensions of a world that may write their sections.
 #[derive(SystemParam)]
 pub struct WorldViewMut<'w, 's> {
     dimensions: Query<'w, 's, (&'static mut SectionIndex, &'static DimensionTypeConfig)>,
@@ -26,7 +24,6 @@ pub struct WorldViewMut<'w, 's> {
 }
 
 impl WorldView<'_, '_> {
-    /// `None` for an entity that is not a dimension.
     pub fn get(&self, dimension: Entity) -> Option<DimensionView<'_>> {
         let (index, config) = self.dimensions.get(dimension).ok()?;
         Some(DimensionView {
@@ -37,7 +34,6 @@ impl WorldView<'_, '_> {
 }
 
 impl WorldViewMut<'_, '_> {
-    /// `None` for an entity that is not a dimension.
     pub fn get_mut(&mut self, dimension: Entity) -> Option<DimensionViewMut<'_>> {
         let (index, config) = self.dimensions.get_mut(dimension).ok()?;
         Some(DimensionViewMut {
@@ -55,16 +51,11 @@ fn layout(config: &DimensionTypeConfig) -> ColumnLayout {
     }
 }
 
-/// The loaded sections of one dimension, read-only. A section is readable once its blocks
-/// landed; one still generating is [`Access::Unloaded`].
 pub struct DimensionView<'a> {
     index: &'a SectionIndex,
     layout: ColumnLayout,
 }
 
-/// The loaded sections of one dimension, writable. A write diverges the section from
-/// every snapshot taken of it and is storage only: nothing hears of it, except the
-/// [`RandomTickIndex`] when the world holds one.
 pub struct DimensionViewMut<'a> {
     index: &'a mut SectionIndex,
     layout: ColumnLayout,

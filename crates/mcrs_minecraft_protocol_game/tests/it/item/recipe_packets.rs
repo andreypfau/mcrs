@@ -1,6 +1,3 @@
-//! The recipe-book packets as the game's stream codecs write them, with the
-//! registry ids the game resolved.
-
 use mcrs_minecraft_fixtures::fixture;
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
@@ -83,7 +80,7 @@ fn list(paths: &[&str]) -> IdSet<Item> {
 
 #[expect(
     clippy::too_many_lines,
-    reason = "builds the recipe book entries of one captured packet in the game's order, so they read against its bytes"
+    reason = "builds the recipe book entries of one captured packet in the game's order"
 )]
 fn expected_entries() -> Vec<RecipeBookEntry> {
     let sword = Template::new(

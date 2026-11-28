@@ -21,17 +21,13 @@ use crate::region::colour;
 use crate::tile_task::{Spread, TileTask};
 
 bitflags::bitflags! {
-    /// The random ticks that a block state takes.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct RandomTicks: u8 {
-        /// The block of the state takes random ticks.
         const BLOCK = 1;
-        /// The fluid of the state takes random ticks.
         const FLUID = 2;
     }
 }
 
-/// The random ticks of each block state, asked of the rules once for each state.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RandomTickTable {
     kinds: Vec<RandomTicks>,
@@ -66,41 +62,29 @@ impl RandomTickTable {
         self.kinds.get(state.index()).copied().unwrap_or_default()
     }
 
-    /// `state` takes random ticks of its block, of its fluid, or of both.
     #[must_use]
     pub fn ticks(&self, state: BlockStateId) -> bool {
         !self.kinds(state).is_empty()
     }
 }
 
-/// The random ticks of one step.
 #[derive(Clone, Copy, Debug)]
 pub struct RandomPicks<'a> {
-    /// The writable columns that hold a random-ticked section: they take precipitation picks.
-    /// Grouped by block tile, and in a tile sorted by x, then z.
     pub columns: &'a [ColumnPos],
-    /// The picks of the step that [`draw_random_picks`] drew, grouped by block tile, in a stable
-    /// order.
     pub hits: &'a [RandomHit],
-    /// The precipitation picks of each column.
     pub speed: u32,
     pub table: &'a RandomTickTable,
     pub footprints: &'a Footprints,
-    /// Each tile draws its precipitation from the stream of the tile and the step, so the hits do
-    /// not depend on the order of the tiles or on the partition.
     pub seed: StreamSeed,
 }
 
-/// A random pick that found a position whose state ticked randomly when the step started.
 #[derive(Clone, Debug)]
 pub struct RandomHit {
     pub at: BlockPos,
-    /// The stream of the handlers of the pick.
     pub random: LegacyRandom,
 }
 
 impl RandomHit {
-    /// The hit of `pick` in `section`, whose state ticks randomly at the local indices `ticking`.
     #[must_use]
     pub fn of(section: SectionPos, ticking: &[u16], pick: RandomPick) -> Option<Self> {
         let local = *ticking.get(usize::from(pick.index))?;
@@ -111,23 +95,12 @@ impl RandomHit {
     }
 }
 
-/// A random pick that drew the position at `index` in the list of ticking positions of its
-/// section.
 #[derive(Clone, Debug)]
 pub struct RandomPick {
     pub index: u16,
-    /// The stream of the handlers of the pick.
     pub random: LegacyRandom,
 }
 
-/// Draws the `speed` picks of `section`, which holds `ticking` positions whose state ticks
-/// randomly, from the stream of the section in `streams`, and appends those that hit to `picks`.
-///
-/// Each pick draws `u` in `0..4096`. A `u` below `ticking` picks the position at `u` in the list
-/// of ticking positions; any other `u` picks a position that does not tick. So each position
-/// takes a pick with the chance 1/4096, as a pick over the whole section. Each hit then forks the
-/// stream of its handlers from the stream of the section, so the hits of a section do not depend
-/// on the other sections.
 pub fn draw_random_picks(
     section: SectionPos,
     ticking: usize,
@@ -141,7 +114,6 @@ pub fn draw_random_picks(
         let drawn = random.next_u32_bound(SectionPos::VOLUME as u32) as usize;
         if drawn < ticking {
             picks.push(RandomPick {
-                // Below a count of ticking positions, at most 4096.
                 index: drawn as u16,
                 random: LegacyRandom::new(0),
             });
@@ -152,14 +124,6 @@ pub fn draw_random_picks(
     }
 }
 
-/// Runs the random ticks of one step: the hits of `picks.hits`, and the precipitation picks of
-/// `picks.columns`. A hit whose position no longer ticks does nothing.
-///
-/// The block tiles run in four colour phases, the tiles of one colour on the threads of
-/// `spread`. A tile task reads and writes only its region; a hit that leaves it is undone and
-/// runs again, with the same position and random values, in a serial step after the phases. The
-/// result is the result of the serial order: colour, tile, hit; then the hits that ran again, in
-/// the order of `picks.hits`.
 pub fn random_step<K, V, F, B, P, S>(
     shard: &mut BlockShard<K>,
     now: GameTick,
@@ -214,8 +178,6 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
 {
-    /// Runs the precipitation picks of the columns of `picks`, tile by tile. Each tile draws from
-    /// its own stream, so the hits do not depend on the partition.
     fn precipitation_step(&mut self, picks: RandomPicks<'_>) {
         let mut hits = mem::take(&mut self.shard.rain_hits);
         for group in picks
@@ -239,8 +201,6 @@ where
         self.shard.rain_hits = hits;
     }
 
-    /// Runs the hit at `index` of `picks.hits` in a tile task: a hit that leaves the region is
-    /// undone and goes to `reruns`.
     pub(crate) fn random_hit(
         &mut self,
         index: usize,
@@ -262,11 +222,8 @@ where
         }
     }
 
-    /// Restores the states that the writes past `mark` replaced, last first, and drops what the
-    /// output gained since.
     fn undo(&mut self, mark: OutputMark) {
         for write in self.out.writes.drain(mark.writes..).rev() {
-            // The write succeeded, so writing its old state back does too.
             let _ = self.volume.set_block(write.pos, write.old);
         }
         self.out.truncate(mark);
@@ -293,7 +250,6 @@ where
     }
 }
 
-/// The block tile of `column`, in tiles: the unit of the block domain and of precipitation.
 #[must_use]
 pub fn block_tile(column: ColumnPos) -> ColumnPos {
     ColumnPos::new(

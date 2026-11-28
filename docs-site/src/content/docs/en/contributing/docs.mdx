@@ -11,11 +11,23 @@ sources:
   - docs-site/scripts/check-sources.mjs
   - docs-site/README.md
   - docs/clean-room.md
-  - PERF.md
+  - docs-site/src/lib/anchor.mjs
+  - docs-site/src/components/Status.astro
+  - docs-site/src/components/Example.astro
+  - docs-site/src/lib/meta.ts
+  - docs-site/src/components/DocsFreshness.astro
+  - docs-site/src/lib/facts.mjs
+  - docs-site/src/data/facts.yml
+  - docs-site/scripts/check-issues.mjs
+  - docs-site/scripts/lib/pages.mjs
+  - .github/workflows/docs.yml
+  - .github/pull_request_template.md
+  - .agents/skills/mcrs-update-docs/SKILL.md
+  - issue:437
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -25,7 +37,7 @@ Anyone can add or fix a page of this site. This page tells you what a page is fo
 
 ## Three kinds of docs
 
-| | Canon: `docs/`, `PERF.md`, `DECISIONS.md` | This site | README and landing page |
+| | Canon: `docs/` | This site | README and landing page |
 |---|---|---|---|
 | For | AI agents, spec authors | plugin developers from the JVM, contributors, Rust developers, admins | observers, players, curious developers |
 | Reader's question | What exactly does the rule require? | How do I do X, and why is it built so? | What is this, and is it for me? |
@@ -37,11 +49,11 @@ Copy nothing from the world generation design notes, which are `docs/worldgen.md
 
 ### Every fact has one source
 
-Do not type a number from memory. The game version lives in `assets/minecraft/version.json`, performance numbers in `PERF.md`, behavior in `docs/spec/`, and decisions in issues.
+Do not type a number from memory. The game version lives in `assets/minecraft/version.json`, behavior in `docs/spec/`, and decisions in issues.
 
 A count that two pages repeat, and the game snapshot id, live in `src/data/facts.yml`. A page writes such a value as `{fact('crates')}` after the line `import { fact } from '~/lib/facts.mjs';`, and `status.yml` writes it as `{crates}`. The id `snapshot` is read from `assets/minecraft/version.json`. Every entry has a `how` field that says how to measure it. A number that only one page states stays in the text of that page.
 
-Russian changes the form of a word after a number ("122 крейта", "122 крейтов"), so the Russian pages are edited by hand when a number changes. Find the places with `grep -rn "fact('crates')" src/content/docs/ru`.
+Russian changes the form of a word after a number, so the Russian pages are edited by hand when a number changes. Find the places with `grep -rn "fact('crates')" src/content/docs/ru`.
 
 The banner at the top of the home page names the commit of `origin/main` that the last docs update checked against. The commit and its date are `docs_commit` and `docs_commit_date` in `facts.yml`, and a docs update moves both. `npm test` fails if the date is not the commit date of that commit. On each visit the banner asks GitHub how many commits main has after that commit, and it hides the line if GitHub does not answer.
 
@@ -114,7 +126,7 @@ Never paste repository code into MDX by hand. Use `Example`, which cuts the code
 - Without `to`, the fragment is the block that opens on the `from` line, up to the brace that closes it.
 - Add `to` when the fragment is a piece of a function or several items in a row. The fragment then ends on the first line after `from` that contains `to`.
 - Braces inside string literals confuse the brace count, so give `to` in that case too.
-- Both anchors may span lines. Separate the lines with `\n` inside `{"..."}`.
+- Both anchors may span lines. Separate the lines with `\n` inside `{"..."}`. The first line of such an anchor must end its line in the file, and each next line must start its line, with the indentation.
 
 The link under the block gets its line numbers from the anchors.
 
@@ -140,7 +152,7 @@ The state of a feature is shown in text and tables with `Status`. The state of a
 
 | State | When to use it |
 |---|---|
-| `works` | A test runs it, or `PERF.md` has a measurement. A commit alone is not enough. |
+| `works` | A test runs it. A commit alone is not enough. |
 | `partial` | A part works, and the rest is in an issue or a PR. A link is required. |
 | `wip` | Not in the code, or not finished, and an issue exists. "Direction, not a commitment." |
 | `undecided` | No issue, or the label `needs-decision`. |
@@ -156,8 +168,6 @@ A workflow named `docs` runs on every PR. Its script, `docs-site/scripts/check-s
 
 The same workflow also runs every Monday at 06:00 UTC and on manual dispatch. That run executes `node docs-site/scripts/check-sources.mjs --stale` and writes a report with three sections to the job summary:
 
-The docs catch up with main in batches. To do that, run the skill [mcrs-update-docs](https://github.com/andreypfau/mcrs/blob/main/.agents/skills/mcrs-update-docs/SKILL.md) with a coding agent. It walks the pull requests merged since the oldest `verified.commit` and updates the pages, the status rows, the issue registry and the news. Then it moves `docs_commit` and removes signs of AI writing from the text it changed, which it checks against a fresh copy of the Wikipedia guide.
-
 - English pages that have commits to their `sources` since `verified.commit`.
 - Russian pages that lag behind English.
 - `sources` paths that do not exist.
@@ -171,6 +181,8 @@ The weekly job reports registry entries whose issue is closed but marked `wip`, 
 </Aside>
 
 These checks read file names and know nothing about meaning. They do not notice that the state of an issue changed after the `verified` date of a page, so a monthly pass over [Status](/docs/en/start/status/) is the owner's job.
+
+The docs catch up with main in batches. To do that, run the skill [mcrs-update-docs](https://github.com/andreypfau/mcrs/blob/main/.agents/skills/mcrs-update-docs/SKILL.md) with a coding agent. It walks the pull requests merged since the oldest `verified.commit` and updates the pages, the status rows, the issue registry and the news. Then it moves `docs_commit` and removes signs of AI writing from the text it changed, which it checks against a fresh copy of the Wikipedia guide.
 
 ## English and Russian
 
@@ -205,8 +217,8 @@ An explainer follows four rules of honesty. A mechanism is not a measurement. Sh
 
 Go through this list before every PR that adds or changes a page.
 
-1. Every number has the machine, the scenario and a link to `PERF.md` or an issue beside it. Numbers come from `PERF.md` only, with the machine (M4 Max, macOS) and the scenario.
-2. "Works" appears only when a test, a commit or a `PERF.md` entry shows it. Otherwise write "partial" or "wip".
+1. Every number has its source beside it: a test, a specification or an issue.
+2. "Works" appears only when a test shows it. Otherwise write "partial" or "wip".
 3. State and goal differ visibly: a badge, a label or an Aside.
 4. Every "no" links to an issue or a decision.
 5. No numbers that are not measured on a quiet machine, and no comparison with vanilla, Paper or Horizon in numbers.
@@ -221,7 +233,7 @@ Drafts often get two facts wrong. First, the compiler does not check conflicts b
 
 ## Clean-room in docs
 
-The clean-room rules of the code apply to the docs too. Do not write names of classes, methods or fields of the game's code, except `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`. You can name the public APIs of Paper, Bukkit, Velocity and Minestom. Do not write that mcrs is a port. [Clean-room in practice](/docs/en/contributing/clean-room/) explains the rules.
+The clean-room rules of the code apply to the docs too. Do not write names of classes, methods or fields of the game's code, except `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`, `PalettedContainer`, `LootContext` and `NumberProvider`. You can name the public APIs of Paper, Bukkit, Velocity and Minestom. Do not write that mcrs is a port. [Clean-room in practice](/docs/en/contributing/clean-room/) explains the rules.
 
 ## Style
 

@@ -1,32 +1,77 @@
 ---
 title: Read player data
-description: A player is an entity with components. How to query players, which ids exist for one player, and how to change a player.
+description: Query player components, distinguish their ids, and use the health, damage, death and respawn hooks.
 sidebar:
-  order: 10
+  order: 12
 kind: how-to
 audience: [jvm]
-stability: changing
-tracking: [158]
+stability: stable
 sources:
   - crates/mcrs_minecraft_engine/src/ability.rs
+  - crates/mcrs_minecraft_game_mode/src/player_game_mode.rs
   - crates/mcrs_minecraft_engine/src/game_profile.rs
   - crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs
   - crates/mcrs_minecraft_engine_world/src/session/sessions.rs
   - crates/mcrs_minecraft_server/tests/it/host_app/mod.rs
+  - crates/mcrs_minecraft_engine/src/network_id.rs
+  - crates/mcrs_minecraft_engine_world/src/entity_ids.rs
+  - crates/mcrs_minecraft_server/tests/it/entity_ids.rs
+  - crates/mcrs_minecraft_engine/src/persisted_registry.rs
+  - crates/mcrs_minecraft_entity_attribute/src/attribute_instances.rs
+  - crates/mcrs_minecraft_entity_attribute/src/instance_edit.rs
+  - crates/mcrs_minecraft_entity_attribute/src/saved_modifier.rs
+  - crates/mcrs_minecraft_engine_attributes/src/player_attributes_plugin.rs
+  - crates/mcrs_minecraft_vanilla_attributes/src/sprint_attribute_plugin.rs
+  - crates/mcrs_minecraft_vanilla_attributes/src/creative_range_plugin.rs
+  - crates/mcrs_minecraft_engine/src/send_own_attributes.rs
+  - crates/mcrs_minecraft_engine/src/persistence.rs
+  - crates/mcrs_minecraft_engine/src/carried_attributes.rs
+  - crates/mcrs_minecraft_server/src/lib.rs
+  - crates/mcrs_minecraft_server/tests/it/own_attributes.rs
   - issue:158
+  - issue:159
+  - crates/mcrs_minecraft_chat_server/src/chat_plugin.rs
+  - crates/mcrs_minecraft_damage/src/vitals.rs
+  - crates/mcrs_minecraft_engine_damage/src/damage_request.rs
+  - crates/mcrs_minecraft_engine_damage/src/pending_hits.rs
+  - crates/mcrs_minecraft_engine_damage/src/damage_plugin.rs
+  - crates/mcrs_minecraft_engine_damage/src/apply_hits.rs
+  - crates/mcrs_minecraft_engine_damage/src/respawn_request.rs
+  - crates/mcrs_minecraft_engine_player_vitals/src/player_vitals_plugin.rs
+  - crates/mcrs_minecraft_engine_player_vitals/src/send_health.rs
+  - crates/mcrs_minecraft_engine_player_vitals/src/hide_dead_players.rs
+  - crates/mcrs_minecraft_engine_player_vitals/src/respawn_players.rs
+  - crates/mcrs_minecraft_engine_player_vitals/src/death_message.rs
+  - crates/mcrs_minecraft_engine_player_vitals/src/player_death_set.rs
+  - crates/mcrs_minecraft_vanilla_respawn/src/request_respawns.rs
+  - crates/mcrs_minecraft_vanilla_respawn/src/spawn_site.rs
+  - crates/mcrs_minecraft_vanilla_death/src/death_messages_plugin.rs
+  - crates/mcrs_minecraft_vanilla_death/src/describe_player_deaths.rs
+  - crates/mcrs_minecraft_server/tests/it/respawn.rs
+  - crates/mcrs_minecraft_server/tests/it/death_messages.rs
+  - pr:1078
+  - pr:1082
+  - pr:1084
+  - crates/mcrs_minecraft_engine/src/swing.rs
+  - crates/mcrs_minecraft_server/tests/it/swing.rs
+  - pr:1064
+  - crates/mcrs_minecraft_engine/src/consume_inbound_player_spawn.rs
+  - crates/mcrs_minecraft_engine_player_vitals/src/player_invulnerability.rs
+  - crates/mcrs_minecraft_damage/src/hurt.rs
+  - crates/mcrs_minecraft_engine_player_vitals/src/signal_hits.rs
+  - crates/mcrs_minecraft_client_entity/src/receive.rs
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
-import { Aside } from '@astrojs/starlight/components';
 
 This page shows how a plugin finds players, reads their data, tells their ids apart and changes them. In Paper a `Player` is an object with methods. In mcrs a player is an entity inside the world of a dimension, and its state is a set of components, so you write a query where Paper code would hold on to the object.
 
-The page is short because the set of components grows with the project. The examples come from repository files, and we did not run them outside the repository tests.
+The examples come from repository files; this docs update did not run them.
 
 ## Find players with a query
 
@@ -40,11 +85,15 @@ In a plugin you write the query as a system parameter, for example `Query<(&Game
 
 `GameProfile` is the profile that the client logged in with:
 
-<Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component)]\npub struct GameProfile"} title="GameProfile" />
+<Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component, serde::Serialize, serde::Deserialize)]\npub struct GameProfile"} title="GameProfile" />
 
-The game mode, the flight state and the operator level are in one file:
+The game mode is in the crate `mcrs_minecraft_game_mode`, so a server and a client use the same component. Its `bevy` feature adds the `Component` derive:
 
-<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut)]\npub struct PlayerGameMode"} to="pub struct PlayerFlying" title="PlayerGameMode and PlayerFlying" />
+<Example file="crates/mcrs_minecraft_game_mode/src/player_game_mode.rs" from="#[derive(" to="impl Default" title="PlayerGameMode" />
+
+The flight state and the operator level are in the engine:
+
+<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"use mcrs_minecraft_engine_world::session::PlayerSession;\n\n#[derive("} to="pub struct PlayerFlying" title="PlayerFlying" />
 
 `PlayerOpLevel` in the same file holds the operator level, which goes from 0 for a player who is not an operator up to 4. The test harness reads a game mode like this:
 
@@ -64,13 +113,51 @@ You cannot use one of these ids in place of another.
 
 Use the session to address a player across worlds and to send packets. Use the UUID for anything that must survive a reconnect.
 
-<Aside type="caution" title="WIP: the id on the wire">
-The entity id that the client receives is today the index of the Bevy `Entity` in the world of the dimension. That has two faults.[^158] Bevy can hand a freed index to a new entity while a client still tracks the old one, and vanilla never reuses an id while the server runs. Two dimension worlds also allocate indices on their own, so their ids collide as soon as one connection sees entities of more than one owner. The plan is a `NetId` component for every networked entity, with ids that are leased to each world, never reused, and kept when an entity is handed to another node.[^158] Until that plan is done, do not store the wire id of an entity and do not assume it stays the same.
-</Aside>
+The client sees one more number, the entity id in packets, and it does not depend on the world. A player gets an odd id made from its `PlayerSession`, so the id stays the same through a change of dimension. Other entities get even ids from ranges that the host hands to each dimension world, and an entity taken into another dimension keeps its id. While the server runs, no two entities share an id.[^158]
 
 ## Change a player inside its own world
 
 Inside the world of a player you can insert or edit its components. Do not change a player from a system that runs in a different world. A change that crosses worlds is a message or an effect. The vanilla commands `gamemode` and `teleport` do this with command effects, see [Add a command](/docs/en/plugins/commands/).
+
+## Change an attribute
+
+Max health, movement speed and the two interaction ranges that set the reach are attributes of a player. With `VanillaEntityAttributesPlugin` in the server, every player entity has the component `AttributeInstances` from the crate `mcrs_minecraft_entity_attribute`, and it starts with the bases of the player type, because `PlayerAttributesPlugin` registers it as a required component of `Player`. A system in the world of the player changes an attribute with `apply`. It takes an `Attribute`, such as `Attribute::MaxHealth`, and an `InstanceEdit`: `SetBase` sets the base value, `Put` adds or replaces a modifier, and `Remove` takes a modifier away by its id. The sprint plugin puts its modifier on movement speed while a player sprints and removes it when the player stops:
+
+<Example file="crates/mcrs_minecraft_vanilla_attributes/src/sprint_attribute_plugin.rs" from="fn give_sprint_modifier(" to={"    }\n}"} title="The sprint modifier on movement speed" />
+
+`apply` returns an `InstanceChange`, and the system marks the component changed only when a value changed, so systems that wait for a change of `AttributeInstances` skip a player whose values stayed the same. Your plugin edits the component the same way. A repository test sets the base of `Attribute::MaxHealth` to 30 and reads it back after the player joins again.
+
+The server sends each changed attribute to the client of the player and to the other players whose clients show this player. Only attributes that their definition marks as synced go out. The player file keeps the bases and the modifiers of kind `ModifierKind::Permanent`. A transient modifier, such as the sprint modifier, is not saved, but it stays with the player through a change of dimension.
+
+The sprint modifier and the extra reach in creative mode (0.5 for blocks, 2.0 for entities) come from `VanillaSprintAttributePlugin` and `VanillaCreativeRangePlugin`. Each is a member of the server plugin group, so you can disable one and keep the other, as [Remove and replace vanilla parts](/docs/en/plugins/customize-server/) shows.
+
+## Send an arm swing
+
+Write `SwingPlayer::new(player, hand, animation, duration)` from `mcrs_minecraft_engine::swing` in the player's world, or use `SwingPlayer::default_main(player)` for a six-tick main-hand whack. The engine rejects spectators and dead players and applies a shared cooldown across both hands. Only current tracking observers receive the animation; this message does not deal damage. `VanillaSwingPlugin` supplies punch and piercing-weapon stab inputs, and placement and inventory plugins supply their own triggers.[^pr1064]
+
+This is server packet delivery. The mcrs client does not consume the swing packet or render its animation yet.
+
+## Health, damage and death
+
+`PlayerVitalsPlugin`, installed by `VanillaEntityAttributesPlugin`, gives players the same `Vitals`, `HitRecord` and `Defence` components as mobs. `Vitals` owns current health, absorption and the hurt, cooldown and death counters; maximum health comes from attributes. The persisted registry saves the health state. Food remains in `PlayerFileState` until hunger has its own owner. Creative and spectator players reject hits unless the damage type bypasses invulnerability.[^pr1082]
+
+The built-in player path currently fills only game-mode invulnerability in `Defence`. It does not populate player armour, toughness or resistance from attributes, equipment or effects.
+
+To deal damage, append `DamageRequest::new(target, hit, writer, tick, sequence)` to `PendingHits` in the player's dimension. `/damage` and `/kill` use this path too. `DamageSet` runs `Collect`, `Filter`, `Apply` and `Report` after motion in `FixedUpdate`. A system in `Filter` can edit requests with `requests_mut()` or remove them with `retain()`. The engine sorts and applies the batch in `Apply`; read `Damaged` and `Died` in `Report` for the result.[^pr1078]
+
+The player's client receives health and food updates. Viewers receive health changes and the dying pose; the dying player receives the kill packet. At login, the death-screen flag follows `immediate_respawn`; later rule changes are not sent yet. At death time 20, `HiddenPlayer` removes it from other clients, while its Bevy entity, connection and own view remain. [Inventory](/docs/en/plugins/inventory/#inventory-on-death) describes drops.
+
+`DeathMessage { player, text }` supplies the death-screen text. `VanillaDeathMessagesPlugin` writes it in `PlayerDeathSet::Describe` and broadcasts it in `Announce`, after the engine sends the kill packet in `Notify`. Vanilla text follows `show_death_messages`; turning it off also leaves the kill packet's text empty. To supply your own text, disable that plugin and write `DeathMessage` in `Describe`. Without a writer, the death-screen text is empty.[^pr1084]
+
+## Respawn through a request
+
+The engine restores a dead player only after a `RespawnRequest`:
+
+<Example file="crates/mcrs_minecraft_engine_damage/src/respawn_request.rs" from="pub struct RespawnRequest {" title="Choose the player, target dimension and transform" />
+
+`dimension` is the host's entity id for the target dimension. `VanillaRespawnPlugin` turns the client's respawn command into this request at the adjusted world spawn. Disable that plugin and write requests in the player's world to choose another policy. The engine restores vitals and food, sends the respawn and position packets, and shows the player to viewers again. A request for another dimension starts a dimension change.
+
+The vanilla policy currently treats bed and anchor spawn points as missing. Its surface search ignores the world border and caps the radius at 15. Respawn does not yet reset every effect, pose, motion, item cooldown or attribute modifier, or resend all inventory and experience state. Hunger simulation, melee attacks and environmental hit sources are separate work; the command damage path does not imply that they run.[^pr1082]
 
 ## Send a message to a player
 
@@ -80,9 +167,13 @@ mcrs has no `player.sendMessage()`. The low-level way is to write a packet for a
 
 A friendlier layer for this does not exist yet. We know of no issue for it, so we promise nothing.
 
-Saving player data is not done either.[^78] The [Status](/docs/en/start/status/) page shows the state of saving.
+The server saves player data to the player files of the world folder, as [Worlds and saves](/docs/en/server/worlds/) describes. A component of your plugin goes into the player file only when the plugin registers it with `PersistScope::Persisted`, as the page on [persisted components](/docs/en/plugins/persisted-components/) explains.[^159]
 
 Next: [Test a plugin without a client](/docs/en/plugins/testing/), where a test joins a fake player and reads these components.
 
-[^158]: <Status issue={158} /> Plans wire entity ids that do not depend on the owning world.
-[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
+[^158]: <Status issue={158} /> Makes the entity ids on the wire independent of the owning world.
+[^159]: <Status issue={159} /> One registry of persisted components for saving, handover and dimension travel.
+[^pr1078]: <Status pr={1078} state="works" /> Applies damage through a sorted queue and exposes the filter and report sets.
+[^pr1082]: <Status pr={1082} state="works" /> Adds player vitals, death packets and replaceable respawn requests, with incomplete resets and spawn-point rules.
+[^pr1084]: <Status pr={1084} state="works" /> Adds vanilla death drops and death messages.
+[^pr1064]: <Status pr={1064} state="works" /> Replicates player arm swings through a public request and replaceable input plugin.

@@ -13,10 +13,6 @@ pub(crate) const UNCOMPRESSED_MARKER: u8 = 0xff;
 
 const DEFLATE_SLACK: usize = 64;
 
-/// Builds batches into buffers that it keeps between batches.
-///
-/// Append the packets of one batch, then call [`BatchEncoder::finish`] for the transport
-/// message.
 pub struct BatchEncoder {
     packet_list: Vec<u8>,
     message: Vec<u8>,
@@ -26,7 +22,6 @@ pub struct BatchEncoder {
 }
 
 impl BatchEncoder {
-    /// An encoder before the switch, with raw deflate at the default level.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -38,13 +33,10 @@ impl BatchEncoder {
         }
     }
 
-    /// Sets the compression; the server calls it directly after it finishes the batch of
-    /// `NetworkSettings`.
     pub fn set_compression(&mut self, compression: BatchCompression) {
         self.compression = compression;
     }
 
-    /// Appends `packet` to the current batch as one entry of the packet list.
     pub fn append<P: Packet + BedrockEncode>(&mut self, packet: &P) -> Result<(), ProtocolError> {
         let start = self.packet_list.len();
         if let Err(error) = self.append_entry(start, packet) {
@@ -70,8 +62,6 @@ impl BatchEncoder {
         Ok(())
     }
 
-    /// Ends the current batch and returns its transport message, which starts with `0xfe`.
-    /// The next append starts a new batch. On an error the batch keeps its packets.
     pub fn finish(&mut self) -> Result<&[u8], ProtocolError> {
         if self.packet_list.is_empty() {
             return Err(ProtocolError::EmptyPacketList);

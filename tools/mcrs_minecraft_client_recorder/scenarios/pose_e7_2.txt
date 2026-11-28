@@ -1,0 +1,19 @@
+# Sleep in a bed at night; the console sets the time to day during the sleep. Experiment E7,
+# step 2, of docs/spec/player-pose.md: POSE-SRV-015.
+experiment pose_e7_2
+arena -16 96 -16 48 110 16
+
+step time_day
+instruction After Go, right-click the bed in front; the console sets the time to day after 1 second.
+input 61 use -90 30
+input 62 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run gamerule players_sleeping_percentage 101
+run setblock 3 100 0 minecraft:red_bed[facing=east,part=head]
+run setblock 2 100 0 minecraft:red_bed[facing=east,part=foot]
+run time set 13000
+start 0.5 100 0.5 -90 0
+at 81 time set 1000
+ticks 140

@@ -9,26 +9,18 @@ use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 
-use crate::saved::SectionData;
+use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
+
+pub type SectionData = (BlockPalette, BiomePalette);
 use crate::task::ColumnSource;
 use mcrs_minecraft_heightmap::ColumnHeightmapSet;
 
-/// The two maps a placement modifier reads as `WORLD_SURFACE_WG` and
-/// `OCEAN_FLOOR_WG`: the column as the fill, the surface rules and the carvers
-/// left it, before any feature wrote into it.
 #[derive(Debug, Clone)]
 pub struct TerrainHeightmaps {
     pub surface: ColumnHeights,
     pub solid: ColumnHeights,
 }
 
-/// How far a column has climbed. The order is the ladder's order, so a
-/// readiness test is a comparison.
-///
-/// The four run-and-merge rungs repeat, once per rung of the dimension's
-/// feature program, which is why the order cannot be the derived one: it goes
-/// by rung first and by phase within it, while a derive would put every
-/// `Running` before every `Ran`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Stage {
     Filling,
@@ -71,60 +63,36 @@ impl PartialOrd for Stage {
     }
 }
 
-/// The colour index of the nine-colour scattering grid: where two units write
-/// the same position, the write of the higher rank stands.
-///
-/// Euclidean remainders, so a column at `-1` colours like one at `2`.
 pub const fn rank(col: ColumnPos) -> u8 {
     (col.x.rem_euclid(3) * 3 + col.z.rem_euclid(3)) as u8
 }
 
-/// A cell of a column, in the packed order the sections themselves use:
-/// section slot, then y, then z, then x. Every column of a dimension shares one
-/// section list, so the index means the same block in the source column and in
-/// the target.
 pub const fn cell_index(slot: usize, local: LocalPos) -> u32 {
     (slot * SectionPos::VOLUME + local.index()) as u32
 }
 
-/// What one unit wrote into one column that is not its own.
 pub struct ColumnDelta {
     pub source_rank: u8,
     pub writes: Vec<(u32, VoxelId)>,
-    /// The block entities among those writes, delivered with the column that
-    /// holds them.
     pub block_entities: Vec<GeneratedBlockEntity>,
-    /// The entities spawned into this column, delivered the same way.
     pub entities: Vec<GeneratedEntity>,
-    /// The ticks scheduled into this column, delivered the same way.
     pub ticks: Vec<PendingTick<GenerationKinds>>,
 }
 
-/// A column at rest: filled, which the first rung of every run in its 3×3 reads
-/// and its own merge starts from; the merge of one rung, which the next rung
-/// reads the same way; or the merge of the last, which delivery hands to the
-/// ECS.
 #[derive(Clone)]
 pub struct FilledSnapshot {
     pub col: ColumnPos,
     pub y_sections: Arc<[i32]>,
     pub sections: Vec<Option<SectionData>>,
-    /// `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG`, frozen as the carvers left them.
     pub terrain: Option<TerrainHeightmaps>,
     pub maps: Option<ColumnHeightmapSet>,
     pub source: ColumnSource,
-    /// What the save held, or what the merged deltas brought.
     pub block_entities: Vec<GeneratedBlockEntity>,
-    /// What the merged deltas spawned; nothing is saved yet, so a column read
-    /// off the save has none.
     pub entities: Vec<GeneratedEntity>,
-    /// What the merged deltas scheduled, in rank order, for the simulation that runs
-    /// the column.
     pub ticks: Vec<PendingTick<GenerationKinds>>,
 }
 
 impl FilledSnapshot {
-    /// Which slot of the section list holds `world_y`, if the column covers it.
     #[inline]
     pub fn slot(&self, world_y: i32) -> Option<usize> {
         let first = *self.y_sections.first()?;
@@ -134,10 +102,8 @@ impl FilledSnapshot {
     }
 }
 
-/// The nine snapshots one run reads, centre at index 4.
 pub type RegionSnapshots = [Arc<FilledSnapshot>; 9];
 
-/// Offset of a column of the 3×3 from its centre, or `None` outside it.
 #[inline]
 pub fn region_slot(center: ColumnPos, col: ColumnPos) -> Option<usize> {
     let dx = col.x - center.x;
@@ -148,7 +114,6 @@ pub fn region_slot(center: ColumnPos, col: ColumnPos) -> Option<usize> {
     Some(((dz + 1) * 3 + (dx + 1)) as usize)
 }
 
-/// The column at region slot `slot` around `center`.
 #[inline]
 pub fn region_column(center: ColumnPos, slot: usize) -> ColumnPos {
     ColumnPos::new(
@@ -161,18 +126,7 @@ pub fn region_column(center: ColumnPos, slot: usize) -> ColumnPos {
 struct ColumnEntry {
     stage: Option<Stage>,
     filled: Option<Arc<FilledSnapshot>>,
-    /// The column as the merge of rung `k` left it. A rung nothing wrote into
-    /// carries the snapshot of the one before it, so a column that grows
-    /// nothing on a rung costs one pointer rather than a second copy of its
-    /// palettes.
     staged: Vec<Option<Arc<FilledSnapshot>>>,
-    /// What this column's run of rung `k` wrote into the column at slot `s` of
-    /// its own 3×3.
-    ///
-    /// Held by the writer rather than by the target, which is what makes an
-    /// eviction cheap: dropping a column loses nothing its neighbours owe it,
-    /// so a column that comes back climbs its own ladder again and merges from
-    /// the very same deltas. Nobody has to be sent back down.
     out: Vec<[Option<Arc<ColumnDelta>>; 9]>,
     block_entities_taken: bool,
     entities_taken: bool,
@@ -186,8 +140,6 @@ impl ColumnEntry {
         &mut row[index]
     }
 
-    /// The highest rung this column has merged, or the fill under a ladder with
-    /// no rungs at all.
     fn top(&self) -> Option<&Arc<FilledSnapshot>> {
         self.staged
             .iter()
@@ -227,10 +179,6 @@ impl StagingStore {
         self.columns.get(&col)?.filled.as_ref()
     }
 
-    /// A column the save already holds arrives decorated, so it stands at the
-    /// top of the ladder with the same blocks on every rung and writes into
-    /// nobody. Its neighbours read it and merge nothing from it, which is what
-    /// having been decorated before it was written means.
     pub fn insert_saved(&mut self, col: ColumnPos, rungs: usize) {
         let entry = self.columns.entry(col).or_default();
         let Some(filled) = entry.filled.clone() else {
@@ -244,8 +192,6 @@ impl StagingStore {
         *ColumnEntry::slot_mut(&mut entry.staged, rung) = Some(staged);
     }
 
-    /// What a run of `rung` reads of `col`: the merge of the rung before it, or
-    /// the filled column at the foot of the ladder.
     pub fn base(&self, col: ColumnPos, rung: usize) -> Option<&Arc<FilledSnapshot>> {
         let entry = self.columns.get(&col)?;
         match rung.checked_sub(1) {
@@ -254,18 +200,31 @@ impl StagingStore {
         }
     }
 
-    /// The column as the last rung left it, which is what a delivery hands to
-    /// the ECS.
-    ///
-    /// Kept past the delivery, not consumed by it: sections ticketed after a
-    /// column was delivered are delivered from the same blocks rather than from
-    /// the undecorated snapshot.
     pub fn merged(&self, col: ColumnPos) -> Option<&Arc<FilledSnapshot>> {
         self.columns.get(&col).and_then(ColumnEntry::top)
     }
 
-    /// The column's block entities, handed over on the first delivery so a
-    /// column delivered again for a late section spawns nothing twice.
+    pub(crate) fn take_merged(&mut self, col: ColumnPos) -> Option<Arc<FilledSnapshot>> {
+        let ColumnEntry { filled, staged, .. } = self.columns.remove(&col)?;
+        staged.into_iter().rev().flatten().next().or(filled)
+    }
+
+    pub(crate) fn release_merged_below(&mut self, col: ColumnPos, rung: usize) {
+        let Some(entry) = self.columns.get_mut(&col) else {
+            return;
+        };
+        for row in entry.out.iter_mut().take(rung.saturating_add(1)) {
+            *row = Default::default();
+        }
+        if entry.staged.get(rung).is_none_or(Option::is_none) {
+            return;
+        }
+        entry.filled = None;
+        for staged in entry.staged.iter_mut().take(rung) {
+            *staged = None;
+        }
+    }
+
     pub fn take_block_entities(&mut self, col: ColumnPos) -> Vec<GeneratedBlockEntity> {
         let Some(entry) = self.columns.get_mut(&col) else {
             return Vec::new();
@@ -279,8 +238,6 @@ impl StagingStore {
             .unwrap_or_default()
     }
 
-    /// The column's spawned entities, handed over once like its block
-    /// entities.
     pub fn take_entities(&mut self, col: ColumnPos) -> Vec<GeneratedEntity> {
         let Some(entry) = self.columns.get_mut(&col) else {
             return Vec::new();
@@ -294,8 +251,6 @@ impl StagingStore {
             .unwrap_or_default()
     }
 
-    /// One delta per target of one run, replaced and not appended, so a column
-    /// that climbs the same rung twice supersedes what it wrote the first time.
     pub fn push_delta(
         &mut self,
         source: ColumnPos,
@@ -311,11 +266,6 @@ impl StagingStore {
         ColumnEntry::slot_mut(&mut entry.out, rung)[slot] = Some(Arc::new(delta));
     }
 
-    /// What a merge of `col` at `rung` applies, in ascending source rank.
-    ///
-    /// The nine columns of a 3×3 cover the nine ranks exactly once, so ordering
-    /// by rank is a fixed permutation of the neighbourhood and the last write
-    /// standing is a function of position alone.
     pub fn deltas(&self, col: ColumnPos, rung: usize) -> Vec<Arc<ColumnDelta>> {
         let mut by_rank: [Option<Arc<ColumnDelta>>; 9] = Default::default();
         for slot in 0..9 {
@@ -335,8 +285,6 @@ impl StagingStore {
         by_rank.into_iter().flatten().collect()
     }
 
-    /// The nine snapshots a run of `rung` over `col` reads, or `None` while any
-    /// is missing.
     pub fn region(&self, col: ColumnPos, rung: usize) -> Option<RegionSnapshots> {
         let slots: Vec<_> = (0..9)
             .map(|slot| self.base(region_column(col, slot), rung).cloned())
@@ -344,7 +292,6 @@ impl StagingStore {
         slots.try_into().ok()
     }
 
-    /// Whether every column of the 3×3 around `col` has reached `stage`.
     pub fn neighbourhood_reached(&self, col: ColumnPos, stage: Stage) -> bool {
         (0..9).all(|slot| {
             self.stage(region_column(col, slot))
@@ -352,14 +299,6 @@ impl StagingStore {
         })
     }
 
-    /// Drop everything no longer within reach of a column somebody wants.
-    ///
-    /// Refilling an evicted column is bit-identical and costs one fill, so the
-    /// bound is the halo and nothing else. Nothing else has to be undone
-    /// either: a delta lives with the column that wrote it, so a target that
-    /// falls out of the halo and comes back merges from deltas that never went
-    /// anywhere, and a merge that names a source the halo has dropped simply
-    /// waits for that source to climb again.
     pub fn retain(&mut self, keep: impl Fn(ColumnPos, Stage) -> bool) {
         self.columns
             .retain(|col, entry| entry.stage.is_some_and(|stage| keep(*col, stage)));
@@ -430,9 +369,6 @@ mod tests {
         assert_eq!(store.len(), 1);
     }
 
-    /// A rung reads the merge of the one below it, and the foot of the ladder
-    /// is the filled column. A window is only offered once every one of the
-    /// nine has climbed that far.
     #[test]
     fn a_rung_reads_the_merge_of_the_rung_below_it() {
         let mut store = StagingStore::default();
@@ -469,9 +405,6 @@ mod tests {
         );
     }
 
-    /// A delta lives with the column that wrote it, so dropping the column it
-    /// was written into costs nothing but the fill: the writers stay where they
-    /// are, and a rebuilt target merges from the very same deltas.
     #[test]
     fn dropping_a_column_leaves_the_deltas_written_into_it_with_their_writers() {
         let mut store = StagingStore::default();
@@ -536,9 +469,6 @@ mod tests {
         }
     }
 
-    /// A column stays merged past its delivery, so a section ticketed later is
-    /// delivered from the same blocks — and would carry the same block entities
-    /// a second time if the delivery did not take them.
     #[test]
     fn a_second_delivery_of_one_column_drops_nothing_twice() {
         let col = ColumnPos::new(3, -4);

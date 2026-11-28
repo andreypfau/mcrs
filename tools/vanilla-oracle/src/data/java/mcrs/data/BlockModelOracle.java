@@ -55,12 +55,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import org.joml.Vector3fc;
 
-/**
- * Resolves the blockstate files and block model files of the client resource pack, as the client
- * does at load, and writes the result as JSON. Nothing is baked or drawn.
- *
- * <p>Arguments: the output directory.
- */
 public final class BlockModelOracle {
     private static final int FORMAT = 1;
     private static final Gson LINE = new GsonBuilder().disableHtmlEscaping().create();

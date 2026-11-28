@@ -1,5 +1,3 @@
-// Bound to the draw args, which the cull writes and the world pass reads, so the driver's
-// hazard tracking runs the heat between one frame's world pass and the next frame's cull.
 @group(0) @binding(0) var<storage, read_write> args: array<u32>;
 
 const HEAT_THREADS: u32 = constants::HEAT_THREADS;

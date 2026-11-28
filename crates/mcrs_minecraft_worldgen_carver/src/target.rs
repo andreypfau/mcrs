@@ -19,9 +19,12 @@ pub trait CarveTarget {
         thickness: f32,
     ) -> Option<Self::Live>;
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the walker's live state, the ellipsoid's centre, its two radii and its shape"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the walker's live state, the ellipsoid's centre, its two radii and its shape"
+        )
     )]
     fn carve(
         &mut self,
@@ -122,8 +125,6 @@ impl Columns {
     }
 }
 
-/// A square of chunk columns carved by one walk per source. Slot `i` is the
-/// column at `origin_x + i / width`, `origin_z + i % width`.
 pub struct Region<'a> {
     origin_x: i32,
     origin_z: i32,
@@ -243,7 +244,6 @@ impl CarveTarget for Region<'_> {
     }
 }
 
-/// The chunks along one axis in which `carve_ellipsoid`'s clipped bounds are not empty.
 #[inline]
 fn chunks_touched(center: f64, horizontal_radius: f64) -> (i32, i32) {
     let first = (center - horizontal_radius).floor() as i32 - 1;
@@ -546,7 +546,7 @@ mod tests {
         #[test]
         #[expect(
             clippy::excessive_nesting,
-            reason = "checks the region slot against the column mask at every width and origin, so a failing combination names itself"
+            reason = "checks the region slot against the column mask at every width and origin"
         )]
         fn a_region_slot_equals_its_columns_mask_at_every_width_and_origin() {
             let mut carved = [0usize; 3];

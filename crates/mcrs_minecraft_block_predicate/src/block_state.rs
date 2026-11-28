@@ -3,13 +3,9 @@ use mcrs_minecraft_resource::{InvalidResourceLocation, ResourceLocationBuf};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// A block state as the noise settings write it: a bare block id, or an id with
-/// stated property values.
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 pub struct BlockState {
     pub name: ResourceLocationBuf,
-    /// `None` where the file named the block alone, which is not the same as an
-    /// empty property map: the two must serialize back to what they came from.
     pub properties: Option<BTreeMap<String, String>>,
 }
 
@@ -20,7 +16,6 @@ impl From<Block> for BlockState {
 }
 
 impl BlockState {
-    /// A block named alone, with no stated property values.
     pub fn bare(name: ResourceLocationBuf) -> Self {
         BlockState {
             name,
@@ -69,8 +64,6 @@ impl Serialize for BlockState {
     }
 }
 
-/// The object form even for a block named alone, where a bare id would read
-/// back as something else.
 pub(crate) fn serialize_stated<S: serde::Serializer>(
     state: &BlockState,
     serializer: S,

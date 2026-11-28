@@ -2,7 +2,6 @@ use core::fmt;
 
 use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 
-/// A JSON value of an entity pack file. Objects keep the order of their keys.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Json {
     Null,
@@ -13,13 +12,11 @@ pub enum Json {
     Object(JsonObject),
 }
 
-/// The members of a JSON object in file order. A key that the file repeats holds its last value.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct JsonObject {
     members: Vec<(String, Json)>,
 }
 
-/// A syntax error of a file, at a 1-based line and column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SyntaxError {
     pub line: usize,
@@ -39,8 +36,6 @@ impl fmt::Display for SyntaxError {
 impl core::error::Error for SyntaxError {}
 
 impl Json {
-    /// Parses JSON that can also hold `//` and `/* */` comments and a comma after the last
-    /// element of an array or an object.
     pub fn parse_lenient(text: &str) -> Result<Self, SyntaxError> {
         serde_json::from_str(&strict_text(text)).map_err(|error| SyntaxError {
             line: error.line(),
@@ -122,8 +117,6 @@ impl JsonObject {
     }
 }
 
-/// Replaces comments with spaces and removes a comma before a closing bracket, so that a strict
-/// parser reads the text. Newlines stay, so error positions stay correct.
 fn strict_text(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();

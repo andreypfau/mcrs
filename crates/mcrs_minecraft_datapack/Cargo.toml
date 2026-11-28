@@ -12,7 +12,7 @@ mcrs_minecraft_resource.workspace = true
 fancy-regex.workspace = true
 mcrs_minecraft_core.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+serde_json = { workspace = true, features = ["unbounded_depth"] }
 serde_path_to_error.workspace = true
 
 [dev-dependencies]

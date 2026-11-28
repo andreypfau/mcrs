@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-# Records the client ticks of one experiment of docs/spec/entity-physics.md, section 15, with a
-# vanilla client behind a proxy to the vanilla server of the corpus version. Usage:
-#   MINECRAFT_EULA=true [DELAY_TRACE=FILE] tools/mcrs_minecraft_client_recorder/record.sh e9 [OUT_DIRECTORY]
-# Without OUT_DIRECTORY, the recordings of e* go to crates/mcrs_minecraft_physics/tests/fixtures/player
-# and the others to crates/mcrs_minecraft_move_predict/tests/fixtures/conformance. DELAY_TRACE holds
-# the round trip samples of the delay between the client and the proxy. Relative paths start at the
-# root of the repository. AUTOPLAY=true starts the vanilla client of tools/vanilla-client, whose
-# input agent plays the `input` lines of the scenario in place of a human; MAX_FPS then sets its
-# frame rate. CHEAT names a module that the proxy emulates on the serverbound movement.
 set -euo pipefail
 
 recorder_here=$(cd "$(dirname "$0")" && pwd)
 recorder_root=$(cd "$recorder_here/../.." && pwd)
-# shellcheck source=../vanilla-server/run.sh
 source "$recorder_root/tools/vanilla-server/run.sh"
 
 if [ "${MINECRAFT_EULA:-}" != true ]; then
@@ -38,6 +28,8 @@ fetch_verified "$work/server.jar" \
     "$(jq -r '.downloads.server.size' "$work/$id.json")" || exit 2
 
 case "$1" in
+    pose*) out="$recorder_here/recordings/pose" ;;
+    inventory*) out="$recorder_here/recordings/inventory" ;;
     e*) out="$recorder_root/crates/mcrs_minecraft_physics/tests/fixtures/player" ;;
     *) out="$recorder_root/crates/mcrs_minecraft_move_predict/tests/fixtures/conformance" ;;
 esac

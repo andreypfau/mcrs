@@ -10,21 +10,16 @@ use crate::SectionLookup;
 use crate::SectionMasks;
 use crate::WorldBorder;
 
-/// A base world in which the blocks of `blocks` have the given states, without a write to the
-/// base: an explosion group sees its removed blocks as air before the block domain runs, and a
-/// client sees the block changes that it has not applied yet as their old states.
 #[derive(Clone, Copy, Debug)]
 pub struct BlockOverlay<'a, W> {
     pub base: &'a W,
     pub blocks: &'a FxHashMap<BlockPos, BlockStateId>,
 }
 
-/// A section of a [`BlockOverlay`].
 #[derive(Clone, Copy, Debug)]
 pub struct OverlaySection<'a, S> {
     base: S,
     origin: BlockPos,
-    /// `None` when no overlay block is in this section.
     blocks: Option<&'a FxHashMap<BlockPos, BlockStateId>>,
 }
 
@@ -56,8 +51,6 @@ impl<W: CollisionWorld> CollisionWorld for BlockOverlay<'_, W> {
 }
 
 impl<S: CollisionSection> CollisionSection for OverlaySection<'_, S> {
-    /// The masks of the base do not know the overlay, so an overlay block forces the per-block
-    /// path.
     fn masks(&self) -> Option<&SectionMasks> {
         match self.blocks {
             None => self.base.masks(),

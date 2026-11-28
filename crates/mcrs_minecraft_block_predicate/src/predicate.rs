@@ -12,7 +12,6 @@ use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_registries::{Named, Refs, Resolved, dispatch, registry_value};
 use mcrs_minecraft_value_provider::VerticalAnchor;
 
-/// `Vec3i.offsetCodec(16)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Offset(pub [i32; 3]);
 
@@ -97,7 +96,6 @@ pub enum BlockPredicate<M: Refs = Resolved> {
         predicate: Box<BlockPredicate<M>>,
     },
     True,
-    /// The one offset the reference does not bound to sixteen blocks per axis.
     Unobstructed {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: [i32; 3],

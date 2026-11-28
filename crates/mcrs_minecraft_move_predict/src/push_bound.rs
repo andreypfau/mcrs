@@ -6,7 +6,6 @@ use mcrs_minecraft_physics::push_axis;
 use crate::Limits;
 use crate::Pusher;
 
-/// The sum of the possible pushes on the player, per horizontal axis.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct PushBound {
     pub(crate) min_x: f64,
@@ -16,8 +15,6 @@ pub(crate) struct PushBound {
 }
 
 impl PushBound {
-    /// The bound of the pushers on a player with the box `player` at `position`; `None` when it
-    /// cannot hold them: too many, too wide, or a hull without the positions it needs.
     pub(crate) fn of(
         pushers: &[Pusher],
         player: &Aabb,
@@ -64,7 +61,6 @@ impl PushBound {
         Some(bound)
     }
 
-    /// The push that comes nearest to `error` on each axis.
     pub(crate) fn clamp(&self, error: DVec3) -> DVec3 {
         DVec3::new(
             error.x.clamp(self.min_x, self.max_x),
@@ -73,7 +69,6 @@ impl PushBound {
         )
     }
 
-    /// The largest length of a push in the bound.
     pub(crate) fn reach(&self) -> f64 {
         let x = self.min_x.abs().max(self.max_x.abs());
         let z = self.min_z.abs().max(self.max_z.abs());
@@ -91,9 +86,6 @@ impl Interval {
     const ZERO: Self = Self { min: 0.0, max: 0.0 };
 }
 
-/// The push on one axis over the range of `Δ`. The push grows with the along component, so the
-/// ends of its range are at the ends of that range. Across, it changes only at the nearest
-/// value, at the distance cutoff and at the farthest value.
 fn interval(min_along: f64, max_along: f64, min_across: f64, max_across: f64) -> Interval {
     let (near, far) = if min_across <= 0.0 && max_across >= 0.0 {
         (0.0, min_across.abs().max(max_across.abs()))
@@ -115,8 +107,6 @@ fn interval(min_along: f64, max_along: f64, min_across: f64, max_across: f64) ->
     }
 }
 
-/// True when the push of the pusher happens at each of its positions: each box meets the player
-/// with a volume, and no position is within the cutoff on both axes.
 fn certain(pusher: &Pusher, player: &Aabb, [min_dx, max_dx, min_dz, max_dz]: [f64; 4]) -> bool {
     let margin = DVec3::new(pusher.half_width, 0.0, pusher.half_width);
     let covered = Aabb::new(

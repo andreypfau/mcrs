@@ -3,24 +3,13 @@ use bevy::render::renderer::RenderQueue;
 use bevy::render::view::ExtractedView;
 
 use crate::gbuffer::DeferredFrame;
+use crate::shared_types::Reconstruction;
 use crate::{CameraOrigin, clip_from_relative};
-
-/// Turns a G-buffer pixel back into a position against the origin of the camera's section, the
-/// same space terrain is drawn in, so no absolute world coordinate is ever held in f32.
-#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub(crate) struct LightingUniform {
-    relative_from_clip: [f32; 16],
-    viewport: [f32; 2],
-    _pad: [f32; 2],
-}
-
-pub(crate) const LIGHTING_UNIFORM_SIZE: u64 = size_of::<LightingUniform>() as u64;
 
 pub(crate) fn write_lighting_uniform(
     frame: Option<Res<DeferredFrame>>,
     origin: Option<Res<CameraOrigin>>,
-    views: Query<&ExtractedView, With<Camera3d>>,
+    views: Populated<&ExtractedView, With<Camera3d>>,
     queue: Res<RenderQueue>,
 ) {
     let (Some(frame), Some(origin), Some(view)) = (frame, origin, views.iter().next()) else {
@@ -35,7 +24,7 @@ pub(crate) fn write_lighting_uniform(
     queue.write_buffer(
         &frame.lighting,
         0,
-        bytemuck::bytes_of(&LightingUniform {
+        bytemuck::bytes_of(&Reconstruction {
             relative_from_clip: clip_from_relative.inverse().to_cols_array(),
             viewport: viewport.to_array(),
             ..default()
@@ -43,7 +32,6 @@ pub(crate) fn write_lighting_uniform(
     );
 }
 
-/// What a fullscreen fragment computes for a pixel, mirrored on the CPU for testing.
 #[cfg(test)]
 fn reconstruct(relative_from_clip: Mat4, pixel: Vec2, viewport: Vec2, depth: f32) -> Vec3 {
     let ndc = (pixel + 0.5) / viewport * Vec2::new(2.0, -2.0) + Vec2::new(-1.0, 1.0);
@@ -60,8 +48,6 @@ mod tests {
 
     const VIEWPORT: Vec2 = Vec2::new(1280.0, 720.0);
 
-    /// The continuous pixel a projected point lands on, in the coordinates the fragment stage
-    /// numbers pixels by.
     fn pixel_and_depth(clip_from: Mat4, point: Vec3) -> (Vec2, f32) {
         let ndc = clip_from.project_point3(point);
         let pixel = (ndc.xy() * Vec2::new(0.5, -0.5) + 0.5) * VIEWPORT - 0.5;

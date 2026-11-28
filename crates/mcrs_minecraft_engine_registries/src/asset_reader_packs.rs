@@ -1,6 +1,5 @@
 use mcrs_minecraft_datapack::{PackSource, ReadError};
 
-/// The pack files an asset reader serves, read as the registry loader reads a pack root.
 pub(crate) struct AssetReaderPacks<'a>(pub(crate) &'a dyn bevy_asset::io::ErasedAssetReader);
 
 impl PackSource for AssetReaderPacks<'_> {

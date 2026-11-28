@@ -28,11 +28,6 @@ pub struct CompiledDisk {
     pub half_height: i32,
 }
 
-/// `DiskFeature`: one radius for the whole disc, then every column inside it
-/// rewritten from the top down for as long as the target holds.
-///
-/// The provider runs once per accepted position, so a target that matches often
-/// is also what a weighted provider draws against.
 pub fn place_disk<W: WorldGenVolume>(
     cfg: &CompiledDisk,
     volume: &mut W,
@@ -71,11 +66,6 @@ pub struct CompiledBlueIce {
     pub ice: VoxelId,
 }
 
-/// `BlueIceFeature`: a seed beside packed ice, then two hundred attempts to
-/// grow outwards from what is already blue ice.
-///
-/// Every attempt spends two draws on its height and four more on the offset,
-/// including the attempts whose position is rejected.
 pub fn place_blue_ice<W: WorldGenVolume>(
     cfg: &CompiledBlueIce,
     volume: &mut W,
@@ -140,11 +130,6 @@ pub struct CompiledUnderwaterMagma {
     pub magma: VoxelId,
 }
 
-/// `UnderwaterMagmaFeature`: find the floor of the water column, then roll for
-/// every position of a cube around it.
-///
-/// The roll comes before the validity test, so the cube costs one float per
-/// position whatever the world under it looks like.
 pub fn place_underwater_magma<W: WorldGenVolume>(
     cfg: &CompiledUnderwaterMagma,
     volume: &mut W,
@@ -156,8 +141,6 @@ pub fn place_underwater_magma<W: WorldGenVolume>(
     };
     let radius = cfg.placement_radius_around_floor;
     let mut placed = false;
-    // `BlockPos.betweenClosed`: x runs fastest, z slowest, and that is the order
-    // the draws are spent in.
     for z in -radius..=radius {
         for y in -radius..=radius {
             for x in -radius..=radius {
@@ -195,8 +178,6 @@ fn is_valid_placement<W: WorldGenVolume>(volume: &W, pos: BlockPos) -> bool {
     if volume.holds(&volume.world().water_states, pos) || volume.is_air(pos) {
         return false;
     }
-    // `getFaceOcclusionShape` reduced to whole-cube occlusion: a slab under the
-    // floor reads as see-through where the reference would not.
     if !volume.holds(&volume.world().solid_render, pos - IVec3::Y) {
         return false;
     }
@@ -205,9 +186,6 @@ fn is_valid_placement<W: WorldGenVolume>(volume: &W, pos: BlockPos) -> bool {
         .all(|side| volume.holds(&volume.world().solid_render, pos + side.normal()))
 }
 
-/// The reference's `TEMPERATURE_NOISE`, `BIOME_INFO_NOISE` and
-/// `FROZEN_TEMPERATURE_NOISE`: fixed seeds that no world seed enters, so every
-/// world's snow line and ice patches follow the same three fields.
 static TEMPERATURE_NOISE: LazyLock<SimplexNoise> =
     LazyLock::new(|| SimplexNoise::from_random_at_origin(&mut LegacyRandom::new(1234)));
 
@@ -233,7 +211,6 @@ static FROZEN_TEMPERATURE_NOISE: LazyLock<NoiseStack<SimplexNoise>> = LazyLock::
     builder.build()
 });
 
-/// What a biome's climate settings say about freezing, per biome slot.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BiomeClimate {
     pub base_temperature: f32,
@@ -243,11 +220,9 @@ pub struct BiomeClimate {
 
 #[derive(Clone, Debug)]
 pub struct CompiledFreezeTopLayer {
-    /// Indexed by the slot [`WorldGenVolume::biome`] answers with.
     pub biomes: Vec<BiomeClimate>,
     pub ice: VoxelId,
     pub snow: VoxelId,
-    /// A full stack of snow layers, which supports another layer above it.
     pub snow_layers_8: VoxelId,
     pub snow_states: StateMask,
     pub cannot_support_snow: StateMask,
@@ -255,8 +230,6 @@ pub struct CompiledFreezeTopLayer {
     pub tables: Arc<BlockTables>,
 }
 
-/// `SnowAndFreezeFeature`: ice on the water and snow on the ground over the
-/// whole column, wherever the biome is cold enough. It draws nothing.
 pub fn place_freeze_top_layer<W: WorldGenVolume>(
     cfg: &CompiledFreezeTopLayer,
     volume: &mut W,
@@ -289,8 +262,6 @@ pub fn place_freeze_top_layer<W: WorldGenVolume>(
     true
 }
 
-/// `Biome.shouldFreeze` with `checkNeighbors` false, which is the only caller
-/// here and the reason the four horizontal water tests never run.
 fn should_freeze<W: WorldGenVolume>(
     climate: &BiomeClimate,
     volume: &W,
@@ -322,7 +293,6 @@ fn should_snow<W: WorldGenVolume>(
     snow_survives(cfg, volume, pos - IVec3::Y)
 }
 
-/// `SnowLayerBlock.canSurvive`, given the block below.
 fn snow_survives<W: WorldGenVolume>(
     cfg: &CompiledFreezeTopLayer,
     volume: &W,
@@ -337,16 +307,12 @@ fn snow_survives<W: WorldGenVolume>(
     volume.holds(&volume.world().sturdy_up, below) || volume.get(below) == cfg.snow_layers_8
 }
 
-/// Both tests are also gated on a block light below ten. Nothing has lit the
-/// column while it decorates, so the gate is open at every position.
 fn warm_enough_to_rain(climate: &BiomeClimate, pos: BlockPos, sea_level: i32) -> bool {
     temperature(climate, pos, sea_level) >= RAIN_TEMPERATURE
 }
 
-/// `Biome.warmEnoughToRain`'s threshold; below it the biome snows.
 pub const RAIN_TEMPERATURE: f32 = 0.15;
 
-/// `Biome.getHeightAdjustedTemperature`.
 pub fn temperature(climate: &BiomeClimate, pos: BlockPos, sea_level: i32) -> f32 {
     let adjusted = if climate.frozen {
         frozen_temperature(pos, climate.base_temperature)
@@ -408,8 +374,6 @@ mod tests {
         WorldgenRandom::new(0x5ca1e)
     }
 
-    /// Water is the one fluid; stone and dirt occlude; grass, stone and dirt
-    /// hold snow up.
     fn shore(mut volume: FakeVolume) -> FakeVolume {
         volume.world.water_states = mask_of([WATER, FLOWING_WATER, FALLING_WATER]);
         volume.world.freezable_water = mask_of([WATER]);
@@ -430,8 +394,6 @@ mod tests {
         volume
     }
 
-    /// One radius drawn for the whole disc, then the columns inside it are
-    /// rewritten over the full height of the slab.
     #[test]
     fn a_disk_draws_one_radius_and_fills_a_flat_circle() {
         let cfg = CompiledDisk {
@@ -475,8 +437,6 @@ mod tests {
         assert!(volume.writes.iter().all(|(_, state)| *state == CLAY));
     }
 
-    /// A target that matches nothing leaves the world alone, but the radius is
-    /// drawn before the first block is read.
     #[test]
     fn a_disk_over_the_wrong_block_still_draws_its_radius() {
         let radius = IntProvider::Dispatched(DispatchedIntProvider::Uniform {
@@ -515,8 +475,6 @@ mod tests {
         }
     }
 
-    /// Two hundred attempts, six draws each: two for the height and four for
-    /// the horizontal offset, spent whether or not the position is taken.
     #[test]
     fn blue_ice_spends_six_draws_on_each_of_its_two_hundred_attempts() {
         let cfg = blue_ice_config();
@@ -550,8 +508,6 @@ mod tests {
         assert!(volume.writes.iter().all(|(_, state)| *state == BLUE_ICE));
     }
 
-    /// Above the sea line, out of the water, or with no packed ice beside it,
-    /// the feature refuses before its first draw.
     #[test]
     fn blue_ice_refuses_without_spending_a_draw() {
         let cfg = blue_ice_config();
@@ -584,8 +540,6 @@ mod tests {
         }
     }
 
-    /// One float per position of the cube around the floor, spent before the
-    /// world is consulted at all.
     #[test]
     fn underwater_magma_rolls_once_for_every_position_of_its_cube() {
         let cfg = magma_config(1);
@@ -617,8 +571,6 @@ mod tests {
         );
     }
 
-    /// A column that is not water at the origin has no floor, and no floor is a
-    /// refusal before the first roll.
     #[test]
     fn underwater_magma_outside_water_draws_nothing() {
         let cfg = magma_config(1);
@@ -663,9 +615,6 @@ mod tests {
         has_precipitation: true,
     };
 
-    /// A surface of grass with one source hole and two flowing ones: the
-    /// source freezes, the ground takes a layer of snow, and the block under
-    /// it is marked snowy.
     fn frozen_surface(climate: BiomeClimate) -> (CompiledFreezeTopLayer, FakeVolume) {
         let mut volume = shore(FakeVolume::default());
         for x in 0..16 {
@@ -731,8 +680,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// The height-adjusted temperature falls off above the snow line, so a
-    /// column high enough freezes in a biome that is warm at sea level.
     #[test]
     fn height_cools_a_column_above_the_snow_line() {
         let climate = BiomeClimate {

@@ -24,13 +24,11 @@ pub type TrimPatternRef<M> = Ref<M, TrimPattern, TrimPattern<M>>;
     Encode,
     Decode,
 )]
-#[serde(deny_unknown_fields)]
 pub struct TrimMaterial<M: Refs = Resolved> {
     pub palette_id: ResourceLocationBuf,
     pub description: Text<M::Nbt>,
 }
 
-/// `decal`: absent reads as false, always written.
 #[registry_value]
 #[derive(
     mcrs_minecraft_registries::FromWire,

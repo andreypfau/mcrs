@@ -11,25 +11,14 @@ use crate::span::Span;
 use crate::suggest::{Suggestion, SuggestionBuilder, starts_with_ignore_case};
 use alloc::vec::Vec;
 
-/// Each redirect and each node below it nests one level of the parse.
-// A deeper chain parses as if the node had no children; 512 levels is far past a
-// 32500 code unit command block, and an explicit stack in place of recursion lifts it.
 const MAX_DEPTH: usize = 512;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Entry {
-    /// Starts a context: the top one, or the child context after a redirect.
-    Context {
-        root: NodeId,
-        start: usize,
-    },
-    Node {
-        node: NodeId,
-        span: Span,
-    },
+    Context { root: NodeId, start: usize },
+    Node { node: NodeId, span: Span },
 }
 
-/// The stacks of one parse, owned by the caller and reused between parses.
 #[derive(Debug)]
 pub struct ParseScratch<E> {
     entries: Vec<Entry>,
@@ -46,8 +35,6 @@ impl<E> Default for ParseScratch<E> {
 }
 
 impl<E> ParseScratch<E> {
-    /// Keeps the entries from `entry` and the errors from `error` in place of those from
-    /// `entry_base` and `error_base`.
     fn keep(&mut self, entry_base: usize, entry: usize, error_base: usize, error: usize) {
         move_down(&mut self.entries, entry_base, entry);
         move_down(&mut self.errors, error_base, error);
@@ -60,7 +47,6 @@ fn move_down<T>(items: &mut Vec<T>, base: usize, from: usize) {
     }
 }
 
-/// One context of a parse: its root, its start and the nodes it parsed.
 #[derive(Clone, Copy, Debug)]
 pub struct ContextView<'s> {
     root: NodeId,
@@ -68,7 +54,6 @@ pub struct ContextView<'s> {
     nodes: &'s [Entry],
 }
 
-/// The top context, then the child context after each redirect.
 pub(crate) fn contexts(entries: &[Entry]) -> impl Iterator<Item = ContextView<'_>> + '_ {
     entries
         .iter()
@@ -91,7 +76,6 @@ pub(crate) fn contexts(entries: &[Entry]) -> impl Iterator<Item = ContextView<'_
 }
 
 impl<'s> ContextView<'s> {
-    /// The parsed nodes of the context with their spans, in input order.
     pub fn nodes(&self) -> impl Iterator<Item = (NodeId, Span)> + use<'s> {
         self.nodes.iter().filter_map(|entry| match *entry {
             Entry::Node { node, span } => Some((node, span)),
@@ -99,7 +83,6 @@ impl<'s> ContextView<'s> {
         })
     }
 
-    /// The last parsed node of the context.
     pub fn last(&self) -> Option<(NodeId, Span)> {
         self.nodes().last()
     }
@@ -113,18 +96,13 @@ impl<'s> ContextView<'s> {
     }
 }
 
-/// Where the suggestions at a cursor come from.
 #[derive(Clone, Copy, Debug)]
 pub struct SuggestionParent<'s> {
-    /// The node whose children suggest.
     pub node: NodeId,
-    /// The start of the suggestions.
     pub start: usize,
-    /// The nodes of the context of `node` before `start`.
     pub context: ContextView<'s>,
 }
 
-/// How well a child parsed: the whole input, then no error below it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Rank {
     complete: bool,
@@ -144,7 +122,6 @@ struct Best {
     end: usize,
 }
 
-/// The nodes and the errors of one parse, borrowed from its [`ParseScratch`].
 #[derive(Debug)]
 pub struct ParseResult<'a, 's, E> {
     input: &'a str,
@@ -158,17 +135,14 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
         self.input
     }
 
-    /// Where the parse stopped; the parse read the whole input when it equals its length.
     pub fn cursor(&self) -> usize {
         self.cursor
     }
 
-    /// The top context, then the child context after each redirect.
     pub fn contexts(&self) -> impl Iterator<Item = ContextView<'s>> + 's {
         contexts(self.entries)
     }
 
-    /// The errors of the level where the parse stopped.
     pub fn errors(&self) -> impl Iterator<Item = SyntaxError<E>> + 's {
         self.errors.iter().copied()
     }
@@ -177,7 +151,6 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
         self.entries
     }
 
-    /// The context that runs and the handler of its last node, or the error to report.
     pub fn check<'g, A, R, H>(
         &self,
         graph: &'g Graph<A, R, H>,
@@ -209,7 +182,6 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
             ))
     }
 
-    /// Where the suggestions at `cursor` come from.
     pub fn suggestion_parent_at(&self, cursor: usize) -> SuggestionParent<'s> {
         let cursor = cursor.min(self.input.len());
         let mut parent = (NodeId::ROOT, cursor);
@@ -262,7 +234,6 @@ impl<'a, 's, E: Copy> ParseResult<'a, 's, E> {
 }
 
 impl<A, R, H> Graph<A, R, H> {
-    /// Parses `input` from `start` against the tree, as the source sees it.
     pub fn parse<'a, 's, S>(
         &self,
         input: &'a str,
@@ -405,7 +376,6 @@ impl<A, R, H> Graph<A, R, H> {
         best.map_or(cursor, |best| best.end)
     }
 
-    /// Suggests what can replace the input before its end, in no order.
     pub fn suggest<'t, S, E: Copy>(
         &'t self,
         parse: &ParseResult<'t, '_, E>,
@@ -443,8 +413,6 @@ impl<A, R, H> Graph<A, R, H> {
         }
     }
 
-    /// Reads the value of an argument of a parsed context again. The parse already
-    /// validated the span, so this read fails only when the source changed in between.
     pub fn value<'a, S, T>(
         &self,
         input: &'a str,

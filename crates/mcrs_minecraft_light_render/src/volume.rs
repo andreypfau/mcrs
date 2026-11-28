@@ -22,11 +22,7 @@ const LANE_WORDS_PER_JOB: u32 = 4;
 const MAX_SLOTS: u32 = 1 << 16;
 const PENDING: u32 = 1 << 31;
 
-// 9.5 atlas slots per column rests on the densest Nether window measured, 7.7 lit and
-// 9.1 propagated sections per column; a denser region reads the vanilla tint.
 const ATLAS_HALF_SLOTS_PER_COLUMN: u32 = 19;
-// 12 bricks per column rests on the 11.5 measured around Nether emitters; a denser
-// region reads the vanilla tint.
 const POOL_BRICKS_PER_COLUMN: u64 = 12;
 
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug, ExtractResource)]
@@ -54,8 +50,6 @@ pub enum VolumeCommand {
     Dirty { section: IVec3, lanes: Vec<Lane> },
 }
 
-/// Filled by the client, drained by the render world. A new generation means the render world
-/// dropped every command and every slot, so whoever fills it starts again.
 #[derive(Resource, Clone, Default)]
 pub struct VolumeQueue(Arc<Mutex<Inbox>>);
 
@@ -76,7 +70,6 @@ impl VolumeQueue {
         self.inbox().generation
     }
 
-    /// The radius the render world can hold, which may be less than the one asked for.
     pub fn radius(&self) -> u8 {
         self.inbox().radius
     }
@@ -90,7 +83,6 @@ impl VolumeQueue {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Called by whoever creates the volume; the filler sees the new generation and starts again.
     pub fn restart(&self, radius: u8) {
         let mut inbox = self.inbox();
         inbox.generation += 1;
@@ -122,8 +114,6 @@ pub(crate) enum Tier {
     Full = 1,
 }
 
-/// One `Rg32Uint` texel: the atlas slot in bits 0-15 of R, the tier in 16-19, pending in 31.
-/// G is reserved.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct PageEntry {
     pub slot: u32,
@@ -138,8 +128,6 @@ impl PageEntry {
     }
 }
 
-/// Toroidal in x and z over a power-of-two width no narrower than the render distance, so no two
-/// resident columns share a page.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct Pages {
     width: u32,
@@ -177,7 +165,6 @@ impl Pages {
     }
 }
 
-/// Slots of 18³ texels packed `per_axis` to a side, x fastest.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct AtlasGrid {
     per_axis: UVec3,
@@ -243,7 +230,6 @@ pub(crate) struct Jobs {
     pub widest: u32,
 }
 
-/// The render world's index of what the pool, the atlas and the page table hold.
 pub(crate) struct VolumeBook {
     grid: AtlasGrid,
     view_distance: u8,
@@ -258,6 +244,7 @@ pub(crate) struct VolumeBook {
     pending: HashMap<IVec3, Vec<Lane>>,
     refused: HashSet<IVec3>,
     touched: HashSet<IVec3>,
+    texels: Vec<(UVec3, [u32; 2])>,
     followed: Option<IVec3>,
     quarters: [u32; 2],
 }
@@ -278,6 +265,7 @@ impl VolumeBook {
             pending: HashMap::default(),
             refused: HashSet::default(),
             touched: HashSet::default(),
+            texels: Vec::new(),
             followed: None,
             quarters: [0; 2],
         }
@@ -290,8 +278,6 @@ impl VolumeBook {
         pages
     }
 
-    /// A brick the pool has no room for is refused, and every section whose region needs it
-    /// reads the vanilla tint until the brick is evicted or a later one for it fits.
     fn brick(&mut self, section: IVec3) -> Option<u32> {
         if let Some(&slot) = self.pool.get(&section) {
             return Some(slot);
@@ -364,8 +350,6 @@ impl VolumeBook {
         Some(slot)
     }
 
-    /// Once the camera stands in another column, sections past `radius` give up their colour and
-    /// their pending work; the filler dirties them again when they come back inside.
     fn follow(&mut self, camera: IVec3, radius: u8) {
         let column = camera.with_y(0);
         if self.followed == Some(column) {
@@ -391,9 +375,6 @@ impl VolumeBook {
         });
     }
 
-    /// Pending sections a job can be taken for. The filler may dirty a section against a camera a
-    /// frame apart from the one followed here, leaving it past the radius until the next move, so
-    /// only those inside the radius and the page table count.
     fn waiting(&self, radius: u8) -> usize {
         let Some(pages) = self.pages.filter(|_| radius > 0) else {
             return 0;
@@ -408,8 +389,6 @@ impl VolumeBook {
             .count()
     }
 
-    /// The pool's and the atlas's use in quarters of capacity, for each one that moved to
-    /// another quarter since the last call.
     fn crossings(&mut self) -> [Option<u32>; 2] {
         let now = [
             quarter(self.pool.len(), self.pool_capacity),
@@ -444,7 +423,6 @@ impl VolumeBook {
         }
     }
 
-    /// When the atlas is full the farthest coloured section gives way to a nearer one.
     fn atlas_slot_near(&mut self, section: IVec3, camera: IVec3) -> Option<u32> {
         if let Some(slot) = self.atlas_slot(section) {
             return Some(slot);
@@ -474,10 +452,6 @@ impl VolumeBook {
         }
     }
 
-    /// The nearest pending sections within `radius` columns, up to `n` that some light reaches.
-    /// Jobs are taken while their lane words fit `lane_budget`; the first is taken whatever its
-    /// width. A section no light reaches, whose region needs a refused brick, or that loses the
-    /// atlas to nearer sections is published neutral without a job.
     fn take_jobs(&mut self, camera: IVec3, radius: u8, n: usize, lane_budget: u32) -> Jobs {
         let mut jobs = Jobs::default();
         let (Some(pages), true) = (self.pages, radius > 0) else {
@@ -535,15 +509,19 @@ impl VolumeBook {
         jobs
     }
 
-    fn take_touched(&mut self) -> Vec<(UVec3, [u32; 2])> {
-        let touched = std::mem::take(&mut self.touched);
-        let Some(pages) = self.pages else {
-            return Vec::new();
-        };
-        touched
-            .into_iter()
-            .filter_map(|section| Some((pages.index(section)?, self.entry(section).texel())))
-            .collect()
+    fn take_touched(&mut self) -> std::vec::Drain<'_, (UVec3, [u32; 2])> {
+        let mut texels = std::mem::take(&mut self.texels);
+        texels.clear();
+        if let Some(pages) = self.pages {
+            texels.extend(
+                self.touched.iter().filter_map(|&section| {
+                    Some((pages.index(section)?, self.entry(section).texel()))
+                }),
+            );
+        }
+        self.touched.clear();
+        self.texels = texels;
+        self.texels.drain(..)
     }
 
     #[cfg(test)]
@@ -602,8 +580,6 @@ fn lanes(words: u32, device: &RenderDevice) -> [Buffer; 2] {
     [(); 2].map(|()| storage("light colour lanes", bytes, device))
 }
 
-/// Everything the light volume allocates. Nothing else may hold a clone of these buffers,
-/// textures or bind groups, or a change of settings would not free them.
 #[derive(Resource)]
 pub(crate) struct Volume {
     pub radius: u8,
@@ -864,12 +840,11 @@ pub(crate) fn fit_volume(
     render_queue: Res<RenderQueue>,
     cache: Res<PipelineCache>,
 ) {
-    if volume.is_some_and(|volume| volume.settings == *settings) {
-        return;
+    if !volume.is_some_and(|volume| volume.settings == *settings) {
+        let volume = Volume::new(*settings, &device, &render_queue, &cache);
+        queue.restart(volume.radius);
+        commands.insert_resource(volume);
     }
-    let volume = Volume::new(*settings, &device, &render_queue, &cache);
-    queue.restart(volume.radius);
-    commands.insert_resource(volume);
 }
 
 pub(crate) fn apply_volume_commands(
@@ -912,8 +887,6 @@ pub(crate) fn apply_volume_commands(
     queue.set_pending(volume.book.waiting(volume.radius));
 }
 
-/// The terms follow the light colours, the brightness and the extent, which move at tick rate
-/// and often not at all, so a frame whose inputs match the last one uploads nothing.
 pub(crate) fn write_volume_terms(
     volume: Option<ResMut<Volume>>,
     sky: Option<Res<ExtractedSky>>,
@@ -932,11 +905,10 @@ pub(crate) fn write_volume_terms(
         min_section_y: volume.book.pages.map_or(0, |pages| pages.min_section_y),
         _pad: 0,
     };
-    if volume.terms_written == Some(terms) {
-        return;
+    if volume.terms_written != Some(terms) {
+        queue.write_buffer(&volume.terms, 0, bytemuck::bytes_of(&terms));
+        volume.terms_written = Some(terms);
     }
-    queue.write_buffer(&volume.terms, 0, bytemuck::bytes_of(&terms));
-    volume.terms_written = Some(terms);
 }
 
 #[cfg(test)]
@@ -945,7 +917,6 @@ mod tests {
 
     use super::*;
 
-    /// What the shader reads out of a page texel.
     fn read(texel: [u32; 2]) -> PageEntry {
         let bits = texel[0];
         PageEntry {
@@ -1176,7 +1147,7 @@ mod tests {
             }
         );
         let page = book.pages.unwrap().index(section).unwrap();
-        assert_eq!(book.take_touched(), [(page, [0, 0])]);
+        assert_eq!(book.take_touched().collect::<Vec<_>>(), [(page, [0, 0])]);
 
         let other = section + IVec3::X;
         book.dirty(other, lanes_of(1));
@@ -1196,7 +1167,7 @@ mod tests {
 
     fn touched_pages(book: &mut VolumeBook) -> HashMap<IVec3, [u32; 2]> {
         let pages = book.pages.unwrap();
-        let by_page: HashMap<UVec3, [u32; 2]> = book.take_touched().into_iter().collect();
+        let by_page: HashMap<UVec3, [u32; 2]> = book.take_touched().collect();
         let mut sections = HashMap::default();
         for x in -16..16 {
             for y in pages.min_section_y..pages.min_section_y + pages.rows as i32 {
@@ -1284,7 +1255,7 @@ mod tests {
 
         book.follow(camera + IVec3::new(0, 5, 0), 2);
         assert!(
-            book.take_touched().is_empty(),
+            book.take_touched().next().is_none(),
             "a move inside the column changes nothing"
         );
         book.dirty(IVec3::new(-5, 0, 0), lanes_of(1));
@@ -1393,7 +1364,7 @@ mod tests {
         book.reset(-4, 8);
         assert!(book.pool.is_empty() && book.atlas.is_empty() && book.pending.is_empty());
         assert!(book.refused.is_empty() && book.followed.is_none());
-        assert!(book.take_touched().is_empty());
+        assert!(book.take_touched().next().is_none());
         assert_eq!(book.pages.map(|pages| pages.extent().y), Some(8));
         assert_eq!(book.entry(section), NEUTRAL);
         assert_eq!(book.brick(far), Some(0), "the pool is empty again");

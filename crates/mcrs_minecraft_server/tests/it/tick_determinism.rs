@@ -1,11 +1,3 @@
-//! The world a tick produces must not depend on where the worlds tick or on the order in which
-//! the generation and light steps ended. The world has two cells, so with threads the cells tick
-//! at the same time and exchange the columns at their boundary.
-//!
-//! Each run ticks in lockstep: after every tick it waits until the generation and light steps
-//! that the tick started have ended, without applying their writes. The writes then reach every
-//! run at the same tick, so any difference between runs comes from the threads.
-
 use std::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
@@ -38,6 +30,7 @@ use crate::world_server::{
 };
 
 const TICKS: usize = 60;
+const SHORT_TICKS: usize = 46;
 
 struct Scenario {
     dimension: Entity,
@@ -59,7 +52,6 @@ impl Scenario {
             });
     }
 
-    /// The input of tick `at`. The first ticks load the view and light it.
     fn script(&self, world: &mut World, at: usize) {
         match at {
             30 => {
@@ -85,7 +77,6 @@ impl Scenario {
     }
 }
 
-/// Feeds `value`'s `Debug` form to `hasher` without building the string.
 struct HashWriter<'a>(&'a mut DefaultHasher);
 
 impl fmt::Write for HashWriter<'_> {
@@ -99,7 +90,6 @@ fn hash_debug(hasher: &mut DefaultHasher, value: &impl fmt::Debug) {
     fmt::write(&mut HashWriter(hasher), format_args!("{value:?}")).expect("hashing never fails");
 }
 
-/// Hashes the light values, so a dense section that holds one value hashes as that uniform value.
 fn hash_light(hasher: &mut DefaultHasher, light: Option<&LightStorage>) {
     match light {
         None => 0u8.hash(hasher),
@@ -118,9 +108,6 @@ fn hash_light(hasher: &mut DefaultHasher, light: Option<&LightStorage>) {
     }
 }
 
-/// The simulation-visible state of the dimension: every section with its stage, light and, as
-/// `hashed` asks, its blocks; every column with its heightmaps; the block entities and the
-/// players. Entities enter by id, so a different allocation order is a different world.
 fn world_hash(world: &mut World, hashed: Hashed) -> u64 {
     let mut hasher = DefaultHasher::new();
     let mut sections: Vec<_> = world
@@ -185,9 +172,7 @@ fn world_hash(world: &mut World, hashed: Hashed) -> u64 {
     hasher.finish()
 }
 
-/// The hash of every cell of the dimension after each tick of the scenario, and of their blocks
-/// after the last.
-fn run(worlds: Placement) -> Vec<u64> {
+fn run(worlds: Placement, ticks: usize) -> Vec<u64> {
     let mut app = WorldServer {
         worlds,
         cells: 2,
@@ -198,8 +183,6 @@ fn run(worlds: Placement) -> Vec<u64> {
     wait_for_generation(&mut app, label);
     let glowstone = block_state(&app, "minecraft:glowstone");
     let stone = block_state(&app, "minecraft:stone");
-    // The first cell owns region 0, which starts at x = 0; the light of the blocks at x = 0
-    // reaches the second cell.
     let world = first_cell(&mut app, label);
     let scenario = Scenario {
         dimension: dimension_of(world),
@@ -210,15 +193,14 @@ fn run(worlds: Placement) -> Vec<u64> {
 
     app.init_resource::<TileDeltaLog>();
     let mut published_tiles = 0;
-    let mut hashes = Vec::with_capacity(TICKS + 1);
-    for at in 0..TICKS {
+    let mut hashes = Vec::with_capacity(ticks + 1);
+    for at in 0..ticks {
         scenario.script(first_cell(&mut app, label), at);
         lockstep_tick(&mut app, label);
         let mut hasher = DefaultHasher::new();
         for world in cell_worlds(&mut app, label) {
             world_hash(world, Hashed::WithoutBlocks).hash(&mut hasher);
         }
-        // The tile deltas are a pure output of the tick, so the runs publish the same ones.
         let logged = std::mem::take(&mut app.world_mut().resource_mut::<TileDeltaLog>().0);
         for entry in logged.iter().filter(|entry| entry.dimension == label) {
             hash_debug(&mut hasher, &entry.deltas);
@@ -257,8 +239,6 @@ fn first_cell(app: &mut App, label: Entity) -> &mut World {
         .expect("the world has a cell")
 }
 
-/// Whether a hash covers the blocks of every section. Light and stages cover each tick; the
-/// blocks change only by generation and by the script, so the last tick covers them.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Hashed {
     WithBlocks,
@@ -271,13 +251,26 @@ fn first_divergence(left: &[u64], right: &[u64]) -> Option<usize> {
         .position(|(left, right)| left != right)
 }
 
-#[test]
-fn the_world_a_tick_produces_does_not_depend_on_the_threads() {
-    let inline = run(Placement::Inline);
-    let threads = run(Placement::Thread);
+fn assert_threads_do_not_change_the_world(ticks: usize) {
+    let inline = run(Placement::Inline, ticks);
+    let threads = run(Placement::Thread, ticks);
     assert_eq!(
         first_divergence(&inline, &threads),
         None,
         "the threads diverge from Inline at the tick shown (the last entry holds the blocks)"
     );
+}
+
+#[test]
+fn the_world_a_tick_produces_does_not_depend_on_the_threads() {
+    assert_threads_do_not_change_the_world(SHORT_TICKS);
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn the_world_a_tick_produces_does_not_depend_on_the_threads() {
+        super::assert_threads_do_not_change_the_world(TICKS);
+    }
 }

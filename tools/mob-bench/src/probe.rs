@@ -1,19 +1,13 @@
-//! Parsers for the console answers and log lines the harness reads.
-
 use glam::DVec3;
 
 use crate::scene::SAMPLE_PREFIX;
 
-/// 26.4 answers `The game time is 1234 tick(s)`; earlier versions `The time is 1234`.
 const GAME_TIME: [&str; 2] = ["The game time is ", "The time is "];
-/// 26.4 answers `Test passed. Count: 2`; earlier versions `Test passed, count: 2`.
 const COUNT: [&str; 2] = ["Test passed. Count: ", "Test passed, count: "];
 const ENTITY_DATA: &str = " has the following entity data: ";
 const SPRINT: &str = "Sprint completed with ";
-/// `Applied 0.0 damage to Pig`, the answer to one hit of `damage`.
 const DAMAGE: [&str; 2] = ["Applied ", " damage to "];
 
-/// The answer to `time query gametime`.
 #[must_use]
 pub fn game_time(line: &str) -> Option<i64> {
     let (_, rest) = GAME_TIME
@@ -22,14 +16,12 @@ pub fn game_time(line: &str) -> Option<i64> {
     rest.split(' ').next()?.trim().parse().ok()
 }
 
-/// The answer to `execute if entity` when something matches.
 #[must_use]
 pub fn count(line: &str) -> Option<usize> {
     let (_, rest) = COUNT.iter().find_map(|marker| line.split_once(marker))?;
     rest.trim().parse().ok()
 }
 
-/// `Test failed`, the answer to `execute if entity` when nothing matches.
 #[must_use]
 pub fn count_or_zero(line: &str) -> Option<usize> {
     if line.trim_end().ends_with("Test failed") {
@@ -38,7 +30,6 @@ pub fn count_or_zero(line: &str) -> Option<usize> {
     count(line)
 }
 
-/// Whether `line` answers one hit of `damage`.
 #[must_use]
 pub fn damage_applied(line: &str) -> bool {
     line.split_once(DAMAGE[0])
@@ -51,7 +42,6 @@ pub struct SamplePosition {
     pub position: DVec3,
 }
 
-/// `mbs7 has the following entity data: [1.5d, -60.0d, 3.25d]`.
 #[must_use]
 pub fn sample_position(line: &str) -> Option<SamplePosition> {
     let (head, data) = line.split_once(ENTITY_DATA)?;
@@ -71,7 +61,6 @@ pub fn sample_position(line: &str) -> Option<SamplePosition> {
     })
 }
 
-/// The milliseconds a tick of `Sprint completed with 20.5 ticks per second, or 48.7 ms per tick`.
 #[must_use]
 pub fn sprint_millis(line: &str) -> Option<f64> {
     let (_, rest) = line.split_once(SPRINT)?;

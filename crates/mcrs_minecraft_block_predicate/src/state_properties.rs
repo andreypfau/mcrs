@@ -14,8 +14,6 @@ pub enum ValueMatcher {
     },
 }
 
-/// A property value as its position in the property's value order, and the
-/// reader that places a written value in that order.
 #[derive(Clone, Copy)]
 struct Ranked {
     value: u8,
@@ -23,8 +21,6 @@ struct Ranked {
 }
 
 impl ValueMatcher {
-    /// A written value or bound that is not a value of the property never
-    /// matches.
     fn matches(&self, property: Ranked) -> bool {
         let bound = |text: &Option<String>, holds: fn(u8, u8) -> bool| {
             text.as_deref().is_none_or(|text| {
@@ -40,7 +36,6 @@ impl ValueMatcher {
     }
 }
 
-/// Property name to matcher, in the order read.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct StatePropertiesPredicate(pub Vec<(String, ValueMatcher)>);
 
@@ -51,8 +46,6 @@ impl StatePropertiesPredicate {
         self.0.is_empty()
     }
 
-    /// Every entry has to name a property the state has, so any entry fails on
-    /// the empty fluid.
     pub fn matches_fluid(&self, state: Option<&FluidState>) -> bool {
         self.0.iter().all(|(name, matcher)| {
             state

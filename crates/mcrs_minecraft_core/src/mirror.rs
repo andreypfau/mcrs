@@ -22,7 +22,6 @@ impl Mirror {
         }
     }
 
-    /// The axis whose sign this mirror flips.
     pub const fn axis(self) -> Option<Axis> {
         match self {
             Mirror::None => None,
@@ -39,8 +38,6 @@ impl Mirror {
         }
     }
 
-    /// The rotation a block facing `direction` takes under this mirror: a half
-    /// turn when the facing lies on the mirrored axis, nothing otherwise.
     pub fn rotation(self, direction: Direction) -> Rotation {
         if self.axis() == Some(direction.axis()) {
             Rotation::Clockwise180
@@ -49,7 +46,6 @@ impl Mirror {
         }
     }
 
-    /// A block rotation of `steps` per turn reflected across the mirror.
     pub fn mirror_index(self, index: u16, steps: u16) -> u16 {
         let (index, steps) = (i32::from(index), i32::from(steps));
         let half = steps / 2;
@@ -63,7 +59,6 @@ impl Mirror {
     }
 }
 
-/// The `FRONT_BACK` spelling the piece NBT uses.
 pub mod legacy {
     use super::*;
 

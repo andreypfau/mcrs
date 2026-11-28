@@ -11,7 +11,7 @@ use crate::OceanTemperature;
 use crate::frozen::OceanRuinConfig;
 use crate::orient::random_rotation;
 use crate::piece::{OceanRuinPiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     rl!("minecraft:underwater_ruin/warm_1"),
@@ -73,20 +73,23 @@ const BIG_MOSSY: &[ResourceLocation<'static>] = family(36, 4);
 const BIG_CRACKED: &[ResourceLocation<'static>] = family(40, 4);
 const BIG_WARM: &[ResourceLocation<'static>] = family(44, 4);
 
-/// The ruins of one family, in the order the reference's arrays list them.
 const fn family(start: usize, len: usize) -> &'static [ResourceLocation<'static>] {
     TEMPLATES.split_at(start).1.split_at(len).0
 }
 
 pub fn site(
     _config: &OceanRuinConfig,
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     _rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
     on_top_of_chunk_centre(ctx, HeightmapName::OceanFloorWg)
 }
 
-pub fn layout(config: &OceanRuinConfig, ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+pub fn layout(
+    config: &OceanRuinConfig,
+    ctx: &mut Context<'_, impl SiteWorld>,
+    mut site: Site,
+) -> Vec<Piece> {
     let rng = &mut site.rng;
     let position = IVec3::new(
         ctx.chunk.min_block_x(),
@@ -115,7 +118,7 @@ pub fn layout(config: &OceanRuinConfig, ctx: &mut Context<'_>, mut site: Site) -
 
 fn add_cluster(
     config: &OceanRuinConfig,
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     rng: &mut LegacyRandom,
     pieces: &mut Vec<Piece>,
     parent: IVec3,
@@ -160,7 +163,6 @@ fn add_cluster(
     }
 }
 
-/// `Mth.nextInt(random, min, max)`, inclusive of both ends.
 fn next_int_between(rng: &mut LegacyRandom, min: i32, max: i32) -> i32 {
     if min >= max {
         min
@@ -187,13 +189,16 @@ fn all_positions(rng: &mut LegacyRandom, origin: IVec3) -> Vec<IVec3> {
         .collect()
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the ruin's configuration, context and random source, the piece list, and the position, rotation, size flag and integrity of one placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one placement"
+    )
 )]
 fn add_piece(
     config: &OceanRuinConfig,
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     rng: &mut LegacyRandom,
     pieces: &mut Vec<Piece>,
     position: IVec3,
@@ -246,7 +251,7 @@ fn add_piece(
 
 fn piece(
     config: &OceanRuinConfig,
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     name: ResourceLocation<'static>,
     position: IVec3,
     rotation: Rotation,
@@ -267,12 +272,8 @@ fn piece(
     }))
 }
 
-/// `OceanRuinPiece.postProcess`'s height: the ocean floor at the template's
-/// corner, lowered to one above the footprint's deepest column when the
-/// footprint is mostly a drop of more than two, read here from the base
-/// columns rather than the live world.
 fn floor(
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     position: IVec3,
     rotation: Rotation,
     [size_x, _, size_z]: [u16; 3],

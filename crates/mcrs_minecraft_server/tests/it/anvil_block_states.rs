@@ -1,3 +1,4 @@
+use crate::support::{CorpusBlockStates, RegistryBiomes, column_sections};
 use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
@@ -5,9 +6,6 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_engine_world::palette::non_air_block_count;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_worldgen_generator::saved::{
-    CorpusBlockStates, RegistryBiomes, column_sections,
-};
 use mcrs_voxel::BlockStateId;
 
 fn corpus() -> &'static BlockDefinitions {
@@ -22,8 +20,6 @@ fn text(value: &PropertyValue) -> String {
     }
 }
 
-/// The property values of one of a block's states, in the corpus's own order.
-/// The last property varies fastest, so the offset unwinds from the back.
 fn state_properties(block: &BlockEntry, state: BlockStateId) -> Vec<(&str, &PropertyValue)> {
     let mut offset = state.number() - block.base_state_id.number();
     let mut values = Vec::new();
@@ -124,8 +120,6 @@ fn chunk_with_y_pos(y_pos: Option<i32>, sections: Vec<NbtTag>) -> Result<Chunk, 
     )
 }
 
-/// Each section packs its palette in list order from the first cell, so the
-/// first cells read the palette back as the corpus resolved it.
 fn resolve(sections: Vec<(i8, Vec<NbtTag>)>) -> Result<Vec<u32>, ErrorKind> {
     let lens: Vec<usize> = sections.iter().map(|(_, palette)| palette.len()).collect();
     let chunk = chunk(
@@ -150,7 +144,6 @@ fn resolve(sections: Vec<(i8, Vec<NbtTag>)>) -> Result<Vec<u32>, ErrorKind> {
     Ok(ids)
 }
 
-/// Every state of a block with all three property types, not just its default.
 fn every_state_of_a_stair_and_a_note_block_round_trips() {
     let definitions = corpus();
     for name in ["minecraft:oak_stairs", "minecraft:note_block"] {
@@ -287,8 +280,6 @@ fn a_value_the_block_does_not_declare_is_a_loud_error() {
     );
 }
 
-/// Each property stands on its own, so an entry states only what differs from
-/// the block's default state and a bare name is that default.
 fn a_property_the_entry_leaves_out_keeps_its_default_value() {
     let corpus = corpus();
     let stairs = corpus
@@ -313,8 +304,6 @@ fn a_property_the_entry_leaves_out_keeps_its_default_value() {
     );
 }
 
-/// The save's light arrays are not read: nothing writes a region file back, so
-/// every session recomputes light from the blocks.
 fn a_saved_section_decodes_its_blocks_and_nothing_else() {
     let stone = corpus().block("minecraft:stone").unwrap();
     let chunk = chunk(vec![section_with_light(
@@ -354,7 +343,6 @@ fn overworld_sections_with_blocks(chunk: Chunk) -> Vec<i32> {
         .collect()
 }
 
-/// SIM-SCH-018: a missing `Y` is section 0, and no `yPos` is needed to place it.
 fn a_record_without_y_pos_places_a_section_without_y_at_zero() {
     let stone = corpus().block("minecraft:stone").unwrap();
     let NbtTag::Compound(mut section) = section(5, vec![default_entry(stone)]) else {
@@ -366,8 +354,6 @@ fn a_record_without_y_pos_places_a_section_without_y_at_zero() {
     assert_eq!(overworld_sections_with_blocks(chunk), [0]);
 }
 
-/// SIM-SCH-018: each section goes by its own `Y`, whatever `yPos` says, and a
-/// section above the dimension gives no blocks.
 fn a_wrong_y_pos_moves_no_section_and_an_outside_section_gives_no_blocks() {
     let stone = corpus().block("minecraft:stone").unwrap();
     let chunk = chunk_with_y_pos(

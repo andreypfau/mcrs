@@ -18,20 +18,13 @@ use crate::item_definition::DefinedItem;
 use crate::item_definition::ItemDefinition;
 use crate::item_names::ItemNames;
 
-/// The table that the item definitions bake into, and the component types that it left out.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct BakedItems {
     pub table: ItemTable,
-    /// The component types without a Rust type, in the order of their identifiers.
     pub skipped: Vec<SkippedType>,
 }
 
-/// Reads the item definitions and builds the table of their prototypes.
-///
-/// The item ids of the files must be dense from 0. The item names come from the files; `registries`
-/// gives the ids of the other names that a component holds, and of each component type. A
-/// component of a type without a Rust type is left out and counted. One bad file fails the bake.
 pub fn bake<'file, L: NameLookup>(
     files: impl IntoIterator<Item = DefinitionFile<'file>>,
     registries: &L,

@@ -44,6 +44,7 @@ pub mod tree;
 
 pub mod column;
 pub mod template;
+pub mod template_file;
 
 #[cfg(test)]
 mod tests {
@@ -63,8 +64,6 @@ mod tests {
         Ok(serde_json::to_string(&value).unwrap())
     }
 
-    /// Shapes the shipped corpus never writes, so the corpus round trip does not
-    /// cover them.
     #[test]
     fn the_unshipped_shapes_round_trip() {
         let cases: &[(Codec, &str)] = &[

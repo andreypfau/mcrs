@@ -11,18 +11,13 @@ use mcrs_voxel::BlockPos;
 
 use crate::tree::provider::{SharedNoise, StateProvider};
 
-/// One `inner_placements` entry in every form it is written in: indexed by
-/// face, then by whether the block it grows into holds a source fluid.
 #[derive(Clone, Debug)]
 pub struct GeodeCrystal {
     pub states: [[VoxelId; 2]; 6],
 }
 
 impl GeodeCrystal {
-    /// `trySetValue` of `facing` and `waterlogged`: a crystal without either
-    /// property is the same state in every slot, which is what the reference's
-    /// `hasProperty` guards produce.
-    pub fn resolve(state: &BlockState, blocks: &dyn BlockResolver) -> Option<Self> {
+    pub fn resolve(state: &BlockState, blocks: &impl BlockResolver) -> Option<Self> {
         const FACES: [&str; 6] = ["down", "up", "north", "south", "west", "east"];
         let try_with = |from: &BlockState, property: &str, value: &str| -> BlockState {
             let mut candidate = from.clone();
@@ -56,8 +51,6 @@ pub struct CompiledGeode {
     pub inner_placements: Vec<GeodeCrystal>,
     pub cannot_replace: StateMask,
     pub invalid_blocks: StateMask,
-    /// `BuddingAmethystBlock.canClusterGrowAtState`: air, or water at full
-    /// height.
     pub cluster_growable: StateMask,
     pub use_potential_placements_chance: f64,
     pub use_alternate_layer0_chance: f64,
@@ -77,8 +70,6 @@ pub struct CompiledGeode {
     pub base_crack_size: f64,
     pub generate_crack_chance: f64,
     pub crack_point_offset: i32,
-    /// `NormalNoise.createParity(-4, 1.0)` over the world seed, so it belongs
-    /// to the dimension rather than to the object and draws nothing here.
     pub noise: SharedNoise,
 }
 
@@ -86,11 +77,9 @@ fn inv_sqrt(value: f64) -> f64 {
     1.0 / value.sqrt()
 }
 
-/// `GeodeFeature.place`: a distance field over budded points, shelled in four
-/// layers, optionally cracked, and then studded with crystals.
 #[expect(
     clippy::too_many_lines,
-    reason = "shells the distance field in four layers, cracks it and studs it with crystals in the reference's order, so the random draws match it"
+    reason = "layers in the reference's order so the random draws match"
 )]
 pub fn place_geode<W: WorldGenVolume>(
     config: &CompiledGeode,
@@ -300,9 +289,6 @@ mod tests {
         volume
     }
 
-    /// Two invalid distribution points end the run without a `point_offset`
-    /// draw for the second: three per point, then the offset only when the
-    /// point survives.
     #[test]
     fn an_invalid_point_ends_the_run_before_its_offset() {
         let mut volume = FakeVolume::default();
@@ -315,12 +301,10 @@ mod tests {
         assert!(points >= 3);
         replay.next_f64();
         replay.next_f32();
-        // The first point is air and inside the threshold, so it still buds.
         for _ in 0..3 {
             config.outer_wall_distance.sample(&mut replay);
         }
         config.point_offset.sample(&mut replay);
-        // The second is air too, which trips the threshold three draws in.
         for _ in 0..3 {
             config.outer_wall_distance.sample(&mut replay);
         }
@@ -341,8 +325,6 @@ mod tests {
         );
     }
 
-    /// Self-recorded: the ladder is read off `GeodeFeature`, the number off
-    /// this implementation.
     #[test]
     fn geode_draw_count_anchor() {
         let mut volume = solid_rock();

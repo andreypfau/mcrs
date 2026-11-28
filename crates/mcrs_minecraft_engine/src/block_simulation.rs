@@ -1,15 +1,3 @@
-//! The block simulation of a dimension world: each tick it runs the step of the block kernels
-//! over the sections of the cell, with the rules of the blocks that the game supplies.
-//!
-//! The order of one tick is the order of vanilla. At the sync point, the ticks of the columns
-//! that landed join the queues, and the messages of the other cells and then the block writes of
-//! the tick apply. Then the scheduled block ticks run,
-//! then the scheduled fluid ticks, then the random ticks, then the broadcast of the marked
-//! blocks, then the block events. Neighbour and shape updates run inside the phase that causes
-//! them. The block events that a block took go to the clients near it after the broadcast, so the
-//! changes that the events cause go out in the broadcast of the next tick. The items of a
-//! destroyed block go out as [`ItemDropped`].
-
 use std::mem;
 
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, SubApp};
@@ -17,9 +5,9 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Has, Query, With};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::common_conditions::{not, resource_exists};
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
-use bevy_ecs::system::{Res, ResMut, SystemParam};
+use bevy_ecs::schedule::common_conditions::{not, on_message, resource_exists};
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition, SystemSet};
+use bevy_ecs::system::{Local, Res, ResMut, SystemParam};
 use bevy_ecs::world::World;
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut, TaskPool};
 use mcrs_minecraft_block::block_keys::Block;
@@ -28,6 +16,7 @@ use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite, VoxelUpdateSet};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
@@ -36,7 +25,7 @@ use mcrs_minecraft_engine_world::world::storage::random_ticks::{
 };
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
-use mcrs_minecraft_item::ItemStack;
+use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEvent;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
@@ -47,8 +36,8 @@ use mcrs_minecraft_simulation::{
     Serial, ShardId, SimulatedSections, Spread, StepAt, StepOutput, StreamSeed, SubTick, TickKind,
     TickQueue, VanillaOrder,
 };
-use mcrs_minecraft_volume::PalettedSection;
-use mcrs_voxel::{ColumnPos, SectionPos};
+use mcrs_minecraft_volume::{BlockVolume, PalettedSection};
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 use crate::block_update::{BroadcastMarks, remove_replaced_block_entities};
@@ -57,16 +46,19 @@ use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
 use crate::column_change::ColumnChange;
 use crate::column_streams::ColumnStreams;
-use crate::column_ticks::{ColumnTicks, LandedTicks, StoredTick};
+use crate::column_ticks::LandedTicks;
 use crate::coordinator::clock::GameTime;
 use crate::random_tick_speed::RandomTickSpeed;
 use crate::world_kinds::{WorldFacts, WorldKinds};
-use mcrs_minecraft_engine_world::block_drops::{BlockDrops, ItemDropped};
+use mcrs_minecraft_engine_world::block_drops::{
+    BlockBroken, BlockDrops, DroppingBlock, ItemDropped,
+};
+use mcrs_minecraft_engine_world::game_rules::GameRules;
+use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_engine_world::world_seed::WorldSeed;
+use mcrs_minecraft_game_rule::GameRule;
+use mcrs_minecraft_region_disk::column_ticks::{ColumnTicks, StoredTick};
 
-/// Rules under which no block reacts: no block has a behaviour that a specification states yet.
-/// Writes, neighbour and shape updates, scheduled ticks and block events still run, and a tick
-/// or an event reaches its block with no effect.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InertBlocks;
 
@@ -74,13 +66,9 @@ impl BlockBehaviour<WorldKinds> for InertBlocks {}
 
 impl BlockDrops for InertBlocks {}
 
-/// The rules of the blocks of a dimension world.
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct BlockRules<B>(pub B);
 
-/// Which block rules the host builds into each dimension world: a function that adds a
-/// [`BlockSimulationPlugin`] to the world, which holds the registries of the host by then. Insert
-/// it into the host before the dimensions spawn; without it, the dimensions run [`InertBlocks`].
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct DimensionBlockRules(pub fn(&mut SubApp));
 
@@ -92,8 +80,6 @@ impl Default for DimensionBlockRules {
     }
 }
 
-/// The block simulation of a dimension world under the rules `B`: each [`BlockSetRequest`] is a
-/// set of the kernel, with all its flags.
 pub struct BlockSimulationPlugin<B> {
     rules: B,
 }
@@ -105,15 +91,20 @@ impl<B> BlockSimulationPlugin<B> {
     }
 }
 
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct BlockSimulationSet;
+
 impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
     for BlockSimulationPlugin<B>
 {
     fn build(&self, app: &mut App) {
         app.insert_resource(BlockRules(self.rules.clone()));
         app.init_resource::<BlockSimulation>();
+        app.init_resource::<RandomTickSpeed>();
         app.init_resource::<LandedTicks>();
         app.init_resource::<BroadcastMarks>();
         app.add_message::<ItemDropped>();
+        app.add_message::<BlockBroken>();
         app.add_plugins(RandomTickIndexPlugin);
         app.add_systems(
             FixedUpdate,
@@ -121,40 +112,42 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
                 index_random_ticks::<B>.run_if(
                     resource_exists::<Blocks>.and_then(not(resource_exists::<RandomTickIndex>)),
                 ),
+                drop_broken_blocks::<B>.run_if(on_message::<BlockBroken>),
                 run_block_simulation::<B>,
             )
                 .chain()
-                .in_set(TickSet::WorldWrite),
+                .in_set(BlockSimulationSet),
         );
+        app.configure_sets(FixedUpdate, BlockSimulationSet.in_set(TickSet::WorldWrite));
         app.add_systems(
             FixedPostUpdate,
-            remove_replaced_block_entities.in_set(VoxelUpdateSet::NetworkSync),
+            remove_replaced_block_entities
+                .in_set(VoxelUpdateSet::NetworkSync)
+                .run_if(on_message::<BlockPlaced>),
         );
     }
 }
 
-/// The ticks that a column held when it went cold.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TakenTicks {
     pub ticks: ColumnTicks,
-    /// A saved tick activated, or the column holds a tick scheduled since it landed.
     pub changed: bool,
 }
 
-/// The queues of the block kernels of a dimension world, and what crosses to the other cells.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CopiedTicks {
+    pub ticks: ColumnTicks,
+    pub changed: bool,
+}
+
 #[derive(Resource, Default)]
 pub struct BlockSimulation {
     shard: BlockShard<WorldKinds>,
     out: StepOutput<WorldKinds>,
-    /// The messages of the other cells for the next step, in the order of the cells.
     inbound: Vec<Message<WorldKinds>>,
     ledgers: Vec<ChainLedger>,
-    /// The sections with saved ticks that wait for their section to run ticks.
     held: FxHashSet<SectionPos>,
-    /// The columns in which a saved tick activated since they landed.
     activated: FxHashSet<ColumnPos>,
-    /// The random ticks of each block state under the rules, once the block table landed: the
-    /// table of the [`RandomTickIndex`].
     random_table: Option<RandomTickTable>,
     footprints: Footprints,
     random_seed: Option<StreamSeed>,
@@ -172,16 +165,11 @@ impl BlockSimulation {
         self.ledgers.append(ledgers);
     }
 
-    /// Holds the saved ticks of a column that landed. The k-th tick of a list of m ticks gets the
-    /// order k - m, so the ticks keep their saved order and run before the ticks of the tick that
-    /// are due at the same time. A later copy of a held or queued tick is dropped.
     fn hold(&mut self, ticks: &ColumnTicks) {
         hold_list(self.shard.block_ticks_mut(), &mut self.held, &ticks.block);
         hold_list(self.shard.fluid_ticks_mut(), &mut self.held, &ticks.fluid);
     }
 
-    /// Activates the saved ticks of each section that runs ticks now: a tick that was saved with
-    /// the delay `t` is due `t` ticks after now.
     fn activate<V: SimulatedSections>(&mut self, volume: &V, now: GameTick) {
         let Self {
             shard,
@@ -202,9 +190,33 @@ impl BlockSimulation {
         });
     }
 
-    /// Takes the ticks of the sections `rows` of `column` out of the queues, as the data layer
-    /// keeps them: first the saved ticks that did not activate, in their saved order, then the
-    /// active ticks, in the order they run when due together, each with its delay from `now`.
+    pub fn copy_column(
+        &self,
+        column: ColumnPos,
+        rows: impl IntoIterator<Item = i32>,
+        now: GameTick,
+    ) -> CopiedTicks {
+        let mut block = Taken::default();
+        let mut fluid = Taken::default();
+        for y in rows {
+            let section = SectionPos::new(column.x, y, column.z);
+            if let Some(ticks) = self.shard.block_ticks().section_ticks(section) {
+                block.add(ticks, now);
+            }
+            if let Some(ticks) = self.shard.fluid_ticks().section_ticks(section) {
+                fluid.add(ticks, now);
+            }
+        }
+        let changed = self.activated.contains(&column) || block.has_active() || fluid.has_active();
+        CopiedTicks {
+            ticks: ColumnTicks {
+                block: block.into_list(),
+                fluid: fluid.into_list(),
+            },
+            changed,
+        }
+    }
+
     pub fn take_column(
         &mut self,
         column: ColumnPos,
@@ -313,7 +325,6 @@ impl<T: TickKind> Taken<T> {
     }
 }
 
-/// What the cells of a world hand each other besides the blocks.
 #[derive(SystemParam)]
 struct CellLinks<'w> {
     owned: Option<Res<'w, OwnedColumns>>,
@@ -329,30 +340,59 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
     time: Res<'w, GameTime>,
 }
 
-/// What the random picks draw from.
 #[derive(SystemParam)]
 struct RandomTicking<'w> {
     speed: Res<'w, RandomTickSpeed>,
     seed: Option<Res<'w, WorldSeed>>,
+    pace: Option<Res<'w, TickPace>>,
 }
 
-/// Where the outcome of a step goes besides the blocks.
 #[derive(SystemParam)]
 struct StepOutlets<'w, 's> {
     marks: ResMut<'w, BroadcastMarks>,
     streams: Query<'w, 's, &'static ColumnStreams>,
     changes: MessageWriter<'w, ColumnChange>,
+    dropped: DropOutlet<'w>,
+}
+
+#[derive(SystemParam)]
+struct DropOutlet<'w> {
     dropped: MessageWriter<'w, ItemDropped>,
+    game_rules: Option<Res<'w, GameRules>>,
+}
+
+impl DropOutlet<'_> {
+    fn write(&mut self, at: BlockPos, stacks: impl Iterator<Item = ItemStack>) {
+        let on = self
+            .game_rules
+            .as_deref()
+            .is_none_or(|rules| rules.is_on(GameRule::BlockDrops));
+        if on {
+            self.dropped
+                .write_batch(stacks.map(|stack| ItemDropped { at, stack }));
+        }
+    }
 }
 
 #[expect(
     clippy::too_many_lines,
     reason = "the sync point, the four phases and the hand-off of their output are one ordered step"
 )]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "each parameter is a distinct part of the world that the step reads or writes"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "advances the scheduled and random block ticks of every loaded column each tick"
+    )
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the broadcast marks allocate only for a section whose blocks change in this tick, and the update entries move into the outbound packet"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'static>(
     mut requests: MessageReader<BlockSetRequest>,
     mut blocks: WorldViewMut,
@@ -370,7 +410,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
         return;
     };
     let Some(definitions) = kernel.definitions.as_deref() else {
-        // The block table lands with the registries; until then a write is stored as it is.
         for request in requests.read() {
             voxel_update::apply_write(
                 &mut blocks,
@@ -445,7 +484,8 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
 
     let rules = &kernel.rules.0;
     let table = simulation.random_table.get_or_insert_default();
-    let speed = random.speed.0;
+    let runs_normally = random.pace.as_deref().is_none_or(TickPace::runs_normally);
+    let speed = if runs_normally { random.speed.0 } else { 0 };
     let seed = *simulation.random_seed.get_or_insert_with(|| {
         let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
         let key = dimension_key.map_or("", |key| key.as_str());
@@ -504,6 +544,9 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 .marks
                 .broadcast(&volume.view, streams, &mut outlets.changes);
             broadcast_cut = out.writes.len();
+            if !runs_normally {
+                continue;
+            }
         }
         let input = PhaseInput {
             inbound: messages,
@@ -553,14 +596,19 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     {
         publish_block_events(&out.delivered, streams, &mut outlets.changes);
     }
+    let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
     for block in out.destroyed.iter().filter(|block| block.drops) {
-        rules.drops(block.pos, block.state, &mut simulation.drops);
-        for stack in simulation.drops.drain(..) {
-            outlets.dropped.write(ItemDropped {
-                at: block.pos,
-                stack,
-            });
-        }
+        let dropping = DroppingBlock {
+            at: block.pos,
+            state: block.state,
+            tool: None,
+            breaker: None,
+            tick: kernel.time.0.cast_unsigned(),
+            world_seed,
+        };
+        let view = &volume.view;
+        rules.drops(&dropping, |pos| view.block(pos).ok(), &mut simulation.drops);
+        outlets.dropped.write(block.pos, simulation.drops.drain(..));
     }
     if let Some(outbox) = links.outbox.as_mut() {
         outbox.0.messages.append(&mut out.outbound);
@@ -574,9 +622,85 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.ledgers = ledgers;
 }
 
-/// Lists the positions that tick randomly in each loaded section once the block table landed.
-/// From then on, block writes, the landing and unload of sections and the observers of
-/// [`RandomTickIndexPlugin`] keep the index.
+fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
+    mut harvests: MessageReader<BlockBroken>,
+    world: WorldView,
+    dims: Query<Entity, With<Dimension>>,
+    rules: Res<BlockRules<B>>,
+    time: Res<GameTime>,
+    seed: Option<Res<WorldSeed>>,
+    mut drops: Local<Vec<ItemStack>>,
+    mut broken_now: Local<Vec<BlockPos>>,
+    mut dropped: DropOutlet,
+) {
+    broken_now.clear();
+    let Some(view) = dims
+        .single()
+        .ok()
+        .and_then(|dimension| world.get(dimension))
+    else {
+        harvests.clear();
+        return;
+    };
+    let tick = time.0.cast_unsigned();
+    let world_seed = seed.as_deref().map_or(0, |seed| seed.0);
+    for harvest in harvests.read() {
+        let parts = [Some(harvest.at), harvest.other.map(|(at, _)| at)];
+        if parts.iter().flatten().any(|at| broken_now.contains(at)) {
+            continue;
+        }
+        broken_now.extend(parts.into_iter().flatten());
+        if let Some((at, state)) = harvest.other {
+            let removed = DroppingBlock {
+                at,
+                state,
+                tool: None,
+                breaker: None,
+                tick,
+                world_seed,
+            };
+            let after_hit = |pos| {
+                if pos == harvest.at {
+                    Some(harvest.left)
+                } else {
+                    view.block(pos).ok()
+                }
+            };
+            rules.0.drops(&removed, after_hit, &mut drops);
+            dropped.write(at, drops.drain(..));
+        }
+        if !harvest.harvests {
+            continue;
+        }
+        let broken = DroppingBlock {
+            at: harvest.at,
+            state: harvest.state,
+            tool: None,
+            breaker: Some(harvest.breaker),
+            tick,
+            world_seed,
+        };
+        rules
+            .0
+            .drops(&broken, |pos| view.block(pos).ok(), &mut drops);
+        dropped.write(harvest.at, drops.drain(..));
+    }
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::missed_set_if_neq,
+        reason = "runs once, because its run condition stops it as soon as the index exists"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "the observers of `EntityTicking` and of section despawns read the index, so it must exist before any later command applies"
+    )
+)]
 fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(world: &mut World) {
     let (Some(definitions), Some(rules)) = (
         world.get_resource::<Blocks>(),
@@ -602,7 +726,6 @@ fn index_random_ticks<B: BlockBehaviour<WorldKinds> + Send + Sync + 'static>(wor
     simulation.footprints = footprints;
 }
 
-/// The threads of a task pool, or the calling thread without one.
 #[derive(Clone, Copy, Debug)]
 pub struct PoolSpread<'p>(pub Option<&'p TaskPool>);
 
@@ -614,7 +737,6 @@ impl Spread for PoolSpread<'_> {
         else {
             return Serial.spread(items, run);
         };
-        // Tiles differ in cost, so each thread gets several small chunks.
         let chunk = items.len().div_ceil(pool.thread_num() * 4);
         let mut items = items;
         items.par_chunk_map_mut(pool, chunk, |_, chunk| {
@@ -633,8 +755,6 @@ fn mark_client_writes(marks: &mut BroadcastMarks, writes: &[BlockWrite]) {
     }
 }
 
-/// Publishes each event of `delivered` in a column that the muxer subscribes to. The muxer sends
-/// it to the clients that hold the column and stand near the block.
 fn publish_block_events(
     delivered: &[BlockEvent<Id<Block>>],
     streams: &ColumnStreams,
@@ -647,7 +767,6 @@ fn publish_block_events(
         }
         changes.write(ColumnChange {
             column,
-            // The client takes only the low 8 bits of each argument.
             payload: PacketPayload::BlockEvent(ClientboundBlockEvent {
                 pos: event.pos,
                 action: event.a as u8,
@@ -665,5 +784,41 @@ fn cell_write(request: &BlockSetRequest) -> CellBlockWrite {
         new_state: request.new_state,
         flags: request.flags,
         recursion_left: request.recursion_left,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_block::block_keys::Block;
+    use mcrs_minecraft_simulation::{ScheduledTick, SubTick, TickKey, TickPriority};
+    use mcrs_voxel::BlockPos;
+
+    #[test]
+    fn a_periodic_copy_reports_a_tick_scheduled_since_the_column_landed() {
+        let mut simulation = BlockSimulation::default();
+        let column = ColumnPos::new(2, 3);
+        let pos = BlockPos::new(35, 70, 50);
+        let key = TickKey {
+            due: GameTick(10),
+            priority: TickPriority::Normal,
+            sequence: SubTick::runtime(GameTick(1), 1),
+        };
+        simulation.shard.block_ticks_mut().schedule(ScheduledTick {
+            pos,
+            kind: Block::Stone.id(),
+            key,
+        });
+
+        let copied = simulation.copy_column(column, 4..5, GameTick(1));
+        assert!(
+            copied.changed,
+            "a scheduled tick is not reported as a change"
+        );
+        assert_eq!(copied.ticks.block.len(), 1);
+        assert!(
+            !simulation.copy_column(column, 0..1, GameTick(1)).changed,
+            "a tick in another section marks the column changed"
+        );
     }
 }

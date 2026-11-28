@@ -1157,6 +1157,542 @@
       "nbt": "0a0300086475726174696f6e0000000300",
       "hash": -271167860,
       "wire": "0103"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "{\"m1\":{\"type\":\"minecraft:player\",\"x\":1.5,\"z\":-2.5,\"rotation\":90.0}}",
+      "json": "{\"m1\":{\"type\":\"minecraft:player\",\"x\":1.5,\"z\":-2.5,\"rotation\":90.0}}",
+      "nbt": "0a0a00026d31050008726f746174696f6e42b40000060001783ff80000000000000600017ac0040000000000000800047479706500106d696e6563726166743a706c617965720000",
+      "hash": -228964035,
+      "wire": "0a0a00026d31050008726f746174696f6e42b40000060001783ff80000000000000600017ac0040000000000000800047479706500106d696e6563726166743a706c617965720000"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "{\"\":{\"type\":\"red_x\",\"x\":1,\"z\":-2,\"rotation\":-45,\"extra\":true}}",
+      "json": "{\"\":{\"type\":\"minecraft:red_x\",\"x\":1.0,\"z\":-2.0,\"rotation\":-45.0}}",
+      "nbt": "0a0a0000050008726f746174696f6ec2340000060001783ff00000000000000600017ac00000000000000008000474797065000f6d696e6563726166743a7265645f780000",
+      "hash": 964638558,
+      "wire": "0a0a0000050008726f746174696f6ec2340000060001783ff00000000000000600017ac00000000000000008000474797065000f6d696e6563726166743a7265645f780000"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "{\"a\":{\"type\":\"minecraft:target_x\",\"x\":0.0,\"z\":0.0,\"rotation\":0.0},\"b\":{\"type\":\"minecraft:banner_red\",\"x\":-1.0E300,\"z\":1.0E-300,\"rotation\":359.5}}",
+      "json": "{\"a\":{\"type\":\"minecraft:target_x\",\"x\":0.0,\"z\":0.0,\"rotation\":0.0},\"b\":{\"type\":\"minecraft:banner_red\",\"x\":-1.0E300,\"z\":1.0E-300,\"rotation\":359.5}}",
+      "nbt": "0a0a000161050008726f746174696f6e000000000600017800000000000000000600017a00000000000000000800047479706500126d696e6563726166743a7461726765745f78000a000162050008726f746174696f6e43b3c00006000178fe37e43c8800759c0600017a01a56e1fc2f8f3590800047479706500146d696e6563726166743a62616e6e65725f7265640000",
+      "hash": 598523218,
+      "wire": "0a0a000161050008726f746174696f6e000000000600017800000000000000000600017a00000000000000000800047479706500126d696e6563726166743a7461726765745f78000a000162050008726f746174696f6e43b3c00006000178fe37e43c8800759c0600017a01a56e1fc2f8f3590800047479706500146d696e6563726166743a62616e6e65725f7265640000"
+    },
+    {
+      "kind": "profile",
+      "input": "\"Notch\"",
+      "json": "{\"name\":\"Notch\"}",
+      "nbt": "0a0800046e616d6500054e6f74636800",
+      "hash": -1744970702,
+      "wire": "0001054e6f746368000000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "\"\"",
+      "json": "{\"name\":\"\"}",
+      "nbt": "0a0800046e616d65000000",
+      "hash": -1688942415,
+      "wire": "000100000000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0000000000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":[1,2,3,4],\"name\":\"Steve\"}",
+      "json": "{\"id\":[1,2,3,4],\"name\":\"Steve\"}",
+      "nbt": "0a0800046e616d65000553746576650b00026964000000040000000100000002000000030000000400",
+      "hash": -26662935,
+      "wire": "01000000010000000200000003000000040553746576650000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":[1.9,2,3,4]}",
+      "json": "{\"id\":[1,2,3,4]}",
+      "nbt": "0a0b00026964000000040000000100000002000000030000000400",
+      "hash": 993081521,
+      "wire": "000001000000010000000200000003000000040000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"abcdefghijklmnop\",\"unknown\":1,\"model\":\"slim\"}",
+      "json": "{\"name\":\"abcdefghijklmnop\",\"model\":\"slim\"}",
+      "nbt": "0a0800046e616d6500106162636465666768696a6b6c6d6e6f700800056d6f64656c0004736c696d00",
+      "hash": -558759183,
+      "wire": "0001106162636465666768696a6b6c6d6e6f7000000000000101"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":[1,2,3,4],\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"textures\",\"value\":\"t\"},{\"name\":\"x\",\"value\":\"2\"}]}",
+      "json": "{\"id\":[1,2,3,4],\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"x\",\"value\":\"2\"},{\"name\":\"textures\",\"value\":\"t\"}]}",
+      "nbt": "0a0800046e616d65000553746576650b00026964000000040000000100000002000000030000000409000a70726f706572746965730a000000030800046e616d6500017808000576616c7565000131000800046e616d6500017808000576616c7565000132000800046e616d650008746578747572657308000576616c75650001740000",
+      "hash": -424142806,
+      "wire": "0100000001000000020000000300000004055374657665030178013100017801320008746578747572657301740000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"Steve\",\"properties\":{\"textures\":[\"v1\",\"v2\"]}}",
+      "json": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"textures\",\"value\":\"v1\"},{\"name\":\"textures\",\"value\":\"v2\"}]}",
+      "nbt": "0a0800046e616d650005537465766509000a70726f706572746965730a000000020800046e616d650008746578747572657308000576616c756500027631000800046e616d650008746578747572657308000576616c7565000276320000",
+      "hash": -193760865,
+      "wire": "00010553746576650002087465787475726573027631000874657874757265730276320000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"textures\",\"value\":\"t\"}]}",
+      "json": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"textures\",\"value\":\"t\"}]}",
+      "nbt": "0a0800046e616d650005537465766509000a70726f706572746965730a000000020800046e616d6500017808000576616c7565000131000800046e616d650008746578747572657308000576616c75650001740000",
+      "hash": 656798435,
+      "wire": "00010553746576650002017801310008746578747572657301740000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"textures\",\"value\":\"t\"},{\"name\":\"x\",\"value\":\"1\"}]}",
+      "json": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"textures\",\"value\":\"t\"}]}",
+      "nbt": "0a0800046e616d650005537465766509000a70726f706572746965730a000000020800046e616d6500017808000576616c7565000131000800046e616d650008746578747572657308000576616c75650001740000",
+      "hash": 656798435,
+      "wire": "00010553746576650002087465787475726573017400017801310000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"x\",\"value\":\"2\"}]}",
+      "json": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"x\",\"value\":\"2\"}]}",
+      "nbt": "0a0800046e616d650005537465766509000a70726f706572746965730a000000020800046e616d6500017808000576616c7565000131000800046e616d6500017808000576616c75650001320000",
+      "hash": -852699229,
+      "wire": "000105537465766500020178013100017801320000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"2\"},{\"name\":\"x\",\"value\":\"1\"}]}",
+      "json": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"2\"},{\"name\":\"x\",\"value\":\"1\"}]}",
+      "nbt": "0a0800046e616d650005537465766509000a70726f706572746965730a000000020800046e616d6500017808000576616c7565000132000800046e616d6500017808000576616c75650001310000",
+      "hash": 656690885,
+      "wire": "000105537465766500020178013200017801310000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":[1,2,3,4],\"name\":\"steve\"}",
+      "json": "{\"id\":[1,2,3,4],\"name\":\"steve\"}",
+      "nbt": "0a0800046e616d65000573746576650b00026964000000040000000100000002000000030000000400",
+      "hash": 1998430535,
+      "wire": "01000000010000000200000003000000040573746576650000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"}]}",
+      "json": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"}]}",
+      "nbt": "0a0800046e616d650005537465766509000a70726f706572746965730a000000010800046e616d6500017808000576616c75650001310000",
+      "hash": 2125737610,
+      "wire": "00010553746576650001017801310000000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\",\"signature\":\"s\"}]}",
+      "json": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\",\"signature\":\"s\"}]}",
+      "nbt": "0a0800046e616d650005537465766509000a70726f706572746965730a000000010800097369676e61747572650001730800046e616d6500017808000576616c75650001310000",
+      "hash": 814746495,
+      "wire": "000105537465766500010178013101017300000000"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"}],\"model\":\"slim\"}",
+      "json": "{\"name\":\"Steve\",\"properties\":[{\"name\":\"x\",\"value\":\"1\"}],\"model\":\"slim\"}",
+      "nbt": "0a0800046e616d65000553746576650800056d6f64656c0004736c696d09000a70726f706572746965730a000000010800046e616d6500017808000576616c75650001310000",
+      "hash": -2076609311,
+      "wire": "0001055374657665000101780131000000000101"
+    },
+    {
+      "kind": "equippable",
+      "input": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\",\"range\":\"x\"}}",
+      "json": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\"}}",
+      "nbt": "0a0a000b65717569705f736f756e64080008736f756e645f696400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300080004736c6f7400046865616400",
+      "hash": 543641330,
+      "wire": "040100226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300000000010101000000"
+    },
+    {
+      "kind": "equippable",
+      "input": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\",\"range\":\"2.5\"}}",
+      "json": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\"}}",
+      "nbt": "0a0a000b65717569705f736f756e64080008736f756e645f696400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300080004736c6f7400046865616400",
+      "hash": 543641330,
+      "wire": "040100226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300000000010101000000"
+    },
+    {
+      "kind": "equippable",
+      "input": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\",\"range\":[1.0]}}",
+      "json": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\"}}",
+      "nbt": "0a0a000b65717569705f736f756e64080008736f756e645f696400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300080004736c6f7400046865616400",
+      "hash": 543641330,
+      "wire": "040100226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300000000010101000000"
+    },
+    {
+      "kind": "equippable",
+      "input": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\",\"range\":{\"a\":1.0}}}",
+      "json": "{\"slot\":\"head\",\"equip_sound\":{\"sound_id\":\"minecraft:item.armor.equip_generic\"}}",
+      "nbt": "0a0a000b65717569705f736f756e64080008736f756e645f696400226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300080004736c6f7400046865616400",
+      "hash": 543641330,
+      "wire": "040100226d696e6563726166743a6974656d2e61726d6f722e65717569705f67656e6572696300000000010101000000"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "[2.0,-0.1,0.5]",
+      "json": "-72065",
+      "nbt": "03fffee67f",
+      "hash": -1690482203,
+      "wire": "fffee67f"
+    },
+    {
+      "kind": "custom_model_data",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "00000000"
+    },
+    {
+      "kind": "custom_model_data",
+      "input": "{\"floats\":[1,-0.5],\"flags\":[false],\"strings\":[\"\",\"a b\"],\"colors\":[[1.0,0.0,0.0],255]}",
+      "json": "{\"floats\":[1.0,-0.5],\"flags\":[false],\"strings\":[\"\",\"a b\"],\"colors\":[-65536,255]}",
+      "nbt": "0a090006666c6f61747305000000023f800000bf000000090007737472696e6773080000000200000003612062090005666c616773010000000100090006636f6c6f72730300000002ffff0000000000ff00",
+      "hash": 9696090,
+      "wire": "023f800000bf000000010002000361206202ffff0000000000ff"
+    },
+    {
+      "kind": "block_state",
+      "input": "{\"facing\":\"north\",\"half\":\"top\",\"waterlogged\":\"false\"}",
+      "json": "{\"facing\":\"north\",\"half\":\"top\",\"waterlogged\":\"false\"}",
+      "nbt": "0a08000468616c660003746f7008000b77617465726c6f67676564000566616c7365080006666163696e6700056e6f72746800",
+      "hash": -1904361278,
+      "wire": "0306666163696e67056e6f7274680468616c6603746f700b77617465726c6f676765640566616c7365"
+    },
+    {
+      "kind": "block_state",
+      "input": "{\"no_such_property\":\"any text\"}",
+      "json": "{\"no_such_property\":\"any text\"}",
+      "nbt": "0a0800106e6f5f737563685f70726f70657274790008616e79207465787400",
+      "hash": 2092834312,
+      "wire": "01106e6f5f737563685f70726f706572747908616e792074657874"
+    },
+    {
+      "kind": "lodestone_tracker",
+      "input": "{\"target\":{\"dimension\":\"overworld\",\"pos\":[33554431,2047,-33554432]},\"tracked\":true}",
+      "json": "{\"target\":{\"dimension\":\"minecraft:overworld\",\"pos\":[33554431,2047,-33554432]}}",
+      "nbt": "0a0a00067461726765740b0003706f730000000301ffffff000007fffe00000008000964696d656e73696f6e00136d696e6563726166743a6f766572776f726c640000",
+      "hash": -396020573,
+      "wire": "01136d696e6563726166743a6f766572776f726c647fffffe0000007ff01"
+    },
+    {
+      "kind": "lodestone_tracker",
+      "input": "{\"target\":{\"dimension\":\"mcrs:custom\",\"pos\":[0,4096,-1]}}",
+      "json": "{\"target\":{\"dimension\":\"mcrs:custom\",\"pos\":[0,4096,-1]}}",
+      "nbt": "0a0a00067461726765740b0003706f73000000030000000000001000ffffffff08000964696d656e73696f6e000b6d6372733a637573746f6d0000",
+      "hash": -219478246,
+      "wire": "010b6d6372733a637573746f6d0000003ffffff00001"
+    },
+    {
+      "kind": "lodestone_tracker",
+      "input": "{\"tracked\":false}",
+      "json": "{\"tracked\":false}",
+      "nbt": "0a010007747261636b65640000",
+      "hash": 1595667667,
+      "wire": "0000"
+    },
+    {
+      "kind": "trim",
+      "input": "{\"material\":{\"palette_id\":\"mcrs:pal\",\"description\":\"Pal\",\"extra\":1},\"pattern\":\"coast\"}",
+      "json": "{\"material\":{\"palette_id\":\"mcrs:pal\",\"description\":\"Pal\"},\"pattern\":\"minecraft:coast\"}",
+      "nbt": "0a0a00086d6174657269616c08000a70616c657474655f696400086d6372733a70616c08000b6465736372697074696f6e000350616c000800077061747465726e000f6d696e6563726166743a636f61737400",
+      "hash": 727484036,
+      "wire": "00086d6372733a70616c08000350616c02"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "\"minecraft:water\"",
+      "json": "{\"potion\":\"minecraft:water\"}",
+      "nbt": "0a080006706f74696f6e000f6d696e6563726166743a776174657200",
+      "hash": 1311226275,
+      "wire": "0100000000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:speed\"}]}",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"show_icon\":true}]}",
+      "nbt": "0a09000e637573746f6d5f656666656374730a0000000101000973686f775f69636f6e010800026964000f6d696e6563726166743a73706565640000",
+      "hash": 1689985785,
+      "wire": "0000010000000001010000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"amplifier\":3,\"duration\":40,\"hidden_effect\":{\"amplifier\":1,\"duration\":200,\"hidden_effect\":{\"duration\":600}}}]}",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"amplifier\":3,\"duration\":40,\"show_icon\":true}]}",
+      "nbt": "0a09000e637573746f6d5f656666656374730a000000010300086475726174696f6e0000002801000973686f775f69636f6e01010009616d706c6966696572030800026964000f6d696e6563726166743a73706565640000",
+      "hash": 1657509859,
+      "wire": "0000010003280001010000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"show_particles\":false}]}",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"show_particles\":false,\"show_icon\":false}]}",
+      "nbt": "0a09000e637573746f6d5f656666656374730a0000000101000973686f775f69636f6e000800026964000f6d696e6563726166743a737065656401000e73686f775f7061727469636c6573000000",
+      "hash": 1819228503,
+      "wire": "0000010000000000000000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"amplifier\":255},{\"id\":\"minecraft:speed\",\"amplifier\":256},{\"id\":\"minecraft:speed\",\"amplifier\":300},{\"id\":\"minecraft:speed\",\"amplifier\":-1}]}",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"amplifier\":-1,\"show_icon\":true},{\"id\":\"minecraft:speed\",\"show_icon\":true},{\"id\":\"minecraft:speed\",\"amplifier\":44,\"show_icon\":true},{\"id\":\"minecraft:speed\",\"amplifier\":-1,\"show_icon\":true}]}",
+      "nbt": "0a09000e637573746f6d5f656666656374730a0000000401000973686f775f69636f6e01010009616d706c6966696572ff0800026964000f6d696e6563726166743a73706565640001000973686f775f69636f6e010800026964000f6d696e6563726166743a73706565640001000973686f775f69636f6e01010009616d706c69666965722c0800026964000f6d696e6563726166743a73706565640001000973686f775f69636f6e01010009616d706c6966696572ff0800026964000f6d696e6563726166743a73706565640000",
+      "hash": -716549977,
+      "wire": "00000400ff01000001010000000000010100002c000001010000ff01000001010000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_name\":\"\"}",
+      "json": "{\"custom_name\":\"\"}",
+      "nbt": "0a08000b637573746f6d5f6e616d65000000",
+      "hash": -1368210399,
+      "wire": "0000000100"
+    },
+    {
+      "kind": "suspicious_stew_effects",
+      "input": "[{\"id\":\"minecraft:speed\",\"duration\":-5},{\"id\":\"minecraft:speed\",\"duration\":0}]",
+      "json": "[{\"id\":\"minecraft:speed\",\"duration\":-5},{\"id\":\"minecraft:speed\",\"duration\":0}]",
+      "nbt": "090a000000020300086475726174696f6efffffffb0800026964000f6d696e6563726166743a7370656564000300086475726174696f6e000000000800026964000f6d696e6563726166743a737065656400",
+      "hash": 1537392037,
+      "wire": "0200fbffffff0f0000"
+    },
+    {
+      "kind": "instrument",
+      "input": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":0.0,\"range\":3.4028235E38,\"durability_damage\":0,\"description\":\"\"}",
+      "json": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":0.0,\"range\":3.4028235E38,\"description\":\"\"}",
+      "nbt": "0a08000b736f756e645f6576656e74001b6d696e6563726166743a656e746974792e6974656d2e627265616b05000572616e67657f7fffff08000b6465736372697074696f6e000005000c7573655f6475726174696f6e0000000000",
+      "hash": 2051032354,
+      "wire": "008e05000000007f7fffff00080000"
+    },
+    {
+      "kind": "custom_data",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0a00"
+    },
+    {
+      "kind": "custom_data",
+      "input": "\"{}\"",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "0a00"
+    },
+    {
+      "kind": "custom_data",
+      "input": "\"{a:1b,b:2s,c:3,d:4L,e:5.0f,f:6.0d,g:\\\"x\\\",h:[I;1,2],i:[B;1b],j:[L;1L],k:[],l:{m:[1,2]},n:true}\"",
+      "json": "{\"a\":1,\"b\":2,\"c\":3,\"d\":4,\"e\":5.0,\"f\":6.0,\"g\":\"x\",\"h\":[1,2],\"i\":[1],\"j\":[1],\"k\":[],\"l\":{\"m\":[1,2]},\"n\":1}",
+      "nbt": "0a010001610102000162000203000163000000030400016400000000000000040500016540a00000060001664018000000000000080001670001780b0001680000000200000001000000020700016900000001010c00016a0000000100000000000000010900016b00000000000a00016c0900016d03000000020000000100000002000100016e0100",
+      "hash": -436886767,
+      "wire": "0a010001610102000162000203000163000000030400016400000000000000040500016540a00000060001664018000000000000080001670001780b0001680000000200000001000000020700016900000001010c00016a0000000100000000000000010900016b00000000000a00016c0900016d03000000020000000100000002000100016e0100"
+    },
+    {
+      "kind": "custom_data",
+      "input": "{\"a\":1,\"b\":1.5,\"c\":true,\"d\":\"x\",\"e\":[1,2],\"f\":{},\"g\":300,\"h\":3000000000}",
+      "json": "{\"a\":1,\"b\":1.5,\"c\":1,\"d\":\"x\",\"e\":[1,2],\"f\":{},\"g\":300,\"h\":3000000000}",
+      "nbt": "0a0100016101050001623fc0000001000163010800016400017809000165010000000201020a0001660002000167012c0400016800000000b2d05e0000",
+      "hash": -335720569,
+      "wire": "0a0100016101050001623fc0000001000163010800016400017809000165010000000201020a0001660002000167012c0400016800000000b2d05e0000"
+    },
+    {
+      "kind": "custom_data",
+      "input": "\"{mixed:[1b,\\\"a\\\",{}]}\"",
+      "json": "{\"mixed\":[1,\"a\",{}]}",
+      "nbt": "0a0900056d697865640a000000030100000100080000000161000000",
+      "hash": 767856123,
+      "wire": "0a0900056d697865640a000000030100000100080000000161000000"
+    },
+    {
+      "kind": "consumable",
+      "input": "{\"on_consume_effects\":[{\"type\":\"apply_effects\",\"effects\":[{\"id\":\"minecraft:haste\",\"amplifier\":7,\"duration\":77,\"hidden_effect\":{\"amplifier\":1,\"duration\":200}}]}]}",
+      "json": "{\"on_consume_effects\":[{\"effects\":[{\"id\":\"minecraft:haste\",\"amplifier\":7,\"duration\":77,\"show_icon\":true,\"hidden_effect\":{\"amplifier\":1,\"duration\":200,\"show_icon\":true}}],\"type\":\"minecraft:apply_effects\"}]}",
+      "nbt": "0a0900126f6e5f636f6e73756d655f656666656374730a00000001090007656666656374730a000000010300086475726174696f6e0000004d01000973686f775f69636f6e010a000d68696464656e5f6566666563740300086475726174696f6e000000c801000973686f775f69636f6e01010009616d706c69666965720100010009616d706c6966696572070800026964000f6d696e6563726166743a6861737465000800047479706500176d696e6563726166743a6170706c795f656666656374730000",
+      "hash": 1825518151,
+      "wire": "3fcccccd01000101000102074d0001010101c801000101003f800000"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:haste\",\"amplifier\":7,\"duration\":77,\"hidden_effect\":{\"amplifier\":1,\"duration\":200}}]}",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:haste\",\"amplifier\":7,\"duration\":77,\"show_icon\":true}]}",
+      "nbt": "0a09000e637573746f6d5f656666656374730a000000010300086475726174696f6e0000004d01000973686f775f69636f6e01010009616d706c6966696572070800026964000f6d696e6563726166743a68617374650000",
+      "hash": -329796532,
+      "wire": "00000102074d0001010000"
+    },
+    {
+      "kind": "bundle_contents",
+      "input": "[\"minecraft:arrow\",{\"id\":\"minecraft:arrow\",\"count\":1,\"components\":{\"minecraft:max_stack_size\":64}}]",
+      "json": "[{\"id\":\"minecraft:arrow\"},{\"id\":\"minecraft:arrow\",\"components\":{\"minecraft:max_stack_size\":64}}]",
+      "nbt": "090a000000020800026964000f6d696e6563726166743a6172726f77000a000a636f6d706f6e656e74730300186d696e6563726166743a6d61785f737461636b5f73697a6500000040000800026964000f6d696e6563726166743a6172726f7700",
+      "hash": -128193339,
+      "wire": "02880801000088080101000140"
+    },
+    {
+      "kind": "bundle_contents",
+      "input": "[{\"id\":\"minecraft:shulker_box\",\"components\":{\"minecraft:container\":[{\"slot\":1,\"item\":{\"id\":\"minecraft:arrow\",\"count\":2,\"components\":{\"minecraft:custom_name\":\"x\",\"!minecraft:max_stack_size\":{}}}}]}}]",
+      "json": "[{\"id\":\"minecraft:shulker_box\",\"components\":{\"minecraft:container\":[{\"slot\":1,\"item\":{\"id\":\"minecraft:arrow\",\"count\":2,\"components\":{\"minecraft:custom_name\":\"x\",\"!minecraft:max_stack_size\":{}}}}]}}]",
+      "nbt": "090a000000010a000a636f6d706f6e656e74730900136d696e6563726166743a636f6e7461696e65720a000000010a00046974656d0a000a636f6d706f6e656e74730800156d696e6563726166743a637573746f6d5f6e616d650001780a0019216d696e6563726166743a6d61785f737461636b5f73697a650000030005636f756e74000000020800026964000f6d696e6563726166743a6172726f7700030004736c6f74000000010000080002696400156d696e6563726166743a7368756c6b65725f626f7800",
+      "hash": -745273108,
+      "wire": "01a6050101004d0200018808020101060800017801"
+    },
+    {
+      "kind": "charged_projectiles",
+      "input": "[{\"id\":\"minecraft:firework_rocket\",\"components\":{\"minecraft:fireworks\":{\"flight_duration\":3,\"explosions\":[{\"shape\":\"creeper\",\"colors\":[255]}]}}}]",
+      "json": "[{\"id\":\"minecraft:firework_rocket\",\"components\":{\"minecraft:fireworks\":{\"flight_duration\":3,\"explosions\":[{\"shape\":\"creeper\",\"colors\":[255]}]}}}]",
+      "nbt": "090a000000010a000a636f6d706f6e656e74730a00136d696e6563726166743a66697265776f726b7309000a6578706c6f73696f6e730a000000010800057368617065000763726565706572090006636f6c6f72730300000001000000ff0001000f666c696768745f6475726174696f6e030000080002696400196d696e6563726166743a66697265776f726b5f726f636b657400",
+      "hash": 1981916395,
+      "wire": "018a0b0101004703010301000000ff000000"
+    },
+    {
+      "kind": "container",
+      "input": "[{\"slot\":5,\"item\":\"minecraft:stone\"},{\"slot\":2,\"item\":{\"id\":\"minecraft:apple\",\"count\":3}}]",
+      "json": "[{\"slot\":2,\"item\":{\"id\":\"minecraft:apple\",\"count\":3}},{\"slot\":5,\"item\":{\"id\":\"minecraft:stone\"}}]",
+      "nbt": "090a000000020a00046974656d030005636f756e74000000030800026964000f6d696e6563726166743a6170706c6500030004736c6f7400000002000a00046974656d0800026964000f6d696e6563726166743a73746f6e6500030004736c6f740000000500",
+      "hash": 390738806,
+      "wire": "06000001860803000000000101010000"
+    },
+    {
+      "kind": "container",
+      "input": "[{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:apple\"}]",
+      "json": "[{\"slot\":0,\"item\":{\"id\":\"minecraft:apple\"}}]",
+      "nbt": "090a000000010a00046974656d0800026964000f6d696e6563726166743a6170706c6500030004736c6f740000000000",
+      "hash": 872064206,
+      "wire": "01018608010000"
+    },
+    {
+      "kind": "container",
+      "input": "[{\"slot\":255,\"item\":\"minecraft:stone\"}]",
+      "json": "[{\"slot\":255,\"item\":{\"id\":\"minecraft:stone\"}}]",
+      "nbt": "090a000000010a00046974656d0800026964000f6d696e6563726166743a73746f6e6500030004736c6f74000000ff00",
+      "hash": 1847777496,
+      "wire": "80020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000101010000"
+    },
+    {
+      "kind": "container_loot",
+      "input": "{\"loot_table\":\"chests/x\",\"seed\":1.9}",
+      "json": "{\"loot_table\":\"minecraft:chests/x\",\"seed\":1}",
+      "nbt": "0a04000473656564000000000000000108000a6c6f6f745f7461626c6500126d696e6563726166743a6368657374732f7800",
+      "hash": -1068719242,
+      "wire": "0a04000473656564000000000000000108000a6c6f6f745f7461626c6500126d696e6563726166743a6368657374732f7800"
+    },
+    {
+      "kind": "container_loot",
+      "input": "{\"loot_table\":\"minecraft:chests/x\",\"seed\":18446744073709551617}",
+      "json": "{\"loot_table\":\"minecraft:chests/x\",\"seed\":1}",
+      "nbt": "0a04000473656564000000000000000108000a6c6f6f745f7461626c6500126d696e6563726166743a6368657374732f7800",
+      "hash": -1068719242,
+      "wire": "0a04000473656564000000000000000108000a6c6f6f745f7461626c6500126d696e6563726166743a6368657374732f7800"
+    },
+    {
+      "kind": "container_loot",
+      "input": "{\"loot_table\":\"minecraft:chests/x\",\"seed\":-1}",
+      "json": "{\"loot_table\":\"minecraft:chests/x\",\"seed\":-1}",
+      "nbt": "0a04000473656564ffffffffffffffff08000a6c6f6f745f7461626c6500126d696e6563726166743a6368657374732f7800",
+      "hash": -148875692,
+      "wire": "0a04000473656564ffffffffffffffff08000a6c6f6f745f7461626c6500126d696e6563726166743a6368657374732f7800"
+    },
+    {
+      "kind": "bees",
+      "input": "[{\"entity_data\":\"{id:\\\"bee\\\",HasNectar:1b}\",\"ticks_in_hive\":-1,\"min_ticks_in_hive\":2400}]",
+      "json": "[{\"entity_data\":{\"HasNectar\":1,\"id\":\"minecraft:bee\"},\"ticks_in_hive\":-1,\"min_ticks_in_hive\":2400}]",
+      "nbt": "090a0000000103000d7469636b735f696e5f68697665ffffffff0a000b656e746974795f646174610100094861734e6563746172010800026964000d6d696e6563726166743a626565000300116d696e5f7469636b735f696e5f686976650000096000",
+      "hash": -1122153002,
+      "wire": "010b0a0100094861734e65637461720100ffffffff0fe012"
+    },
+    {
+      "kind": "bees",
+      "input": "[{\"entity_data\":{\"id\":\"minecraft:bee\"},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0},{\"entity_data\":{\"id\":\"minecraft:bee\"},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0},{\"entity_data\":{\"id\":\"minecraft:bee\"},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0},{\"entity_data\":{\"id\":\"minecraft:bee\"},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0}]",
+      "json": "[{\"entity_data\":{\"id\":\"minecraft:bee\"},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0},{\"entity_data\":{\"id\":\"minecraft:bee\"},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0},{\"entity_data\":{\"id\":\"minecraft:bee\"},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0},{\"entity_data\":{\"id\":\"minecraft:bee\"},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0}]",
+      "nbt": "090a0000000403000d7469636b735f696e5f68697665000000000a000b656e746974795f646174610800026964000d6d696e6563726166743a626565000300116d696e5f7469636b735f696e5f68697665000000000003000d7469636b735f696e5f68697665000000000a000b656e746974795f646174610800026964000d6d696e6563726166743a626565000300116d696e5f7469636b735f696e5f68697665000000000003000d7469636b735f696e5f68697665000000000a000b656e746974795f646174610800026964000d6d696e6563726166743a626565000300116d696e5f7469636b735f696e5f68697665000000000003000d7469636b735f696e5f68697665000000000a000b656e746974795f646174610800026964000d6d696e6563726166743a626565000300116d696e5f7469636b735f696e5f686976650000000000",
+      "hash": -1759645067,
+      "wire": "040b0a0000000b0a0000000b0a0000000b0a000000"
+    },
+    {
+      "kind": "firework_explosion",
+      "input": "{\"shape\":\"large_ball\",\"colors\":[1.9,-2.9],\"fade_colors\":[],\"has_trail\":false}",
+      "json": "{\"shape\":\"large_ball\",\"colors\":[1,-2]}",
+      "nbt": "0a0800057368617065000a6c617267655f62616c6c090006636f6c6f7273030000000200000001fffffffe00",
+      "hash": -1040946402,
+      "wire": "010200000001fffffffe000000"
+    },
+    {
+      "kind": "fireworks",
+      "input": "{\"flight_duration\":255}",
+      "json": "{\"flight_duration\":-1}",
+      "nbt": "0a01000f666c696768745f6475726174696f6eff00",
+      "hash": -400630225,
+      "wire": "ff0100"
+    },
+    {
+      "kind": "fireworks",
+      "input": "{\"flight_duration\":300}",
+      "json": "{\"flight_duration\":44}",
+      "nbt": "0a01000f666c696768745f6475726174696f6e2c00",
+      "hash": 245549558,
+      "wire": "2c00"
+    },
+    {
+      "kind": "fireworks",
+      "input": "{\"flight_duration\":-1}",
+      "json": "{\"flight_duration\":-1}",
+      "nbt": "0a01000f666c696768745f6475726174696f6eff00",
+      "hash": -400630225,
+      "wire": "ff0100"
+    },
+    {
+      "kind": "banner_patterns",
+      "input": "[{\"pattern\":\"creeper\",\"color\":\"white\"},{\"pattern\":\"creeper\",\"color\":\"orange\"},{\"pattern\":\"creeper\",\"color\":\"magenta\"},{\"pattern\":\"creeper\",\"color\":\"light_blue\"},{\"pattern\":\"creeper\",\"color\":\"yellow\"},{\"pattern\":\"creeper\",\"color\":\"lime\"},{\"pattern\":\"creeper\",\"color\":\"black\"}]",
+      "json": "[{\"pattern\":\"minecraft:creeper\",\"color\":\"white\"},{\"pattern\":\"minecraft:creeper\",\"color\":\"orange\"},{\"pattern\":\"minecraft:creeper\",\"color\":\"magenta\"},{\"pattern\":\"minecraft:creeper\",\"color\":\"light_blue\"},{\"pattern\":\"minecraft:creeper\",\"color\":\"yellow\"},{\"pattern\":\"minecraft:creeper\",\"color\":\"lime\"},{\"pattern\":\"minecraft:creeper\",\"color\":\"black\"}]",
+      "nbt": "090a00000007080005636f6c6f72000577686974650800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f7200066f72616e67650800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f7200076d6167656e74610800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f72000a6c696768745f626c75650800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f72000679656c6c6f770800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f7200046c696d650800077061747465726e00116d696e6563726166743a6372656570657200080005636f6c6f720005626c61636b0800077061747465726e00116d696e6563726166743a6372656570657200",
+      "hash": -585409259,
+      "wire": "07050005010502050305040505050f"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{\"sharpness\":255}",
+      "json": "{\"minecraft:sharpness\":255}",
+      "nbt": "0a0300136d696e6563726166743a73686172706e657373000000ff00",
+      "hash": -604126434,
+      "wire": "0121ff01"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{}",
+      "json": "{}",
+      "nbt": "0a00",
+      "hash": -982207288,
+      "wire": "00"
+    },
+    {
+      "kind": "painting/variant",
+      "input": "\"minecraft:kebab\"",
+      "json": "\"minecraft:kebab\"",
+      "nbt": "08000f6d696e6563726166743a6b65626162",
+      "hash": -670067346,
+      "wire": "19"
+    },
+    {
+      "kind": "painting/variant",
+      "input": "\"aztec\"",
+      "json": "\"minecraft:aztec\"",
+      "nbt": "08000f6d696e6563726166743a617a746563",
+      "hash": -260769345,
+      "wire": "02"
     }
   ],
   "errors": [
@@ -1404,6 +1940,351 @@
       "kind": "villager_food",
       "input": "{\"nutrition\":null}",
       "error": "No key nutrition in MapLike[{\"nutrition\":null}]"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "{\"m1\":{\"type\":\"minecraft:player\",\"x\":1.0,\"z\":2.0}}",
+      "error": "No key rotation in MapLike[{\"type\":\"minecraft:player\",\"x\":1.0,\"z\":2.0}] missed input: {\"m1\":{\"type\":\"minecraft:player\",\"x\":1.0,\"z\":2.0}}"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "{\"m1\":{\"type\":\"minecraft:player\",\"x\":\"1\",\"z\":2.0,\"rotation\":0.0}}",
+      "error": "Not a number: \"1\" missed input: {\"m1\":{\"type\":\"minecraft:player\",\"x\":\"1\",\"z\":2.0,\"rotation\":0.0}}"
+    },
+    {
+      "kind": "map_decorations",
+      "input": "[]",
+      "error": "Not a JSON object: []"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":[1,2,3]}",
+      "error": "Failed to parse either. First: Input is not a list of 4 ints; No key name in MapLike[{\"id\":[1,2,3]}]; Input is not a list of 4 ints; Second: Not a string: {\"id\":[1,2,3]}"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"id\":\"00000001-0000-0002-0000-000300000004\"}",
+      "error": "Failed to parse either. First: Not a json array: \"00000001-0000-0002-0000-000300000004\"; No key name in MapLike[{\"id\":\"00000001-0000-0002-0000-000300000004\"}]; Not a json array: \"00000001-0000-0002-0000-000300000004\"; Second: Not a string: {\"id\":\"00000001-0000-0002-0000-000300000004\"}"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"name\":\"é\"}",
+      "error": "Failed to parse either. First: Player name contained disallowed characters: 'é'; Player name contained disallowed characters: 'é'; No key id in MapLike[{\"name\":\"é\"}]; Second: Not a string: {\"name\":\"é\"}"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"model\":\"default\"}",
+      "error": "Unknown element name: default"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"properties\":[{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"}]}",
+      "error": "Failed to parse either. First: List is too long: 17, expected range [0-16]; List is too long: 17, expected range [0-16]; No key name in MapLike[{\"properties\":[{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"}]}]; No key id in MapLike[{\"properties\":[{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"}]}]; Second: Not a string: {\"properties\":[{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"},{\"name\":\"p\",\"value\":\"v\"}]}"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"properties\":[{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"value\":\"v\"}]}",
+      "error": "Failed to parse either. First: String \"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\" is too long: 65, expected range [0-64]; String \"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\" is too long: 65, expected range [0-64]; No key name in MapLike[{\"properties\":[{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"value\":\"v\"}]}]; No key id in MapLike[{\"properties\":[{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"value\":\"v\"}]}]; Second: Not a string: {\"properties\":[{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"value\":\"v\"}]}"
+    },
+    {
+      "kind": "profile",
+      "input": "{\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}",
+      "error": "Failed to parse either. First: Failed to parse either. First: Cannot have more than 16 properties, but was 17; Second: Not a json array: {\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}; Failed to parse either. First: Cannot have more than 16 properties, but was 17; Second: Not a json array: {\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}; No key name in MapLike[{\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}]; No key id in MapLike[{\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}]; Second: Not a string: {\"properties\":{\"a\":[],\"b\":[],\"c\":[],\"d\":[],\"e\":[],\"f\":[],\"g\":[],\"h\":[],\"i\":[],\"j\":[],\"k\":[],\"l\":[],\"m\":[],\"n\":[],\"o\":[],\"p\":[],\"q\":[]}}"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "{\"rgb\":16711680}",
+      "error": "Failed to parse either. First: Not a number: {\"rgb\":16711680}; Second: Not a json array: {\"rgb\":16711680}"
+    },
+    {
+      "kind": "dyed_color",
+      "input": "[1.0,1.0,1.0,1.0]",
+      "error": "Input is not a list of 3 elements"
+    },
+    {
+      "kind": "custom_model_data",
+      "input": "{\"floats\":[\"x\"]}",
+      "error": "Not a number: \"x\""
+    },
+    {
+      "kind": "custom_model_data",
+      "input": "{\"colors\":[\"#FF0000\"]}",
+      "error": "Failed to parse either. First: Not a number: \"#FF0000\"; Second: Not a json array: \"#FF0000\""
+    },
+    {
+      "kind": "block_state",
+      "input": "{\"level\":1}",
+      "error": "Not a string: 1 missed input: {\"level\":1}"
+    },
+    {
+      "kind": "block_state",
+      "input": "{\"level\":true}",
+      "error": "Not a string: true missed input: {\"level\":true}"
+    },
+    {
+      "kind": "lodestone_tracker",
+      "input": "{\"target\":{\"pos\":[0,0,0]}}",
+      "error": "No key dimension in MapLike[{\"pos\":[0,0,0]}]"
+    },
+    {
+      "kind": "lodestone_tracker",
+      "input": "{\"target\":{\"dimension\":\"overworld\",\"pos\":[0,0,0]},\"tracked\":\"yes\"}",
+      "error": "Not a boolean: \"yes\""
+    },
+    {
+      "kind": "trim",
+      "input": "{\"material\":\"minecraft:amethyst\",\"pattern\":\"minecraft:no_such_pattern\"}",
+      "error": "Failed to get element minecraft:no_such_pattern from registry minecraft:trim_pattern"
+    },
+    {
+      "kind": "trim",
+      "input": "{\"material\":{\"palette_id\":\"mcrs:pal\"},\"pattern\":\"minecraft:coast\"}",
+      "error": "No key description in MapLike[{\"palette_id\":\"mcrs:pal\"}]"
+    },
+    {
+      "kind": "trim",
+      "input": "{\"material\":\"minecraft:amethyst\"}",
+      "error": "No key pattern in MapLike[{\"material\":\"minecraft:amethyst\"}]"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "\"minecraft:no_such_potion\"",
+      "error": "Failed to parse either. First: Not a JSON object: \"minecraft:no_such_potion\"; Second: Unknown registry key in ResourceKey[minecraft:root / minecraft:potion]: minecraft:no_such_potion"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"amplifier\":1}]}",
+      "error": "No key id in MapLike[{\"amplifier\":1}]"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"duration\":\"long\"}]}",
+      "error": "Not a number: \"long\""
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_name\":5}",
+      "error": "Not a string: 5"
+    },
+    {
+      "kind": "suspicious_stew_effects",
+      "input": "[{\"duration\":5}]",
+      "error": "No key id in MapLike[{\"duration\":5}]"
+    },
+    {
+      "kind": "suspicious_stew_effects",
+      "input": "{\"id\":\"minecraft:speed\"}",
+      "error": "Not a json array: {\"id\":\"minecraft:speed\"}"
+    },
+    {
+      "kind": "instrument",
+      "input": "\"minecraft:no_such_horn\"",
+      "error": "Failed to get element minecraft:no_such_horn from registry minecraft:instrument"
+    },
+    {
+      "kind": "instrument",
+      "input": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":1.0,\"range\":0.0,\"description\":\"x\"}",
+      "error": "Value must be positive: 0.0"
+    },
+    {
+      "kind": "instrument",
+      "input": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":-0.0,\"range\":1.0,\"description\":\"x\"}",
+      "error": "Value must be non-negative: -0.0"
+    },
+    {
+      "kind": "instrument",
+      "input": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":1.0,\"range\":1.0,\"durability_damage\":-1,\"description\":\"x\"}",
+      "error": "Value must be non-negative: -1"
+    },
+    {
+      "kind": "instrument",
+      "input": "{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":1.0,\"range\":1.0}",
+      "error": "No key description in MapLike[{\"sound_event\":\"minecraft:entity.item.break\",\"use_duration\":1.0,\"range\":1.0}]"
+    },
+    {
+      "kind": "custom_data",
+      "input": "\"[1,2]\"",
+      "error": "Failed to parse either. First: Not a compound tag: \"[1,2]\"; Second: Expected compound tag, got [1,2]"
+    },
+    {
+      "kind": "custom_data",
+      "input": "\"{a:\"",
+      "error": "Failed to parse either. First: Not a compound tag: \"{a:\"; Second: Expected a valid unquoted string at position 3: {a:<--[HERE]"
+    },
+    {
+      "kind": "custom_data",
+      "input": "5",
+      "error": "Failed to parse either. First: Not a compound tag: 5b; Second: Not a string: 5"
+    },
+    {
+      "kind": "custom_data",
+      "input": "[]",
+      "error": "Failed to parse either. First: Not a compound tag: []; Second: Not a string: []"
+    },
+    {
+      "kind": "potion_contents",
+      "input": "{\"custom_color\":[1.0,0.0,0.0]}",
+      "error": "Not a number: [1.0,0.0,0.0]"
+    },
+    {
+      "kind": "bundle_contents",
+      "input": "[{\"id\":\"minecraft:air\"}]",
+      "error": "Failed to parse either. First: Item must not be minecraft:air; Second: Not a string: {\"id\":\"minecraft:air\"}"
+    },
+    {
+      "kind": "bundle_contents",
+      "input": "[{\"id\":\"minecraft:stone\",\"count\":0}]",
+      "error": "Value must be within range [1;99]: 0"
+    },
+    {
+      "kind": "bundle_contents",
+      "input": "[{\"id\":\"minecraft:stone\",\"count\":100}]",
+      "error": "Value must be within range [1;99]: 100"
+    },
+    {
+      "kind": "charged_projectiles",
+      "input": "[\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\",\"minecraft:arrow\"]",
+      "error": "List is too long: 1025, expected range [0-1024]"
+    },
+    {
+      "kind": "container",
+      "input": "[{\"slot\":256,\"item\":\"minecraft:stone\"}]",
+      "error": "Value 256 outside of range [0:255]"
+    },
+    {
+      "kind": "container",
+      "input": "[{\"slot\":-1,\"item\":\"minecraft:stone\"}]",
+      "error": "Value -1 outside of range [0:255]"
+    },
+    {
+      "kind": "container",
+      "input": "[{\"item\":\"minecraft:stone\"}]",
+      "error": "No key slot in MapLike[{\"item\":\"minecraft:stone\"}]"
+    },
+    {
+      "kind": "container",
+      "input": "[{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"},{\"slot\":0,\"item\":\"minecraft:stone\"}]",
+      "error": "List is too long: 257, expected range [0-256]"
+    },
+    {
+      "kind": "container",
+      "input": "[{\"slot\":0,\"item\":{\"id\":\"minecraft:air\"}}]",
+      "error": "Failed to parse either. First: Item must not be minecraft:air; Second: Not a string: {\"id\":\"minecraft:air\"}"
+    },
+    {
+      "kind": "container_loot",
+      "input": "{\"seed\":1}",
+      "error": "No key loot_table in MapLike[{\"seed\":1}]"
+    },
+    {
+      "kind": "container_loot",
+      "input": "{\"loot_table\":\"minecraft:chests/x\",\"seed\":\"1\"}",
+      "error": "Not a number: \"1\""
+    },
+    {
+      "kind": "container_loot",
+      "input": "{\"loot_table\":\"Not Valid\"}",
+      "error": "Not a valid resource location: Not Valid Non [a-z0-9/._-] character in path of location: minecraft:Not Valid"
+    },
+    {
+      "kind": "bees",
+      "input": "[{\"entity_data\":{\"Health\":5.0},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0}]",
+      "error": "Expected 'id' field in {\"Health\":5.0}"
+    },
+    {
+      "kind": "bees",
+      "input": "[{\"entity_data\":{\"id\":\"minecraft:no_such_entity\"},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0}]",
+      "error": "Unknown registry key in ResourceKey[minecraft:root / minecraft:entity_type]: minecraft:no_such_entity"
+    },
+    {
+      "kind": "bees",
+      "input": "[{\"entity_data\":{\"id\":\"minecraft:bee\"},\"ticks_in_hive\":0}]",
+      "error": "No key min_ticks_in_hive in MapLike[{\"entity_data\":{\"id\":\"minecraft:bee\"},\"ticks_in_hive\":0}]"
+    },
+    {
+      "kind": "bees",
+      "input": "[{\"entity_data\":{\"id\":5},\"ticks_in_hive\":0,\"min_ticks_in_hive\":0}]",
+      "error": "Not a string"
+    },
+    {
+      "kind": "firework_explosion",
+      "input": "{\"colors\":[1]}",
+      "error": "No key shape in MapLike[{\"colors\":[1]}]"
+    },
+    {
+      "kind": "firework_explosion",
+      "input": "{\"shape\":\"STAR\"}",
+      "error": "Unknown element name: STAR"
+    },
+    {
+      "kind": "firework_explosion",
+      "input": "{\"shape\":\"star\",\"colors\":[[1.0,0.0,0.0]]}",
+      "error": "Not a number: [1.0,0.0,0.0]"
+    },
+    {
+      "kind": "fireworks",
+      "input": "{\"explosions\":[{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"},{\"shape\":\"star\"}]}",
+      "error": "List is too long: 257, expected range [0-256]"
+    },
+    {
+      "kind": "banner_patterns",
+      "input": "[{\"pattern\":\"minecraft:no_such_pattern\",\"color\":\"red\"}]",
+      "error": "Failed to get element minecraft:no_such_pattern from registry minecraft:banner_pattern"
+    },
+    {
+      "kind": "banner_patterns",
+      "input": "[{\"pattern\":\"minecraft:creeper\",\"color\":\"Red\"}]",
+      "error": "Unknown element name: Red"
+    },
+    {
+      "kind": "banner_patterns",
+      "input": "[{\"pattern\":{\"asset_id\":\"mcrs:x\"},\"color\":\"red\"}]",
+      "error": "No key translation_key in MapLike[{\"asset_id\":\"mcrs:x\"}]"
+    },
+    {
+      "kind": "banner_patterns",
+      "input": "[{\"pattern\":\"minecraft:creeper\"}]",
+      "error": "No key color in MapLike[{\"pattern\":\"minecraft:creeper\"}]"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{\"minecraft:sharpness\":0}",
+      "error": "Value 0 outside of range [1:255] missed input: {\"minecraft:sharpness\":0}"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{\"minecraft:sharpness\":256}",
+      "error": "Value 256 outside of range [1:255] missed input: {\"minecraft:sharpness\":256}"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{\"minecraft:no_such_enchantment\":1}",
+      "error": "Failed to get element minecraft:no_such_enchantment from registry minecraft:enchantment missed input: {\"minecraft:no_such_enchantment\":1}"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "{\"sharpness\":1,\"minecraft:sharpness\":2}",
+      "error": "Duplicate entry for key: 'Reference{ResourceKey[minecraft:enchantment / minecraft:sharpness]=Enchantment Sharpness}' missed input: {\"minecraft:sharpness\":2}"
+    },
+    {
+      "kind": "stored_enchantments",
+      "input": "[]",
+      "error": "Not a JSON object: []"
+    },
+    {
+      "kind": "painting/variant",
+      "input": "\"minecraft:no_such_painting\"",
+      "error": "Failed to get element minecraft:no_such_painting from registry minecraft:painting_variant"
+    },
+    {
+      "kind": "painting/variant",
+      "input": "{\"width\":1,\"height\":1,\"asset_id\":\"mcrs:x\"}",
+      "error": "Not a string: {\"width\":1,\"height\":1,\"asset_id\":\"mcrs:x\"}"
+    },
+    {
+      "kind": "painting/variant",
+      "input": "5",
+      "error": "Not a string: 5"
     }
   ],
   "decodes": [
@@ -1566,6 +2447,46 @@
       "kind": "attack_animation",
       "wire": "0503",
       "json": "{\"type\":\"none\",\"duration\":3}"
+    },
+    {
+      "kind": "profile",
+      "wire": "000105537465766501000000010000000200000003000000040000000000",
+      "json": "{\"name\":\"Steve\",\"id\":[1,2,3,4]}"
+    },
+    {
+      "kind": "profile",
+      "wire": "000000030178013100087465787475726573017400017801320000000000",
+      "json": "{\"properties\":[{\"name\":\"x\",\"value\":\"1\"},{\"name\":\"x\",\"value\":\"2\"},{\"name\":\"textures\",\"value\":\"t\"}]}"
+    },
+    {
+      "kind": "potion_contents",
+      "wire": "0000010003280001010101c8010001010000",
+      "json": "{\"custom_effects\":[{\"id\":\"minecraft:speed\",\"amplifier\":3,\"duration\":40,\"show_icon\":true}]}"
+    },
+    {
+      "kind": "container",
+      "wire": "0201880801000000",
+      "json": "[{\"slot\":0,\"item\":{\"id\":\"minecraft:arrow\"}}]"
+    },
+    {
+      "kind": "container",
+      "wire": "0100",
+      "json": "[]"
+    },
+    {
+      "kind": "bees",
+      "wire": "01670a0800026964000d6d696e6563726166743a636f77000a00",
+      "json": "[{\"entity_data\":{\"id\":\"minecraft:pig\"},\"ticks_in_hive\":10,\"min_ticks_in_hive\":0}]"
+    },
+    {
+      "kind": "painting/variant",
+      "wire": "01",
+      "json": "\"minecraft:alban\""
+    },
+    {
+      "kind": "stored_enchantments",
+      "wire": "0221012102",
+      "json": "{\"minecraft:sharpness\":2}"
     }
   ],
   "decode_errors": [
@@ -1578,6 +2499,46 @@
       "kind": "enchantable",
       "wire": "ffffffff0f",
       "error": "Enchantment value must be positive, but was -1"
+    },
+    {
+      "kind": "profile",
+      "wire": "00000011",
+      "error": "17 elements exceeded max size of: 16"
+    },
+    {
+      "kind": "container",
+      "wire": "8102",
+      "error": "257 elements exceeded max size of: 256"
+    },
+    {
+      "kind": "charged_projectiles",
+      "wire": "8108",
+      "error": "1025 elements exceeded max size of: 1024"
+    },
+    {
+      "kind": "fireworks",
+      "wire": "008102",
+      "error": "257 elements exceeded max size of: 256"
+    },
+    {
+      "kind": "bees",
+      "wire": "0167000a00",
+      "error": "Expected non-null compound tag"
+    },
+    {
+      "kind": "bundle_contents",
+      "wire": "0100010000",
+      "error": "Item must be non-empty"
+    },
+    {
+      "kind": "painting/variant",
+      "wire": "ff01",
+      "error": "No value with id 254"
+    },
+    {
+      "kind": "stored_enchantments",
+      "wire": "01ff0101",
+      "error": "No value with id 255"
     }
   ]
 }

@@ -7,8 +7,14 @@ use crate::debug_displayer::DebugScreenDisplayer;
 
 pub const GROUP: ResourceLocation<'static> = rl!("minecraft:system");
 
-/// Vanilla also names the Java runtime and the CPU model; neither has a source
-/// here, and a native binary has no runtime to name in the first place.
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on a debug screen refresh, at most ten times a second while the F3 overlay shows or when the stats log is due"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(5))]
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     adapter: Res<RenderAdapterInfo>,

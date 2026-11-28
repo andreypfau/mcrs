@@ -1,5 +1,3 @@
-//! The header of the player list, which shows the number of players online.
-
 use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to_target};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Local, Query};
@@ -8,8 +6,6 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundTabList;
 use mcrs_minecraft_text::{RawText, Text};
 use smallvec::SmallVec;
 
-/// Host system: sends every player the number of players online when it changes, and each
-/// player that a dimension attaches the number that it does not have yet.
 pub fn send_online_count(
     placements: Query<&SessionPlacement>,
     placed: Query<(&Session, &SessionPlacement), Changed<SessionPlacement>>,

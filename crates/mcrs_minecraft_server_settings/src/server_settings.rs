@@ -1,41 +1,30 @@
 use alloc::borrow::ToOwned;
 use alloc::string::String;
+use alloc::vec::Vec;
+use core::net::IpAddr;
 use core::num::NonZeroUsize;
 
 use mcrs_minecraft_game_mode::GameMode;
 
 use crate::setting_error::SettingError;
 
-/// The settings of a server run, each named by its `MCRS_` variable without the prefix. An unset
-/// variable leaves the default.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ServerSettings {
-    /// `PORT`: the port to listen on; `None` keeps the port of the network plugin.
     pub port: Option<u16>,
-    /// `COMPUTE_THREADS`: the threads of the compute pool; `None` keeps the default size.
     pub compute_threads: Option<NonZeroUsize>,
-    /// `WORLD_SEED`: written signed, as the Java long it is, or unsigned; the router hashes the
-    /// same bits either way.
     pub world_seed: u64,
-    /// `WORLD_PRESET`: a short name (`normal`) or a namespaced one (`minecraft:normal`), in
-    /// lower case.
     pub world_preset: String,
-    /// `DEFAULT_GAMEMODE`: `survival`, `creative`, `adventure` or `spectator`, in any case.
     pub default_game_mode: GameMode,
-    /// `MOB_AI`: whether the mobs think.
     pub mob_ai: bool,
-    /// `LAN_ANNOUNCE`: whether the server announces itself on the local network.
     pub lan_announce: bool,
-    /// `COMPRESSION_THRESHOLD`: the packet size in bytes from which packets are compressed; a
-    /// negative value turns compression off. `None` keeps the default.
     pub compression_threshold: Option<i32>,
-    /// `ACCEPT_TRANSFERS`: whether the server accepts players that another server transfers.
     pub accept_transfers: bool,
-    /// `ENABLE_STATUS`: whether the server answers status requests.
     pub enable_status: bool,
-    /// `HIDE_ONLINE_PLAYERS`: whether the status hides the names of the players.
     pub hide_online_players: bool,
+    pub forwarding: bool,
+    pub forwarding_secret: String,
+    pub proxy_upstreams: Vec<IpAddr>,
 }
 
 impl Default for ServerSettings {
@@ -52,13 +41,14 @@ impl Default for ServerSettings {
             accept_transfers: false,
             enable_status: true,
             hide_online_players: false,
+            forwarding: false,
+            forwarding_secret: String::new(),
+            proxy_upstreams: Vec::new(),
         }
     }
 }
 
 impl ServerSettings {
-    /// Reads each setting through `lookup`, which takes a name without the `MCRS_` prefix.
-    /// `report` gets each value that does not read; that setting keeps its default.
     pub fn read(
         lookup: impl Fn(&str) -> Option<String>,
         mut report: impl FnMut(SettingError),
@@ -94,6 +84,15 @@ impl ServerSettings {
             accept_transfers: reader.flag("ACCEPT_TRANSFERS", defaults.accept_transfers),
             enable_status: reader.flag("ENABLE_STATUS", defaults.enable_status),
             hide_online_players: reader.flag("HIDE_ONLINE_PLAYERS", defaults.hide_online_players),
+            forwarding: reader.flag("FORWARDING", defaults.forwarding),
+            forwarding_secret: lookup("FORWARDING_SECRET").unwrap_or(defaults.forwarding_secret),
+            proxy_upstreams: reader
+                .read(
+                    "PROXY_UPSTREAMS",
+                    "IP addresses separated by commas",
+                    |raw| raw.split(',').map(|ip| ip.trim().parse().ok()).collect(),
+                )
+                .unwrap_or(defaults.proxy_upstreams),
         }
     }
 }
@@ -104,7 +103,6 @@ struct Reader<'a, L, R> {
 }
 
 impl<L: Fn(&str) -> Option<String>, R: FnMut(SettingError)> Reader<'_, L, R> {
-    /// The value of `name`, trimmed, through `parse`; `None` when it is unset or does not read.
     fn read<T>(
         &mut self,
         name: &'static str,
@@ -123,8 +121,6 @@ impl<L: Fn(&str) -> Option<String>, R: FnMut(SettingError)> Reader<'_, L, R> {
         parsed
     }
 
-    /// `on`, `1`, `true` and `yes` turn a setting on; `off`, `0`, `false` and `no` turn it off,
-    /// in any case.
     fn flag(&mut self, name: &'static str, default: bool) -> bool {
         self.read(name, "on or off", |raw| {
             match raw.to_ascii_lowercase().as_str() {
@@ -191,6 +187,9 @@ mod tests {
             ("ACCEPT_TRANSFERS", "Yes"),
             ("ENABLE_STATUS", "of f"),
             ("HIDE_ONLINE_PLAYERS", "1"),
+            ("FORWARDING", "on"),
+            ("FORWARDING_SECRET", " secret "),
+            ("PROXY_UPSTREAMS", " 192.0.2.1, ::1 "),
         ]);
         assert_eq!(
             settings,
@@ -206,6 +205,9 @@ mod tests {
                 accept_transfers: true,
                 enable_status: true,
                 hide_online_players: true,
+                forwarding: true,
+                forwarding_secret: " secret ".to_owned(),
+                proxy_upstreams: vec![[192, 0, 2, 1].into(), core::net::Ipv6Addr::LOCALHOST.into()],
             }
         );
         assert_eq!(rejected, ["ENABLE_STATUS"]);
@@ -219,6 +221,8 @@ mod tests {
             ("WORLD_SEED", "18446744073709551615"),
             ("DEFAULT_GAMEMODE", "hardcore"),
             ("MOB_AI", "2"),
+            ("FORWARDING", "enabled"),
+            ("PROXY_UPSTREAMS", "192.0.2.1,localhost"),
         ]);
         assert_eq!(settings.world_seed, u64::MAX, "an unsigned seed reads");
         assert_eq!(
@@ -232,7 +236,14 @@ mod tests {
         );
         assert_eq!(
             rejected,
-            ["PORT", "COMPUTE_THREADS", "DEFAULT_GAMEMODE", "MOB_AI"]
+            [
+                "PORT",
+                "COMPUTE_THREADS",
+                "DEFAULT_GAMEMODE",
+                "MOB_AI",
+                "FORWARDING",
+                "PROXY_UPSTREAMS"
+            ]
         );
     }
 }

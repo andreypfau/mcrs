@@ -2,41 +2,30 @@ use crate::json::{Json, JsonObject};
 use crate::pack_file_error::PackFileError;
 use crate::scripts::{AnimateItem, Scripts};
 
-/// A short name of the map `animations` and the clip or controller it names.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AnimationName {
-    /// In lower case.
     pub short_name: String,
     pub identifier: String,
 }
 
-/// An element of the `render_controllers` list of a client entity.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ControllerEntry {
     pub identifier: String,
-    /// `None` for an element with no condition.
     pub condition: Option<Json>,
 }
 
-/// The description of a client entity file: its resource maps, its animations, its scripts and
-/// its render controller list.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ClientEntityFile {
     pub identifier: String,
-    /// The short name in lower case and the geometry identifier, in file order.
     pub geometries: Vec<(String, String)>,
-    /// The short name in lower case and the texture path, in file order.
     pub textures: Vec<(String, String)>,
-    /// The short name in lower case and the material name, in file order.
     pub materials: Vec<(String, String)>,
-    /// The map `animations`, then each element of the legacy `animation_controllers` list.
     pub animations: Vec<AnimationName>,
     pub scripts: Scripts,
     pub render_controllers: Vec<ControllerEntry>,
 }
 
 impl ClientEntityFile {
-    /// Reads a client entity file. A field with a wrong shape reads as absent.
     pub fn parse(text: &str) -> Result<Self, PackFileError> {
         let root = Json::parse_lenient(text).map_err(PackFileError::Syntax)?;
         let description = root
@@ -67,7 +56,6 @@ impl ClientEntityFile {
         Ok(file)
     }
 
-    /// The identifier that a short name of `animations` names.
     #[must_use]
     pub fn animation(&self, short_name: &str) -> Option<&str> {
         self.animations
@@ -76,7 +64,6 @@ impl ClientEntityFile {
             .map(|name| name.identifier.as_str())
     }
 
-    /// The index of a geometry short name, without regard to letter case.
     #[must_use]
     pub fn geometry(&self, short_name: &str) -> Option<usize> {
         self.geometries
@@ -84,8 +71,6 @@ impl ClientEntityFile {
             .position(|(short, _)| short.eq_ignore_ascii_case(short_name))
     }
 
-    /// Each element of the legacy `animation_controllers` list names an animation and plays it
-    /// with the weight `1`.
     fn read_legacy_controllers(&mut self, description: &JsonObject) {
         let legacy = description
             .get("animation_controllers")

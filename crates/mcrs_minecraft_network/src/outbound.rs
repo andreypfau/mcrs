@@ -9,17 +9,11 @@ use tracing::warn;
 
 use crate::packet_io::MAX_QUEUED_BYTES_PER_SOCKET;
 
-/// A piece of what a connection hands its writer, which frames and compresses the pieces in
-/// order.
 #[derive(Debug)]
 enum OutboundPart {
-    /// Packets with their ids, each behind its length as a big-endian `u32`.
     Packets(Bytes),
-    /// One packet with its id, in a buffer that other connections share.
     Shared(Bytes),
-    /// Frames made for the threshold the writer is at, which it sends as they are.
     Framed(Bytes),
-    /// The writer compresses every packet after this one at the threshold.
     Compression(CompressionThreshold),
 }
 
@@ -32,8 +26,6 @@ impl OutboundPart {
     }
 }
 
-/// One hand-over to the writer. A batch holds about [`MAX_QUEUED_BYTES_PER_SOCKET`] of packets
-/// at most, so the writer's channel bounds what is in flight.
 #[derive(Debug, Default)]
 pub(crate) struct OutboundBatch {
     parts: Vec<OutboundPart>,
@@ -51,20 +43,8 @@ impl OutboundBatch {
     }
 }
 
-/// The most deferred bytes in one batch. The writer's channel holds a few batches, and a column
-/// written later waits behind them, so deferred batches stay small.
 const DEFERRED_BATCH_BYTES: usize = 64 * 1024;
 
-/// What a connection has written and its writer has not taken yet.
-///
-/// The server thread only serializes packets here; framing and compression wait for the
-/// writer, so a packet's frame always matches the threshold the writer switched to before it.
-///
-/// The queue has two lanes. The ordered lane keeps the order of everything written to it. The
-/// deferred lane holds the entity bytes of the replication, in their own order, and the writer
-/// takes them only when the ordered lane is empty. Thus a client that reads slowly still gets
-/// its columns, its teleports and its keep-alives first. A fence puts the deferred bytes back in
-/// order, before a packet after which they no longer apply.
 #[derive(Default)]
 pub(crate) struct WriterQueue {
     records: BytesMut,
@@ -76,7 +56,6 @@ pub(crate) struct WriterQueue {
 }
 
 impl WriterQueue {
-    /// A queue for a writer that starts at `compression`.
     pub(crate) fn new(compression: CompressionThreshold) -> Self {
         Self {
             compression,
@@ -84,12 +63,10 @@ impl WriterQueue {
         }
     }
 
-    /// The threshold the writer frames the next appended packet at.
     pub(crate) fn compression(&self) -> CompressionThreshold {
         self.compression
     }
 
-    /// A packet that fails to encode leaves nothing behind.
     pub(crate) fn append<P: Packet + Encode>(&mut self, packet: &P) -> anyhow::Result<()> {
         write_record(&mut self.records, packet)?;
         if self.records.len() >= MAX_QUEUED_BYTES_PER_SOCKET {
@@ -98,14 +75,11 @@ impl WriterQueue {
         Ok(())
     }
 
-    /// Queues a packet that `encode_with_id` wrote once for every connection that receives it.
     pub(crate) fn append_shared(&mut self, packet: Bytes) {
         self.close_records();
         self.push(OutboundPart::Shared(packet));
     }
 
-    /// Queues packets that other connections may share, each behind its length as a big-endian
-    /// `u32`, as [`Self::append`] writes them. Returns how many packets `records` holds.
     pub(crate) fn append_records(&mut self, records: Bytes) -> usize {
         let count = packets(&records).count();
         self.close_records();
@@ -113,13 +87,11 @@ impl WriterQueue {
         count
     }
 
-    /// Queues frames made at [`Self::compression`].
     pub(crate) fn append_framed(&mut self, frame: Bytes) {
         self.close_records();
         self.push(OutboundPart::Framed(frame));
     }
 
-    /// Queues records as [`Self::append_records`] does, in the deferred lane.
     pub(crate) fn append_deferred(&mut self, records: Bytes) -> usize {
         let count = packets(&records).count();
         self.deferred_bytes = self.deferred_bytes.saturating_add(records.len());
@@ -127,7 +99,6 @@ impl WriterQueue {
         count
     }
 
-    /// Moves the deferred bytes into the ordered lane, ahead of what comes next.
     pub(crate) fn fence(&mut self) {
         self.close_records();
         while let Some(part) = self.deferred.pop_front() {
@@ -143,7 +114,6 @@ impl WriterQueue {
         self.push(OutboundPart::Compression(threshold));
     }
 
-    /// Makes everything written so far ready for the writer.
     pub(crate) fn close(&mut self) {
         self.close_records();
         if !self.open.parts.is_empty() {
@@ -151,7 +121,6 @@ impl WriterQueue {
         }
     }
 
-    /// The next batch for the writer: the ordered lane first, then the deferred bytes.
     pub(crate) fn pop(&mut self) -> Option<OutboundBatch> {
         if let Some(batch) = self.closed.pop_front() {
             return Some(batch);
@@ -172,8 +141,6 @@ impl WriterQueue {
         self.closed.push_front(batch);
     }
 
-    /// The bytes of the batches ready for the writer that it has not taken, with the deferred
-    /// bytes.
     pub(crate) fn closed_bytes(&self) -> usize {
         self.closed
             .iter()
@@ -199,8 +166,6 @@ impl WriterQueue {
     }
 }
 
-/// The packets of `records`, each behind its length as a big-endian `u32`. A record cut short
-/// ends them.
 fn packets(records: &[u8]) -> impl Iterator<Item = &[u8]> {
     let mut rest = records;
     iter::from_fn(move || {
@@ -211,20 +176,15 @@ fn packets(records: &[u8]) -> impl Iterator<Item = &[u8]> {
     })
 }
 
-/// The writer's half of the encoding: frames and compresses each batch it is handed, in order,
-/// except the frames the server thread made once for many connections.
 pub(crate) struct FrameWriter {
     encoder: PacketEncoder,
 }
 
 impl FrameWriter {
-    /// Takes over the encoder of the handshake, with its threshold and any frames it holds.
     pub(crate) fn new(encoder: PacketEncoder) -> Self {
         Self { encoder }
     }
 
-    /// Frames `batch` into `chunks`, to write in order. A frame the server thread made goes as
-    /// the bytes the connections share, never copied.
     pub(crate) fn frame_into(&mut self, batch: OutboundBatch, chunks: &mut Vec<Bytes>) {
         for part in batch.parts {
             match part {
@@ -258,8 +218,6 @@ impl FrameWriter {
     }
 }
 
-/// The far side of a connection made by [`crate::RawConnection::new_for_test_full`]: it frames
-/// what the connection hands its writer, as the writer would.
 #[cfg(not(target_family = "wasm"))]
 pub struct OutboundReceiver {
     batches: tokio::sync::mpsc::Receiver<OutboundBatch>,
@@ -277,8 +235,6 @@ impl OutboundReceiver {
         }
     }
 
-    /// The frames of the next hand-over that carries any. A hand-over that only switches the
-    /// compression is applied and skipped.
     pub fn try_recv(&mut self) -> Result<Bytes, tokio::sync::mpsc::error::TryRecvError> {
         loop {
             let batch = self.batches.try_recv()?;
@@ -301,7 +257,6 @@ mod tests {
         ClientboundKeepAlive(KeepAlive { payload })
     }
 
-    /// Records of `count` packets, which stand for the entity bytes of the replication.
     fn entity_records(first: i64, count: i64) -> Bytes {
         let mut records = BytesMut::new();
         for payload in first..first + count {

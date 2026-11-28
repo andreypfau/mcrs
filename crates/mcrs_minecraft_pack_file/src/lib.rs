@@ -1,9 +1,3 @@
-//! The files of an entity pack as the loaders of geometry, animation and render controllers
-//! read them: lenient JSON, the client entity file, the load diagnostics and the compile of
-//! Molang fields.
-
-// std: serde_json
-
 mod client_entity_file;
 mod field_compiler;
 mod json;

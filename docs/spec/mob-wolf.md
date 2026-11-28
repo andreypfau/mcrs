@@ -1,16 +1,15 @@
 # The wolf: type data, anger, goals, hunting and cost
 
+Version: see `assets/minecraft/version.json`.
+
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
 | Entity type | `minecraft:wolf` |
 | Data | `assets/mcrs/reports/registries.json`, the data pack of the server jar, the type artefact |
 
 This document states the server behaviour of the wolf. It covers the type data, the entity data,
 the variants, the anger, the tame state, the goal lists, the work of each tick that is not a goal,
-the hunt of other mobs, and the drops. It gives the cost of each part, so that a design can tick
-many wolves in parallel among sheep and llamas.
+the hunt of other mobs, and the drops.
 
 The rules state results, not algorithms. Each rule has a fidelity class (`mob-goals.md`, section
 0.3). The wolf is an animal in the sense of the age, the love and the breed of `mob-animals.md`
@@ -41,8 +40,7 @@ goals and the anger of a neutral mob.
 
 ### 0.2 Provenance, kind, confidence and fidelity
 
-The labels of `mob-goals.md`, sections 0.2 and 0.3, apply. No rule of this document has a captured
-result yet. Section 14 attaches the experiments.
+The labels of `mob-goals.md`, sections 0.2 and 0.3, apply.
 
 ### 0.3 ID prefix
 
@@ -131,7 +129,7 @@ a candidate is GOAL-POS-004: 10 above `grass_block`, else the light value.
 
 **WOLF-TYPE-004** (`source_suggested`, semantic, confidence: high, fidelity: exact). The head turn
 speed is 10, and the head yaw limit is 75. The pitch limit is 20 while the sitting pose is set, else
-40. The breeding food is the item tag `wolf_food`. In `26.4-snapshot-7` the tag holds `#meat`, `cod`,
+40. The breeding food is the item tag `wolf_food`. The tag holds `#meat`, `cod`,
 `cooked_cod`, `salmon`, `cooked_salmon`, `tropical_fish`, `pufferfish` and `rabbit_stew`. A wolf has
 no tempt goal. The interesting items of the beg goal are `bone` and each item of `wolf_food`.
 
@@ -342,7 +340,7 @@ The look goal of the wolf has the range 8 in place of 6. Each part of GOAL-LKP-0
 `Q-LOOK` uses 8.
 
 **WOLF-GOAL-002** (`source_suggested`, semantic, confidence: high, fidelity: exact). The panic of a
-wolf reads the damage tag `panic_environmental_causes`, not `panic_causes`. In `26.4-snapshot-7` the
+wolf reads the damage tag `panic_environmental_causes`, not `panic_causes`. The
 tag holds `cactus`, `freeze`, `hot_floor`, `sulfur_cube_hot`, `in_fire`, `lava`,
 `lightning_bolt` and `on_fire`. Thus a melee hit, a projectile and a player attack do not make a
 wolf panic. The tame form adds a teleport to the owner in each goal tick (CGOAL-OWNER-005).
@@ -631,30 +629,7 @@ Outside passive mode, the main costs of a wolf are:
   and one path search before the strength draw in the reference. WOLF-GOAL-004 removes the away
   search and the path search for a failed draw and for a tame wolf.
 
-## 13. Parallelism notes
-
-| Part | Place | Reads | Writes | Effects on other entities |
-|------|-------|-------|--------|---------------------------|
-| goal list and target list | decisions (CGOAL section 7) | own state; snapshot; indices | own guidance; own attack target | alerts (pair actions); melee hits |
-| anger update | reflex, each tick | own anger state; liveness of the stored target | anger state; entry 22; attack target | none |
-| wet and shake | reflex, each tick | own fluid and rain flags, on-ground flag, path state | three own states; entity events 8 and 56; one sound | none |
-| age, love, ambient sound | reflex, each tick | own counters | own counters; sound packets | none |
-| melee hit | reflex | own cooldown; target box; ray | a hit on the target | the hit procedure on the target (DMG-ORD-002) |
-| tame action | an event of a packet | the wolf, the item | the wolf; the stack | hook |
-
-These conclusions follow:
-
-- Each per-tick part of a wolf reads and writes only the own wolf, except the melee hit. A tile task
-  can run them.
-- The snapshot must publish these values of each wolf: the tame state, the owner reference, the
-  attack target, the type, and the box. The llama, the prey and the skeleton kinds must publish their
-  type and box to the type indices.
-- The type indices change only when an entity moves into another cell, is added or is removed. They
-  can be built one time in each tick, after the move of each entity.
-- Each random value is a keyed random value. The purpose names the rule, for example "wolf anger
-  duration" or "wolf avoid strength".
-
-## 14. Intentional deviations, unresolved items and experiments
+## 14. Intentional deviations and unresolved items
 
 ### WOLF-DEV-001: The order of the avoid work
 
@@ -662,7 +637,6 @@ These conclusions follow:
 - **Reference:** the reference makes the away search and the path search before the tame test and
   the strength draw.
 - **Visible to the client:** no, as a distribution.
-- **Test:** E-W4.
 
 ### WOLF-DEV-002: Kept vanilla quirks
 
@@ -687,7 +661,6 @@ These quirks are vanilla behaviour. This server keeps them.
 - **Visible to the client:** the client sees the same anger state in each tick, because each value
   in between is more than the game time. The count of `set_entity_data` packets is smaller. The save
   of a wolf during a hunt must write a drawn end time.
-- **Test:** compare the anger state that a client computes in each tick.
 
 ### 14.1 Unresolved
 
@@ -696,22 +669,6 @@ These quirks are vanilla behaviour. This server keeps them.
 - **U2**: rain at the position of a wolf needs the weather and the precipitation of the biome
   (WOLF-TICK-003).
 - **U3**: the knockback of a melee hit is a hook (CGOAL U1).
-- **U4**: the fox and the turtle have no specification. The prey index and the turtle index can be
-  empty in the benchmark.
+- **U4**: the fox and the turtle have no specification.
 - **U5**: the selection of a variant by its spawn selectors refers to ANIM-VAR-003. A general rule
   for each variant registry must replace it.
-
-### 14.2 Experiments with a vanilla server
-
-The setup of `mob-goals.md`, section 10.1, applies.
-
-| Experiment | Steps | Expected result | Rules |
-|------------|-------|-----------------|-------|
-| E-W1 | Summon a wolf with `{}`. Read the spawn bundle. | The entries 23 and 24 are absent or `pale` and `classic`. The entry 22 is absent. | WOLF-DATA-001, WOLF-VAR-003 |
-| E-W2 | Summon 200 wolves with no compound in a `forest`. Count the variants and the sound variants. | Each variant is `woods`. Each sound variant has a chance of about 1/7. No wolf is a baby. | WOLF-VAR-003 |
-| E-W3 | Let a wolf hunt a sheep. Record each `set_entity_data` of the wolf. | The entry 22 changes in almost each tick of the hunt. It becomes −1 in the tick after the sheep dies. | WOLF-ANGER-002 |
-| E-W4 | Put a wild wolf and a llama with `Strength:1` 12 blocks apart on grass, 400 times. Repeat with `Strength:5` and with a tame wolf. | The flight rate per examined evaluation is 2/5 of the rate with strength 5. A tame wolf never flees. | WOLF-GOAL-003 |
-| E-W5 | Put a wolf in water for 20 ticks, then on dry ground. Record the entity events and the sound. | Event 8 when the wolf lands with no path; one shake sound; the shake ends after 42 ticks. | WOLF-TICK-001, WOLF-TICK-002 |
-| E-W6 | Hit a wolf with `damage <wolf> 1 minecraft:cactus` and with a player attack. | The wolf panics after the cactus damage only. | WOLF-GOAL-002 |
-| E-W7 | Let a wolf hunt a sheep 10 blocks away, and put a llama with `Strength:5` 20 blocks away. Record the attack target. | After the flight the wolf does not attack the sheep while the sheep stays in sight within 16 blocks. | WOLF-HUNT-004 |
-| E-W8 | Summon 1,000 wild wolves on a dry superflat world with a spectator only. Profile the target selection. | Each wolf enumerates the llama box in each full evaluation, and about 0.6 other boxes. | WOLF-COST-001 |

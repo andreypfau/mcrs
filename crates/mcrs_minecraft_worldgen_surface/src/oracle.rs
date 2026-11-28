@@ -11,14 +11,8 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_value_provider::HeightContext;
 use std::collections::BTreeSet;
 
-/// What each node the walk visited answered, so a differential run can prove it
-/// reached every kind rather than assuming it did.
 pub(crate) type Visited = BTreeSet<(&'static str, bool)>;
 
-/// The rule tree walked as it is written: references resolved on the way down,
-/// no tape, no interning, no caches. It answers the same question as
-/// [`MaterialEval::apply`] off the same context, which is the only thing that
-/// makes the two comparable.
 pub(crate) struct MaterialOracle<'a> {
     inputs: &'a MaterialInputs<'a>,
     root: &'a MaterialRuleHolder,
@@ -74,8 +68,6 @@ impl<'a> MaterialOracle<'a> {
                 if self.condition(if_true, eval, visited) {
                     self.rule(then_run, eval, veins, visited)
                 } else {
-                    // The compiler numbers veins over the whole tree, so a
-                    // skipped subtree still consumes the ids inside it.
                     self.count_veins(then_run, veins);
                     None
                 }
@@ -284,8 +276,6 @@ mod tests {
     use crate::eval::MaterialScratch;
     use mcrs_minecraft_resource::rl;
 
-    /// Every condition kind the overworld tree reaches. Each has to be seen
-    /// holding and not holding, or the run proves nothing about it.
     const CONDITIONS: [&str; 10] = [
         "above_preliminary_surface",
         "biome",
@@ -299,13 +289,8 @@ mod tests {
         "y_above",
     ];
 
-    /// The two rules that are not a constant state. A vein has to be seen both
-    /// producing and falling through, which is the tape's one non-returning op;
-    /// a clay band always produces.
     const RULES: [(&str, bool); 3] = [("bandlands", true), ("ore_vein", true), ("ore_vein", false)];
 
-    /// The biomes the overworld rule actually tests, read back off the interned
-    /// masks so a corpus that gains one is covered without an edit here.
     fn tested_biomes(material: &MaterialProgram) -> Vec<u16> {
         let sets = material.biome_sets();
         let mut ids: Vec<u16> = (0..256u16)
@@ -316,14 +301,8 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "compares the tape with the oracle over the whole context range from one shared setup, so the sweep reads in one place"
-    )]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "sweeps every height and combination of the context range against the oracle from one shared setup, so a mismatch names its combination"
-    )]
+    #[expect(clippy::too_many_lines, reason = "one sweep from one shared setup")]
+    #[expect(clippy::excessive_nesting, reason = "a mismatch names its combination")]
     fn the_tape_and_the_oracle_agree_over_the_whole_context_range() {
         let (router, material) = build("overworld");
         let (rules, conditions) = material_corpus();
@@ -343,12 +322,8 @@ mod tests {
         let min_y = router.noise.min_y;
         let top = 96;
         let biomes = tested_biomes(&material);
-        // Small palettes so most interned sets fold to `never` or `always` for
-        // the column and the folded answers are compared too; one wide palette
-        // so the rest stay `maybe`.
         let mut palettes: Vec<Vec<u16>> = biomes.chunks(5).map(<[u16]>::to_vec).collect();
         palettes.push(biomes.clone());
-        // Column 8 holds an iron vein at `min_y + 7`; no earlier column has one in its band.
         while palettes.len() < 9 {
             palettes.push(biomes.clone());
         }

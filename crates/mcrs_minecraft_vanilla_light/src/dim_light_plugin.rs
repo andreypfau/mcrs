@@ -24,7 +24,6 @@ use crate::cold_light::ColdLightPlugin;
 use crate::light_link::LightLink;
 use crate::light_plugin::{LightPlugin, LightSet};
 
-/// What a dimension hands its light stage before intake.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct DimLightFeedSet;
 
@@ -52,15 +51,12 @@ impl Plugin for DimLightPlugin {
         })
         .configure_sets(FixedUpdate, LightSet::Publish.in_set(TickSet::DomainInput))
         .configure_sets(Last, DimLightFeedSet.before(LightSet::Intake))
-        // `Last` sees what the whole tick landed and placed, and hands it to the stage before
-        // the tick ends.
         .add_systems(
             Last,
             (
-                feed_light_edits,
+                feed_light_edits
+                    .run_if(on_message::<SectionStageChanged>.or_eager(on_message::<BlockPlaced>)),
                 reprioritize_light_work,
-                // A surface bound must never describe blocks the light world has not
-                // been handed yet.
                 feed_column_surfaces
                     .after(mcrs_minecraft_engine::heightmap::update_column_heightmaps),
             )
@@ -69,20 +65,31 @@ impl Plugin for DimLightPlugin {
         )
         .insert_resource(LightGated)
         .configure_sets(FixedUpdate, ColumnLightGate.in_set(TickSet::Project))
-        .add_systems(FixedUpdate, await_light.in_set(ColumnLightGate));
+        .add_systems(
+            FixedUpdate,
+            await_light
+                .run_if(on_message::<ColumnAwaitsLight>)
+                .in_set(ColumnLightGate),
+        );
     }
 }
 
-/// Hands the light stage each column that waits for its light. The stage answers once the
-/// light of the column is final, and [`publish_light`](crate::publish_light) passes the answer
-/// on.
 fn await_light(mut awaiting: MessageReader<ColumnAwaitsLight>, mut light: ResMut<LightLink>) {
     light.await_columns(awaiting.read().map(|&ColumnAwaitsLight(column)| column));
 }
 
-/// Hands the light stage where the players stand once one of them has moved to another
-/// column, so the waiting light work is re-scored against them.
-fn reprioritize_light_work(mut light: ResMut<LightLink>, players: Query<&Transform, With<Player>>) {
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "copies the player columns only when a player enters another column, and the copy moves to the light thread"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn reprioritize_light_work(
+    mut light: ResMut<LightLink>,
+    players: Populated<&Transform, With<Player>>,
+) {
     light.update_players(players.iter().map(|at| ColumnPos::from(at.translation)));
 }
 
@@ -117,13 +124,11 @@ fn feed_light_edits(
     }
 }
 
-/// Hands the sky scan each column's surface, so a section holding no block of a
-/// column costs it two seam tests rather than sixteen reads.
 fn feed_column_surfaces(
     mut light: ResMut<LightLink>,
-    columns: Query<(&ColumnPosComponent, &SurfaceHeightmap), Changed<SurfaceHeightmap>>,
+    columns: Populated<(&ColumnPosComponent, &SurfaceHeightmap), Changed<SurfaceHeightmap>>,
 ) {
-    for (pos, surface) in &columns {
+    for (pos, surface) in columns.iter() {
         light.push(Edit::SetColumnSurface {
             column: pos.0,
             surface: Arc::new(surface.0.clone()),

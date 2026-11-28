@@ -42,8 +42,6 @@ pub struct Cube {
 pub struct Face {
     pub internal_direction: String,
     pub normal: [f64; 3],
-    /// `[x, y, z, u, v]`: a point in the frame of the part and its texel. The artefact writes
-    /// `NaN` for a value that the reference cannot compute; it reads as `None`.
     pub vertices: Vec<[Option<f64>; 5]>,
 }
 

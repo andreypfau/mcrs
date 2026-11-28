@@ -5,28 +5,35 @@ use mcrs_minecraft_command_argument_entity::{Candidate, EntityBounds};
 use mcrs_minecraft_command_engine::{CommandTargets, PlayerEntry, SourceState};
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity::{PLAYER_HEIGHT, PLAYER_WIDTH};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_text::{IntoText, Text};
 
-/// An entity as a command sees it: a player of any dimension, or a mob of this world. The engine
-/// that owns [`PlayerEntry`] does not know the selector crate, so the entity is a view.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum EntityView<'c> {
     Player(&'c PlayerEntry),
-    Mob {
-        view: MobView<'c>,
-        /// The position of this world in the dimension order.
-        dimension: usize,
-    },
+    Mob { view: MobView<'c>, dimension: usize },
 }
 
 impl EntityView<'_> {
+    pub(crate) fn entity(&self) -> Option<Entity> {
+        match self {
+            Self::Player(player) => player.entity,
+            Self::Mob { view, .. } => Some(view.entity),
+        }
+    }
+
     pub(crate) fn position(&self) -> DVec3 {
         match self {
             Self::Player(player) => player.transform.translation,
             Self::Mob { view, .. } => view.position(),
+        }
+    }
+
+    pub(crate) fn eye_height(&self) -> f64 {
+        match self {
+            Self::Player(player) => f64::from(player.dimensions.eye_height),
+            Self::Mob { view, .. } => f64::from(view.mob.kind.eye_height),
         }
     }
 
@@ -37,7 +44,6 @@ impl EntityView<'_> {
         }
     }
 
-    /// The label of the dimension of the entity; a mob is in the dimension `here` of the source.
     pub(crate) fn dimension_label(&self, targets: &CommandTargets, here: Entity) -> Entity {
         match self {
             Self::Player(player) => targets.label_of(player.dimension).unwrap_or(here),
@@ -45,7 +51,6 @@ impl EntityView<'_> {
         }
     }
 
-    /// The source that runs as the entity.
     pub(crate) fn run_as(&self, state: &SourceState) -> SourceState {
         let (player, mob) = match self {
             Self::Player(player) => (Some(player.session), None),
@@ -58,8 +63,6 @@ impl EntityView<'_> {
         }
     }
 
-    /// The name of the entity in a message: the profile name of a player, the display name of a
-    /// mob.
     pub(crate) fn display_name(&self) -> Text {
         match self {
             Self::Player(player) => player.name.clone().into_text(),
@@ -96,7 +99,10 @@ impl Candidate for EntityView<'_> {
 
     fn bounding_box(&self) -> EntityBounds {
         let (width, height) = match self {
-            Self::Player(_) => (PLAYER_WIDTH, PLAYER_HEIGHT),
+            Self::Player(player) => (
+                f64::from(player.dimensions.width),
+                f64::from(player.dimensions.height),
+            ),
             Self::Mob { view, .. } => (
                 f64::from(view.mob.kind.width),
                 f64::from(view.mob.kind.height),

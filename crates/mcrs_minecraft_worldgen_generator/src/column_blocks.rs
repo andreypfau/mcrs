@@ -4,19 +4,10 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
 use mcrs_voxel::SectionPos;
 
-/// Every block of one column, dense, in the section palette's own index order:
-/// section, then y, then z, then x.
-///
-/// Generation writes each block several times — terrain, then surface, caves and
-/// ores — and a paletted section pays a reverse-index lookup per write. Holding
-/// the column dense makes those writes plain stores; the palettes are built once,
-/// at the end, by a single scan per section.
-///
-/// Cells are interior-mutable so a reader and a writer closure can be handed to
-/// the carver and the ore feature at the same time.
 pub struct ColumnBlocks {
     y_sections: Vec<i32>,
     first_section_y: i32,
+    present_floors: Vec<i32>,
     cells: Vec<Cell<VoxelId>>,
 }
 
@@ -24,22 +15,22 @@ impl ColumnBlocks {
     pub const SECTION_VOLUME: usize = BlockPalette::VOLUME;
 
     pub fn new(y_sections: &[i32]) -> Self {
+        let mut present_floors = Vec::new();
+        fill_present_floors(y_sections, &mut present_floors);
         Self {
             y_sections: y_sections.to_vec(),
             first_section_y: y_sections.first().copied().unwrap_or(0),
+            present_floors,
             cells: vec![Cell::new(VoxelId::default()); y_sections.len() * Self::SECTION_VOLUME],
         }
     }
 
-    /// Point this buffer at a new column, reusing the allocation.
-    ///
-    /// Generation runs column after column on the same worker, and a fresh
-    /// buffer per column costs an allocation of a hundred kilobytes or more.
     pub fn reset(&mut self, y_sections: &[i32]) {
         if self.y_sections != y_sections {
             self.y_sections.clear();
             self.y_sections.extend_from_slice(y_sections);
             self.first_section_y = y_sections.first().copied().unwrap_or(0);
+            fill_present_floors(y_sections, &mut self.present_floors);
             self.cells.resize(
                 y_sections.len() * Self::SECTION_VOLUME,
                 Cell::new(VoxelId::default()),
@@ -57,7 +48,6 @@ impl ColumnBlocks {
         column
     }
 
-    /// Copy each packed section's blocks over the matching slot.
     pub fn unpack(&self, sections: &[Option<(BlockPalette, BiomePalette)>]) {
         for (index, section) in sections.iter().enumerate() {
             let Some((blocks, _)) = section else { continue };
@@ -74,29 +64,26 @@ impl ColumnBlocks {
         &self.y_sections
     }
 
-    /// The section's cells, in palette index order.
     pub fn section_cells(&self, index: usize) -> &[Cell<VoxelId>] {
         &self.cells[index * Self::SECTION_VOLUME..][..Self::SECTION_VOLUME]
     }
 
-    /// Which slot holds the section containing `world_y`, if the column covers it.
     #[inline]
     pub fn section_index(&self, world_y: i32) -> Option<usize> {
         self.slot(world_y >> 4)
     }
 
-    /// Section-local write, the dense counterpart of `BlockPalette::set`.
     #[inline]
     pub fn set_in_section(&self, index: usize, x: i32, y: i32, z: i32, value: VoxelId) {
         self.section_cells(index)[(y as usize) * 256 + (z as usize) * 16 + x as usize].set(value);
     }
 
-    /// Section-local box fill, the dense counterpart of `BlockPalette::fill_box`.
-    /// The box is clipped to the section, which is what the paletted container
-    /// required of its callers anyway.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the box bounds are six coordinates next to the section index and value, and the placement call in lib.rs passes them this way through a public signature"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "six box bounds beside the section index and value in a public signature"
+        )
     )]
     pub fn fill_box_in_section(
         &self,
@@ -122,9 +109,14 @@ impl ColumnBlocks {
         }
     }
 
-    /// Which slot holds `section_y`, if the column covers it. Sections are
-    /// contiguous and ascending in practice, which the subtraction answers
-    /// directly; the search is the fallback for a column with holes.
+    #[must_use]
+    pub fn present_bottom(&self, world_y: i32) -> i32 {
+        self.slot(world_y >> 4)
+            .and_then(|slot| self.present_floors.get(slot))
+            .copied()
+            .unwrap_or(world_y)
+    }
+
     #[inline]
     fn slot(&self, section_y: i32) -> Option<usize> {
         let guess = section_y.wrapping_sub(self.first_section_y) as usize;
@@ -149,14 +141,11 @@ impl ColumnBlocks {
         )
     }
 
-    /// `None` when the position falls outside the column.
     #[inline]
     pub fn get(&self, local_x: i32, world_y: i32, local_z: i32) -> Option<VoxelId> {
         self.cell(local_x, world_y, local_z).map(Cell::get)
     }
 
-    /// Writes outside the column are dropped, as they were when the passes wrote
-    /// through a section list that did not cover them.
     #[inline]
     pub fn set(&self, local_x: i32, world_y: i32, local_z: i32, value: VoxelId) {
         if let Some(cell) = self.cell(local_x, world_y, local_z) {
@@ -164,11 +153,91 @@ impl ColumnBlocks {
         }
     }
 
-    /// Build one palette per section, each from a single scan of its cells.
-    ///
-    /// Most sections of a tall column hold one value — air above the terrain,
-    /// stone below it — and answering those with a scan that stops at the first
-    /// difference keeps the copy and the palette build off that path entirely.
+    #[must_use]
+    pub fn run_bottom(
+        &self,
+        local_x: i32,
+        local_z: i32,
+        top: i32,
+        min_y: i32,
+        state: VoxelId,
+    ) -> i32 {
+        let Some(column) = column_index(local_x, local_z) else {
+            return top;
+        };
+        let mut bottom = top;
+        while bottom > min_y {
+            let below = bottom - 1;
+            let Some(cells) = self.column_cells(below >> 4, column) else {
+                return bottom;
+            };
+            let section_bottom = (below & !0xF).max(min_y);
+            for y in (section_bottom..=below).rev() {
+                if cells.get((y & 0xF) as usize * 256).map(Cell::get) != Some(state) {
+                    return y + 1;
+                }
+            }
+            bottom = section_bottom;
+        }
+        bottom
+    }
+
+    pub fn highest_below(
+        &self,
+        local_x: i32,
+        local_z: i32,
+        above: i32,
+        min_y: i32,
+        matches: impl Fn(VoxelId) -> bool,
+    ) -> Option<i32> {
+        let column = column_index(local_x, local_z)?;
+        let mut top = above.checked_sub(1)?;
+        while top >= min_y {
+            let section_bottom = (top & !0xF).max(min_y);
+            if let Some(cells) = self.column_cells(top >> 4, column) {
+                for y in (section_bottom..=top).rev() {
+                    if cells
+                        .get((y & 0xF) as usize * 256)
+                        .is_some_and(|cell| matches(cell.get()))
+                    {
+                        return Some(y);
+                    }
+                }
+            }
+            top = section_bottom.checked_sub(1)?;
+        }
+        None
+    }
+
+    fn column_cells(&self, section_y: i32, column: usize) -> Option<&[Cell<VoxelId>]> {
+        let slot = self.slot(section_y)?;
+        self.cells
+            .get(slot * Self::SECTION_VOLUME + column..(slot + 1) * Self::SECTION_VOLUME)
+    }
+
+    pub fn fill_strip(&self, local_x: i32, local_z: i32, bottom: i32, top: i32, value: VoxelId) {
+        if !(0..16).contains(&local_x) || !(0..16).contains(&local_z) {
+            return;
+        }
+        let column = (local_z as usize) * 16 + local_x as usize;
+        let mut y = bottom;
+        while y <= top {
+            let section_top = (y | 0xF).min(top);
+            if let Some(slot) = self.slot(y >> 4) {
+                let base = slot * Self::SECTION_VOLUME + column;
+                for local_y in (y & 0xF)..=(section_top & 0xF) {
+                    if let Some(cell) = self.cells.get(base + (local_y as usize) * 256) {
+                        cell.set(value);
+                    }
+                }
+            }
+            let Some(next) = section_top.checked_add(1) else {
+                return;
+            };
+            y = next;
+        }
+    }
+
     pub fn block_palettes(&self) -> Vec<BlockPalette> {
         self.y_sections
             .iter()
@@ -195,7 +264,6 @@ impl ColumnBlocks {
             .collect()
     }
 
-    /// Pack every section, pairing each block palette with the column's biomes.
     pub fn into_sections(
         &self,
         biomes: &[BiomePalette],
@@ -207,13 +275,29 @@ impl ColumnBlocks {
             .collect()
     }
 
-    /// Write each section's packed palette back over `sections`, the inverse of
-    /// [`Self::from_sections`].
     pub fn write_back(&self, sections: &mut [Option<(BlockPalette, BiomePalette)>]) {
         for (section, palette) in sections.iter_mut().zip(self.block_palettes()) {
             if let Some((blocks, _)) = section {
                 *blocks = palette;
             }
         }
+    }
+}
+
+fn column_index(local_x: i32, local_z: i32) -> Option<usize> {
+    ((0..16).contains(&local_x) && (0..16).contains(&local_z))
+        .then(|| (local_z as usize) * 16 + local_x as usize)
+}
+
+fn fill_present_floors(y_sections: &[i32], floors: &mut Vec<i32>) {
+    floors.clear();
+    let mut floor = i32::MIN;
+    let mut previous = None;
+    for &section_y in y_sections {
+        if previous.and_then(|below: i32| below.checked_add(1)) != Some(section_y) {
+            floor = section_y.saturating_mul(16);
+        }
+        floors.push(floor);
+        previous = Some(section_y);
     }
 }

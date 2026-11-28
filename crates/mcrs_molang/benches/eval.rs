@@ -14,7 +14,6 @@ const LANES: usize = 256;
 
 const WALK: &str = "math.cos(q.modified_distance_moved * 38.17) * 80.0 * q.modified_move_speed";
 
-/// About 30 syntax nodes: a clamp, a conditional, trigonometry, variables and short-circuit logic.
 const MIXED: &str = "math.clamp(q.life_time * 2.5 - v.offset, 0, 1) * (q.is_baby ? 0.5 : 1.0) \
     + math.sin(q.anim_time * 90 + v.phase) * 15 \
     - ((v.a > 0.5 && q.is_on_ground) ? v.a * 3 : 0)";

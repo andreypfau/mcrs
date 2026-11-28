@@ -5,14 +5,15 @@ use bevy_ecs::message::MessageWriter;
 use mcrs_minecraft_engine::banlist::BanList;
 use mcrs_minecraft_engine::coordinator::ops::{OpList, OpListEntry};
 use mcrs_minecraft_engine_server::{BoundAddress, run_server_loop};
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_network::client::offline_player_uuid;
-use mcrs_minecraft_probe::{KnownDifference, Scenario, Trace};
+use mcrs_minecraft_probe::{Host, KnownDifference, PlayerBan, Scenario, Trace};
 use mcrs_minecraft_server::MinecraftServerPlugins;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 use std::fmt::Write;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -22,8 +23,29 @@ const PROBE: &str = concat!(
     "/../../tools/mcrs_minecraft_probe"
 );
 
-// The embedded server answers on loopback in a few ticks; the recorded trace keeps 1 s.
 const QUIET: Duration = Duration::from_millis(250);
+
+struct EmbeddedHost {
+    ban_file: PathBuf,
+}
+
+impl Host for EmbeddedHost {
+    fn read_player_bans(&mut self) -> anyhow::Result<Vec<PlayerBan>> {
+        Ok(serde_json::from_slice(&fs::read(&self.ban_file)?)?)
+    }
+
+    fn read_player_file(&mut self, _player: &str) -> anyhow::Result<NbtCompound> {
+        anyhow::bail!("the embedded server host does not read player files")
+    }
+
+    fn console(&mut self, _lines: &[String]) -> anyhow::Result<Vec<String>> {
+        anyhow::bail!("the embedded server host has no console")
+    }
+
+    fn restart_server(&mut self) -> anyhow::Result<()> {
+        anyhow::bail!("the embedded server host does not restart the server")
+    }
+}
 
 fn differences(
     scenario: &Scenario,
@@ -149,9 +171,12 @@ fn the_ban_scenario_on_the_embedded_server_matches_the_vanilla_trace() {
     .expect("the server thread starts");
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    let mcrs = runtime.block_on(mcrs_minecraft_probe::run(&scenario, address, QUIET, || {
-        Ok(serde_json::from_slice(&fs::read(&ban_file)?)?)
-    }));
+    let mut host = EmbeddedHost {
+        ban_file: ban_file.clone(),
+    };
+    let mcrs = runtime.block_on(mcrs_minecraft_probe::run(
+        &scenario, address, QUIET, &mut host,
+    ));
     drop(stop);
     finished_recv
         .recv_timeout(Duration::from_secs(30))

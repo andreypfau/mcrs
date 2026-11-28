@@ -9,7 +9,7 @@ use mcrs_minecraft_worldgen_feature::template::bounding_box;
 use crate::frozen::TemplateId;
 use crate::orient::random_rotation;
 use crate::piece::{NetherFossilPiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     rl!("minecraft:nether_fossils/fossil_1"),
@@ -30,7 +30,7 @@ pub const TEMPLATES: &[ResourceLocation<'static>] = &[
 
 pub fn site(
     height: &HeightProvider,
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
     let x = ctx.chunk.min_block_x() + rng.next_i32_bound(16);
@@ -42,10 +42,6 @@ pub fn site(
         (states.air_states.clone(), states.sturdy_up.clone())
     };
     let column = ctx.world.base_column(x, z);
-    // The reference also accepts soul sand under the fossil, whose
-    // collision shape is not a full block; a base column holds only the noise
-    // settings' default block, so that matters for a datapack whose default
-    // block is soul sand.
     while y > sea_level {
         let current = column.block(y);
         y -= 1;
@@ -57,7 +53,11 @@ pub fn site(
     (y > sea_level).then_some((IVec3::new(x, y, z), Stub::Fossil))
 }
 
-pub fn layout(templates: &[TemplateId], ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+pub fn layout(
+    templates: &[TemplateId],
+    ctx: &mut Context<'_, impl SiteWorld>,
+    mut site: Site,
+) -> Vec<Piece> {
     let rotation = random_rotation(&mut site.rng);
     let Some(&template) = templates.get(site.rng.next_i32_bound(templates.len() as i32) as usize)
     else {

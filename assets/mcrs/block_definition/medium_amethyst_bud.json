@@ -41,6 +41,7 @@
         "seconds_to_destroy": 1.5
       },
       "minecraft:loot": "minecraft:blocks/medium_amethyst_bud",
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,
@@ -72,7 +73,14 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-5, 3, 4], "size": [10, 10, 4] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, 1],
+              "direction": "north"
+            }
+          }
         }
       },
       {
@@ -83,7 +91,14 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-8, 3, -5], "size": [4, 10, 10] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [-1, 0, 0],
+              "direction": "east"
+            }
+          }
         }
       },
       {
@@ -94,7 +109,14 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-5, 3, -8], "size": [10, 10, 4] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, -1],
+              "direction": "south"
+            }
+          }
         }
       },
       {
@@ -105,7 +127,14 @@
           ],
           "minecraft:selection_box": [
             { "origin": [4, 3, -5], "size": [4, 10, 10] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [1, 0, 0],
+              "direction": "west"
+            }
+          }
         }
       },
       {
@@ -116,7 +145,14 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 4, 10] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up"
+            }
+          }
         }
       },
       {
@@ -127,7 +163,14 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-5, 12, -5], "size": [10, 4, 10] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 1, 0],
+              "direction": "down"
+            }
+          }
         }
       }
     ]

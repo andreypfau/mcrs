@@ -1,6 +1,5 @@
 use mcrs_minecraft_protocol::setting::ChatMode;
 
-/// Whether the launcher and the account let the player chat.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ChatAccess {
     #[default]
@@ -8,7 +7,6 @@ pub enum ChatAccess {
     Forbidden,
 }
 
-/// What the player can send and receive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChatAbilities {
     pub send_messages: bool,

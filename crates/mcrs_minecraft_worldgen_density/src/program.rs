@@ -1,9 +1,12 @@
-use crate::branch::{self, Fallback, GuardTest, Step};
+use crate::bounds::{Bounds, node_bounds};
+use crate::branch::{self, Coverage, Fallback, GuardTest, Keep, Scope, Step};
 use crate::node::distance::DistanceParams;
 use crate::node::end_island::EndIslandParams;
 use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
+use crate::window::{Window, element};
+use core::ops::Range;
 use glam::IVec3;
 use mcrs_minecraft_noise::blended::BlendedNoise;
 use mcrs_minecraft_noise::interval::Interval;
@@ -13,7 +16,7 @@ use mcrs_minecraft_noise::kernel::{
 };
 use mcrs_minecraft_noise::sample_grid::{Axis, SampleGrid};
 use mcrs_minecraft_noise::strata::{
-    ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, stratum,
+    ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, run_len, stratum,
 };
 use mcrs_minecraft_numeric as numeric;
 use std::sync::Arc;
@@ -38,9 +41,6 @@ impl UnaryOp {
             UnaryOp::Abs => v.abs(),
             UnaryOp::Square => v * v,
             UnaryOp::Cube => v * v * v,
-            // `(float)Math.sqrt`: the detour through double is not observable,
-            // because sqrt is correctly rounded and double carries more than
-            // twice float's significand, so the two roundings collapse into one.
             UnaryOp::Sqrt => v.sqrt(),
             UnaryOp::Reciprocal => 1.0 / v,
             UnaryOp::Negate => -v,
@@ -93,7 +93,6 @@ impl RoundKind {
     pub fn apply(self, v: f32) -> f32 {
         match self {
             RoundKind::Floor => v.floor(),
-            // Java rounds halves up, not away from zero: round(-2.5) is -2.
             RoundKind::Round => (v + 0.5).floor(),
             RoundKind::Ceil => v.ceil(),
             RoundKind::Truncate => {
@@ -109,24 +108,13 @@ impl RoundKind {
 
 pub type NodeId = u32;
 
-/// Adding `+0.0` would turn a `-0.0` product into `+0.0`, which the bare
-/// constant multiply the affine kinds fold from does not do.
 #[inline]
 pub(crate) fn drops_offset(offset: f32) -> bool {
     offset == 0.0 && offset.is_sign_positive()
 }
 
-/// One operation in the flat graph. Inputs are indices into the same array, so a
-/// node reachable from two parents exists once and is evaluated once.
-///
-/// The specializations are vanilla's, with two additions the previous engine had
-/// and vanilla lacks: `Affine` folds a constant multiply and a constant add into
-/// one node, and `PiecewiseAffine` folds a leaky rectifier into it. Both compute
-/// with two roundings, never a fused multiply-add — Java has no implicit FMA and
-/// fusing moves the last bit.
 #[derive(Clone, Debug)]
 pub enum Node {
-    // --- leaves ---
     Constant(f32),
     Gradient(GradientParams),
     Noise {
@@ -139,7 +127,6 @@ pub enum Node {
     EndOuterIslands(Arc<EndIslandParams>),
     OldBlendedNoise(Arc<BlendedNoise>),
 
-    // --- one input ---
     Affine {
         input: NodeId,
         scale: f32,
@@ -160,11 +147,6 @@ pub enum Node {
         min: f32,
         max: f32,
     },
-    /// A binary operation with one operand folded in as a constant. `swapped`
-    /// puts the constant on the left, which is the only order `min`, `max`,
-    /// subtraction from a constant, division of a constant and a constant base
-    /// raised to a node distinguish; `x + c` and `x * c` fold into `Affine`
-    /// instead.
     ConstBinary {
         op: BinaryOp,
         input: NodeId,
@@ -177,7 +159,6 @@ pub enum Node {
         kind: RoundKind,
     },
 
-    // --- two inputs ---
     Binary {
         op: BinaryOp,
         a: NodeId,
@@ -189,7 +170,6 @@ pub enum Node {
         kind: RoundKind,
     },
 
-    // --- three or more ---
     Lerp {
         alpha: NodeId,
         first: NodeId,
@@ -225,24 +205,17 @@ pub enum Node {
         coords: Arc<[NodeId]>,
     },
 
-    // --- one input, read away from the position being filled ---
-    /// Trilinear interpolation of `input` over a cell lattice. `cell` indexes the
-    /// lattice buffer the fill materializes for it.
     Interpolated {
         input: NodeId,
         cell_xz: i32,
         cell_y: i32,
         cell: usize,
     },
-    /// `input` with `axis` pinned to `coordinate`, which is a block coordinate
-    /// and not an index into the volume being filled.
     Slice {
         input: NodeId,
         axis: Axis,
         coordinate: i32,
     },
-    /// The highest cell boundary at or below `upper_bound` where `density` is
-    /// positive. `upper_bound` is read at y = 0, never at the filled position.
     FindTopSurface {
         density: NodeId,
         upper_bound: NodeId,
@@ -252,8 +225,20 @@ pub enum Node {
 }
 
 impl Node {
-    /// Every node this one reads, in evaluation order. Drives topological
-    /// sorting, dead-node elimination and the guard cones.
+    pub(crate) fn samples_per_element(&self) -> bool {
+        matches!(
+            self,
+            Node::Noise { .. }
+                | Node::ShiftedNoise { .. }
+                | Node::ShiftB { .. }
+                | Node::OldBlendedNoise(_)
+                | Node::DistanceToPoint(_)
+                | Node::EndOuterIslands(_)
+                | Node::Spline { .. }
+                | Node::FindTopSurface { .. }
+        )
+    }
+
     pub fn visit_inputs(&self, f: &mut impl FnMut(NodeId)) {
         match self {
             Node::Constant(_)
@@ -325,8 +310,6 @@ impl Node {
         }
     }
 
-    /// [`Node::visit_inputs`] with the ids handed over for rewriting, which is
-    /// what renumbering the arena after a compaction needs.
     pub(crate) fn visit_inputs_mut(&mut self, f: &mut impl FnMut(&mut NodeId)) {
         fn rewrite_all(slice: &mut Arc<[NodeId]>, f: &mut impl FnMut(&mut NodeId)) {
             let mut owned = slice.to_vec();
@@ -402,10 +385,6 @@ impl Node {
         }
     }
 
-    /// The inputs this node reads at the position being filled. The two kinds
-    /// that sample elsewhere hide those inputs here, so a plan built from this
-    /// walk never evaluates a subtree at the wrong position — and never at all
-    /// unless something else in the plan reads it in place.
     pub(crate) fn visit_local_inputs(&self, f: &mut impl FnMut(NodeId)) {
         match self {
             Node::Interpolated { .. } | Node::Slice { .. } => {}
@@ -415,13 +394,6 @@ impl Node {
     }
 }
 
-/// A compiled density graph: nodes in topological order, each tagged with the
-/// axes it varies over.
-///
-/// A node's stratum, from the strata of its inputs. The union of the inputs'
-/// axes, with the exceptions vanilla's `domainAxes` names: a zero sampling scale
-/// sheds an axis, the transposed shift and the end islands are flat, and the
-/// vertical surface search always answers per column.
 pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
     let at = |id: NodeId| axes.get(id as usize).copied().unwrap_or(NO_AXES);
     match node {
@@ -436,9 +408,6 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
             upper_bound,
             ..
         } => (at(*density) | at(*upper_bound)) & !AXIS_Y,
-        // The lattice is addressed by the column being filled, which the
-        // per-fill phase has none of, so this never lands there however little
-        // its input varies.
         Node::Interpolated { input, .. } => at(*input) | AXIS_X | AXIS_Z,
         Node::Slice { input, axis, .. } => at(*input) & !axis_bit(*axis),
         other => {
@@ -451,62 +420,50 @@ pub fn node_axes(node: &Node, axes: &[Axes]) -> Axes {
 
 static ZERO: Node = Node::Constant(0.0);
 
-/// A compiled density graph: nodes in topological order, each tagged with the
-/// axes it varies over.
-///
-/// The stratum replaces vanilla's `Slice`. A fill evaluates one node at a time
-/// over the whole volume, and each node's buffer holds only the axes it varies
-/// over: a node that ignores Y holds one value per column, and one that ignores
-/// X and Z holds one value for the fill. Both fall out of `axes`, with no
-/// rewrite pass and no slice node.
 pub struct Program {
     nodes: Box<[Node]>,
     axes: Box<[Axes]>,
-    /// One per node that can be filled on its own: the roots, plus the inputs the
-    /// two re-entrant kinds sample away from the filled position.
+    ranges: Box<[Interval]>,
     plans: Box<[Plan]>,
     plan_of: Box<[u32]>,
     roots: Box<[NodeId]>,
     cell_count: usize,
 }
 
-/// What one fill of a given node evaluates, restricted to the nodes that node
-/// can reach in place. Filling a root no longer walks the whole array: an
-/// unrelated `Interpolated` elsewhere in the graph would otherwise materialize
-/// its lattice, whose own fill would materialize the first one's, and so on.
 struct Plan {
-    /// Every node reached, ordered so that each guarded input's exclusive cone is
-    /// one contiguous run and every node still follows its inputs.
     order: Box<[NodeId]>,
     steps: Box<[Step]>,
-    /// The `Interpolated` nodes reached, whose lattices are materialized before
-    /// the order runs.
     lattice: Box<[NodeId]>,
-    /// Which buffer each position in `order` writes, numbered within the run of
-    /// buffers that share its node's axes.
     slot: Box<[u32]>,
-    /// Buffers needed per axes combination, so a fill holds the width of the
-    /// graph rather than one stratum per node.
+    given: Box<[NodeId]>,
+    given_slot: Box<[u32]>,
     slot_count: [u32; 8],
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct SeededPlan {
+    plan: u32,
+    target: NodeId,
+}
+
+pub(crate) struct Seed<'a> {
+    pub plane: &'a SampleGrid,
+    pub values: &'a [f32],
 }
 
 #[derive(Default)]
 pub struct Workspace {
-    /// One stratum per live slot. Slots are recycled, so a node's offset may sit
-    /// either side of an offset it reads.
     values: Vec<f32>,
     offset: Vec<u32>,
     lattices: Vec<Lattice>,
     probe: Vec<f32>,
     sliced: Vec<f32>,
+    windows: Vec<Window>,
     nested: Option<Box<Workspace>>,
     #[cfg(any(test, feature = "eval-count"))]
     count: EvalCount,
 }
 
-/// Node evaluations, summed over every fill and every nested fill since the last
-/// [`Workspace::take_count`]. Only the tests that prove a cone was skipped read
-/// it, so it does not exist in a shipped build.
 #[cfg(any(test, feature = "eval-count"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EvalCount {
@@ -514,22 +471,15 @@ pub struct EvalCount {
     pub skipped: u64,
 }
 
-/// One `Interpolated` node's input, sampled over the cell lattice enclosing the
-/// volume being filled.
 #[derive(Default)]
 struct Lattice {
     volume: Option<SampleGrid>,
-    /// The fill's own volume already was the cell lattice, so `values` holds the
-    /// input at exactly the positions asked for and is read straight back.
     direct: bool,
-    /// Supplied from outside over a region wider than one fill, so a fill whose
-    /// cells it already covers reads it instead of sampling the input again.
     pinned: bool,
     values: Vec<f32>,
 }
 
 impl Lattice {
-    /// Whether a pinned lattice already holds every corner `wanted` would sample.
     fn covers(&self, wanted: &SampleGrid) -> bool {
         let Some(held) = self.volume.filter(|_| self.pinned) else {
             return false;
@@ -593,12 +543,13 @@ impl Program {
             if let Some(plan) = plan_of.get_mut(entry as usize) {
                 *plan = index as u32;
             }
-            plans.push(Plan::new(&nodes, &axes, &ranges, entry));
+            plans.push(Plan::new(&nodes, &axes, &ranges, entry, &[], &[]));
         }
 
         Self {
             nodes: nodes.into_boxed_slice(),
             axes: axes.into_boxed_slice(),
+            ranges: ranges.into_boxed_slice(),
             plans: plans.into_boxed_slice(),
             plan_of: plan_of.into_boxed_slice(),
             roots: roots.into_boxed_slice(),
@@ -625,14 +576,10 @@ impl Program {
         self.nodes.get(id as usize).unwrap_or(&ZERO)
     }
 
-    /// Writes `volume.len()` values for `root` into `out`, laid out Y-fastest to
-    /// match [`SampleGrid::index_unchecked`].
     pub fn fill(&self, ws: &mut Workspace, volume: &SampleGrid, root: usize, out: &mut [f32]) {
         self.fill_node(ws, volume, self.root_node(root), out);
     }
 
-    /// [`Program::fill`] targeting any node that has a plan: a root, or the input
-    /// a re-entrant kind samples away from the position being filled.
     pub fn fill_node(
         &self,
         ws: &mut Workspace,
@@ -641,51 +588,151 @@ impl Program {
         out: &mut [f32],
     ) {
         debug_assert_eq!(out.len(), volume.len());
-        let Some(plan) = self.plan_of(target) else {
-            debug_assert!(false, "node {target} has no fill plan");
-            return;
-        };
-        ws.prepare(self, plan, volume);
-        self.fill_lattices(ws, volume, plan);
+        if self.run_plan(ws, volume, target) {
+            self.copy_node(ws, volume, target, out);
+        }
+    }
 
-        let (mut k, mut step) = (0usize, 0usize);
-        while let Some(next) = plan.steps.get(step) {
-            match *next {
-                Step::Eval { end } => {
-                    let end = end as usize;
-                    #[cfg(any(test, feature = "eval-count"))]
-                    {
-                        ws.count.evaluated += (end - k) as u64;
-                    }
-                    for &id in plan.order.get(k..end).unwrap_or_default() {
-                        self.eval(id, ws, volume);
-                    }
-                    k = end;
-                    step += 1;
-                }
-                Step::Guard {
-                    test,
-                    fallback,
-                    skip_to,
-                    next_step,
-                } => {
-                    if self.guard_holds(test, ws, volume) {
-                        step += 1;
-                    } else {
-                        if let Some(fallback) = fallback {
-                            self.apply_fallback(fallback, ws, volume);
-                        }
-                        #[cfg(any(test, feature = "eval-count"))]
-                        {
-                            ws.count.skipped += (skip_to as usize - k) as u64;
-                        }
-                        k = skip_to as usize;
-                        step = next_step as usize;
+    pub(crate) fn gather(&mut self, targets: &[NodeId]) -> Option<NodeId> {
+        let (&first, rest) = targets.split_first()?;
+        let mut nodes = std::mem::take(&mut self.nodes).into_vec();
+        let mut axes = std::mem::take(&mut self.axes).into_vec();
+        let mut ranges = std::mem::take(&mut self.ranges).into_vec();
+        let mut sum = first;
+        for &next in rest.iter().chain(rest.is_empty().then_some(&first)) {
+            let node = Node::Binary {
+                op: BinaryOp::Add,
+                a: sum,
+                b: next,
+            };
+            let range = |id: NodeId| ranges.get(id as usize).copied().unwrap_or(Interval::NAI);
+            let range = node_bounds(&node, Bounds::Declared, range).unwrap_or(Interval::INFINITE);
+            sum = NodeId::try_from(nodes.len()).ok()?;
+            nodes.push(node);
+            axes.push(ALL_AXES);
+            ranges.push(range);
+        }
+        let plan = Plan::new(&nodes, &axes, &ranges, sum, &[], targets);
+        self.nodes = nodes.into_boxed_slice();
+        self.axes = axes.into_boxed_slice();
+        self.ranges = ranges.into_boxed_slice();
+        let mut plan_of = std::mem::take(&mut self.plan_of).into_vec();
+        plan_of.resize(self.nodes.len(), u32::MAX);
+        let mut plans = std::mem::take(&mut self.plans).into_vec();
+        if let Some(index) = plan_of.get_mut(sum as usize) {
+            *index = u32::try_from(plans.len()).ok()?;
+        }
+        plans.push(plan);
+        self.plan_of = plan_of.into_boxed_slice();
+        self.plans = plans.into_boxed_slice();
+        Some(sum)
+    }
+
+    pub(crate) fn seeded_plan(&mut self, target: NodeId, given: &[NodeId]) -> Option<SeededPlan> {
+        let plan = Plan::new(&self.nodes, &self.axes, &self.ranges, target, given, &[]);
+        let id = SeededPlan {
+            plan: u32::try_from(self.plans.len()).ok()?,
+            target,
+        };
+        let mut plans = std::mem::take(&mut self.plans).into_vec();
+        plans.push(plan);
+        self.plans = plans.into_boxed_slice();
+        Some(id)
+    }
+
+    pub(crate) fn fill_seeded(
+        &self,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        seeded: SeededPlan,
+        seed: &Seed<'_>,
+        out: &mut [f32],
+    ) -> bool {
+        debug_assert_eq!(out.len(), volume.len());
+        let Some(plan_ref) = self.plans.get(seeded.plan as usize) else {
+            return false;
+        };
+        let Some(origin) = seed_origin(seed.plane, volume) else {
+            return false;
+        };
+        ws.prepare(self, plan_ref, volume);
+        self.fill_lattices(ws, volume, plan_ref);
+        self.write_seed(ws, volume, plan_ref, seed, origin);
+        ws.windows.clear();
+        ws.windows.push(Window::whole(volume));
+        self.run_steps(plan_ref, ws, volume, 0..plan_ref.steps.len(), 0, 0..1);
+        self.copy_node(ws, volume, seeded.target, out);
+        true
+    }
+
+    fn write_seed(
+        &self,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        plan: &Plan,
+        seed: &Seed<'_>,
+        origin: IVec3,
+    ) {
+        let count = seed.plane.len();
+        for (k, &id) in plan.given.iter().enumerate() {
+            let axes = self.axes_of(id);
+            let strip = stratum(axes, volume);
+            let off = ws.offset_of(id);
+            let row = seed
+                .values
+                .get(k * count..(k + 1) * count)
+                .unwrap_or_default();
+            for iz in 0..strip.size().z {
+                for ix in 0..strip.size().x {
+                    let from = seed.plane.index_unchecked(
+                        if axes & AXIS_X != 0 { origin.x + ix } else { 0 },
+                        0,
+                        if axes & AXIS_Z != 0 { origin.z + iz } else { 0 },
+                    );
+                    if let (Some(slot), Some(&value)) = (
+                        ws.values.get_mut(off + strip.index_unchecked(ix, 0, iz)),
+                        row.get(from),
+                    ) {
+                        *slot = value;
                     }
                 }
             }
         }
+    }
 
+    pub(crate) fn fill_gathered(
+        &self,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        gather: NodeId,
+        targets: &[NodeId],
+        out: &mut [f32],
+    ) {
+        let n = volume.len();
+        debug_assert_eq!(out.len(), targets.len() * n);
+        if !self.run_plan(ws, volume, gather) {
+            return;
+        }
+        for (&target, out) in targets.iter().zip(out.chunks_exact_mut(n)) {
+            self.copy_node(ws, volume, target, out);
+        }
+    }
+
+    fn run_plan(&self, ws: &mut Workspace, volume: &SampleGrid, target: NodeId) -> bool {
+        let Some(plan) = self.plan_of(target) else {
+            debug_assert!(false, "node {target} has no fill plan");
+            return false;
+        };
+        ws.prepare(self, plan, volume);
+        self.fill_lattices(ws, volume, plan);
+
+        ws.windows.clear();
+        ws.windows.push(Window::whole(volume));
+        self.run_steps(plan, ws, volume, 0..plan.steps.len(), 0, 0..1);
+        true
+    }
+
+    fn copy_node(&self, ws: &Workspace, volume: &SampleGrid, target: NodeId, out: &mut [f32]) {
         let axes = self.axes_of(target);
         let buf = ws.read(self, target, volume);
         if axes == ALL_AXES {
@@ -716,13 +763,146 @@ impl Program {
         );
     }
 
+    fn run_steps(
+        &self,
+        plan: &Plan,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        steps: Range<usize>,
+        mut k: usize,
+        active: Range<usize>,
+    ) {
+        let mut step = steps.start;
+        while step < steps.end {
+            let Some(next) = plan.steps.get(step) else {
+                return;
+            };
+            match *next {
+                Step::Eval { end } => {
+                    let end = end as usize;
+                    #[cfg(any(test, feature = "eval-count"))]
+                    {
+                        ws.count.evaluated += (end - k) as u64;
+                    }
+                    for &id in plan.order.get(k..end).unwrap_or_default() {
+                        self.eval_over(id, ws, volume, active.clone());
+                    }
+                    k = end;
+                    step += 1;
+                }
+                Step::Guard {
+                    test,
+                    fallback,
+                    scope,
+                    skip_to,
+                    next_step,
+                } => {
+                    let kept = ws.windows.len();
+                    let coverage = self.keep_windows(test, scope, ws, volume, active.clone());
+                    let needed = if coverage == Coverage::Everything {
+                        active.clone()
+                    } else {
+                        kept..ws.windows.len()
+                    };
+                    if coverage == Coverage::Nothing {
+                        #[cfg(any(test, feature = "eval-count"))]
+                        {
+                            ws.count.skipped += (skip_to as usize - k) as u64;
+                        }
+                    } else {
+                        self.run_steps(plan, ws, volume, step + 1..next_step as usize, k, needed);
+                    }
+                    if let Some(fallback) = fallback.filter(|_| coverage != Coverage::Everything) {
+                        self.apply_fallback(fallback, test, ws, volume, active.clone());
+                    }
+                    ws.windows.truncate(kept);
+                    k = skip_to as usize;
+                    step = next_step as usize;
+                }
+            }
+        }
+    }
+
+    fn eval_over(&self, id: NodeId, ws: &mut Workspace, volume: &SampleGrid, active: Range<usize>) {
+        if !self.node(id).samples_per_element() {
+            self.eval(id, ws, volume, &Window::whole(volume));
+            return;
+        }
+        for w in active {
+            let Some(&window) = ws.windows.get(w) else {
+                continue;
+            };
+            self.eval(id, ws, volume, &window);
+        }
+    }
+
+    fn keep_windows(
+        &self,
+        test: GuardTest,
+        scope: Scope,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        active: Range<usize>,
+    ) -> Coverage {
+        let keep = Keep::new(test, |id| self.node(id));
+        let selector = test.selector();
+        let axes = self.axes_of(selector);
+        let Workspace {
+            values,
+            offset,
+            windows,
+            ..
+        } = ws;
+        let off = offset.get(selector as usize).map_or(0, |&off| off as usize);
+        let mut coverage = None;
+        for window in windows.get(active.clone()).unwrap_or_default() {
+            let start = off + window.start(axes, volume);
+            let selected = values
+                .get(start..start + extent(axes, &window.grid))
+                .unwrap_or_default();
+            let part = keep.coverage(selected, scope);
+            let joined = coverage.map_or(part, |seen: Coverage| seen.and(part));
+            coverage = Some(joined);
+            if joined == Coverage::Part {
+                break;
+            }
+        }
+        let coverage = coverage.unwrap_or(Coverage::Nothing);
+        if coverage != Coverage::Part {
+            return coverage;
+        }
+        let column_of = Runs::new(
+            values
+                .get(off..off + extent(axes, volume))
+                .unwrap_or_default(),
+            axes,
+            volume,
+        );
+        for w in active {
+            let Some(&window) = windows.get(w) else {
+                continue;
+            };
+            let first = windows.len();
+            let mut kept_rows = 0;
+            for (x, z) in window.columns() {
+                keep.kept_runs(column_of.col(x, z), window.rows(), |rows| {
+                    kept_rows += rows.len();
+                    windows.push(Window::column(volume, x, z, rows));
+                });
+            }
+            if kept_rows == window.grid.len() {
+                windows.truncate(first);
+                windows.push(window);
+            }
+        }
+        coverage
+    }
+
     fn plan_of(&self, target: NodeId) -> Option<&Plan> {
         let index = *self.plan_of.get(target as usize)?;
         self.plans.get(index as usize)
     }
 
-    /// Samples each reached `Interpolated` node's input over the cell lattice
-    /// enclosing `volume`, once for the whole fill rather than once per column.
     fn fill_lattices(&self, ws: &mut Workspace, volume: &SampleGrid, plan: &Plan) {
         if plan.lattice.is_empty() {
             return;
@@ -762,9 +942,6 @@ impl Program {
         ws.nested = Some(nested);
     }
 
-    /// `input` over `volume` with `axis` pinned to `coordinate`. The pinned axis
-    /// is one this node's stratum drops, so the nested fill's buffer is already
-    /// laid out exactly as this node's own stratum and lands in it by copy.
     fn fill_slice(
         &self,
         ws: &mut Workspace,
@@ -794,14 +971,18 @@ impl Program {
         ws.sliced = sliced;
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the workspace, the volume, the surface node with its density and upper bound, and the lower bound and cell height of one top-surface fill"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one top-surface fill"
+        )
     )]
     fn fill_top_surface(
         &self,
         ws: &mut Workspace,
         volume: &SampleGrid,
+        window: &Window,
         id: NodeId,
         density: NodeId,
         upper_bound: NodeId,
@@ -809,18 +990,19 @@ impl Program {
         cell_height: i32,
     ) {
         let axes = self.axes_of(id);
-        let ext = stratum(axes, volume);
+        let ext = stratum(axes, &window.grid);
         let size = ext.size();
         debug_assert_eq!(size.y, 1, "a surface level does not vary along Y");
-        let mut slot = ws.offset_of(id);
+        let mut slot = ws.offset_of(id) + window.start(axes, volume);
         for iz in 0..size.z {
             for ix in 0..size.x {
                 let value = self.find_top_surface(
                     ws,
                     volume,
-                    &ext,
-                    ix as usize,
-                    iz as usize,
+                    ext.block_x(ix),
+                    ext.block_z(iz),
+                    window.x + ix as usize,
+                    window.z + iz as usize,
                     density,
                     upper_bound,
                     lower_bound,
@@ -834,18 +1016,19 @@ impl Program {
         }
     }
 
-    /// `FindTopSurfaceFunction.Sampler.findSurfaceFrom`, probing one batch of
-    /// cell boundaries per nested fill so the descent still stops at the first
-    /// positive density.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the workspace, both grids, the column index, the density and upper bound nodes, and the lower bound and cell height of one surface descent"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one surface descent"
+        )
     )]
     fn find_top_surface(
         &self,
         ws: &mut Workspace,
         volume: &SampleGrid,
-        ext: &SampleGrid,
+        bx: i32,
+        bz: i32,
         ix: usize,
         iz: usize,
         density: NodeId,
@@ -855,8 +1038,6 @@ impl Program {
     ) -> f32 {
         const BATCH: i64 = 64;
 
-        let bx = ext.block_x(ix as i32);
-        let bz = ext.block_z(iz as i32);
         let upper = if self.axes_of(upper_bound) & AXIS_Y == 0 {
             let buf = ws.read(self, upper_bound, volume);
             Runs::new(buf, self.axes_of(upper_bound), volume)
@@ -910,80 +1091,69 @@ impl Program {
         found as f32
     }
 
-    /// Whether any position in the volume reads the guarded run.
-    fn guard_holds(&self, test: GuardTest, ws: &Workspace, volume: &SampleGrid) -> bool {
-        let all = |id| ws.read(self, id, volume);
-        match test {
-            GuardTest::InRange {
-                selector,
-                lo,
-                hi,
-                want,
-            } => all(selector).iter().any(|&v| (v >= lo && v < hi) == want),
-            GuardTest::Arm {
-                site,
-                selector,
-                arm,
-            } => {
-                let Node::IntervalSelect {
-                    thresholds, arms, ..
-                } = self.node(site)
-                else {
-                    return true;
-                };
-                all(selector).iter().any(|&v| {
-                    thresholds
-                        .iter()
-                        .position(|&t| v < t)
-                        .unwrap_or(arms.len() - 1)
-                        == arm as usize
-                })
-            }
-            GuardTest::LeftAbove { left, limit } => all(left).iter().any(|&v| v > limit),
-            GuardTest::LeftBelow { left, limit } => all(left).iter().any(|&v| v < limit),
-            GuardTest::LeftNonZero { left } => all(left).iter().any(|&v| v != 0.0),
-        }
-    }
-
-    fn apply_fallback(&self, fallback: Fallback, ws: &mut Workspace, volume: &SampleGrid) {
-        let axes = self.axes_of(fallback.site);
-        let ext = stratum(axes, volume);
-        let source_axes = self.axes_of(fallback.source);
-        let off = ws.offset_of(fallback.site);
-        let source_off = ws.offset_of(fallback.source);
-
-        let len = extent(axes, volume);
-        let (below, rest) = ws.values.split_at_mut(off);
-        let (out, above) = rest.split_at_mut(len);
-        let source = Runs::new(
-            other_slot(
-                below,
-                above,
-                off + len,
-                source_off,
-                extent(source_axes, volume),
-            ),
-            source_axes,
-            volume,
+    fn apply_fallback(
+        &self,
+        fallback: Fallback,
+        test: GuardTest,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        active: Range<usize>,
+    ) {
+        let keep = Keep::new(test, |id| self.node(id));
+        let selector = test.selector();
+        let (site_axes, source_axes, selector_axes) = (
+            self.axes_of(fallback.site),
+            self.axes_of(fallback.source),
+            self.axes_of(selector),
         );
+        let (site_off, source_off, selector_off) = (
+            ws.offset_of(fallback.site),
+            ws.offset_of(fallback.source),
+            ws.offset_of(selector),
+        );
+        let Workspace {
+            values, windows, ..
+        } = ws;
         let negate = fallback.negate;
-        each_column(out, &ext, |run, ix, iz| {
-            let source = source.col(ix, iz);
-            for (i, o) in run.iter_mut().enumerate() {
-                *o = if negate {
-                    -at(source, i)
-                } else {
-                    at(source, i)
+        let size_y = volume.size().y as usize;
+        for w in active {
+            let Some(window) = windows.get(w) else {
+                continue;
+            };
+            let rows = window.rows();
+            for (x, z) in window.columns() {
+                let column_at = |off: usize, axes: Axes| {
+                    (off + element(axes, volume, x, z, 0), run_len(axes, size_y))
                 };
+                let (site_at, site_len) = column_at(site_off, site_axes);
+                let Some((below, rest)) = values.split_at_mut_checked(site_at) else {
+                    continue;
+                };
+                let Some((site, above)) = rest.split_at_mut_checked(site_len) else {
+                    continue;
+                };
+                let (below, above): (&[f32], &[f32]) = (below, above);
+                let other = |(at, len): (usize, usize)| {
+                    other_slot(below, above, site_at + site_len, at, len)
+                };
+                let selector = other(column_at(selector_off, selector_axes));
+                let source = other(column_at(source_off, source_axes));
+                let mut fill = |gap: Range<usize>| fill_gap(site, source, gap, negate);
+                let mut gap_from = rows.start;
+                keep.kept_runs(selector, rows.clone(), |kept| {
+                    fill(gap_from..kept.start);
+                    gap_from = kept.end;
+                });
+                fill(gap_from..rows.end);
             }
-        });
+        }
     }
 
     #[expect(
         clippy::too_many_lines,
         reason = "one arm per node kind, in the node's declaration order, so each fill reads against its kind"
     )]
-    fn eval(&self, id: NodeId, ws: &mut Workspace, volume: &SampleGrid) {
+    fn eval(&self, id: NodeId, ws: &mut Workspace, volume: &SampleGrid, window: &Window) {
         let node = self.node(id);
         if let &Node::Slice {
             input,
@@ -1004,6 +1174,7 @@ impl Program {
             self.fill_top_surface(
                 ws,
                 volume,
+                window,
                 id,
                 density,
                 upper_bound,
@@ -1013,8 +1184,9 @@ impl Program {
             return;
         }
         let axes = self.axes_of(id);
-        let ext = stratum(axes, volume);
-        let off = ws.offset_of(id);
+        let grid = &window.grid;
+        let ext = stratum(axes, grid);
+        let off = ws.offset_of(id) + window.start(axes, volume);
 
         let Workspace {
             values,
@@ -1022,19 +1194,24 @@ impl Program {
             lattices,
             ..
         } = ws;
-        let len = extent(axes, volume);
-        let (below, rest) = values.split_at_mut(off);
-        let (out, above) = rest.split_at_mut(len);
+        let len = extent(axes, grid);
+        let Some((below, rest)) = values.split_at_mut_checked(off) else {
+            return;
+        };
+        let Some((out, above)) = rest.split_at_mut_checked(len) else {
+            return;
+        };
         let (below, above): (&[f32], &[f32]) = (below, above);
         let end = off + len;
 
         let read = |j: NodeId| -> Runs<'_> {
             let j_axes = self.axes_of(j);
-            let j_off = offset.get(j as usize).map_or(0, |&off| off as usize);
+            let j_off = offset.get(j as usize).map_or(0, |&off| off as usize)
+                + window.start(j_axes, volume);
             Runs::new(
-                other_slot(below, above, end, j_off, extent(j_axes, volume)),
+                other_slot(below, above, end, j_off, extent(j_axes, grid)),
                 j_axes,
-                volume,
+                grid,
             )
         };
 
@@ -1200,7 +1377,7 @@ impl Program {
                 &|k| {
                     coords
                         .get(k)
-                        .map_or_else(|| Runs::new(&[], NO_AXES, volume), |&j| read(j))
+                        .map_or_else(|| Runs::new(&[], NO_AXES, grid), |&j| read(j))
                 },
                 &ext,
             ),
@@ -1250,11 +1427,33 @@ impl Program {
     }
 }
 
-/// A slot other than the one being written. Recycling puts a node's inputs on
-/// either side of its output, so the buffer splits in three and the read picks
-/// the side its offset falls on. An offset inside the output would mean a node
-/// aliasing its own input, and reads as an empty slot.
 #[inline]
+fn seed_origin(plane: &SampleGrid, volume: &SampleGrid) -> Option<IVec3> {
+    let step = plane.step_block();
+    if step.x != volume.step_block().x || step.z != volume.step_block().z {
+        return None;
+    }
+    let offset = volume.min_block() - plane.min_block();
+    if offset.x.checked_rem(step.x)? != 0 || offset.z.checked_rem(step.z)? != 0 {
+        return None;
+    }
+    let origin = IVec3::new(offset.x / step.x, 0, offset.z / step.z);
+    let end = origin + volume.size();
+    let inside =
+        origin.x >= 0 && origin.z >= 0 && end.x <= plane.size().x && end.z <= plane.size().z;
+    inside.then_some(origin)
+}
+
+fn fill_gap(site: &mut [f32], source: &[f32], gap: Range<usize>, negate: bool) {
+    let broadcast = site.len() == 1;
+    for y in gap {
+        let value = at(source, y);
+        if let Some(out) = site.get_mut(if broadcast { 0 } else { y }) {
+            *out = if negate { -value } else { value };
+        }
+    }
+}
+
 fn other_slot<'a>(
     below: &'a [f32],
     above: &'a [f32],
@@ -1271,10 +1470,6 @@ fn other_slot<'a>(
     }
 }
 
-/// Whether `volume` already samples the cell lattice, in which case vanilla
-/// hands the input straight through. The chunk generator leans on it: it fills
-/// the lattice itself and would otherwise interpolate values back onto the
-/// corners they came from.
 fn is_lattice_volume(volume: &SampleGrid, cell_xz: i32, cell_y: i32) -> bool {
     let (size, min, step) = (volume.size(), volume.min_block(), volume.step_block());
     (step.x == cell_xz || size.x == 1)
@@ -1285,12 +1480,6 @@ fn is_lattice_volume(volume: &SampleGrid, cell_xz: i32, cell_y: i32) -> bool {
         && numeric::floor_mod(min.z, cell_xz) == 0
 }
 
-/// `volume` as the input of a slice is asked for it: the input's own stratum,
-/// with the pinned axis collapsed to the single block `coordinate`.
-///
-/// Every other axis the input drops is pinned exactly as [`stratum`] pins it,
-/// and the input's axes are a superset of the slice's, so the result indexes
-/// element for element like the slice's own stratum.
 fn slice_volume(volume: &SampleGrid, input_axes: Axes, axis: Axis, coordinate: i32) -> SampleGrid {
     let ext = stratum(input_axes, volume);
     let (mut size, mut min) = (ext.size(), ext.min_block());
@@ -1302,9 +1491,6 @@ fn slice_volume(volume: &SampleGrid, input_axes: Axes, axis: Axis, coordinate: i
     SampleGrid::new(size, min, ext.step_block())
 }
 
-/// The cell corners enclosing every position `volume` asks for, with one extra
-/// sample per axis so the far corner of the last cell exists. A node that does
-/// not vary along Y is only ever asked for its first row.
 fn lattice_volume(volume: &SampleGrid, axes: Axes, cell_xz: i32, cell_y: i32) -> SampleGrid {
     let (size, min, step) = (volume.size(), volume.min_block(), volume.step_block());
     let last_y = if axes & AXIS_Y != 0 {
@@ -1326,8 +1512,6 @@ fn lattice_volume(volume: &SampleGrid, axes: Axes, cell_xz: i32, cell_y: i32) ->
     SampleGrid::new(last - first + IVec3::splat(2), first * cell, cell)
 }
 
-/// The value ramp along Y inside one interpolated cell, walked a row at a time
-/// as vanilla walks it, so the chain of roundings is the same.
 struct YRamp {
     value: f32,
     step: f32,
@@ -1344,8 +1528,6 @@ impl YRamp {
         }
     }
 
-    /// `local` never moves backwards, so winding forward visits every row of the
-    /// cell exactly once even when the volume's stride drops some of them.
     #[inline(always)]
     fn at(&mut self, local: i32) -> f32 {
         while self.row < local {
@@ -1356,7 +1538,6 @@ impl YRamp {
     }
 }
 
-/// One column's contiguous run of rows inside a cell, starting at row `first`.
 #[inline(always)]
 fn fill_rows(out: &mut [f32], bottom: f32, step: f32, first: i32) {
     let mut ramp = YRamp::new(bottom, step, first);
@@ -1365,18 +1546,12 @@ fn fill_rows(out: &mut [f32], bottom: f32, step: f32, first: i32) {
     }
 }
 
-/// `InterpolatedFunction.Sampler.fillCell` for one column: Z innermost, then X,
-/// then Y accumulated one block at a time from the cell's first row. The Y
-/// accumulation runs over every block row the cell covers, including rows a
-/// strided volume drops, because vanilla reaches a strided volume by filling the
-/// dense one and subsampling it.
-///
-/// The outer loop walks cells rather than samples: a cell spans the block range
-/// `[cell_base, cell_base + cell_y)`, so comparing against that bound advances
-/// the run without a division per position.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the output, the block origin, the two grids, the lattice values and the two cell sizes of one trilinear interpolation"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one trilinear interpolation"
+    )
 )]
 fn interpolate(
     out: &mut [f32],
@@ -1429,14 +1604,6 @@ fn interpolate(
     }
 }
 
-/// The same walk as [`interpolate`] with the cell hoisted out of the column
-/// loop, for the unstrided volume the chunk generator asks for: a cell's eight
-/// corners and its four Z lerps are loaded once instead of once per column, and
-/// the Y run each column contributes is a contiguous write.
-///
-/// Ranges are clipped to `ext` on every axis rather than assumed to be whole
-/// cells, and the rows go through [`YRamp`] like the strided walk's do, so both
-/// carry whichever of the two profiles' roundings is built.
 fn interpolate_cells(
     out: &mut [f32],
     ext: &SampleGrid,
@@ -1503,13 +1670,20 @@ fn interpolate_cells(
 }
 
 impl Plan {
-    fn new(nodes: &[Node], axes: &[Axes], ranges: &[Interval], target: NodeId) -> Self {
+    fn new(
+        nodes: &[Node],
+        axes: &[Axes],
+        ranges: &[Interval],
+        target: NodeId,
+        given: &[NodeId],
+        kept: &[NodeId],
+    ) -> Self {
         let mut live = vec![false; nodes.len()];
         if let Some(live) = live.get_mut(target as usize) {
             *live = true;
         }
         for (i, node) in nodes.iter().enumerate().rev() {
-            if live.get(i) == Some(&true) {
+            if live.get(i) == Some(&true) && !given.contains(&(i as NodeId)) {
                 node.visit_local_inputs(&mut |j| {
                     if let Some(live) = live.get_mut(j as usize) {
                         *live = true;
@@ -1519,7 +1693,7 @@ impl Plan {
         }
         let (mut order, mut lattice) = (Vec::new(), Vec::new());
         for (i, (node, &live)) in nodes.iter().zip(&live).enumerate() {
-            if !live {
+            if !live || given.contains(&(i as NodeId)) {
                 continue;
             }
             order.push(i as NodeId);
@@ -1539,20 +1713,27 @@ impl Plan {
                 });
             }
         }
-        // The fill reads the target after the schedule ends, so its slot outlives
-        // every other and is never handed back.
-        if let Some(last) = last_use.get_mut(target as usize) {
-            *last = usize::MAX;
+        for &id in given.iter().chain([&target]).chain(kept) {
+            if let Some(last) = last_use.get_mut(id as usize) {
+                *last = usize::MAX;
+            }
         }
 
         let axes_of = |id: NodeId| axes.get(id as usize).map_or(0, |&a| usize::from(a));
         let mut node_slot = vec![0u32; nodes.len()];
         let mut free: [Vec<u32>; 8] = Default::default();
         let mut slot_count = [0u32; 8];
+        let given_slot: Vec<u32> = given
+            .iter()
+            .map(|&id| {
+                slot_count.get_mut(axes_of(id)).map_or(0, |count| {
+                    *count += 1;
+                    *count - 1
+                })
+            })
+            .collect();
         let mut slot = Vec::with_capacity(order.len());
         for (p, &id) in order.iter().enumerate() {
-            // Taking the output slot before releasing the inputs is what keeps a
-            // node from writing over a buffer it still reads.
             let a = axes_of(id);
             let taken = match (free.get_mut(a), slot_count.get_mut(a)) {
                 (Some(free), Some(count)) => free.pop().unwrap_or_else(|| {
@@ -1586,6 +1767,8 @@ impl Plan {
             steps: steps.into_boxed_slice(),
             lattice: lattice.into_boxed_slice(),
             slot: slot.into_boxed_slice(),
+            given: given.into(),
+            given_slot: given_slot.into_boxed_slice(),
             slot_count,
         }
     }
@@ -1596,7 +1779,6 @@ impl Workspace {
         Self::default()
     }
 
-    /// The evaluations counted since the last call, cleared.
     #[cfg(any(test, feature = "eval-count"))]
     pub fn take_count(&mut self) -> EvalCount {
         std::mem::take(&mut self.count)
@@ -1609,9 +1791,6 @@ impl Workspace {
         self.count.skipped += inner.skipped;
     }
 
-    /// Sizes the plan's slots for this volume and points every node in the plan
-    /// at the one it writes. Nodes outside the plan keep whatever offset a
-    /// previous fill left them; nothing reads them.
     fn prepare(&mut self, program: &Program, plan: &Plan, volume: &SampleGrid) {
         if self.offset.len() < program.len() {
             self.offset.resize(program.len(), 0);
@@ -1623,7 +1802,8 @@ impl Workspace {
             *base = len as u32;
             len += count as usize * extent(axes, volume);
         }
-        for (&id, &slot) in plan.order.iter().zip(plan.slot.iter()) {
+        let order = plan.order.iter().chain(&plan.given);
+        for (&id, &slot) in order.zip(plan.slot.iter().chain(&plan.given_slot)) {
             let axes = program.axes_of(id);
             if let (Some(offset), Some(&base)) = (
                 self.offset.get_mut(id as usize),
@@ -1632,9 +1812,6 @@ impl Workspace {
                 *offset = base + slot * extent(axes, volume) as u32;
             }
         }
-        // Every node writes its whole stratum before anything reads it, so the
-        // buffer is grown rather than cleared: re-zeroing it costs more than the
-        // fill it precedes.
         if self.values.len() < len {
             self.values.resize(len, 0.0);
         }
@@ -1644,9 +1821,6 @@ impl Workspace {
         }
     }
 
-    /// Hands one `Interpolated` node's lattice in ready-made, so every fill whose
-    /// cells it covers interpolates from it instead of sampling the input again.
-    /// A fill reaching past it samples as usual.
     pub(crate) fn pin_lattice(&mut self, cell: usize, volume: &SampleGrid, values: &[f32]) {
         if self.lattices.len() <= cell {
             self.lattices.resize_with(cell + 1, Lattice::default);
@@ -1677,6 +1851,7 @@ impl Workspace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::node::distance::DistanceMetric;
     use crate::node::gradient::Tiling;
     use glam::IVec3;
     use mcrs_minecraft_noise::strata::{AXIS_X, AXIS_Y, AXIS_Z, NO_AXES};
@@ -1765,8 +1940,6 @@ mod tests {
         );
     }
 
-    /// Operands chosen so the fused and the unfused form disagree, which is
-    /// what makes either direction of this observable at all.
     fn affine_at_a_rounding_boundary() -> (f32, f32, f32, f32) {
         let x = 1.000_000_1_f32;
         let (scale, offset) = (3.000_000_5_f32, -3.000_001_5_f32);
@@ -1802,8 +1975,6 @@ mod tests {
         assert_eq!(evaluated, x.mul_add(scale, offset));
     }
 
-    /// A ramp built both ways over operands that make the two forms disagree,
-    /// which is what makes either direction of this observable at all.
     fn ramp_at_a_rounding_boundary() -> ([f32; 8], [f32; 8], f32, f32) {
         let (bottom, step) = (1.0_f32, 0.1_f32);
         let mut rows = [0.0f32; 8];
@@ -1847,8 +2018,6 @@ mod tests {
         assert_eq!(&out[2..4], &[50.0, 51.0], "z = 1 adds 50");
     }
 
-    /// `x` on the lattice, `x * x` off it, so a value that came through the
-    /// interpolation is telling apart from one that came from the input.
     fn squared_gradient_interpolated(cell_xz: i32) -> Program {
         let nodes = vec![
             gradient(Axis::X, 0.0, 8.0, 0.0, 8.0),
@@ -1885,10 +2054,6 @@ mod tests {
         );
     }
 
-    /// A slice keeps the axes its input has minus the pinned one, so the value
-    /// has to reach every column the pinned axis used to separate — the nested
-    /// fill's buffer lands in the node's own stratum by copy, and a layout that
-    /// disagreed would show up as a transposed column here.
     #[test]
     fn a_slice_broadcasts_the_pinned_axis_over_every_column() {
         let nodes = vec![
@@ -1912,7 +2077,6 @@ mod tests {
         );
         let v = SampleGrid::dense(IVec3::new(2, 1, 4), IVec3::ZERO);
         let out = run(&p, &v, 0);
-        // x is pinned to 3, so every column reads 30 plus its own z.
         assert_eq!(out, vec![30.0, 30.0, 31.0, 31.0, 32.0, 32.0, 33.0, 33.0]);
     }
 
@@ -1983,8 +2147,6 @@ mod tests {
         (out, ws.take_count())
     }
 
-    /// The `when_in` subtree is reachable only through that one arm, so a fill
-    /// whose selector never lands in the range must not evaluate it.
     #[test]
     fn a_range_choice_arm_no_position_selects_is_skipped() {
         let nodes = vec![
@@ -2019,8 +2181,6 @@ mod tests {
         );
     }
 
-    /// A one-threshold `interval_select`, which no shipped noise settings
-    /// produces: the corpus only has selects with several thresholds.
     #[test]
     fn a_two_armed_select_skips_the_arm_no_position_takes() {
         let nodes = vec![
@@ -2045,8 +2205,6 @@ mod tests {
         assert_eq!((count.evaluated, count.skipped), (4, 1));
     }
 
-    /// A guard nested inside a skipped cone is skipped with it, which the
-    /// contiguous cone gives for free.
     #[test]
     fn a_guard_inside_a_skipped_range_never_runs() {
         let nodes = vec![
@@ -2115,8 +2273,6 @@ mod tests {
         program_with_ranges(nodes, axes, ranges, vec![3])
     }
 
-    /// The right operand of a `min` cannot change the result once the left run
-    /// sits at or below every value the right can take.
     #[test]
     fn a_min_whose_left_run_never_reaches_the_right_skips_it() {
         let v = SampleGrid::dense(IVec3::new(2, 1, 1), IVec3::ZERO);
@@ -2132,8 +2288,6 @@ mod tests {
         assert_eq!((plain.evaluated, plain.skipped), (4, 0));
     }
 
-    /// A zero times a right operand known to be negative is a negative zero, and
-    /// the fill compares bit for bit.
     #[test]
     fn a_multiply_by_zero_keeps_the_sign_the_skipped_operand_would_have_given() {
         let nodes = vec![
@@ -2156,6 +2310,121 @@ mod tests {
         let (out, count) = run_counting(&p, &v, 0);
         assert!(out[0] == 0.0 && out[0].is_sign_negative());
         assert_eq!((count.evaluated, count.skipped), (1, 2));
+    }
+
+    #[test]
+    fn a_gathered_target_keeps_its_value_until_it_is_copied() {
+        let nodes = vec![
+            gradient(Axis::Y, 0.0, 8.0, 1.0, 1.0),
+            gradient(Axis::Y, 0.0, 8.0, 2.0, 2.0),
+            gradient(Axis::Y, 0.0, 8.0, 4.0, 4.0),
+        ];
+        let mut p = program(nodes, vec![ALL_AXES; 3], vec![0]);
+        let targets = [0, 1, 2];
+        let gather = p.gather(&targets).unwrap();
+        let v = SampleGrid::point(IVec3::ZERO);
+        let mut out = [0.0; 3];
+        p.fill_gathered(&mut Workspace::new(), &v, gather, &targets, &mut out);
+        assert_eq!(out, [1.0, 2.0, 4.0]);
+    }
+
+    #[test]
+    fn a_lerp_at_zero_alpha_keeps_a_first_input_that_the_second_reads() {
+        let nodes = vec![
+            Node::Constant(0.0),
+            gradient(Axis::Y, 0.0, 4.0, 0.0, 4.0),
+            Node::Affine {
+                input: 1,
+                scale: 2.0,
+                offset: 0.0,
+            },
+            Node::Lerp {
+                alpha: 0,
+                first: 1,
+                second: 2,
+            },
+        ];
+        let axes = vec![NO_AXES, AXIS_Y, AXIS_Y, AXIS_Y];
+        let p = program(nodes, axes, vec![3]);
+        let v = SampleGrid::dense(IVec3::new(1, 4, 1), IVec3::ZERO);
+        assert_eq!(run(&p, &v, 0), vec![0.0, 1.0, 2.0, 3.0]);
+    }
+
+    fn y_plus_three_x() -> Vec<Node> {
+        vec![
+            gradient(Axis::Y, 0.0, 8.0, 0.0, 8.0),
+            gradient(Axis::X, 0.0, 2.0, 0.0, 6.0),
+            Node::Binary {
+                op: BinaryOp::Add,
+                a: 0,
+                b: 1,
+            },
+        ]
+    }
+
+    fn distance_from(y: i32) -> Node {
+        Node::DistanceToPoint(DistanceParams::new(0, y, 0, DistanceMetric::Manhattan))
+    }
+
+    fn choice_inside_a_band_of_rows() -> Program {
+        let mut nodes = y_plus_three_x();
+        nodes.extend([
+            distance_from(-10),
+            Node::Constant(-1.0),
+            Node::RangeChoice {
+                input: 2,
+                min_inclusive: 5.0,
+                max_exclusive: 8.0,
+                when_in: 3,
+                when_out: 4,
+            },
+        ]);
+        let axes = vec![AXIS_Y, AXIS_X, AXIS_X | AXIS_Y, ALL_AXES, NO_AXES, ALL_AXES];
+        program(nodes, axes, vec![5])
+    }
+
+    fn min_reaching_its_right_in_the_top_rows() -> Program {
+        let mut nodes = y_plus_three_x();
+        nodes.extend([
+            distance_from(-6),
+            Node::Binary {
+                op: BinaryOp::Min,
+                a: 2,
+                b: 3,
+            },
+        ]);
+        let axes = vec![AXIS_Y, AXIS_X, AXIS_X | AXIS_Y, ALL_AXES, ALL_AXES];
+        let ranges = vec![
+            Interval::INFINITE,
+            Interval::INFINITE,
+            Interval::INFINITE,
+            Interval::of(5.5, 20.0),
+            Interval::INFINITE,
+        ];
+        program_with_ranges(nodes, axes, ranges, vec![4])
+    }
+
+    #[test]
+    fn a_guard_that_holds_on_part_of_a_column_runs_its_subgraph_on_exactly_those_rows() {
+        let v = SampleGrid::dense(IVec3::new(2, 8, 1), IVec3::ZERO);
+        let cases: [(Program, [f32; 16]); 2] = [
+            (
+                choice_inside_a_band_of_rows(),
+                [
+                    -1.0, -1.0, -1.0, -1.0, -1.0, 15.0, 16.0, 17.0, -1.0, -1.0, 13.0, 14.0, 15.0,
+                    -1.0, -1.0, -1.0,
+                ],
+            ),
+            (
+                min_reaching_its_right_in_the_top_rows(),
+                [
+                    0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
+                ],
+            ),
+        ];
+        for (p, expected) in cases {
+            assert_eq!(run(&p, &v, 0), expected);
+        }
     }
 
     #[test]

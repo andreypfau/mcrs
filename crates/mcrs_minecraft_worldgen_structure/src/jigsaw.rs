@@ -18,8 +18,6 @@ use super::site::{Context, PlacedJigsaw, Site, SiteWorld, Stub, element_bounds, 
 
 const EXPANSION_HACK_MAX_HEIGHT: i32 = 16;
 
-/// Inclusive integer arithmetic is exact for the reference's quarter-deflated
-/// voxel test.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FreeSpace {
     bounds: BoundingBox,
@@ -57,18 +55,22 @@ impl PriorityQueue {
     }
 }
 
-struct Assembly<'a> {
+struct Assembly<'a, W> {
     frozen: &'a FrozenStructures,
     config: &'a JigsawConfig,
     aliases: &'a BTreeMap<ResourceLocationBuf, PoolId>,
-    world: &'a mut dyn SiteWorld,
+    world: &'a mut W,
     rng: LegacyRandom,
     pieces: Vec<JigsawPiece>,
     spaces: Vec<FreeSpace>,
     queue: PriorityQueue,
 }
 
-pub fn layout(ctx: &mut Context<'_>, config: &JigsawConfig, site: Site) -> Vec<JigsawPiece> {
+pub fn layout(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    config: &JigsawConfig,
+    site: Site,
+) -> Vec<JigsawPiece> {
     let frozen = ctx.frozen;
     let (accessor_min_y, accessor_height) = (ctx.accessor_min_y, ctx.accessor_height);
     let Stub::Jigsaw { centre, aliases } = site.stub else {
@@ -140,7 +142,7 @@ fn can_attach(source: &PlacedJigsaw<'_>, target: &PlacedJigsaw<'_>) -> bool {
             .is_none_or(|name| source.block.target == *name)
 }
 
-impl Assembly<'_> {
+impl<W: SiteWorld> Assembly<'_, W> {
     fn pool(&self, name: &ResourceLocationBuf) -> Option<PoolId> {
         self.aliases
             .get(name)
@@ -187,11 +189,11 @@ impl Assembly<'_> {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "expands one piece's jigsaw connections with the reference's random draws in the reference's order, so the sequence reads against it"
+        reason = "random draws keep the reference's order"
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "tries every jigsaw connection of one piece against each candidate with the reference's rigid and projection cases inline, so the random draws keep its order"
+        reason = "random draws keep the reference's order"
     )]
     fn attach_children(&mut self, source: usize, space: usize, depth: i32) {
         let frozen = self.frozen;

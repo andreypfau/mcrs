@@ -5,16 +5,9 @@ use crate::jmath::mul_add64;
 use crate::sample_grid::SampleGrid;
 use mcrs_minecraft_random::Random;
 
-/// Simplex noise shared by Beta worldgen (`NoiseGenerator2`) and modern vanilla
-/// (`SimplexNoise`). The generator is parameterized over the RNG, so the same struct
-/// serves the legacy (`LegacyRandom`) and modern (`Xoroshiro`) initialization paths.
 #[derive(Clone, PartialEq, Debug)]
 pub struct SimplexNoise(GradientNoise);
 
-/// Single simplex corner contribution: `(distance - |d|²)⁴ · (grad · d)`, clamped at 0.
-///
-/// `distance` is the kernel radius — 0.5 for 2D, 0.6 for 3D. For 2D corners pass `z = 0.0`,
-/// which zeroes the gradient's z component.
 #[inline(always)]
 fn corner(gradient_index: usize, x: f64, y: f64, z: f64, distance: f64) -> f64 {
     let t = mul_add64(-z, z, mul_add64(-y, y, mul_add64(-x, x, distance)));
@@ -34,7 +27,6 @@ impl SimplexNoise {
         Self(GradientNoise::from_random(random))
     }
 
-    /// Vanilla's `new SimplexNoise(random, true)`.
     pub fn from_random_at_origin<T: Random>(random: &mut T) -> Self {
         Self(GradientNoise::from_random_scaled(random, 0.0))
     }

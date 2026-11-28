@@ -1,7 +1,7 @@
 use fixedbitset::FixedBitSet;
 
-/// The positions one carver pass freed, one bit per block, with the vertical in
-/// the low bits so a tunnel or a shaft becomes a long run of set bits.
+const BITS: usize = usize::BITS as usize;
+
 #[derive(PartialEq, Eq)]
 pub struct CarvingMask {
     min_y: i32,
@@ -44,8 +44,6 @@ impl CarvingMask {
         Some(((y - self.min_y) + (z + x * Self::WIDTH) * self.height) as usize)
     }
 
-    /// Positions outside the covered area are dropped, which is what clipping
-    /// the ellipsoid bounds to the area used to do.
     #[inline]
     pub fn carve(&mut self, x: i32, y: i32, z: i32) {
         if let Some(index) = self.index(x, y, z) {
@@ -58,9 +56,32 @@ impl CarvingMask {
         self.index(x, y, z).is_some_and(|index| self.bits[index])
     }
 
-    /// Hand each column's carved runs to `visit` as `(x, z, bottom_y, top_y)`,
-    /// inclusive. A run that spans several columns is split at the boundary, so
-    /// a consumer that tracks state down a column never carries it across one.
+    #[must_use]
+    pub fn highest_carved(&self, x: i32, z: i32, bottom: i32, top: i32) -> Option<i32> {
+        let bottom = bottom.max(self.min_y);
+        let top = top.min(self.max_y());
+        if bottom > top {
+            return None;
+        }
+        let low = self.index(x, bottom, z)?;
+        let high = self.index(x, top, z)?;
+        let words = self.bits.as_slice();
+        let mut word = high / BITS;
+        let mut mask = usize::MAX >> (BITS - 1 - high % BITS);
+        loop {
+            let value = words.get(word).copied().unwrap_or(0) & mask;
+            if value != 0 {
+                let carved = word * BITS + (BITS - 1 - value.leading_zeros() as usize);
+                return (carved >= low).then(|| top - (high - carved) as i32);
+            }
+            if word * BITS <= low {
+                return None;
+            }
+            word -= 1;
+            mask = usize::MAX;
+        }
+    }
+
     pub fn visit(&self, mut visit: impl FnMut(i32, i32, i32, i32)) {
         let mut run: Option<(usize, usize)> = None;
         for index in self.bits.ones() {
@@ -101,8 +122,6 @@ mod tests {
         out
     }
 
-    /// Columns are contiguous in the index, so a run that fills one column's top
-    /// and the next column's bottom must still arrive as two per-column visits.
     #[test]
     fn runs_split_at_gaps_and_column_boundaries() {
         type Run = (i32, i32, i32, i32);
@@ -127,6 +146,54 @@ mod tests {
                 }
             }
             assert_eq!(runs(&mask), expected);
+        }
+    }
+
+    #[test]
+    fn highest_carved_matches_a_scan_of_each_block() {
+        let mut mask = CarvingMask::new(-5, 194);
+        for (x, z, y) in [
+            (0, 0, 58),
+            (0, 0, 59),
+            (0, 1, -5),
+            (0, 1, 122),
+            (0, 1, 194),
+            (1, 0, 0),
+        ] {
+            mask.carve(x, y, z);
+        }
+        let empty = CarvingMask::new(-5, 194);
+        let mut full = CarvingMask::new(-5, 194);
+        for y in -5..=194 {
+            full.carve(0, y, 1);
+        }
+        let ranges = [
+            (-5, 194),
+            (-64, 400),
+            (-5, 58),
+            (-5, 57),
+            (59, 59),
+            (60, 121),
+            (60, 122),
+            (-4, 121),
+            (-5, -5),
+            (-4, 194),
+            (123, 193),
+            (100, 50),
+        ];
+        for mask in [&mask, &empty, &full] {
+            for (x, z) in [(0, 0), (0, 1), (1, 0), (15, 15)] {
+                for (bottom, top) in ranges {
+                    let expected = (bottom.max(-5)..=top.min(194))
+                        .rev()
+                        .find(|&y| mask.contains(x, y, z));
+                    assert_eq!(
+                        mask.highest_carved(x, z, bottom, top),
+                        expected,
+                        "column {x} {z} from {bottom} to {top}"
+                    );
+                }
+            }
         }
     }
 

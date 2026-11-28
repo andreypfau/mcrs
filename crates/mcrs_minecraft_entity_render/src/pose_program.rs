@@ -2,49 +2,55 @@ use std::fmt::Write;
 
 use glam::Vec3;
 use mcrs_minecraft_entity_animation::{
-    AnimateTarget, Channel, Clip, EntityQuery, LerpMode, LoopMode, Rig, TimeUpdate,
+    AnimateTarget, Channel, Clip, EntityQuery, Keyframe, LerpMode, LoopMode, Rig, TimeUpdate,
 };
 use mcrs_molang::{ChannelClass, Expression, InputRange, PureInput, QuerySlot, Value};
 
 use crate::records::{CLIP_SLOTS, INPUT_VALUES};
 
-/// Where the pose pass of a definition takes the weight and the time of an `animate` entry.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EntryInputs {
-    /// The input value that holds the weight, which the CPU computes in each frame; `None` when
-    /// the GPU computes it.
     pub weight: Option<usize>,
-    /// The clip slot that holds the start of a clip with the time of the entity clock.
     pub clip: Option<usize>,
-    /// The input value that holds the time, for a time update that the GPU cannot compute.
     pub time: Option<usize>,
 }
 
-/// The inputs that the CPU writes for a definition: one entry for each `animate` entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueryInput {
+    pub slot: QuerySlot,
+    pub value: usize,
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct InputLayout {
     pub entries: Vec<EntryInputs>,
+    pub queries: Vec<QueryInput>,
 }
 
 impl InputLayout {
-    /// Whether a slot of this definition has an input record.
     #[must_use]
     pub fn is_used(&self) -> bool {
-        self.entries
+        !self.queries.is_empty()
+            || self
+                .entries
+                .iter()
+                .any(|entry| entry.weight.is_some() || entry.clip.is_some() || entry.time.is_some())
+    }
+
+    fn query_value(&self, slot: QuerySlot) -> Option<usize> {
+        self.queries
             .iter()
-            .any(|entry| entry.weight.is_some() || entry.clip.is_some() || entry.time.is_some())
+            .find(|input| input.slot == slot)
+            .map(|input| input.value)
     }
 }
 
-/// The WGSL of the animated offsets of one client entity definition, and the inputs it reads.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PoseProgram {
-    /// The functions of the channels, then `fn pose_offsets(ctx: PoseContext)`.
     pub wgsl: String,
     pub inputs: InputLayout,
 }
 
-/// Why a definition has no GPU pose.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PoseProgramError(pub String);
 
@@ -56,8 +62,6 @@ impl std::fmt::Display for PoseProgramError {
 
 impl std::error::Error for PoseProgramError {}
 
-/// The WGSL value of a pose input that the pose pass computes from the slot records, with its
-/// range; `None` for a query that the pose pass does not compute.
 fn pose_input(query: EntityQuery) -> Option<(&'static str, InputRange)> {
     use EntityQuery as Q;
     let angle = InputRange::new(-180.0, 180.0);
@@ -81,9 +85,8 @@ fn pose_input(query: EntityQuery) -> Option<(&'static str, InputRange)> {
 
 struct Generator<'a> {
     rig: &'a Rig,
-    /// The palette index of each rig bone.
+    inputs: &'a InputLayout,
     palette_of_bone: &'a [usize],
-    /// The rest rotation in file space of each palette entry.
     rest: &'a [Vec3],
     functions: String,
     body: String,
@@ -91,9 +94,6 @@ struct Generator<'a> {
 }
 
 impl PoseProgram {
-    /// Generates the pose program of `rig`. `palette_of_bone` gives the palette index of each
-    /// rig bone and `rest` the rest rotation in file space of each palette entry, which `this`
-    /// reads.
     pub fn generate(
         rig: &Rig,
         palette_of_bone: &[usize],
@@ -102,6 +102,7 @@ impl PoseProgram {
         let inputs = input_layout(rig)?;
         let mut generator = Generator {
             rig,
+            inputs: &inputs,
             palette_of_bone,
             rest,
             functions: String::new(),
@@ -128,20 +129,86 @@ impl PoseProgram {
     }
 }
 
-/// A definition with a weight that is not a constant reads its weights from the CPU; then each
-/// clip that plays on the entity clock needs the start that the CPU gives.
+fn clip_keyframes(clip: &Clip) -> impl Iterator<Item = &Keyframe> {
+    clip.bones
+        .iter()
+        .flat_map(|bone| [&bone.rotation, &bone.position, &bone.scale])
+        .flatten()
+        .flat_map(|channel| &channel.keyframes)
+}
+
+fn clip_expressions(clip: &Clip) -> impl Iterator<Item = &Expression> {
+    let time = match &clip.time_update {
+        TimeUpdate::Expression(expression) => Some(expression),
+        TimeUpdate::Clock => None,
+    };
+    clip_keyframes(clip)
+        .flat_map(|keyframe| keyframe.pre.iter().chain(&keyframe.post))
+        .chain(time)
+}
+
+fn reads_clock(rig: &Rig, clip: &Clip) -> bool {
+    clip.length > 0.0
+        || clip_keyframes(clip).any(|keyframe| keyframe.time > 0.0)
+        || clip_expressions(clip).any(|expression| reads_anim_time(rig, expression))
+}
+
+fn reads_anim_time(rig: &Rig, expression: &Expression) -> bool {
+    let mut reads = false;
+    expression.classify(|slot| {
+        let query = rig.slot_query(slot)?;
+        reads |= query == EntityQuery::AnimTime;
+        input_range(query)
+    });
+    reads
+}
+
+fn cpu_queries(rig: &Rig) -> Vec<QuerySlot> {
+    let mut slots = Vec::new();
+    let clips = rig.animate.iter().filter_map(|entry| match entry.target {
+        AnimateTarget::Clip(clip) => rig.clips.get(clip),
+        _ => None,
+    });
+    for expression in clips.flat_map(clip_expressions) {
+        expression.classify(|slot| {
+            let query = rig.slot_query(slot)?;
+            if pose_input(query).is_none() && is_cpu_input(query) && !slots.contains(&slot) {
+                slots.push(slot);
+            }
+            input_range(query)
+        });
+    }
+    slots
+}
+
+fn is_cpu_input(query: EntityQuery) -> bool {
+    !query.is_animation_supplied() && query != EntityQuery::DeltaTime
+}
+
+fn input_range(query: EntityQuery) -> Option<InputRange> {
+    if query == EntityQuery::AnimTime {
+        return Some(InputRange::new(0.0, f32::MAX));
+    }
+    match pose_input(query) {
+        Some((_, range)) => Some(range),
+        None => is_cpu_input(query).then_some(InputRange::FINITE),
+    }
+}
+
 fn input_layout(rig: &Rig) -> Result<InputLayout, PoseProgramError> {
     let constant = |expression: &Expression| expression.as_constant().is_some();
-    let needs_input = rig.animate.iter().any(|entry| {
-        let AnimateTarget::Clip(clip) = entry.target else {
-            return true;
-        };
-        !constant(&entry.weight)
-            || rig
-                .clips
-                .get(clip)
-                .is_some_and(|clip| !constant(&clip.blend_weight))
-    });
+    let queries = cpu_queries(rig);
+    let needs_input = !queries.is_empty()
+        || rig.animate.iter().any(|entry| {
+            let AnimateTarget::Clip(clip) = entry.target else {
+                return true;
+            };
+            !constant(&entry.weight)
+                || rig
+                    .clips
+                    .get(clip)
+                    .is_some_and(|clip| !constant(&clip.blend_weight))
+        });
     let mut layout = InputLayout::default();
     let (mut values, mut clips) = (0usize, 0usize);
     for entry in &rig.animate {
@@ -178,14 +245,18 @@ fn input_layout(rig: &Rig) -> Result<InputLayout, PoseProgramError> {
             values += 1;
             match &clip.time_update {
                 TimeUpdate::Clock => {
-                    inputs.clip = Some(clips);
-                    clips += 1;
+                    if reads_clock(rig, clip) {
+                        inputs.clip = Some(clips);
+                        clips += 1;
+                    }
                 }
                 TimeUpdate::Expression(expression) => {
-                    if !matches!(
-                        classify(rig, expression),
-                        ChannelClass::Pure(_) | ChannelClass::Constant
-                    ) {
+                    if reads_anim_time(rig, expression)
+                        || !matches!(
+                            classify(rig, expression),
+                            ChannelClass::Pure(_) | ChannelClass::Constant
+                        )
+                    {
                         inputs.time = Some(values);
                         values += 1;
                     }
@@ -193,6 +264,13 @@ fn input_layout(rig: &Rig) -> Result<InputLayout, PoseProgramError> {
             }
         }
         layout.entries.push(inputs);
+    }
+    for slot in queries {
+        layout.queries.push(QueryInput {
+            slot,
+            value: values,
+        });
+        values += 1;
     }
     if values > INPUT_VALUES || clips > CLIP_SLOTS {
         return Err(PoseProgramError(format!(
@@ -204,13 +282,7 @@ fn input_layout(rig: &Rig) -> Result<InputLayout, PoseProgramError> {
 }
 
 fn classify(rig: &Rig, expression: &Expression) -> ChannelClass {
-    expression.classify(|slot| {
-        let query = rig.slot_query(slot)?;
-        if query == EntityQuery::AnimTime {
-            return Some(InputRange::new(0.0, f32::MAX));
-        }
-        pose_input(query).map(|(_, range)| range)
-    })
+    expression.classify(|slot| input_range(rig.slot_query(slot)?))
 }
 
 fn literal(value: f32) -> String {
@@ -315,7 +387,6 @@ impl Generator<'_> {
         Ok(())
     }
 
-    /// WGSL that declares `v`, the sample of `channel` at the time `t`, limited to the pose range.
     fn sample(
         &mut self,
         channel: &Channel,
@@ -378,8 +449,6 @@ impl Generator<'_> {
         Ok(out)
     }
 
-    /// A WGSL expression of one number field. `this` is the value of `this`, and `time` the
-    /// WGSL value of `query.anim_time`.
     fn scalar(
         &mut self,
         expression: &Expression,
@@ -430,9 +499,12 @@ impl Generator<'_> {
         if query == Some(EntityQuery::AnimTime) {
             return Ok(time.to_owned());
         }
-        query
-            .and_then(pose_input)
-            .map(|(wgsl, _)| wgsl.to_owned())
+        if let Some((wgsl, _)) = query.and_then(pose_input) {
+            return Ok(wgsl.to_owned());
+        }
+        self.inputs
+            .query_value(slot)
+            .map(|value| format!("input_value(ctx, {value}u)"))
             .ok_or_else(|| PoseProgramError(format!("{context}: a query that is not a pose input")))
     }
 }

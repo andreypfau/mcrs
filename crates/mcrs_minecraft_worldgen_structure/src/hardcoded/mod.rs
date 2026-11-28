@@ -4,7 +4,7 @@ use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 
 use crate::orient::random_rotation;
-use crate::site::{Context, Stub};
+use crate::site::{Context, SiteWorld, Stub};
 
 pub mod buried_treasure;
 pub mod desert_pyramid;
@@ -27,7 +27,6 @@ pub(crate) trait PieceWeight: Copy {
     fn max_place_count(&self) -> i32;
 }
 
-/// One piece table entry and how often it has been placed.
 #[derive(Clone, Copy)]
 pub(crate) struct TableEntry<W> {
     pub weight: W,
@@ -41,8 +40,6 @@ impl<W: PieceWeight> TableEntry<W> {
     }
 }
 
-/// A piece table: the entries in table order, each tagged with its index in
-/// the reference's full list, of which only the still offered ones remain.
 pub(crate) struct WeightTable<W> {
     pub available: Vec<(usize, TableEntry<W>)>,
 }
@@ -61,8 +58,6 @@ impl<W: PieceWeight> WeightTable<W> {
         }
     }
 
-    /// `updatePieceWeight`: the offered weight, or `None` when no entry with
-    /// a cap is under it.
     pub fn total_weight(&self) -> Option<i32> {
         let mut any = false;
         let mut total = 0;
@@ -87,16 +82,14 @@ impl<W: PieceWeight> WeightTable<W> {
     }
 }
 
-/// `couldValidBiomeExistInTerrainColumn`: one block below the accessor's
-/// floor, unlike the jigsaw column test.
-pub(crate) fn terrain_column_admits(ctx: &mut Context<'_>, x: i32, z: i32) -> bool {
+pub(crate) fn terrain_column_admits(ctx: &mut Context<'_, impl SiteWorld>, x: i32, z: i32) -> bool {
     let max_y = ctx.accessor_min_y + ctx.accessor_height - 1;
     ctx.world
         .column_admits(x, z, ctx.accessor_min_y - 1, max_y, &ctx.structure.biomes)
 }
 
 pub(crate) fn first_occupied_height(
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     x: i32,
     z: i32,
     heightmap: HeightmapName,
@@ -105,7 +98,7 @@ pub(crate) fn first_occupied_height(
 }
 
 pub(crate) fn on_top_of_chunk_centre(
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     heightmap: HeightmapName,
 ) -> Option<(IVec3, Stub)> {
     let (x, z) = (ctx.chunk.middle_block_x(), ctx.chunk.middle_block_z());
@@ -114,7 +107,7 @@ pub(crate) fn on_top_of_chunk_centre(
 }
 
 pub(crate) fn on_top_of_chunk_centre_without_biome_check(
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     heightmap: HeightmapName,
 ) -> (IVec3, Stub) {
     let (x, z) = (ctx.chunk.middle_block_x(), ctx.chunk.middle_block_z());
@@ -123,7 +116,7 @@ pub(crate) fn on_top_of_chunk_centre_without_biome_check(
 }
 
 pub(crate) fn corner_heights(
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     min_x: i32,
     size_x: i32,
     min_z: i32,
@@ -139,7 +132,7 @@ pub(crate) fn corner_heights(
 }
 
 pub(crate) fn lowest_y(
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     min_x: i32,
     min_z: i32,
     size_x: i32,
@@ -149,7 +142,12 @@ pub(crate) fn lowest_y(
     rest.into_iter().fold(first, i32::min)
 }
 
-pub(crate) fn lowest_y_in_5_by_5(ctx: &mut Context<'_>, x: i32, z: i32, rotation: Rotation) -> i32 {
+pub(crate) fn lowest_y_in_5_by_5(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    x: i32,
+    z: i32,
+    rotation: Rotation,
+) -> i32 {
     let (offset_x, offset_z) = match rotation {
         Rotation::None => (5, 5),
         Rotation::Clockwise90 => (-5, 5),
@@ -159,9 +157,8 @@ pub(crate) fn lowest_y_in_5_by_5(ctx: &mut Context<'_>, x: i32, z: i32, rotation
     lowest_y(ctx, x, z, offset_x, offset_z)
 }
 
-/// `SinglePieceStructure.findGenerationPoint`.
 pub(crate) fn single_piece_site(
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     width: i32,
     depth: i32,
 ) -> Option<(IVec3, Stub)> {
@@ -179,11 +176,8 @@ pub(crate) fn single_piece_site(
     ))
 }
 
-/// The end city's and the mansion's site: the biome column at block 7 of the
-/// chunk, a rotation, and the lowest corner of the 5×5 box that rotation
-/// points into, refused below 60.
 pub(crate) fn lowest_corner_site(
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
     let (x, z) = (ctx.chunk.min_block_x() + 7, ctx.chunk.min_block_z() + 7);

@@ -14,8 +14,6 @@ use crate::template_piece::seed_container_loot;
 use crate::{ignore_blocks, place_positional};
 use mcrs_minecraft_block::block_keys::Block;
 
-/// `EndCityPiece.makeSettings`: the two processor chains its pieces place
-/// with, by whether the template's air overwrites what stands there.
 #[derive(Clone, Debug)]
 pub struct EndCityChains {
     overwrite: CompiledChain,
@@ -23,7 +21,7 @@ pub struct EndCityChains {
 }
 
 impl EndCityChains {
-    pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
+    pub fn compile(blocks: &impl BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(EndCityChains {
             overwrite: ignore_blocks(blocks, &[Block::StructureBlock])?,
             keep_air: ignore_blocks(blocks, &[Block::Air, Block::StructureBlock])?,
@@ -31,12 +29,12 @@ impl EndCityChains {
     }
 }
 
-/// `EndCityPiece.postProcess` for one column: the template, then its data
-/// markers in block order — a chest's loot table under a `Chest` marker, a
-/// shulker at a `Sentry`, the elytra frame at `Elytra` facing the piece's south.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the chains, the frozen structures and the piece, the column's clip and reference, the volume, the random source and the two lists the piece fills, which the reference's post-process takes as separate values"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one piece's post-process"
+    )
 )]
 pub fn place_end_city_piece<W: WorldGenVolume>(
     chains: &EndCityChains,

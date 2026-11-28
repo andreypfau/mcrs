@@ -19,8 +19,6 @@ const MIN_RATE: f32 = 1.0e-5;
 const MAX_RATE: f32 = 1000.0;
 const WRAP: i64 = i32::MAX as i64;
 
-/// The clock subtree that a node belongs to: the one under `time`, or the one under
-/// `of <clock>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Clock {
     Default,
@@ -159,7 +157,6 @@ fn wrapped(value: i64) -> i32 {
 
 type MessageArg = TranslateArg<ItemHover>;
 
-/// What a branch does to the clock: the change it asks for, its message and its result.
 struct Outcome {
     edit: Option<ClockEdit>,
     message: Text,
@@ -184,7 +181,6 @@ impl Outcome {
     }
 }
 
-/// The time marker of the clock with that name, from every timeline that runs on the clock.
 fn time_marker(
     context: &VanillaContext,
     clock: Id<WorldClock>,
@@ -207,7 +203,6 @@ fn time_marker(
         })
 }
 
-/// The clock a branch acts on, and what the branch reads its arguments with.
 struct ClockCall<'c, 'w, 's> {
     call: &'c Call<Branch, TimeCommand>,
     context: &'c VanillaContext<'w, 's>,
@@ -362,7 +357,6 @@ impl ClockCall<'_, '_, '_> {
             let value = period.and_then(|p| total.checked_rem(p)).unwrap_or(total);
             ("commands.time.query.timeline", value)
         } else {
-            // The 64-bit quotient, where the game truncates it to 32 bits.
             let value = period.and_then(|p| total.checked_div(p)).unwrap_or(0);
             ("commands.time.query.timeline.repetitions", value)
         };
@@ -373,7 +367,6 @@ impl ClockCall<'_, '_, '_> {
     }
 }
 
-/// The clock that the branch acts on.
 fn selected_clock(
     call: &Call<Branch, TimeCommand>,
     command: &TimeCommand,

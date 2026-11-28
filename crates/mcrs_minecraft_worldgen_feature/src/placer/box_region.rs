@@ -27,9 +27,6 @@ fn test_state(voxel: VoxelId) -> BlockStateId {
 
 type HeightFn = Box<dyn Fn(&BoxVolume, HeightmapName, i32, i32) -> i32>;
 
-/// A volume over one owned box: one biome, a fixed extent, a height answered by
-/// a closure over the box, and every write logged in order. What a test world
-/// needs, and nothing a real column has.
 pub struct BoxRegion {
     pub blocks: BoxVolume,
     pub world: WorldStates,
@@ -38,13 +35,10 @@ pub struct BoxRegion {
     pub height: HeightFn,
     pub writes: Vec<(BlockPos, VoxelId)>,
     pub ticks: Vec<PendingTick<GenerationKinds>>,
-    /// In the order first written, each the last one written at its position.
     pub block_entities: Vec<GeneratedBlockEntity>,
 }
 
 impl BoxRegion {
-    /// Every cell of `min..=max` is `fill`; the extent is the box's own height
-    /// and the height map answers one past its top.
     pub fn new(min: BlockPos, max: BlockPos, fill: VoxelId) -> Self {
         BoxRegion {
             blocks: BoxVolume::filled(BoundingBox { min, max }, test_state(fill))
@@ -63,7 +57,6 @@ impl BoxRegion {
         }
     }
 
-    /// `radius` columns of sixteen around the origin, from `min_y` to `max_y`.
     pub fn columns(radius: i32, min_y: i32, max_y: i32, fill: VoxelId) -> Self {
         Self::new(
             BlockPos::new(-radius * 16, min_y, -radius * 16),
@@ -72,7 +65,6 @@ impl BoxRegion {
         )
     }
 
-    /// Every cell from the bottom of the box up to and including `top`.
     pub fn floor(mut self, top: i32, id: VoxelId) -> Self {
         for y in self.blocks.bounds().min.y..=top {
             self.blocks.fill_layer(y, test_state(id));
@@ -80,7 +72,6 @@ impl BoxRegion {
         self
     }
 
-    /// Puts a block in the world without logging a write.
     pub fn seed(&mut self, at: BlockPos, voxel: VoxelId) {
         self.blocks.set_voxel(at, test_state(voxel));
     }

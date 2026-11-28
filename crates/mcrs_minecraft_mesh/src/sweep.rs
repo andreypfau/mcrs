@@ -1,4 +1,4 @@
-use crate::block::{BlockInfo, face_axes};
+use crate::block::{BlockInfo, Pass, face_axes};
 use crate::pack::{
     FACE_WORDS, QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS,
     QUAD_X, QUAD_Y, QUAD_Z,
@@ -24,7 +24,7 @@ pub(super) fn sweep(
     group_face: u64,
     attr: FaceAttr,
 ) {
-    for quads in &mut scratch.simple_by_pass {
+    for quads in &mut scratch.greedy_by_pass {
         quads.clear();
     }
     let [n_axis, n_positive, ..] = face_axes(face);
@@ -88,8 +88,8 @@ pub(super) fn sweep(
         }
     }
 
-    for (pass, quads) in scratch.simple_by_pass.iter().enumerate() {
-        sink.simple(pass, group_face, quads);
+    for (pass, quads) in Pass::ALL.into_iter().zip(&scratch.greedy_by_pass) {
+        sink.greedy(pass, group_face, quads);
     }
 }
 
@@ -106,8 +106,6 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize) {
             while gu + w < SECTION_SIZE && scratch.open(slot + w) == Some(key) {
                 w += 1;
             }
-            // A side cut down by a drop is cut at the top of its own cell, so only one row of
-            // them can share a quad.
             let dropped_side = face >= 2 && (key & !FLUID_KEY) >> PASS_KEY_BITS != 0;
             let mut h = 1;
             'grow: while !dropped_side && gv + h < SECTION_SIZE {
@@ -129,7 +127,7 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize) {
                     scratch.section_faces.extend_from_slice(attrs);
                 }
             }
-            if let Some(quads) = scratch.simple_by_pass.get_mut((key & PASS_KEY) as usize) {
+            if let Some(quads) = scratch.greedy_by_pass.get_mut((key & PASS_KEY) as usize) {
                 quads.push(pack_quad(
                     face,
                     n,
@@ -165,9 +163,12 @@ fn quad_anchor(face: usize, n: usize, gu: usize, gv: usize) -> [i32; 3] {
     local
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the face, slice, grid position, size, base, drop and fluid flag that are the fields of one packed quad"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one packed quad"
+    )
 )]
 #[inline]
 fn pack_quad(
@@ -223,7 +224,7 @@ mod tests {
         let mut scratch = Scratch::new();
         let batch = mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch);
         let mut runs: Vec<(u64, u64)> = batch
-            .simple
+            .greedy
             .iter()
             .enumerate()
             .map(|(index, quad)| {
@@ -251,7 +252,7 @@ mod tests {
         for attr in &batch.faces {
             assert_eq!(FACE_SPRITE.read(attr), 263, "sprite");
         }
-        let quads = batch.simple.len();
+        let quads = batch.greedy.len();
         assert_eq!(
             quads, 6,
             "a lone solid section is six merged faces, one per side"

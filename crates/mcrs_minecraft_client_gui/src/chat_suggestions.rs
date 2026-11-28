@@ -1,5 +1,3 @@
-//! The suggestion list and the hint lines over the input of the open chat screen.
-
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_chat_client::{ChatScreen, Hint, LIST_ROWS, SuggestionMenu};
 use mcrs_minecraft_item::ItemHoverMap;
@@ -14,10 +12,8 @@ use crate::text;
 const ROW: i32 = 12;
 const ROW_FILL: u32 = 0xD000_0000;
 const SELECTED: u32 = 0xFFFF_FF00;
-/// An error line has no colour of its own.
 const ERROR_LINE: u32 = 0xFFFF_FFFF;
 
-/// The left x of the suggestion list or the hint lines over `start`.
 fn column(size: GuiSize, font: &Font, input: &str, start: usize, width: i32) -> i32 {
     let x0 = input
         .get(..start)
@@ -25,20 +21,17 @@ fn column(size: GuiSize, font: &Font, input: &str, start: usize, width: i32) -> 
     x0.clamp(0, (size.width - width).max(0))
 }
 
-/// The row under `point`, with the edge pixels of each row excluded.
 pub fn row_at(rect: IRect, point: IVec2) -> Option<usize> {
     let dy = point.y - rect.min.y;
     let inside = rect.min.x < point.x && point.x < rect.max.x && 0 < dy && point.y < rect.max.y;
     (inside && dy % ROW != 0).then_some((dy / ROW) as usize)
 }
 
-/// The row under `point` for a click or a wheel step, which count the edges.
 pub fn row_under(rect: IRect, point: IVec2) -> Option<usize> {
     rect.contains(point)
         .then(|| ((point.y - rect.min.y) / ROW) as usize)
 }
 
-/// Where the rows of the shown suggestion list are, and the entry of the top row.
 pub(crate) struct ListRows {
     pub rect: IRect,
     pub first: usize,
@@ -151,7 +144,7 @@ pub(super) fn hint_lines(
             Hint::Usage(range) => {
                 font::draw_str(
                     font,
-                    at,
+                    at.as_vec2(),
                     commands.usage_text(range.clone()),
                     GRAY,
                     false,
@@ -159,7 +152,7 @@ pub(super) fn hint_lines(
                 );
             }
             Hint::Restriction(key) => {
-                font::draw_str(font, at, language.get(key), RED, false, out);
+                font::draw_str(font, at.as_vec2(), language.get(key), RED, false, out);
             }
         }
     }

@@ -18,8 +18,6 @@ use serde_json::Value;
 
 const VERSION_FILE: &str = "../../assets/minecraft/version.json";
 
-/// A struct literal of `name` with one field per key, so a key `Version` lacks,
-/// a field the file lacks and a value of the wrong type all fail to compile.
 fn literal(name: &str, value: &Value) -> String {
     let Value::Object(fields) = value else {
         panic!("{VERSION_FILE}: {name} is not an object");

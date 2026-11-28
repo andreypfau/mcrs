@@ -7,10 +7,6 @@ use mcrs_minecraft_worldgen_density::router::FINAL_DENSITY;
 mod exhaustive {
     use super::*;
 
-    /// The schedule decides per fill, not per column: an arm's cone is skipped only
-    /// when no position in the whole volume selects it. Over a box as large as a
-    /// chunk that is a weaker predicate than a per-column one, so the share it skips
-    /// is asserted rather than trusted.
     #[test]
     fn the_branch_schedule_skips_a_real_share_of_an_overworld_chunk() {
         let router = overworld_router(42);
@@ -19,7 +15,7 @@ mod exhaustive {
         let mut ws = Workspace::new();
         ws.take_count();
         router
-            .program
+            .program()
             .fill(&mut ws, &volume, FINAL_DENSITY, &mut out);
 
         let count = ws.take_count();

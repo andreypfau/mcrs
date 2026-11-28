@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_inventory_file"
+description = "The stacks of a player and its selected slot, read from and written to the player file"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_inventory_player.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_nbt.workspace = true
+serde.workspace = true

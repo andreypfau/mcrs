@@ -1,11 +1,18 @@
+use mcrs_minecraft_item_stack::BeeOccupant;
+use mcrs_minecraft_item_stack::Bees;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomComponent;
+use mcrs_minecraft_item_stack::CustomData;
 use mcrs_minecraft_item_stack::Damage;
+use mcrs_minecraft_item_stack::EntityData;
+use mcrs_minecraft_item_stack::EntityTypeId;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::Rarity;
 use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::Unbreakable;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 
 #[derive(Clone, PartialEq, Hash)]
 struct Owner(u8);
@@ -43,6 +50,21 @@ impl CustomComponent for Batch {
     }
 }
 
+fn compound(entries: &[(&str, NbtTag)]) -> NbtCompound {
+    entries
+        .iter()
+        .map(|(key, value)| ((*key).to_owned(), value.clone()))
+        .collect()
+}
+
+fn bee(data: NbtCompound) -> Bees {
+    Bees(vec![BeeOccupant {
+        entity_data: EntityData::new(EntityTypeId(4), data),
+        ticks_in_hive: 0,
+        min_ticks_in_hive: 0,
+    }])
+}
+
 fn stack(kind: u16, count: u8) -> ItemStack {
     let count = Count::new(count).expect("the test counts are not zero");
     ItemStack::new(Kind(kind), count)
@@ -51,7 +73,11 @@ fn stack(kind: u16, count: u8) -> ItemStack {
 #[test]
 fn stacks_are_equal_when_item_count_and_patch_entries_are_equal() {
     let plain = || stack(7, 1);
-    let cases: [(&str, ItemStack, ItemStack, bool); 12] = [
+    let one = NbtTag::Int(1);
+    let half = NbtTag::Float(0.5);
+    let xy = NbtTag::Compound(compound(&[("x", one.clone()), ("y", half.clone())]));
+    let yx = NbtTag::Compound(compound(&[("y", half), ("x", one.clone())]));
+    let cases: [(&str, ItemStack, ItemStack, bool); 14] = [
         (
             "the order of two built-in values has no effect",
             plain().set(Damage(12)).set(Rarity::Epic),
@@ -86,6 +112,24 @@ fn stacks_are_equal_when_item_count_and_patch_entries_are_equal() {
             "the removal of a custom component leaves no entry",
             plain().set(Owner(3)).unset::<Owner>(),
             plain(),
+            true,
+        ),
+        (
+            "the key order of custom data has no effect at any depth",
+            plain().set(CustomData(compound(&[
+                ("a", one.clone()),
+                ("b", xy.clone()),
+            ]))),
+            plain().set(CustomData(compound(&[
+                ("b", yx.clone()),
+                ("a", one.clone()),
+            ]))),
+            true,
+        ),
+        (
+            "the key order of bee entity data has no effect at any depth",
+            plain().set(bee(compound(&[("a", one.clone()), ("b", xy)]))),
+            plain().set(bee(compound(&[("b", yx), ("a", one)]))),
             true,
         ),
         (

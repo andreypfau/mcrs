@@ -1,0 +1,44 @@
+[package]
+name = "mcrs_minecraft_loot_table"
+description = "Loot tables as a data pack writes them, baked by id and evaluated"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_enchantment.workspace = true
+mcrs_minecraft_entity_attribute.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_loot.workspace = true
+mcrs_minecraft_loot_condition.workspace = true
+mcrs_minecraft_predicate.workspace = true
+mcrs_minecraft_random.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_voxel.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_pose.workspace = true
+glam.workspace = true
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_nbt_path.workspace = true
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_snbt.workspace = true
+mcrs_test_alloc.workspace = true
+serde_json.workspace = true

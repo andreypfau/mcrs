@@ -1,0 +1,25 @@
+[package]
+name = "mcrs_minecraft_inventory_save_viewer"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "mcrs_minecraft_inventory_save_viewer"
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+mcrs_minecraft_inventory_file.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_nbt.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"

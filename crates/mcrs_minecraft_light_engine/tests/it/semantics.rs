@@ -23,13 +23,10 @@ fn block_light_dims_by_one_per_step() {
     assert_eq!(world.block_light(BlockPos::new(8, 8, 8)), 14);
     assert_eq!(world.block_light(BlockPos::new(9, 8, 8)), 13);
     assert_eq!(world.block_light(BlockPos::new(10, 8, 8)), 12);
-    // Diagonals are two steps away: light only crosses faces.
     assert_eq!(world.block_light(BlockPos::new(9, 9, 8)), 12);
     world.check_against_reference();
 }
 
-/// The trap in the sky source rule: glass and water both let light through, and
-/// both cost the same to enter, but only water ends the run of sky sources.
 #[test]
 fn glass_keeps_the_sky_column_but_water_does_not() {
     let mut world = TestWorld::new(2, 3, 2);
@@ -97,14 +94,12 @@ fn a_bottom_slab_is_lit_but_shadows_what_is_under_it() {
     world.check_against_reference();
 }
 
-/// Occlusion is a property of the pair of facing shapes, not of either block.
 #[test]
 fn two_half_faces_occlude_together_but_not_separately() {
     let mut world = TestWorld::new(3, 2, 2);
     let y = 8;
     let z = 8;
 
-    // A one-block tunnel through stone, so that light has no way around the seam.
     let mut walls = Vec::new();
     for x in 0..48 {
         for wy in (y - 1)..=(y + 1) {
@@ -161,10 +156,6 @@ fn removing_an_emitter_removes_its_light() {
     world.check_against_reference();
 }
 
-/// The case that forces a hand-written decrease pass to carry a "restore this
-/// source" flag: a dim emitter standing in a bright neighbour's light, which
-/// must survive that neighbour being removed. Erasing and refilling gets it for
-/// free, because the emitter is re-seeded from the block itself.
 #[test]
 fn a_dim_emitter_survives_its_bright_neighbour_disappearing() {
     let mut world = TestWorld::new(3, 3, 3);
@@ -185,16 +176,11 @@ fn a_dim_emitter_survives_its_bright_neighbour_disappearing() {
     world.check_against_reference();
 }
 
-/// Sealing a shaft has to clear the lit column that hangs *below* the lowest sky
-/// source, not just the run of sources itself. Water ends the column at its own
-/// level while still passing light downward, so the affected cells extend
-/// fifteen further down than the sources do.
 #[test]
 fn sealing_a_shaft_clears_the_lit_column_under_the_water() {
     let mut world = TestWorld::new(3, 6, 3);
     let (x, z) = (24, 24);
 
-    // A stone ceiling with a single hole, and water part way down the shaft.
     let mut ceiling: Vec<(BlockPos, VoxelId)> = Vec::new();
     for cz in 0..48 {
         for cx in 0..48 {
@@ -434,8 +420,6 @@ fn a_shaped_state_agrees_with_the_reference_solver() {
     world.check_against_reference();
 }
 
-/// An asymmetric scene: a permuted step axis leaks light the wrong way here,
-/// which the reference solver sees even though an open world would hide it.
 #[test]
 fn an_obstructed_scene_matches_the_reference_solver() {
     let mut world = TestWorld::new(2, 2, 2);
@@ -459,9 +443,6 @@ fn an_obstructed_scene_matches_the_reference_solver() {
     world.check_against_reference();
 }
 
-/// A section of one repeated block answers the sky scan without reading its
-/// blocks, so the seam entering it and the seam inside it both have to be
-/// tested — glass keeps the column across both, water ends it at the first.
 #[test]
 fn uniform_sections_agree_with_the_reference_solver() {
     let mut world = LightWorld::new(registry(), LightBounds::new(0, 2));
@@ -538,8 +519,6 @@ mod exhaustive {
     fn a_batch_of_edits_over_a_large_world_agrees_with_the_reference() {
         let mut world = TestWorld::new(3, 4, 3);
 
-        // A terrain-like slab of stone with a cave under it, a glass skylight, and
-        // some emitters scattered below.
         let mut terrain = Vec::new();
         for z in 0..48 {
             for x in 0..48 {
@@ -560,7 +539,6 @@ mod exhaustive {
         ]);
         world.check_against_reference();
 
-        // Now break some of it again.
         world.set_many([
             (BlockPos::new(20, 30, 20), AIR),
             (BlockPos::new(10, 40, 10), STONE),

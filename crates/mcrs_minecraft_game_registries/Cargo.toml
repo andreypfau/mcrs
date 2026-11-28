@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_game_registries"
-description = "Vanilla Minecraft block/item type vocabulary and static registries"
+description = "The vanilla registry declarations and their loader: chat types, villager trades, world presets, test instances, enchantment providers and their keys"
 version.workspace = true
 edition.workspace = true
 
@@ -23,15 +23,17 @@ test-support = ["dep:mcrs_minecraft_fixtures", "dep:mcrs_minecraft_worldgen"]
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_value_provider.workspace = true
-mcrs_minecraft_sound.workspace = true
+mcrs_minecraft_sound = { workspace = true, features = ["registry"] }
 mcrs_minecraft_registry_catalog.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_loot_condition.workspace = true
+mcrs_minecraft_loot_table.workspace = true
 mcrs_minecraft_item_key.workspace = true
-mcrs_minecraft_banner_pattern.workspace = true
+mcrs_minecraft_banner_pattern = { workspace = true, features = ["registry"] }
 mcrs_minecraft_block_transformer.workspace = true
 mcrs_minecraft_decorated_pot_pattern.workspace = true
 mcrs_minecraft_dimension_environment.workspace = true
@@ -42,6 +44,7 @@ mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute = { workspace = true, features = ["serde"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_text.workspace = true
@@ -71,6 +74,7 @@ mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
+mcrs_minecraft_worldgen_generator.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
 bytes.workspace = true
 tracing-subscriber = "0.3"

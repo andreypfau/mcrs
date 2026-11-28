@@ -3,9 +3,6 @@ use mcrs_minecraft_entity_animation::{AnimateTarget, EntityAnimation, Rig};
 use crate::pose_program::InputLayout;
 use crate::records::{CLIP_PLAYING, ClipSlot, InputRecord};
 
-/// The input record of one entity from its animation state after
-/// [`EntityAnimation::update`] at the entity clock `clock`: the weight of each entry that the
-/// CPU computes, and the start of each clip on the entity clock.
 #[must_use]
 pub fn input_record(
     layout: &InputLayout,
@@ -40,6 +37,14 @@ pub fn input_record(
                     0.0
                 },
             };
+        }
+    }
+    for input in &layout.queries {
+        if let Some(value) = record.values.get_mut(input.value) {
+            *value = animation
+                .query_number(input.slot)
+                .filter(|number| number.is_finite())
+                .unwrap_or(0.0);
         }
     }
     record

@@ -75,8 +75,6 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
     let sky_light = mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute::GameplaySkyLightLevel;
     assert!(overworld.stack(sky_light).unwrap().is_dynamic());
 
-    // `#minecraft:in_nether` pulls in villager_schedule alone, which touches
-    // no sky attribute, so the Nether sky never moves.
     let nether = environment("minecraft:the_nether").unwrap();
     assert!(!nether.stack(sky_light).unwrap().is_dynamic());
 }

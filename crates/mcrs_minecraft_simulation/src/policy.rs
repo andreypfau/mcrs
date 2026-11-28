@@ -8,7 +8,6 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::ops::Range;
 
-/// The direction orders that a chain of updates uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChainOrder {
     pub neighbours: [Direction; 6],

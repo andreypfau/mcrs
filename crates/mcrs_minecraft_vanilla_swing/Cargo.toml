@@ -1,0 +1,34 @@
+[package]
+name = "mcrs_minecraft_vanilla_swing"
+description = "Vanilla arm swings in the dimension worlds: punch, stab, and attack_animation item components"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_item.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_network.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+
+[dev-dependencies]
+bevy_time.workspace = true
+bytes.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_voxel.workspace = true

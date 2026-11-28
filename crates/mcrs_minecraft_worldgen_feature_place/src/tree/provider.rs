@@ -16,9 +16,6 @@ use mcrs_voxel::BlockPos;
 
 pub type SharedNoise = Arc<NoiseStack<Octave>>;
 
-/// A `BlockStateProvider` with every block, state and tag it names resolved.
-///
-/// The noise members hold the sampler the seed already built; they draw nothing.
 #[derive(Clone, Debug)]
 pub enum StateProvider {
     Simple(VoxelId),
@@ -29,16 +26,12 @@ pub enum StateProvider {
     },
     RandomizedInt {
         source: Box<StateProvider>,
-        /// The named property of every block that declares it as an integer,
-        /// by block index; a block absent here leaves the state alone.
         property: Arc<HashMap<Id<Block>, IntProperty>>,
         values: IntProvider,
     },
     Rotated {
         source: Box<StateProvider>,
         direction: Option<Direction>,
-        /// What `axis`, `facing` and `horizontal_facing` become for each
-        /// direction, per block that declares any of them.
         rotations: Arc<HashMap<Id<Block>, Rotations>>,
     },
     RandomBlock(Vec<VoxelId>),
@@ -68,7 +61,6 @@ pub enum StateProvider {
     },
 }
 
-/// One integer property of one block as a digit of its state ids.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct IntProperty {
     pub base: u16,
@@ -78,8 +70,6 @@ pub struct IntProperty {
 }
 
 impl IntProperty {
-    /// `BlockState.setValue`, except that a value outside the property leaves
-    /// the state alone rather than throwing.
     pub fn set(&self, state: VoxelId, value: i32) -> VoxelId {
         let index = value - self.min;
         if !(0..self.count as i32).contains(&index) {
@@ -89,8 +79,6 @@ impl IntProperty {
     }
 }
 
-/// The value index each direction selects in one property, or `None` where the
-/// property lacks that direction (`horizontal_facing` has no up or down).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DirectionProperty {
     pub base: u16,
@@ -108,9 +96,6 @@ impl DirectionProperty {
     }
 }
 
-/// `RotatedBlockProvider`'s three `trySetValue`s over one block: `axis` to the
-/// direction's axis, `facing` to the direction, and `horizontal_facing` to it
-/// unless it is vertical.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Rotations {
     pub axis: Option<DirectionProperty>,
@@ -142,9 +127,6 @@ fn block_id(position: usize, blocks: usize) -> Option<Id<Block>> {
         .and_then(|number| Id::checked(number, blocks))
 }
 
-/// [`Rotations`] for every block that declares any of the three properties,
-/// resolved once so the provider never looks a property up by name while
-/// placing.
 pub fn rotation_table(layouts: &[BlockLayout]) -> HashMap<Id<Block>, Rotations> {
     let direction_property =
         |layout: &BlockLayout, name: &str, text: fn(Direction) -> &'static str| {
@@ -181,8 +163,6 @@ pub fn rotation_table(layouts: &[BlockLayout]) -> HashMap<Id<Block>, Rotations> 
         .collect()
 }
 
-/// `IntegerProperty` `name` on every block that declares it, resolved once so
-/// the provider never looks a property up by name while placing.
 pub fn int_property_table(layouts: &[BlockLayout], name: &str) -> HashMap<Id<Block>, IntProperty> {
     layouts
         .iter()
@@ -222,7 +202,7 @@ impl StateProvider {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "one arm per state provider kind, in the reference's declaration order, so each reads against its kind"
+        reason = "one arm per state provider kind, in the reference's declaration order"
     )]
     pub fn optional_state<W: WorldGenVolume>(
         &self,
@@ -343,7 +323,6 @@ impl StateProvider {
     }
 }
 
-/// The scale reaches the sampler as a `double`, so the products are `f64`.
 fn noise_value(noise: &NoiseStack<Octave>, pos: BlockPos, scale: f64) -> f32 {
     noise.get(
         pos.x as f64 * scale,
@@ -352,8 +331,6 @@ fn noise_value(noise: &NoiseStack<Octave>, pos: BlockPos, scale: f64) -> f32 {
     )
 }
 
-/// Unlike [`noise_value`], the slow scale is a `float` field multiplied against
-/// an `int`, so the product rounds to `f32` before it widens.
 fn slow_noise_value(noise: &NoiseStack<Octave>, pos: BlockPos, scale: f32) -> f32 {
     noise.get(
         (pos.x as f32 * scale) as f64,
@@ -390,9 +367,6 @@ pub(crate) mod fake {
 
     pub(crate) const AIR: VoxelId = VoxelId(0);
 
-    /// A volume over a sparse map of states, whose state algebra is arithmetic
-    /// so a test can read the edit a provider asked for off the result. Its
-    /// world knows `AIR` as the one air state and nothing else.
     pub(crate) struct FakeVolume {
         pub blocks: HashMap<(i32, i32, i32), VoxelId>,
         pub heights: HashMap<(i32, i32), i32>,
@@ -564,8 +538,6 @@ mod tests {
         WorldgenRandom::new(0x5eed_1234)
     }
 
-    /// The provider under test, then the draw sequence it is claimed to spend,
-    /// replayed from the same start: equal states mean the claim holds.
     fn assert_draws(
         provider: &StateProvider,
         volume: &FakeVolume,
@@ -635,8 +607,6 @@ mod tests {
         assert_eq!(state, B);
     }
 
-    /// No fallback and no matching rule is the one case that reads the volume
-    /// back instead of deciding a state.
     #[test]
     fn rule_based_without_a_fallback_keeps_the_block_that_is_there() {
         let volume = FakeVolume::with([((4, 70, -9), C)]);
@@ -647,8 +617,6 @@ mod tests {
         assert_eq!(assert_draws(&provider, &volume, |_| {}), C);
     }
 
-    /// One block over states `0..24`: `axis` in `x, y, z` eight ids apart,
-    /// then `age` in `0..8`.
     fn laid_out() -> FakeVolume {
         let text =
             |values: &[&str]| -> Arc<[Arc<str>]> { values.iter().map(|v| Arc::from(*v)).collect() };

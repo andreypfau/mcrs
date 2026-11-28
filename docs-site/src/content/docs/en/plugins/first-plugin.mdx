@@ -6,18 +6,19 @@ sidebar:
 kind: tutorial
 audience: [jvm, rust]
 stability: changing
-tracking: [280, 288, 321]
+tracking: [280, 321]
 sources:
+  - crates/mcrs_minecraft_engine/src/coordinator/sub_app_builder.rs
+  - crates/mcrs_minecraft_engine_world/src/world_cells.rs
   - src/main.rs
   - crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs
   - crates/mcrs_minecraft_engine_world/src/world/sub_app.rs
   - issue:280
-  - issue:288
   - issue:321
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import Status from '~/components/Status.astro';
@@ -26,8 +27,10 @@ import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 In this tutorial you add a plugin that counts server ticks. mcrs has no plugin loader and no jar files, as [This is not the Paper API](/docs/en/plugins/not-paper/) explains, so "installing a plugin" means adding Rust code to the program that starts the server. Your plugin lives in your own copy of the mcrs repository, next to the server binary.
 
+This tutorial uses the default of one cell and one simulation world per dimension. With several static cells, the server builds the dimension plugin in each cell's world, and its query sees only local entities.
+
 <Aside type="caution" title="WIP">
-Building a plugin in its own project, with mcrs as a git dependency, is not checked. The crates are not published and the examples workspace does not exist yet, so this page edits `src/main.rs` inside the clone.[^321][^288] The code comes from test files of the repository, and we did not run these steps outside the repository tests.
+Building a plugin in its own project, with mcrs as a git dependency, is not checked. The crates are not published, so this page edits `src/main.rs` inside the clone.[^321] The code comes from test files of the repository, and we did not run these steps outside the repository tests.
 </Aside>
 
 ## Eight terms this page uses
@@ -113,15 +116,13 @@ The idea is the same, and three things differ. The mcrs plugin is compiled into 
 
 ## What plugins cannot do yet
 
-Four things a plugin may need are not ready yet. They are public events, chunk sources, saving and dimensions at run time.[^283][^281][^78][^546] [Status](/docs/en/start/status/) shows what else is missing for plugins, and [Dimensions](/docs/en/plugins/dimensions/) explains why `add_plugins` does not reach a dimension.
+Three things a plugin may need are not ready yet. They are public events, chunk sources and dimensions at run time.[^283][^281][^546] [Status](/docs/en/start/status/) shows what else is missing for plugins, and [Dimensions](/docs/en/plugins/dimensions/) explains why `add_plugins` does not reach a dimension.
 
 Next: [Intercept chat](/docs/en/plugins/chat-event/) uses the first public event to cancel and rewrite a chat line.
 
 [^321]: <Status issue={321} /> Tracks making the protocol, network and game data crates publishable.
-[^288]: <Status issue={288} /> Plans workspace members under `examples/` with a dependency-tree test per example.
 [^280]: <Status issue={280} /> Lets user plugins run inside every dimension world.
 [^pr636]: <Status pr={636} state="works" /> Raises a cancellable event for a chat line before its broadcast.
 [^283]: <Status issue={283} /> Tracks public player events that a plugin can cancel.
 [^281]: <Status issue={281} /> Plans the chunk source as a replaceable plugin point, with empty and flat sources.
-[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
 [^546]: <Status issue={546} /> Plans to create and remove dimension worlds at run time and move players between them.

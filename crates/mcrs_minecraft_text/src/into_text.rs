@@ -1,114 +1,92 @@
-//! Provides the [`IntoText`] trait and implementations.
-
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
 
+use uuid::Uuid;
+
 use super::{ClickEvent, Color, HoverEvent, ItemHover, Text, TextTypes};
 
-/// Trait for any data that can be converted to a [`Text`] object.
-///
-/// Also conveniently provides many useful methods for modifying a [`Text`]
-/// object.
-///
-/// # Usage
-///
-/// ```
-/// # use mcrs_minecraft_text::{IntoText, Text, color::NamedColor};
-/// let mut my_text: Text = "".into_text();
-/// my_text = my_text.color(NamedColor::Red).bold();
-/// my_text = my_text.add_child("CRABBBBB".obfuscated());
 pub trait IntoText<I: TextTypes = ItemHover>: Sized {
-    /// Converts to an owned [`Text`] object.
     fn into_text(self) -> Text<I>;
 
-    /// Sets the color of the text.
     fn color(self, color: impl Into<Color>) -> Text<I> {
         let mut value = self.into_text();
         value.style.color = Some(color.into());
         value
     }
 
-    /// Sets the font of the text.
+    fn default_color(self, color: impl Into<Color>) -> Text<I> {
+        let mut value = self.into_text();
+        value.style.color = value.style.color.or_else(|| Some(color.into()));
+        value
+    }
+
     fn font(self, font: impl Into<ResourceLocationBuf>) -> Text<I> {
         let mut value = self.into_text();
         value.style.font = Some(font.into());
         value
     }
 
-    /// Makes the text bold.
     fn bold(self) -> Text<I> {
         let mut value = self.into_text();
         value.style.bold = Some(true);
         value
     }
-    /// Makes the text not bold.
     fn not_bold(self) -> Text<I> {
         let mut value = self.into_text();
         value.style.bold = Some(false);
         value
     }
 
-    /// Makes the text italic.
     fn italic(self) -> Text<I> {
         let mut value = self.into_text();
         value.style.italic = Some(true);
         value
     }
-    /// Makes the text not italic.
     fn not_italic(self) -> Text<I> {
         let mut value = self.into_text();
         value.style.italic = Some(false);
         value
     }
 
-    /// Makes the text underlined.
     fn underlined(self) -> Text<I> {
         let mut value = self.into_text();
         value.style.underlined = Some(true);
         value
     }
-    /// Makes the text not underlined.
     fn not_underlined(self) -> Text<I> {
         let mut value = self.into_text();
         value.style.underlined = Some(false);
         value
     }
 
-    /// Adds a strikethrough effect to the text.
     fn strikethrough(self) -> Text<I> {
         let mut value = self.into_text();
         value.style.strikethrough = Some(true);
         value
     }
-    /// Removes the strikethrough effect from the text.
     fn not_strikethrough(self) -> Text<I> {
         let mut value = self.into_text();
         value.style.strikethrough = Some(false);
         value
     }
 
-    /// Makes the text obfuscated.
     fn obfuscated(self) -> Text<I> {
         let mut value = self.into_text();
         value.style.obfuscated = Some(true);
         value
     }
-    /// Makes the text not obfuscated.
     fn not_obfuscated(self) -> Text<I> {
         let mut value = self.into_text();
         value.style.obfuscated = Some(false);
         value
     }
 
-    /// Adds an `insertion` property to the text. When shift-clicked, the given
-    /// text will be inserted into chat box for the client.
     fn insertion(self, insertion: impl Into<Cow<'static, str>>) -> Text<I> {
         let mut value = self.into_text();
         value.style.insertion = Some(insertion.into());
         value
     }
 
-    /// On click, copies the given text to the chat box.
     fn on_click_suggest_command(self, command: impl Into<Cow<'static, str>>) -> Text<I> {
         let mut value = self.into_text();
         value.style.click_event = Some(ClickEvent::SuggestCommand {
@@ -117,7 +95,18 @@ pub trait IntoText<I: TextTypes = ItemHover>: Sized {
         value
     }
 
-    /// On mouse hover, shows the given text in a tooltip.
+    fn on_click_open_url(self, url: impl Into<Cow<'static, str>>) -> Text<I> {
+        let mut value = self.into_text();
+        value.style.click_event = Some(ClickEvent::OpenUrl { url: url.into() });
+        value
+    }
+
+    fn on_hover_show_entity(self, id: I::EntityKey, uuid: Uuid, name: Option<Text<I>>) -> Text<I> {
+        let mut value = self.into_text();
+        value.style.hover_event = Some(HoverEvent::<I>::ShowEntity { id, uuid, name });
+        value
+    }
+
     fn on_hover_show_text(self, text: impl IntoText<I>) -> Text<I> {
         let mut value = self.into_text();
         value.style.hover_event = Some(HoverEvent::<I>::ShowText {
@@ -126,7 +115,6 @@ pub trait IntoText<I: TextTypes = ItemHover>: Sized {
         value
     }
 
-    /// Adds a child [`Text`] object.
     fn add_child(self, text: impl IntoText<I>) -> Text<I> {
         let mut value = self.into_text();
         value.extra.push(text.into_text());

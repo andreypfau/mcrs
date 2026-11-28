@@ -1,0 +1,32 @@
+# Use a trident with riptide in rain into a wall, and into a mob with no AI. Experiment E7, step 1,
+# of docs/spec/player-pose.md: POSE-SRV-014.
+experiment pose_e7_1
+arena -16 96 -16 48 110 16
+
+step riptide_wall
+instruction After Go, hold the right mouse button for 1 second, then release it toward the wall.
+input 61 use
+input 81 none
+fill -16 99 -16 48 99 16 minecraft:stone
+fill 4 100 -16 4 110 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run gamerule fall_damage false
+run weather rain
+run kill @e[type=!minecraft:player]
+run clear @a
+run item replace entity @a weapon.mainhand with minecraft:trident[enchantments={"minecraft:riptide":3}]
+start 0.5 100 0.5 -90 0
+ticks 140
+
+step riptide_mob
+instruction After Go, hold the right mouse button for 1 second, then release it toward the golem.
+input 61 use
+input 81 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run kill @e[type=!minecraft:player]
+run summon minecraft:iron_golem 3.5 100 0.5 {NoAI:1b}
+run clear @a
+run item replace entity @a weapon.mainhand with minecraft:trident[enchantments={"minecraft:riptide":3}]
+start 0.5 100 0.5 -90 0
+ticks 140

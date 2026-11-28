@@ -13,9 +13,6 @@ use wtransport::endpoint::endpoint_side::Server;
 use wtransport::stream::BiStream;
 use wtransport::{Connection, Endpoint, Identity, RecvStream, SendStream, ServerConfig};
 
-/// The HTTP/3 session owns the CONNECT stream the WebTransport streams ride on,
-/// so it has to outlive them; carrying it alongside the stream is what keeps it
-/// from being dropped when the handshake task returns.
 pub struct SessionStream<S> {
     stream: S,
     session: Connection,
@@ -91,7 +88,7 @@ pub(crate) fn bind(
 }
 
 pub(crate) async fn start_accept_loop(shared: SharedNetworkState, endpoint: Endpoint<Server>) {
-    let mut gate = AcceptGate::new();
+    let gate = AcceptGate::new();
 
     loop {
         let Some(slot) = gate.handshake_slot().await else {

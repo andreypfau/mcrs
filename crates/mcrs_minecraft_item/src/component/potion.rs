@@ -14,9 +14,6 @@ use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::{Decode, Encode, Result};
 use std::io::Write;
 
-/// The full map, or on read a bare potion id. Custom effects never carry a
-/// hidden effect: vanilla hands out copies that leave it behind, so no encoder
-/// ever sees one.
 #[registry_value]
 #[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]

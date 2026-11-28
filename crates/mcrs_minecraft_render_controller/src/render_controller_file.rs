@@ -2,19 +2,14 @@ use std::collections::HashMap;
 
 use mcrs_minecraft_pack_file::{Json, JsonObject, PackFileError};
 
-/// The fields of one render controller that the client reads.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RenderControllerSource {
     pub geometry: Option<Json>,
-    /// The elements of `textures`; `["Texture.default"]` when the field is absent.
     pub textures: Vec<Json>,
-    /// The elements of `part_visibility` in order, each a bone pattern and its value.
     pub part_visibility: Vec<(String, Json)>,
-    /// The object `arrays`, which this crate does not compile yet.
     pub has_arrays: bool,
 }
 
-/// The render controllers of the render controller files of a pack, by identifier.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RenderControllerLibrary {
     controllers: HashMap<String, RenderControllerSource>,
@@ -26,8 +21,6 @@ impl RenderControllerLibrary {
         Self::default()
     }
 
-    /// Adds the render controllers of one file. A later file replaces a controller with the
-    /// same identifier.
     pub fn add_file(&mut self, text: &str) -> Result<(), PackFileError> {
         let root = Json::parse_lenient(text).map_err(PackFileError::Syntax)?;
         let controllers = root

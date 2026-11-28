@@ -36,16 +36,12 @@ async fn is_local_pack(reader: &dyn ErasedAssetReader, pack: &Path) -> bool {
             .unwrap_or(false)
 }
 
-/// The directories a data pack root spans: `assets` holds the reports, the definitions and the
-/// local packs, and `vanilla` the game jar's `data/minecraft` tree, served as the
-/// [`VANILLA_ROOT`] directory of `assets`. Both resolve as the asset root does.
 #[derive(Resource, Clone, Debug, PartialEq, Eq)]
 pub struct PackRoots {
     pub assets: String,
     pub vanilla: PathBuf,
 }
 
-/// `assets` with its [`VANILLA_ROOT`] directory answered by `vanilla`.
 pub struct VanillaRoot {
     assets: Box<dyn ErasedAssetReader>,
     vanilla: Box<dyn ErasedAssetReader>,
@@ -99,7 +95,6 @@ impl AssetReader for VanillaRoot {
     }
 }
 
-/// Every pack's own files under `roots`, unlayered.
 pub fn pack_files_reader(
     roots: &PackRoots,
 ) -> impl FnMut() -> Box<dyn ErasedAssetReader> + Send + Sync + use<> {
@@ -113,7 +108,6 @@ fn directory_reader(path: &Path) -> Box<dyn ErasedAssetReader> {
     Box::new(bevy_asset::io::file::FileAssetReader::new(path))
 }
 
-// The browser reads over HTTP, whose paths are text.
 #[cfg(target_arch = "wasm32")]
 fn directory_reader(path: &Path) -> Box<dyn ErasedAssetReader> {
     AssetSource::get_default_reader(path.to_string_lossy().into_owned())()
@@ -125,7 +119,6 @@ pub struct PackLayers {
 }
 
 impl PackLayers {
-    /// Layers every local pack `inner` lists.
     pub fn new(inner: Box<dyn ErasedAssetReader>) -> Self {
         PackLayers {
             inner,
@@ -133,7 +126,6 @@ impl PackLayers {
         }
     }
 
-    /// Layers the local packs `packs` names, in name order as the registry loader stacks them.
     pub fn with_packs(inner: Box<dyn ErasedAssetReader>, mut packs: Vec<String>) -> Self {
         packs.sort();
         PackLayers {
@@ -167,18 +159,12 @@ impl PackLayers {
 
 pub type BuiltinAsset = fn(&str) -> Option<Vec<u8>>;
 
-/// What [`register_pack_sources`] layers over the vanilla tree: the local packs by directory
-/// name, over the assets built in code. Kept as a resource for an app built beside this one.
 #[derive(Resource, Clone, Debug)]
 pub struct PackLayering {
     pub local_packs: Vec<String>,
     pub builtin: BuiltinAsset,
 }
 
-/// The packs of `layering` over its built-in assets, over `inner`'s own files: a pack overrides
-/// a built-in by shipping the same path, and a built-in replaces the file of the vanilla tree.
-/// Only structure templates are answered this way; registry entries are built by the registry
-/// loader and never reach this reader.
 pub fn layered_reader(
     inner: Box<dyn ErasedAssetReader>,
     layering: &PackLayering,
@@ -196,12 +182,8 @@ pub fn layered_file_source(roots: &PackRoots, layering: &PackLayering) -> AssetS
         .with_reader(move || layered_reader(files(), &layering))
 }
 
-// The default source merges the pack layers; the registry loader reads every pack's own files from
-// this one instead.
 pub const PACK_FILES: &str = "pack_files";
 
-/// Registers the sources over `roots` and keeps `roots` as a resource, so an app built beside
-/// this one reads the same trees.
 pub fn register_pack_sources(app: &mut App, roots: &PackRoots, layering: PackLayering) {
     app.register_asset_source(
         AssetSourceId::Default,
@@ -239,8 +221,6 @@ impl AssetReader for BuiltinLayer {
         AssetReader::read_meta(&self.layers, path).await
     }
 
-    // A directory listing shows files only. The template reader adds
-    // the built-in template paths itself; merging the listings here lifts that.
     async fn read_directory<'a>(
         &'a self,
         path: &'a Path,

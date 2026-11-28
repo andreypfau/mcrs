@@ -3,7 +3,7 @@ use mcrs_minecraft_command_engine::{CommandLimits, CommandPlugin};
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine::ability::PlayerOpLevel;
 use mcrs_minecraft_engine::bus::PacketPayload;
-use mcrs_minecraft_engine::coordinator::ops::{OpList, OpListHostPlugin};
+use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList, OpListEntry, OpListHostPlugin};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_protocol::Bounded;
@@ -141,7 +141,7 @@ fn failed(key: &'static str) -> Text {
 }
 
 #[test]
-fn op_and_deop_change_the_level_of_an_online_player_at_once_and_fail_without_a_change() {
+fn op_and_deop_change_online_level_at_once_and_fail_without_change() {
     let mut server = start_with_commands();
     let (admin, _) = server.join(ADMIN, "Admin");
     let target_id = Uuid::new_v4();
@@ -174,4 +174,59 @@ fn op_and_deop_change_the_level_of_an_online_player_at_once_and_fail_without_a_c
         run(&mut server, admin, target, "deop Target").source,
         [failed("commands.deop.failed")]
     );
+}
+
+fn start_with_ops_file(automatic: Uuid) -> (PlayServer, std::path::PathBuf) {
+    let mut server = start_with_commands();
+    let dir = std::env::temp_dir().join(format!("mcrs-loopback-ops-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(OPS_FILE);
+    let admin = OpListEntry {
+        level: 3,
+        ..OpListEntry::owner(ADMIN, "Admin".to_owned())
+    };
+    OpList::new([admin]).save(&path).unwrap();
+    let mut ops = OpList::read(&path).unwrap();
+    assert!(ops.grant_loopback(OpListEntry::owner(automatic, "Target".to_owned())));
+    server.app.insert_resource(ops);
+    (server, path)
+}
+
+fn names_in(path: &std::path::Path) -> Vec<String> {
+    OpList::read_entries(path)
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.name)
+        .collect()
+}
+
+#[test]
+fn loop_file_001_a_write_of_the_ops_file_leaves_the_automatic_operator_out() {
+    let target_id = Uuid::new_v4();
+    let (mut server, path) = start_with_ops_file(target_id);
+    let (admin, _) = server.join(ADMIN, "Admin");
+    let (other, _) = server.join(Uuid::new_v4(), "Other");
+    server.join(target_id, "Target");
+
+    let op = run(&mut server, admin, other, "op Other");
+    assert_eq!(op.source, [named("commands.op.success", "Other")]);
+    assert_eq!(names_in(&path), ["Admin", "Other"]);
+    let ops = server.app.world().resource::<OpList>();
+    assert_eq!(ops.get(&target_id).map(|entry| entry.level), Some(4));
+    std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn loop_file_002_op_of_an_automatic_operator_fails_and_writes_nothing() {
+    let target_id = Uuid::new_v4();
+    let (mut server, path) = start_with_ops_file(target_id);
+    let (admin, _) = server.join(ADMIN, "Admin");
+    let (target, _) = server.join(target_id, "Target");
+
+    let op = run(&mut server, admin, target, "op Target");
+    assert_eq!(op.source, [failed("commands.op.failed")]);
+    assert_eq!(names_in(&path), ["Admin"]);
+    let ops = server.app.world().resource::<OpList>();
+    assert_eq!(ops.get(&target_id).map(|entry| entry.level), Some(4));
+    std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
 }

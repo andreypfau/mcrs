@@ -23,12 +23,6 @@ fn load_beta_density_functions() -> BTreeMap<ResourceLocationBuf, DensityFunctio
         .collect()
 }
 
-/// Under the beta noise settings (min_y=0, height=128), `generate_column` must
-/// return all-air for every section that falls entirely outside [0, 128).
-/// The beta noise_router references the `minecraft:beta/*` density functions;
-/// their `mcrs:beta/*` legacy noises are id-keyed and built internally, so no
-/// noise assets are needed.  Sections 0-7 cover Y 0..128; section 8+ (Y>=128)
-/// and any negative sections must be all air — no stone above Y 128.
 #[test]
 fn beta_sections_outside_noise_range_are_air() {
     let settings = load_noise_settings("beta");
@@ -54,7 +48,6 @@ fn beta_sections_outside_noise_range_are_air() {
     assert_eq!(router.noise.min_y, 0);
     assert_eq!(router.noise.height, 128);
 
-    // Request the full overworld section range a 1.19+ client sends (-4..=19)
     let y_sections: Vec<i32> = (-4..=19).collect();
     let cancel = CancellationToken::new();
 

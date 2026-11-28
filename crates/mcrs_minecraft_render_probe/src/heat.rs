@@ -8,10 +8,6 @@ use wgpu::ComputePassTimestampWrites;
 
 const HEAT_THREADS: u32 = 256;
 
-/// A measurement knob: arithmetic burnt ahead of the frame's own passes so a GPU that would
-/// otherwise idle most of a composited frame stays at speed while the passes are timed. It
-/// writes a zero into the draw args' first vertex, which is zero already, so that the driver
-/// orders it after the last world pass and before the cull rather than overlapping either.
 #[derive(Resource)]
 pub(super) struct Heat {
     pipeline: CachedComputePipelineId,
@@ -30,7 +26,7 @@ pub(super) fn init_heat(
     asset_server: Res<AssetServer>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let Some(terrain) = terrain else {
+    let Some(args) = terrain.as_deref().and_then(Terrain::draw_args) else {
         return;
     };
     let workgroups = workgroups
@@ -43,7 +39,7 @@ pub(super) fn init_heat(
     let bind = device.create_bind_group(
         "gpu heat",
         &pipeline_cache.get_bind_group_layout(&layout),
-        &BindGroupEntries::single(terrain.draw_args().as_entire_buffer_binding()),
+        &BindGroupEntries::single(args.as_entire_buffer_binding()),
     );
     let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
         label: Some("gpu heat".into()),

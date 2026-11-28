@@ -1,6 +1,3 @@
-//! The messages between the cells of one world. A cell writes them during tick `T`, and the
-//! coordinator hands them to the other cells in the input of tick `T + 1`.
-
 use std::mem;
 
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Plugin};
@@ -9,10 +6,10 @@ use bevy_ecs::message::{MessageReader, MessageWriter, Messages};
 use bevy_ecs::prelude::{Query, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
-use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::{
@@ -35,32 +32,17 @@ use crate::hot_ticket::{RemoteTickets, TicketMail, TicketUpdate};
 use crate::player_view::PlayerView;
 use crate::world_kinds::WorldKinds;
 
-/// What a cell hands the other cells of its world after one tick, or what the other cells
-/// handed it for its next tick, each kind in the order of the cells.
 #[derive(Debug, Default)]
 pub struct CellMail {
-    /// The hot tickets of the players of a cell that changed.
     pub(crate) tickets: Vec<TicketUpdate>,
-    /// The changes of the blocks of the columns of a cell, for the halo of the cells that read
-    /// them.
     pub(crate) halo: Vec<BlockChange>,
-    /// The writes of a cell into the columns that another cell owns.
     pub(crate) writes: Vec<CellBlockWrite>,
-    /// The players of a cell that walked into a column of another cell.
     pub(crate) crossings: Vec<Crossing>,
-    /// The writes, ticks, events and updates of the block kernels, each for the cell that owns
-    /// its section.
     pub(crate) messages: Vec<Message<WorldKinds>>,
-    /// How far each chain that sent updates got, for every other cell.
     pub(crate) ledgers: Vec<ChainLedger>,
-    /// The views of the players of a cell that changed.
     pub(crate) views: Vec<PlayerView>,
-    /// The columns of a cell that another cell can read and that became hot, went cold or were
-    /// written.
     pub(crate) holds: Vec<ColumnHold>,
-    /// The columns that a cell asks of their owner.
     pub(crate) asks: Vec<ColumnAsk>,
-    /// The answers of the owner of a column that a cell asked for.
     pub(crate) answers: Vec<ColumnAnswer>,
 }
 
@@ -79,7 +61,6 @@ impl CellMail {
             && self.answers.is_empty()
     }
 
-    /// Moves every message of `other` after the messages of the same kind.
     pub(crate) fn append(&mut self, other: &mut Self) {
         self.tickets.append(&mut other.tickets);
         self.halo.append(&mut other.halo);
@@ -94,17 +75,12 @@ impl CellMail {
     }
 }
 
-/// What the other cells sent for this tick, until the sync point applies it.
 #[derive(Resource, Debug, Default)]
 pub(crate) struct CellInbox(pub(crate) CellMail);
 
-/// What this tick hands the other cells, as the systems of the tick write it.
 #[derive(Resource, Debug, Default)]
 pub(crate) struct CellOutbox(pub(crate) CellMail);
 
-/// The part of a cell that talks to the other cells of its world: it owns the columns of
-/// `owned`, takes in the messages of the other cells first at the sync point, and hands its own
-/// out at the end of the tick.
 pub struct CellMailPlugin {
     pub owned: OwnedColumns,
 }
@@ -123,29 +99,41 @@ impl Plugin for CellMailPlugin {
             receive_cell_mail
                 .run_if(inbox_holds_messages)
                 .in_set(DimInboxDrain)
-                .before(drain_dim_inbox)
-                .before(add_entity_to_chunk),
+                .before(drain_dim_inbox),
         );
         app.add_systems(
             FixedUpdate,
             apply_halo_changes
+                .run_if(halo_changes_pending)
                 .in_set(TickSet::DomainInput)
                 .after(StoredColumnLandSet)
                 .after(ColdStageLandSet),
         );
         app.add_systems(
             FixedPostUpdate,
-            collect_halo_changes.in_set(VoxelUpdateSet::NetworkSync),
+            collect_halo_changes
+                .in_set(VoxelUpdateSet::NetworkSync)
+                .run_if(on_message::<BlockPlaced>),
         );
     }
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn inbox_holds_messages(inbox: Res<CellInbox>) -> bool {
     !inbox.0.is_empty()
 }
 
-/// Applies the messages of the other cells: each kind in the order the coordinator gave, and the
-/// halo, the writes and then the players that arrive last.
+fn halo_changes_pending(halo: Res<HaloBlockChanges>) -> bool {
+    !halo.0.is_empty()
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "spawns the players that cross from another cell with their persisted components, which needs the whole world"
+    )
+)]
 fn receive_cell_mail(world: &mut World) {
     let Some(mut inbox) = world.get_resource_mut::<CellInbox>() else {
         return;
@@ -184,8 +172,6 @@ fn receive_cell_mail(world: &mut World) {
         for ask in asks {
             store.receive_ask(ask);
         }
-        // After the reports of the same tick, so a column that its owner let go of is asked of
-        // the data layer when its owner wrote it.
         for answer in answers {
             store.receive_answer(answer);
         }
@@ -217,24 +203,18 @@ fn receive_cell_mail(world: &mut World) {
     }
 }
 
-/// Writes the changes that the owners made in tick `T` into the halo before anything of tick
-/// `T + 1` reads it, so every cell starts the tick from the blocks that one cell would hold.
 fn apply_halo_changes(
     mut blocks: WorldViewMut,
     mut placed: MessageWriter<BlockPlaced>,
     dimensions: Query<Entity, With<Dimension>>,
     mut halo: ResMut<HaloBlockChanges>,
 ) {
-    if halo.0.is_empty() {
-        return;
-    }
     let Ok(dimension) = dimensions.single() else {
         return;
     };
     voxel_update::apply_halo_changes(&mut blocks, &mut placed, dimension, &mut halo.0);
 }
 
-/// Keeps each change of a column of this cell that another cell reads, for its halo.
 fn collect_halo_changes(
     mut placed: MessageReader<BlockPlaced>,
     owned: Res<OwnedColumns>,
@@ -251,8 +231,6 @@ fn collect_halo_changes(
     }
 }
 
-/// Moves what this tick hands the other cells into `mail`, after the players that leave the
-/// world and the cell.
 pub(crate) fn take_cell_mail(world: &mut World, mail: &mut CellMail) {
     if let Some(mut outbox) = world.get_resource_mut::<CellOutbox>() {
         mail.append(&mut outbox.0);

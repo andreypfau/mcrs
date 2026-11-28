@@ -3,7 +3,6 @@ use std::collections::VecDeque;
 const MAX_HISTORY: usize = 100;
 const MAX_COMMANDS: usize = 50;
 
-/// The sent inputs Up and Down recall, and the command history the client keeps on disk.
 #[derive(Clone, Debug, Default)]
 pub struct History {
     entries: VecDeque<String>,
@@ -22,7 +21,6 @@ fn push_bounded(list: &mut VecDeque<String>, text: &str, max: usize) -> bool {
 }
 
 impl History {
-    /// A history that holds the command history of `file`, one input on each line.
     pub fn from_command_file(file: &str) -> Self {
         let mut history = Self::default();
         for line in file.lines().filter(|line| !line.is_empty()) {
@@ -40,24 +38,19 @@ impl History {
         self.entries.is_empty()
     }
 
-    /// The sent input at `index`, oldest first.
     pub fn get(&self, index: usize) -> Option<&str> {
         self.entries.get(index).map(String::as_str)
     }
 
-    /// Adds a normalized sent text. Returns whether the command history changed, so the
-    /// caller writes it again.
     pub fn add(&mut self, text: &str) -> bool {
         push_bounded(&mut self.entries, text, MAX_HISTORY);
         text.starts_with('/') && push_bounded(&mut self.commands, text, MAX_COMMANDS)
     }
 
-    /// After a disconnect the history holds the command history again.
     pub fn reset(&mut self) {
         self.entries.clone_from(&self.commands);
     }
 
-    /// The command history as the file holds it.
     pub fn command_file(&self) -> String {
         let mut file = String::new();
         for command in &self.commands {
@@ -68,7 +61,6 @@ impl History {
     }
 }
 
-/// The position of Up and Down in the history while the chat screen is open.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Recall {
     position: Option<usize>,
@@ -76,8 +68,6 @@ pub(crate) struct Recall {
 }
 
 impl Recall {
-    /// Moves by `delta` and returns the input to show, or `None` when the position does not
-    /// change.
     pub fn step<'h>(
         &'h mut self,
         delta: isize,

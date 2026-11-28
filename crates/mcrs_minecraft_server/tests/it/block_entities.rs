@@ -1,8 +1,6 @@
-//! A block entity is an entity under its section, and the typed state it
-//! holds is the one type the save, the anvil reader and the chunk packet share.
-
 use std::borrow::Cow;
 
+use crate::support::saved_block_entities;
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::Entity;
 use bevy_ecs::world::World;
@@ -27,15 +25,12 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_protocol_game::chunk::{ChunkData, ChunkDataBlockEntity};
-use mcrs_minecraft_worldgen_generator::saved::saved_block_entities;
 use mcrs_voxel::SectionPos;
 
 fn section_pos() -> SectionPos {
     SectionPos::new(2, 4, -1)
 }
 
-/// What the beehive tree decorator writes: two or three occupants, each with the hive's
-/// minimum stay.
 fn generated_nest() -> GeneratedBlockEntity {
     GeneratedBlockEntity::Beehive {
         x: 35,
@@ -45,8 +40,6 @@ fn generated_nest() -> GeneratedBlockEntity {
     }
 }
 
-/// Every kind a generator leaves, each in `section_pos`, with the wire type id the
-/// built-in registry gives it.
 fn every_kind() -> Vec<(GeneratedBlockEntity, u16)> {
     vec![
         (generated_nest(), 33),
@@ -79,9 +72,6 @@ fn every_kind() -> Vec<(GeneratedBlockEntity, u16)> {
     ]
 }
 
-/// A region file the save would hold, carrying these block entity compounds
-/// and nothing else, read back through the reader a loading dimension uses.
-/// The column carries no sections, so no palette entry is ever asked for.
 struct NoPalette;
 
 impl<V> PaletteLookup<V> for NoPalette {
@@ -90,7 +80,9 @@ impl<V> PaletteLookup<V> for NoPalette {
     }
 }
 
-fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk {
+fn try_saved_column(
+    block_entities: Vec<NbtCompound>,
+) -> Result<mcrs_minecraft_anvil::Chunk, mcrs_minecraft_anvil::ErrorKind> {
     let mut root = NbtCompound::new();
     root.put_int("DataVersion", VERSION.world_version);
     root.put_int("xPos", 2);
@@ -105,7 +97,20 @@ fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk
             .collect::<Vec<_>>(),
     );
     let bytes = Nbt::new(String::new(), root).write().unwrap();
-    parse_chunk(&bytes, &NoPalette, &NoPalette).expect("the saved column parses")
+    parse_chunk(&bytes, &NoPalette, &NoPalette)
+}
+
+fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk {
+    try_saved_column(block_entities).expect("the saved column parses")
+}
+
+fn positioned(id: &str) -> NbtCompound {
+    let mut compound = NbtCompound::new();
+    compound.put_string("id", id.to_string());
+    compound.put_int("x", 35);
+    compound.put_int("y", 71);
+    compound.put_int("z", -14);
+    compound
 }
 
 fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlockEntity> {
@@ -117,20 +122,19 @@ fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlo
         .expect("every entry names a kind this build reads")
 }
 
-/// A jukebox is a kind this build does not read and is dropped; a beehive it
-/// does read but cannot parse is an error, so a generated entity never goes
-/// missing without a word.
 #[test]
 fn an_unknown_kind_is_dropped_and_a_broken_known_kind_is_an_error() {
-    let mut jukebox = NbtCompound::new();
-    jukebox.put_string("id", "minecraft:jukebox".to_string());
+    let jukebox = positioned("minecraft:jukebox");
     let read = saved_block_entities(&saved_column(vec![jukebox])).expect("a jukebox is skipped");
     assert!(read.is_empty());
 
-    let mut broken = NbtCompound::new();
-    broken.put_string("id", "minecraft:beehive".to_string());
-    broken.put_string("x", "not a number".to_string());
+    let mut broken = positioned("minecraft:beehive");
+    broken.put_string("bees", "not a list".to_string());
     assert!(saved_block_entities(&saved_column(vec![broken])).is_err());
+
+    let mut no_coordinates = NbtCompound::new();
+    no_coordinates.put_string("id", "minecraft:beehive".to_string());
+    assert!(try_saved_column(vec![no_coordinates]).is_err());
 
     for entry in every_kind().iter().map(|(entry, _)| entry) {
         let compound = mcrs_minecraft_nbt::to_nbt_compound(entry).expect("serialises");
@@ -142,8 +146,6 @@ fn an_unknown_kind_is_dropped_and_a_broken_known_kind_is_an_error() {
     }
 }
 
-/// What the section's forward index says one held entity is, read back out of
-/// its components rather than out of anything the spawn kept.
 fn wire_form(world: &World, entity: Entity) -> GeneratedBlockEntity {
     world.get::<BlockEntity>(entity).expect("a kind").0.clone()
 }
@@ -189,7 +191,7 @@ fn every_generated_kind_survives_a_save_load_round_trip_and_reaches_a_client() {
 
     let (mut app, dim, section) = app_with_section(section_pos());
     let mut commands = app.world_mut().commands();
-    spawn_block_entities(&mut commands, InDimension(dim), loaded);
+    spawn_block_entities(commands.reborrow(), InDimension(dim), loaded);
     app.world_mut().flush();
     app.world_mut().run_schedule(FixedUpdate);
 
@@ -258,7 +260,7 @@ fn despawning_a_section_leaves_no_orphan_block_entity() {
         every_kind().into_iter().map(|(entry, _)| entry).collect();
     let count = entries.len();
     let mut commands = app.world_mut().commands();
-    spawn_block_entities(&mut commands, InDimension(dim), entries);
+    spawn_block_entities(commands.reborrow(), InDimension(dim), entries);
     app.world_mut().flush();
     app.world_mut().run_schedule(FixedUpdate);
 
@@ -293,9 +295,6 @@ fn despawning_a_section_leaves_no_orphan_block_entity() {
     }
 }
 
-/// The game's occupant reader requires `entity_data`, and a `bees`
-/// element without it fails the list codec outright, so a vanilla reader loads
-/// the hive with no bees at all.
 #[test]
 fn a_saved_occupant_names_the_entity_it_holds() {
     let compound = mcrs_minecraft_nbt::to_nbt_compound(&generated_nest()).expect("the hive writes");

@@ -55,7 +55,6 @@ pub fn noises() -> BTreeMap<ResourceLocationBuf, NoiseParam> {
     noises
 }
 
-/// An entry described in code that does not build.
 #[derive(Debug, thiserror::Error)]
 pub enum BuiltinError {
     #[error("the built-in biome `{biome}`: {refused}")]
@@ -106,8 +105,6 @@ pub fn templates() -> Result<BTreeMap<ResourceLocationBuf, Template>, BuiltinErr
         .collect()
 }
 
-/// The path of every built-in structure template under one namespace's
-/// `<namespace>/structure` directory.
 pub fn template_paths(directory: &str) -> Vec<String> {
     let Some(namespace) = directory.strip_suffix("/structure") else {
         return Vec::new();
@@ -118,9 +115,6 @@ pub fn template_paths(directory: &str) -> Vec<String> {
         .collect()
 }
 
-/// One built-in structure template, addressed the way the asset server
-/// addresses the file: `<namespace>/structure/<path>.nbt`. Registry entries are
-/// built by the registry loader and never answered here.
 pub fn asset(path: &str) -> Option<Vec<u8>> {
     let (namespace, name) = path.strip_suffix(".nbt")?.split_once("/structure/")?;
     let template = structure::build(&ResourceLocationBuf::new(namespace, name).ok()?)?;

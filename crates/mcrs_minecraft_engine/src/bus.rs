@@ -1,22 +1,26 @@
-use crate::client_info::ClientInfo;
+use crate::persisted_registry::PersistedSnapshot;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Message;
-use bevy_math::{DVec3, Vec2};
-use bytes::Bytes;
+use bevy_ecs::message::{Message, MessageWriter};
+use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::event::Trigger;
 use mcrs_minecraft_network::metrics::PacketKind;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::{Encode, Packet};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundBlockChangedAck, ClientboundBlockDestruction, ClientboundBlockEvent,
     ClientboundBlockUpdate, ClientboundChunkBatchFinished, ClientboundChunkBatchStart,
-    ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundEntityEvent,
+    ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundContainerClose,
+    ClientboundContainerSetContent, ClientboundContainerSetSlot, ClientboundEntityEvent,
     ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
-    ClientboundLevelEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities,
+    ClientboundHurtAnimation, ClientboundLevelEvent, ClientboundLightUpdate, ClientboundLogin,
+    ClientboundOpenScreen, ClientboundPlayerAbilities, ClientboundPlayerCombatKill,
     ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRespawn,
-    ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter, ClientboundSetTime,
-    ClientboundSystemChatPacket, ClientboundTabList,
+    ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter, ClientboundSetCursorItem,
+    ClientboundSetHealth, ClientboundSetHeldSlot, ClientboundSetTime, ClientboundSystemChatPacket,
+    ClientboundTabList, ClientboundTickingState, ClientboundTickingStep,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_text::Text;
@@ -28,8 +32,6 @@ use std::sync::Arc;
 pub struct OutboundPlayerPacket {
     pub target: PacketTarget,
     pub data: PacketPayload,
-    // `dim_outputs::deliver` stamps these, not the dimension. PlayerSession(0) is no session's
-    // id, so `bridge_outbound` drops an unstamped packet for one player.
     pub session: PlayerSession,
     pub epoch: u32,
 }
@@ -39,17 +41,15 @@ pub struct InboundPlayerPacket {
     pub session: PlayerSession,
     pub id: i32,
     pub data: Bytes,
-    /// Raises the typed event of the frame's row, which a check of the frame found; `None` for a
-    /// row without a structure.
     pub trigger: Option<Trigger>,
+    pub acknowledged_tick: u64,
+    pub arrival: Instant,
 }
 
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerSpawn {
     pub session: PlayerSession,
-    pub snapshot: PlayerTransferSnapshot,
-    /// The keys of the host's `DimensionList`, which no dimension world holds, for
-    /// `ClientboundLogin.dimensions`.
+    pub snapshot: PersistedSnapshot,
     pub dimensions: Arc<[ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>]>,
 }
 
@@ -63,7 +63,6 @@ pub struct InboundPlayerDespawn {
     pub session: PlayerSession,
 }
 
-/// The dimension has saved the player an `InboundPlayerDespawn` named and let it go.
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerReleased {
     pub session: PlayerSession,
@@ -72,7 +71,6 @@ pub struct OutboundPlayerReleased {
 #[derive(Clone, Debug)]
 pub enum PacketTarget {
     SinglePlayer(PlayerSession),
-    /// Every session the host places in the dimension with this host label.
     AllInDim(Entity),
     AllPlayers,
     PlayerSet(SmallVec<[PlayerSession; 8]>),
@@ -82,7 +80,27 @@ pub fn to(session: PlayerSession, data: PacketPayload) -> OutboundPlayerPacket {
     to_target(PacketTarget::SinglePlayer(session), data)
 }
 
-/// A packet for `target`, not yet stamped with a session.
+pub fn send_own_entity_state(
+    writer: &mut MessageWriter<OutboundPlayerPacket>,
+    session: PlayerSession,
+    packet: &(impl Packet + Encode),
+    subject: &str,
+) {
+    let mut bytes = BytesMut::new().writer();
+    match packet.encode_with_id(&mut bytes) {
+        Ok(()) => {
+            let packet = bytes.into_inner().freeze();
+            writer.write(to(session, PacketPayload::OwnEntityState(packet)));
+        }
+        Err(error) => {
+            tracing::warn!(
+                ?session,
+                "the {subject} of a player did not encode: {error}"
+            );
+        }
+    }
+}
+
 pub fn to_target(target: PacketTarget, data: PacketPayload) -> OutboundPlayerPacket {
     OutboundPlayerPacket {
         target,
@@ -96,60 +114,45 @@ pub fn to_target(target: PacketTarget, data: PacketPayload) -> OutboundPlayerPac
 pub enum PacketPayload {
     LightUpdate(ClientboundLightUpdate<'static>),
     BlockUpdate(ClientboundBlockUpdate),
-    /// The changes of more than one block of one section in one broadcast.
     SectionBlocksUpdate(ClientboundSectionBlocksUpdate<'static>),
-    /// A block event that a block took. It is not a change of the column: a client that takes
-    /// the column later does not get it.
     BlockEvent(ClientboundBlockEvent),
     LevelEvent(ClientboundLevelEvent),
     BlockChangedAck(ClientboundBlockChangedAck),
     BlockDestruction(ClientboundBlockDestruction),
-    /// Closes the connection of the player with this reason. The host takes it out of the
-    /// packets before they go to the bridge.
     Disconnect(Text),
-    /// A `level_chunk_with_light` packet with its id, encoded once for every player that
-    /// receives the column in the same drain.
-    ChunkLoad {
-        column: ColumnPos,
-        packet: Bytes,
-    },
+    ChunkLoad { column: ColumnPos, packet: Bytes },
     ChunkUnload(ClientboundForgetLevelChunk),
-    /// Brackets the columns of one send batch, which the client times to answer with the rate
-    /// it can take them at.
     ChunkBatchStart(ClientboundChunkBatchStart),
     ChunkBatchFinished(ClientboundChunkBatchFinished),
-    /// The entity bytes of one viewer from the muxer: records of packets with their ids, which
-    /// other viewers share.
     Replication(Vec<Bytes>),
     EntityPosSync(ClientboundEntityPositionSync),
     PlayerLogin(ClientboundLogin),
-    /// Moves the client to another dimension; it keeps its player.
     Respawn(ClientboundRespawn),
-    /// The `ClientboundEntityEvent` that tells a client its own operator level.
     OpLevelEntityEvent(ClientboundEntityEvent),
-    /// Sets the client's chunk-load origin. A vanilla 26.1.2 client will not
-    /// render any chunks until this packet is received.
     SetChunkCacheCenter(ClientboundSetChunkCacheCenter),
-    /// Sets the client's view distance radius.
     SetChunkCacheRadius(ClientboundChunkCacheRadius),
-    /// Carries owned per-entry data for ClientboundPlayerInfoUpdate so
-    /// dispatch_encode needs no World access.
-    PlayerInfoUpdate {
-        entries: Vec<PlayerInfoEntry>,
-    },
+    PlayerInfoUpdate { entries: Vec<PlayerInfoEntry> },
     TabList(ClientboundTabList<'static>),
     PlayerPosition(ClientboundPlayerPosition),
     PlayerLookAt(ClientboundPlayerLookAt),
     PlayerAbilities(ClientboundPlayerAbilities),
-    /// A `set_entity_motion`, `set_entity_data` or `update_attributes` packet with its id, about
-    /// the entity of the one player it goes to. The client of that player predicts with it.
     OwnEntityState(Bytes),
     SystemChat(ClientboundSystemChatPacket<'static>),
     GameEvent(ClientboundGameEvent),
-    /// The `commands` packet with its id, encoded once for every player of one command level.
     Commands(Bytes),
     CommandSuggestions(ClientboundCommandSuggestions<'static>),
     SetTime(ClientboundSetTime),
+    TickingState(ClientboundTickingState),
+    TickingStep(ClientboundTickingStep),
+    SetHealth(ClientboundSetHealth),
+    HurtAnimation(ClientboundHurtAnimation),
+    PlayerCombatKill(ClientboundPlayerCombatKill<'static>),
+    SetHeldSlot(ClientboundSetHeldSlot),
+    ContainerSetContent(ClientboundContainerSetContent),
+    ContainerSetSlot(ClientboundContainerSetSlot),
+    SetCursorItem(ClientboundSetCursorItem),
+    OpenScreen(ClientboundOpenScreen<'static>),
+    ContainerClose(ClientboundContainerClose),
 }
 
 impl PacketPayload {
@@ -168,24 +171,10 @@ impl PacketPayload {
     }
 }
 
-/// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.
-/// Carries the fields needed for the AddPlayer + UpdateGameMode + UpdateListed
-/// action combination used during join.
 #[derive(Clone, Debug)]
 pub struct PlayerInfoEntry {
     pub player_uuid: Uuid,
     pub username: String,
     pub game_mode: GameMode,
     pub listed: bool,
-}
-
-/// The state of a joining player that the host hands to the dimension that spawns it.
-#[derive(Clone, Debug)]
-pub struct PlayerTransferSnapshot {
-    pub uuid: Uuid,
-    pub username: String,
-    pub position: DVec3,
-    pub rotation: Vec2,
-    /// What the client said about itself before it joined; absent when it said nothing.
-    pub client_info: Option<ClientInfo>,
 }

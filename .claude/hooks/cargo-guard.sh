@@ -1,7 +1,7 @@
 #!/bin/sh
-# PreToolUse hook for Bash: `cargo test` ignores .config/nextest.toml and runs test binaries one
-# after another; most crates set `doctest = false`, so nextest covers every test this repository runs.
-exec python3 -c '
+py=python3
+python3 -c '' >/dev/null 2>&1 || py='py -3'
+exec $py -c '
 import json, re, shlex, sys
 cmd = json.load(sys.stdin).get("tool_input", {}).get("command", "")
 for part in re.split(r"&&|\|\||[;|&\n()]", cmd):

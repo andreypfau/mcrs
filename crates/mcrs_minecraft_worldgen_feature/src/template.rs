@@ -111,8 +111,6 @@ pub struct FrozenEntity {
     pub kind: EntityKind,
 }
 
-/// Every entity id the shipped templates carry; any other id fails the
-/// freeze.
 #[dispatch(registry = mcrs_minecraft_entity::entity_type_keys::EntityType, key = "id", only)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum EntityKind {
@@ -184,8 +182,6 @@ impl TemplateManifest {
     }
 }
 
-/// One palette's data markers in block order at their world positions,
-/// clipped to the placing box.
 pub fn data_markers<'a>(
     markers: &'a [DataMarker],
     position: IVec3,
@@ -291,8 +287,6 @@ fn orientation(name: &str) -> Option<(Direction, Direction)> {
     })
 }
 
-/// `id[k=v,…]`; anything after the closing `]` is ignored, as the block-state
-/// parser never asserts end of input.
 impl std::str::FromStr for PaletteState {
     type Err = String;
 
@@ -358,7 +352,7 @@ fn id_or(
 impl Template {
     #[expect(
         clippy::too_many_lines,
-        reason = "checks the data version, palettes, blocks and entities in turn and then freezes each palette, so each error reads against the stage that raises it"
+        reason = "each error reads against the stage that raises it"
     )]
     pub fn freeze(
         &self,
@@ -470,7 +464,6 @@ impl Template {
             let mut other = Vec::new();
             let mut with_nbt = Vec::new();
             for &(pos, state, nbt) in &blocks {
-                // Every palette holds `expected` states and every block index is below it.
                 let Some(&(entry, resolved)) = states.get(state) else {
                     continue;
                 };
@@ -610,9 +603,6 @@ pub fn transform(pos: IVec3, mirror: Mirror, rotation: Rotation, pivot: IVec3) -
     }
 }
 
-/// The continuous form of [`transform`], for an entity inside its block: the
-/// mirror reflects across the block's far face and the rotation carries the
-/// `+1` the block corner needs.
 pub fn transform_continuous(pos: DVec3, mirror: Mirror, rotation: Rotation, pivot: IVec3) -> DVec3 {
     let DVec3 { x, y, z } = match mirror {
         Mirror::None => pos,
@@ -645,8 +635,6 @@ pub fn bounding_box(
     BoundingBox::from_corners(a.into(), b.into()).moved(position)
 }
 
-/// Where the template's `(0, 0, 0)` corner lands when a piece placed at
-/// `zero_pos` is transformed in place, so its box minimum stays put.
 pub fn zero_position_with_transform(
     zero_pos: IVec3,
     mirror: Mirror,
@@ -674,12 +662,7 @@ pub fn zero_position_with_transform(
     zero_pos + IVec3::new(dx, 0, dz)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Projection {
-    Rigid,
-    TerrainMatching,
-}
+pub use mcrs_minecraft_anvil::piece::Projection;
 
 #[cfg(test)]
 mod tests {
@@ -719,8 +702,6 @@ mod tests {
         NbtTag::String(text.to_owned())
     }
 
-    /// Ids are the palette id's length plus the property count, so every
-    /// distinct state in a test maps to a distinct voxel; `_planks` is full.
     fn resolve(state: &PaletteState) -> Option<ResolvedState> {
         if state.id.path().starts_with("unknown") {
             return None;
@@ -908,7 +889,7 @@ mod tests {
     #[test]
     #[expect(
         clippy::too_many_lines,
-        reason = "one case per error freeze names, each built from the same valid template, so the cases read as the error enum"
+        reason = "one case per error freeze names, each built from the same valid template"
     )]
     fn each_error_is_named() {
         let planks = state("minecraft:oak_planks", &[]);

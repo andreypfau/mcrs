@@ -4,8 +4,6 @@ use std::thread::JoinHandle;
 use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_text::RawText;
 
-/// Renders the answers to the console in English and writes them to the log, in their order, on
-/// its own thread, so that a tick with many answers does not wait for the log.
 pub(crate) struct AnswerLog {
     send: Option<flume::Sender<RawText<'static>>>,
     thread: Option<JoinHandle<()>>,

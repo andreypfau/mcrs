@@ -12,6 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_pose.workspace = true
 bevy = { version = "0.20.1", default-features = false, features = [
     "std",
     "bevy_asset",
@@ -22,22 +23,18 @@ bevy = { version = "0.20.1", default-features = false, features = [
 bytemuck = { version = "1", features = ["derive"] }
 glam = { workspace = true, features = ["std"] }
 half = "2"
-mcrs_minecraft_client_entity.workspace = true
-mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_animation.workspace = true
+mcrs_minecraft_entity_visual.workspace = true
 mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_model.workspace = true
 mcrs_minecraft_model_file.workspace = true
-mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_resource.workspace = true
-mcrs_minecraft_volume.workspace = true
-mcrs_voxel.workspace = true
 mcrs_minecraft_entity_model.workspace = true
 mcrs_minecraft_pack_file.workspace = true
 mcrs_minecraft_render_controller.workspace = true
@@ -49,13 +46,14 @@ wgpu = { version = "30", default-features = false, features = ["wgsl"] }
 
 [dev-dependencies]
 naga = { workspace = true, features = ["wgsl-in"] }
-criterion = { version = "0.7", features = ["html_reports"] }
+criterion = { workspace = true }
 mcrs_minecraft_fixtures.workspace = true
 futures-lite = "2"
 image = { version = "0.25", default-features = false, features = ["png"] }
 mcrs_minecraft_client_jar.workspace = true
 nv-flip = "0.1.2"
 wgpu = { version = "30", features = ["metal", "wgsl"] }
+wgsl-parse.workspace = true
 
 [[bench]]
 name = "layers"

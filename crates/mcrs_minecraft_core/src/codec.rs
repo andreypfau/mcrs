@@ -6,12 +6,6 @@ use mcrs_minecraft_nbt::{from_tag, nbt_int_array};
 use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
-/// `Codec.INT` / `Codec.LONG`: any number's `intValue()` / `longValue()`. An
-/// integer keeps its low bits; a fraction is dropped, and a value beyond the
-/// range keeps its low bits from JSON (`BigDecimal.intValue`) but saturates
-/// from NBT (`Double.intValue`). Vanilla wraps the exact decimal text, while
-/// serde hands over the parsed double, so a text no double holds exactly
-/// (`1e40`) wraps to a different value.
 macro_rules! java_integer_value {
     ($name:ident, $ty:ty) => {
         pub fn $name<'de, D: Deserializer<'de>>(d: D) -> Result<$ty, D::Error> {
@@ -56,15 +50,10 @@ macro_rules! java_integer_value {
 java_integer_value!(int_value, i32);
 java_integer_value!(long_value, i64);
 
-/// `Codec.FLOAT`: any number's `floatValue()`.
 pub fn float_value<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
     f32::deserialize(d)
 }
 
-/// A `Codec.intRange(MIN, MAX)` payload, with the value `optionalFieldOf`
-/// falls back to. Stated once here rather than as a validator per field,
-/// because the tree registries carry a dozen distinct bounds across sixty-odd
-/// fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Bounded<const MIN: i32, const MAX: i32, const DEFAULT: i32 = 0>(pub i32);
 
@@ -116,8 +105,6 @@ pub fn is_true(value: &bool) -> bool {
     *value
 }
 
-/// One element writes bare, any other count writes a list; a bare element
-/// reads as a one-element list.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompactList<T>(pub Vec<T>);
 
@@ -183,7 +170,6 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for CompactList<T> {
     }
 }
 
-/// [`CompactList`] for a field that holds a plain `Vec`.
 pub mod compact_list {
     use super::CompactList;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -226,7 +212,6 @@ impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Serialize for Bounded<M
 pub type NonNegativeInt = Bounded<0, { i32::MAX }>;
 pub type PositiveInt = Bounded<1, { i32::MAX }>;
 
-/// A positive float: the low bound is exclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "f32")]
 pub struct PositiveFloat(pub f32);
@@ -242,7 +227,6 @@ impl TryFrom<f32> for PositiveFloat {
     }
 }
 
-/// A finite float that is 0 or more. The value `-0.0` is refused.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "f32")]
 pub struct NonNegativeFloat(pub f32);
@@ -258,7 +242,6 @@ impl TryFrom<f32> for NonNegativeFloat {
     }
 }
 
-/// A map kept in the order read, refusing a repeated key.
 pub fn unique_entries<'de, D, K, V>(d: D) -> Result<Vec<(K, V)>, D::Error>
 where
     D: Deserializer<'de>,
@@ -305,18 +288,6 @@ where
     Ok(values)
 }
 
-pub fn sized_list<'de, const MIN: usize, const MAX: usize, D, T>(
-    deserializer: D,
-) -> Result<Vec<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    let values = Vec::<T>::deserialize(deserializer)?;
-    list_size::<MIN, MAX>(values.len()).map_err(D::Error::custom)?;
-    Ok(values)
-}
-
 pub fn list_size<const MIN: usize, const MAX: usize>(size: usize) -> Result<(), String> {
     if size < MIN {
         return Err(format!(
@@ -331,16 +302,10 @@ pub fn list_size<const MIN: usize, const MAX: usize>(size: usize) -> Result<(), 
     Ok(())
 }
 
-/// A codec bound the field list alone does not express. The shape is derived as
-/// usual and `validated!` hangs the check on the way in, so the fields are
-/// spelled once rather than once more in a shadow struct that has to be kept in
-/// step by hand.
 pub trait Validate: Sized {
     fn validate(&self) -> Result<(), String>;
 }
 
-/// Turns the inherent codec `#[serde(remote = "Self")]` generates back into the
-/// trait impls, checking [`Validate`] on the way in.
 #[macro_export]
 macro_rules! validated {
     ($($name:ty),* $(,)?) => {$(
@@ -398,8 +363,6 @@ mod tests {
     }
 }
 
-/// A number a visitor already holds, replayed through the int and float
-/// readers; the flag is the source's `is_human_readable`.
 pub enum Number {
     I64(i64, bool),
     U64(u64, bool),
@@ -430,14 +393,10 @@ impl<'de> Deserializer<'de> for Number {
     }
 }
 
-/// Any number, truncated to an int with the low byte kept.
 pub fn unsigned_byte<'de, D: Deserializer<'de>>(d: D) -> Result<i8, D::Error> {
     int_value(d).map(|v| v as i8)
 }
 
-/// A present-but-malformed value reads as absent, and so does a JSON `null`.
-/// The value is buffered first so a failed parse never leaves a streaming
-/// input half-consumed.
 pub fn lenient<'de, D: Deserializer<'de>, T: DeserializeOwned + Default>(
     d: D,
 ) -> Result<T, D::Error> {
@@ -445,9 +404,6 @@ pub fn lenient<'de, D: Deserializer<'de>, T: DeserializeOwned + Default>(
     Ok(tag.and_then(|tag| from_tag(tag).ok()).unwrap_or_default())
 }
 
-/// Only a number reads as a value;
-/// anything else present (a JSON boolean or null included) is consumed and
-/// reads as absent.
 pub fn lenient_float<'de, D: Deserializer<'de>>(d: D) -> Result<Option<f32>, D::Error> {
     struct LenientFloat;
 
@@ -504,7 +460,6 @@ pub fn lenient_float<'de, D: Deserializer<'de>>(d: D) -> Result<Option<f32>, D::
     d.deserialize_any(LenientFloat)
 }
 
-/// A compound, or on read an SNBT string that parses to one.
 pub fn compound_or_snbt<'de, D: Deserializer<'de>>(d: D) -> Result<NbtCompound, D::Error> {
     struct CompoundVisitor;
 
@@ -527,14 +482,11 @@ pub fn compound_or_snbt<'de, D: Deserializer<'de>>(d: D) -> Result<NbtCompound, 
     d.deserialize_any(CompoundVisitor)
 }
 
-/// Each channel is floored to eight bits and masked, so an out-of-range
-/// channel never bleeds into its neighbour.
 pub fn argb_from_floats(a: f32, r: f32, g: f32, b: f32) -> i32 {
     let channel = |v: f32| (v * 255.0).floor() as i32 & 0xFF;
     (channel(a) << 24) | (channel(r) << 16) | (channel(g) << 8) | channel(b)
 }
 
-/// An int, or on read `N` float channels in 0..=1.
 macro_rules! color_int {
     ($(#[$meta:meta])* $name:ident, $channels:literal, $from:expr) => {
         $(#[$meta])*
@@ -592,22 +544,14 @@ macro_rules! color_int {
     };
 }
 
-color_int!(
-    /// An int, or on read `[r, g, b]`.
-    RgbInt,
-    3,
-    |[r, g, b]: [f32; 3]| argb_from_floats(1.0, r, g, b)
-);
+color_int!(RgbInt, 3, |[r, g, b]: [f32; 3]| argb_from_floats(
+    1.0, r, g, b
+));
 
-color_int!(
-    /// An int, or on read `[r, g, b, a]`.
-    ArgbInt,
-    4,
-    |[r, g, b, a]: [f32; 4]| argb_from_floats(a, r, g, b)
-);
+color_int!(ArgbInt, 4, |[r, g, b, a]: [f32; 4]| argb_from_floats(
+    a, r, g, b
+));
 
-/// An RGB colour string: written as `#rrggbb`; read from that, from
-/// a packed int, or from `[r, g, b]`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub struct HexRgb(pub u32);
 
@@ -660,7 +604,6 @@ impl<'de> Deserialize<'de> for HexRgb {
     }
 }
 
-/// Bounded in UTF-16 code units.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize)]
 #[serde(transparent)]
 pub struct BoundedString<const MAX_CHARS: usize>(pub String);
@@ -668,15 +611,41 @@ pub struct BoundedString<const MAX_CHARS: usize>(pub String);
 impl<const MAX_CHARS: usize> BoundedString<MAX_CHARS> {
     pub fn new(text: impl Into<String>) -> Result<Self, String> {
         let text = text.into();
-        let chars = text.encode_utf16().count();
-        if chars > MAX_CHARS {
-            return Err(format!(
-                "String \"{text}\" is too long: {chars}, expected range [0-{MAX_CHARS}]"
-            ));
-        }
+        Self::check(&text).map_err(|error| error.to_string())?;
         Ok(BoundedString(text))
     }
+
+    pub fn check(text: &str) -> Result<(), StringTooLong<'_>> {
+        let length = text.encode_utf16().count();
+        if length > MAX_CHARS {
+            return Err(StringTooLong {
+                text,
+                length,
+                max: MAX_CHARS,
+            });
+        }
+        Ok(())
+    }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StringTooLong<'a> {
+    pub text: &'a str,
+    pub length: usize,
+    pub max: usize,
+}
+
+impl fmt::Display for StringTooLong<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { text, length, max } = self;
+        write!(
+            f,
+            "String \"{text}\" is too long: {length}, expected range [0-{max}]"
+        )
+    }
+}
+
+impl std::error::Error for StringTooLong<'_> {}
 
 impl<'de, const MAX_CHARS: usize> Deserialize<'de> for BoundedString<MAX_CHARS> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -684,8 +653,6 @@ impl<'de, const MAX_CHARS: usize> Deserialize<'de> for BoundedString<MAX_CHARS> 
     }
 }
 
-/// A fixed-length int array: a plain array in JSON, a `TAG_Int_Array` in NBT
-/// and in the hash.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct IntArray<const N: usize>(pub [i32; N]);
 
@@ -721,14 +688,11 @@ impl<'de, const N: usize> Deserialize<'de> for IntArray<N> {
     }
 }
 
-/// A boolean that is not optional: see [`optional_flag`].
 pub fn flag<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
     optional_flag(deserializer)?
         .ok_or_else(|| D::Error::custom("expected a boolean or the byte NBT stores one as"))
 }
 
-/// NBT stores a boolean as a byte, and serde's buffered `untagged` and
-/// `flatten` paths lose the deserializer's own coercion, so accept both.
 pub fn optional_flag<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<bool>, D::Error> {
     struct FlagVisitor;
 

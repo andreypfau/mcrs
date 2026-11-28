@@ -1,6 +1,3 @@
-//! The prototype of each item kind and the effective components of an item stack.
-// std: mcrs_minecraft_item_stack
-
 extern crate alloc;
 
 mod bake;

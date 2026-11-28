@@ -11,7 +11,6 @@ use mcrs_minecraft_text::Text;
 
 use crate::server_change::ServerChange;
 
-/// The clear time that `weather clear` without a duration draws from, in ticks.
 const CLEAR_TICKS: core::ops::RangeInclusive<u32> = 12_000..=180_000;
 
 #[derive(Clone, Copy)]

@@ -16,6 +16,14 @@ type Connection<'a> = (
     Option<&'a ChunkCacheRadius>,
 );
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "runs only on a debug screen refresh, at most ten times a second while the F3 overlay shows or when the stats log is due"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(9))]
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     connection: Option<Single<Connection, With<ClientConnection>>>,
@@ -42,8 +50,6 @@ pub fn display(
     displayer.add_line(hop_medians(&traces, &mut samples, &mut hops));
 }
 
-/// The median time a column that reached the screen spent getting into each stage from the
-/// one before it, over the columns still traced.
 fn hop_medians(
     traces: &JoinedTraces,
     samples: &mut Vec<ColumnSample>,

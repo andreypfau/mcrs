@@ -2,32 +2,18 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_voxel::ColumnPos;
 
-/// Each precipitation pick of a column hits with the probability `1 / PRECIPITATION_GATE`.
 pub const PRECIPITATION_GATE: u32 = 48;
 
-/// The width in columns of the square tile whose columns draw their precipitation picks
-/// together. A tile never crosses the boundary of a region, so its group does not depend on the
-/// partition.
 pub const PRECIPITATION_TILE: i32 = 4;
 
-/// The trials of one inversion draw. `(47 / 48)^4096` is about `1e-38`, far from the end of
-/// the f64 range.
 const BINOMIAL_CHUNK: u32 = 4096;
 
-/// A precipitation pick that hit the block column `(x, z)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PrecipitationHit {
     pub x: i32,
     pub z: i32,
 }
 
-/// Draws the precipitation picks of one group of `columns`, each with `speed` picks, from
-/// `random`, into `hits`.
-///
-/// The group has `columns.len() × speed` slots. The count of hits is binomial over the slots
-/// with the probability of one gate, and the hits are distinct slots, uniform among all sets of
-/// that size. This is the distribution of one independent gate for each slot, so a column never
-/// gets more than `speed` hits. Each hit takes a uniform position in its column.
 pub fn precipitation_hits(
     columns: &[ColumnPos],
     speed: u32,
@@ -42,7 +28,6 @@ pub fn precipitation_hits(
     };
     let count = binomial(slots, random);
     let mut chosen: Vec<u32> = Vec::with_capacity(count as usize);
-    // Floyd's sampling: each set of `count` distinct slots out of `slots` is equally likely.
     for top in slots.saturating_sub(count)..slots {
         let slot = random.next_u32_bound(top.saturating_add(1));
         chosen.push(if chosen.contains(&slot) { top } else { slot });
@@ -57,7 +42,6 @@ pub fn precipitation_hits(
         };
         let x = random.next_u32_bound(16) as i32;
         let z = random.next_u32_bound(16) as i32;
-        // A column of the world holds block coordinates that fit an i32.
         hits.push(PrecipitationHit {
             x: column.x.wrapping_mul(16).wrapping_add(x),
             z: column.z.wrapping_mul(16).wrapping_add(z),
@@ -65,7 +49,6 @@ pub fn precipitation_hits(
     }
 }
 
-/// The count of successes of `trials` gates of `1 / PRECIPITATION_GATE`.
 fn binomial(trials: u32, random: &mut LegacyRandom) -> u32 {
     let mut left = trials;
     let mut successes = 0u32;
@@ -77,7 +60,6 @@ fn binomial(trials: u32, random: &mut LegacyRandom) -> u32 {
     successes
 }
 
-/// Inverts the cumulative distribution at one uniform value.
 fn binomial_by_inversion(trials: u32, random: &mut LegacyRandom) -> u32 {
     let hit = 1.0 / f64::from(PRECIPITATION_GATE);
     let miss = 1.0 - hit;
@@ -99,7 +81,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_group_draw_has_the_rate_of_one_gate_per_slot_and_never_more_than_k_hits_per_column() {
+    fn group_draw_has_one_gate_rate_per_slot_and_at_most_k_hits() {
         const COLUMNS: i32 = 64;
         const SPEED: u32 = 3;
         const STEPS: u32 = 100_000;

@@ -4,7 +4,6 @@ use alloc::vec::Vec;
 use crate::diagnostic::Span;
 use crate::value::ResourceKind;
 
-/// The syntax tree of one expression.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Syntax {
     pub body: Body,
@@ -12,9 +11,7 @@ pub struct Syntax {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Body {
-    /// One operand with no top-level `;`; its value is the result.
     Simple(Expr),
-    /// A statement list; the result is the value of `return`, or `0.0`.
     Complex(Vec<Stmt>),
 }
 
@@ -56,7 +53,6 @@ pub struct Expr {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
     Number(f32),
-    /// `true` or `false`, which are the numbers `1.0` and `0.0`.
     Bool(bool),
     String(Box<str>),
     This,
@@ -68,9 +64,7 @@ pub enum ExprKind {
         otherwise: Option<Box<Expr>>,
     },
     Coalesce(Box<Expr>, Box<Expr>),
-    /// A block as a branch of `?` or as the right side of `??`.
     Block(Vec<Stmt>),
-    /// `(lvalue = operand)` as a branch of `?`.
     AssignGroup(Box<Expr>, Box<Expr>),
     Query {
         name: Box<str>,

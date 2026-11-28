@@ -20,7 +20,8 @@ use mcrs_minecraft_worldgen_surface::proto::{MaterialConditionHolder, MaterialRu
 const STATIC_REGISTRIES: [&[(
     mcrs_minecraft_resource::ResourceLocation<'static>,
     &[mcrs_minecraft_resource::ResourceLocation<'static>],
-)]; 5] = [
+)]; 6] = [
+    mcrs_minecraft_anvil::registry_keys::STATIC_REGISTRIES,
     mcrs_minecraft_worldgen_carver::registry_keys::STATIC_REGISTRIES,
     mcrs_minecraft_worldgen_density::registry_keys::STATIC_REGISTRIES,
     mcrs_minecraft_worldgen_feature::registry_keys::STATIC_REGISTRIES,
@@ -28,10 +29,6 @@ const STATIC_REGISTRIES: [&[(
     mcrs_minecraft_worldgen_surface::registry_keys::STATIC_REGISTRIES,
 ];
 
-/// Adds the registries of vanilla world generation to `additions`: the static registries of the
-/// worldgen crates, the data registries the generator reads, and the entries the game and the
-/// beta preset build by code. The biome declaration replaces the vanilla one, so a biome also
-/// checks the domain of the features it places.
 pub fn add_vanilla_worldgen(
     additions: &mut RegistryAdditions,
 ) -> Result<(), builtin::BuiltinError> {
@@ -126,7 +123,7 @@ mod tests {
     }
 
     #[test]
-    fn every_reported_static_registry_is_declared_with_its_entries_in_protocol_id_order() {
+    fn reported_static_registries_are_declared_in_protocol_id_order() {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../assets/mcrs/reports/registries.json"

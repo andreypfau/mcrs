@@ -1,11 +1,3 @@
-//! The single-threaded oracle against the parallel scheduler.
-//!
-//! The definition of the stage leaves the scheduler free in which worker runs a
-//! unit, when, in what order relative to units it shares no position with, and
-//! whether a unit ran once or was re-run after an eviction. Every one of those
-//! degrees of freedom is driven here, and every one must leave the decoded
-//! blocks identical to the oracle's.
-
 use super::corpus_ores::{one_biome_registry, ore_program, ore_tables};
 use super::structures::frozen_shared;
 use super::{
@@ -13,8 +5,8 @@ use super::{
     corpus_climate, corpus_features, one_step, test_registries,
 };
 use crate::modern_carvers::ModernCarverBlockIds;
-use crate::saved::SectionData;
 use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
+use crate::staging::SectionData;
 use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::live_sets;
 use crate::{BetaCaveBlockIds, ColumnBiomes, ColumnBlocks, SurfaceStates};
@@ -29,64 +21,36 @@ use mcrs_voxel::ColumnPos;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-/// One decoded column: its sections, each a flat block array in the packed
-/// order of the palettes themselves.
 pub type Column = Vec<Vec<VoxelId>>;
 
 pub type Region = BTreeMap<ColumnPos, Column>;
 
-/// Which program `Run` executes. Neither is the scheduler's business — it is
-/// the same three stages either way — but a consumer that writes nothing would
-/// leave the whole comparison two empty pipelines against each other, which is
-/// what this file compared before either landed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Consumer {
-    /// Beta's populate step, which is `Run` for a beta dimension.
     BetaOre,
-    /// The modifier machine over the corpus's own ore features.
     ModernOre,
-    /// The corpus's own forest trees, whose crowns and decorators reach
-    /// several blocks past the column that seeds them — the widest footprint
-    /// any consumer has, and so the one the merge is really tested by.
     Tree,
-    /// Every placed feature the corpus declares, over one biome: lakes, geodes,
-    /// icebergs, dripstone clusters and huge fungi all writing into the same
-    /// nine columns, which is a far wider and more varied set of deltas than
-    /// any single family produces.
     Corpus,
-    /// One structure over the region's centre in a dimension of one biome:
-    /// pieces that straddle columns, each column reading the whole start and
-    /// writing the pieces that cross it, block entities included.
     Structure {
         id: &'static str,
         biome: &'static str,
     },
 }
 
-/// The dimension the tree consumer runs in: the overworld router, forest
-/// everywhere, and the biome's own `trees_birch_and_oak_leaf_litter`.
 const TREE_BIOME: &str = "minecraft:forest";
 
 const TREE_FEATURE: &str = "minecraft:trees_birch_and_oak_leaf_litter";
 
 const TREE_SEED: u64 = 4242;
 
-/// The dimension the corpus consumer runs in.
 const CORPUS_BIOME: &str = "minecraft:plains";
 
 const CORPUS_SEED: u64 = 0xC0FFEE;
 
-/// The seed the structure consumers run at, in a dimension with no features,
-/// so every write is a structure's.
 const STRUCTURE_SEED: u64 = 0x51A6E;
 
-/// One dimension, described once: the context the oracle drives the three stage
-/// functions with, and the resources the dispatcher rebuilds that very context
-/// from. The two must agree, or the comparison below is between two different
-/// worlds rather than two orderings of one.
 pub struct Dimension {
     pub ctx: FillContext,
-    /// The column the compared region is centred on.
     pub centre: ColumnPos,
 }
 
@@ -97,8 +61,6 @@ impl Dimension {
     }
 }
 
-/// The overworld with one fixed biome and the shipped structure sets, centred
-/// on the nearest start of `structure` the index finds from the origin.
 pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension {
     let frozen = frozen_shared();
     let seed = STRUCTURE_SEED;
@@ -127,7 +89,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         seed as i64,
         Arc::clone(ctx.router.as_ref().expect("a noise context")),
         BiomeLookup::Fixed(biome.number()),
-        ctx.predicates.clone(),
+        Some(ctx.predicates.clone()),
         Arc::clone(&ctx.features().expect("the dimension has a program").world),
         Arc::clone(corpus_climate()),
         -64,
@@ -191,10 +153,6 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
         },
         _ => ColumnProgram {
             generator: ColumnGenerator::Modern {
-                // Derived from the registry alone, exactly as the dispatcher derives
-                // it. Neither consumer reaches the material surface — it needs a
-                // biome grid, which only a multi-noise or fixed source builds — but
-                // the context has to match all the same.
                 surface: Some((
                     crate::tests::surface_ids_over(&registry),
                     SurfaceStates::new(&blocks().0),
@@ -216,10 +174,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
     let ctx = FillContext {
         blocks: blocks().0.clone(),
         biome: source.clone(),
-        // The modern vein probes `OCEAN_FLOOR_WG`, which is a terrain map, so
-        // without the table it would place nothing at all.
-        predicates: Some(heightmap_predicates(blocks(), block_tags())),
-        saved: None,
+        predicates: heightmap_predicates(blocks(), block_tags()),
         program,
         router: Some(router),
         material: None,

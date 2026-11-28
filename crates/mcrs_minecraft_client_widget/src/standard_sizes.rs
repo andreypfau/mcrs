@@ -1,0 +1,13 @@
+pub const BUTTON_HEIGHT: i32 = 20;
+pub const BUTTON_WIDTH: i32 = 150;
+pub const DONE_BUTTON_WIDTH: i32 = 200;
+pub const BUTTON_GAP: i32 = 8;
+pub const HEADER_HEIGHT: i32 = 33;
+pub const FOOTER_HEIGHT: i32 = 33;
+pub const CONTENT_TOP_MARGIN: i32 = 30;
+pub const BUTTON_LABEL_MARGIN: i32 = 2;
+pub const SLIDER_HANDLE_WIDTH: i32 = 8;
+pub const CHECKBOX_SIZE: i32 = 17;
+pub const CHECKBOX_LABEL_GAP: i32 = 4;
+pub const TOOLTIP_WRAP_WIDTH: i32 = 170;
+pub const LINE_HEIGHT: i32 = 9;

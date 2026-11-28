@@ -28,26 +28,18 @@ use crate::support::EFFECT_OFFSET;
 use crate::tolerance::CLIP;
 use crate::tolerance::COLLISION;
 
-/// The values of one entity for the block effects of its tick.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct EffectContext<'a> {
     pub(crate) mover: &'a Mover,
     pub(crate) stuck_ignore: StuckIgnore,
     pub(crate) powder_snow_needs_inside: bool,
-    /// The path through the blocks.
     pub(crate) path: MovePath,
-    /// The vertical displacement of the moves of the tick.
     pub(crate) dy: f64,
-    /// A player with the flight state on ignores every stuck multiplier.
     pub(crate) flying: bool,
-    /// False for the server copy of a player, whose fall distance comes from the moves of the
-    /// client.
     pub(crate) updates_fall: bool,
-    /// The mover has the `weaving` effect, which lowers the slowdown of a cobweb.
     pub(crate) weaving: bool,
 }
 
-/// Applies the step action, the blocks inside the path of the box, and the fall distance.
 pub(crate) fn apply<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     context: &EffectContext<'_>,
@@ -79,8 +71,6 @@ pub(crate) fn apply<W: CollisionWorld, B: BodyView>(
     }
 }
 
-/// Applies the blocks that the shrunk box passed through; returns true when it touched powder
-/// snow.
 fn inside_blocks<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,
     context: &EffectContext<'_>,
@@ -137,7 +127,6 @@ fn inside_blocks<W: CollisionWorld, B: BodyView>(
     touched_powder_snow
 }
 
-/// The boxes of the inside shape of a block, relative to its position; `None` for the full cube.
 fn inside_boxes<'t, W: CollisionWorld, B: BodyView>(
     view: View<'t, W, B>,
     context: &EffectContext<'_>,
@@ -163,8 +152,6 @@ fn inside_boxes<'t, W: CollisionWorld, B: BodyView>(
     }
 }
 
-/// True when the bottom centre of the box touches the inside shape in the part of the path in
-/// which the box touches the cell. A part shorter than the square root of `1.0E-7` never resets.
 fn feet_reset_fall(
     context: &EffectContext<'_>,
     delta: DVec3,
@@ -185,8 +172,6 @@ fn feet_reset_fall(
         .any(|bounds| sweep_part(&feet, delta * length, &bounds.translate(at.as_dvec3())).is_some())
 }
 
-/// True when the centre of the box, along the part of the path, touches a box of the inside
-/// shape grown by half the size of the box less `1.0E-7`.
 fn centre_touches(from: &Aabb, delta: DVec3, part: Part, boxes: &[Aabb], at: BlockPos) -> bool {
     let half = from.size() / 2.0 - DVec3::splat(COLLISION);
     let start = (from.min + from.max) / 2.0 + delta * part.start;
@@ -236,7 +221,6 @@ fn inside_effect<W: CollisionWorld, B: BodyView>(
     body.fall_distance = 0.0;
 }
 
-/// The slide on the side of a honey block.
 fn slide(mover: &Mover, body: &mut Body, at: BlockPos) {
     let position = body.position;
     let velocity = body.velocity;
@@ -283,15 +267,12 @@ fn fall_distance<W: CollisionWorld, B: BodyView>(
     }
 }
 
-/// The fractions of the path between which the box overlaps a cell.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Part {
     start: f64,
     end: f64,
 }
 
-/// The part of the path in which the box, moved by `delta`, overlaps the cell with a volume that
-/// is more than zero.
 fn sweep_part(from: &Aabb, delta: DVec3, cell: &Aabb) -> Option<Part> {
     let mut low = f64::NEG_INFINITY;
     let mut high = f64::INFINITY;

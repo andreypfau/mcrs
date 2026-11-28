@@ -1,0 +1,184 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment pose_e2_6
+step leave_button
+instruction After Go, right-click the bed in front; after 2 seconds, press the leave button.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+3557425 < abilities none 0.05
+3557425 < attribute minecraft:block_interaction_range 4.5
+3557425 < attribute minecraft:entity_interaction_range 3
+3557425 < attribute minecraft:movement_speed 0.10000000149011612
+3557425 < data self 9 float:20
+3557425 < data self 16 byte:0x7f
+3557425 < teleport 3 0.5 100 0.5 0 0 0 -90 0 0
+3637412 > move - - none
+3638744 > tick
+3640088 > move 0.5,100,0.5 - on_ground
+3641901 > tick
+3733294 > tick
+3733295 > tick
+3838112 > tick
+3839399 > tick
+3946862 > tick
+3946865 > tick
+4036301 > tick
+4037450 > tick
+4140946 > tick
+4142104 > tick
+4241327 > tick
+4243089 > tick
+4347870 > tick
+4349043 > tick
+4447077 > tick
+4448343 > tick
+4541958 > tick
+4543112 > tick
+4649904 > tick
+4651082 > move 0.5,100,0.5 - on_ground
+4652283 > tick
+4746548 > tick
+4747707 > tick
+4851390 > tick
+4852557 > tick
+4960907 > tick
+4962762 > tick
+5053094 > tick
+5054253 > tick
+5152482 > tick
+5153639 > tick
+5252222 > tick
+5252223 > tick
+5353952 > tick
+5355103 > tick
+5457874 > tick
+5457875 > tick
+5561795 > tick
+5563001 > tick
+5665339 > tick
+5666527 > move 0.5,100,0.5 - on_ground
+5670004 > tick
+5757878 > tick
+5759027 > tick
+5866412 > tick
+5867952 > tick
+5960574 > tick
+5960574 > tick
+6063420 > tick
+6063421 > tick
+6168517 > tick
+6170001 > tick
+6270806 > tick
+6271995 > tick
+6378222 > tick
+6378225 > tick
+6477496 > tick
+6477498 > tick
+6478682 > tick
+6571275 > tick
+6572496 > tick
+6675433 > move 0.5,100,0.5 -90,30 on_ground
+6675434 > tick
+6676584 > tick
+6709786 < teleport 4 3.5 100.6875 0.5 0 0 0 -90 0 0
+6711001 < block 2 100 0 minecraft:red_bed[facing=east,occupied=true,part=foot]
+6711002 < block 2 101 0 minecraft:air
+6712170 < block 2 100 0 minecraft:red_bed[facing=east,occupied=true,part=foot]
+6712170 < block 3 100 0 minecraft:red_bed[facing=east,occupied=true,part=head]
+6712211 < data self 6 pose:sleeping
+6712211 < data self 14 block_pos:3,100,0
+6781765 > move 3.5,100.6875,0.5 -90,0 none
+6781766 > tick
+6782912 > move 3.5,100.60909999847412,0.5 - none
+6782913 > tick
+6876889 > move 3.5,100.5625,0.5 - on_ground
+6876890 > tick
+6876890 > move 3.5,100.6150560409655,0.5 - none
+6876890 > tick
+6978065 > move 3.5,100.58816096058824,0.5 - none
+6978067 > tick
+6978067 > move 3.5,100.5625,0.5 - on_ground
+6978067 > tick
+7081113 > move 3.5,100.57505219488203,0.5 - none
+7081116 > tick
+7081116 > move 3.5,100.5625,0.5 - on_ground
+7081116 > tick
+7181795 > tick
+7182941 > tick
+7287719 > tick
+7289192 > tick
+7388549 > tick
+7392321 > tick
+7494152 > tick
+7494156 > tick
+7595544 > tick
+7596856 > tick
+7693725 > tick
+7695873 > tick
+7800120 > tick
+7800122 > tick
+7896585 > tick
+7898610 > tick
+7991565 > tick
+7992712 > tick
+8092644 > tick
+8093792 > move 3.5,100.5625,0.5 - on_ground
+8093793 > tick
+8195539 > tick
+8196685 > tick
+8295308 > tick
+8296457 > tick
+8398520 > tick
+8399678 > tick
+8500689 > tick
+8501844 > tick
+8608102 > tick
+8615902 > tick
+8702144 > command stop_sleeping
+8703286 > tick
+8703286 > tick
+8711658 < teleport 5 3.5 100 1.5 0 0 0 -180 0 0
+8711666 < block 2 100 0 minecraft:red_bed[facing=east,occupied=false,part=foot]
+8711666 < block 3 100 0 minecraft:red_bed[facing=east,occupied=false,part=head]
+8711669 < data self 6 pose:standing
+8711669 < data self 14 block_pos:-
+8818073 > move 3.5,100,1.5 -180,0 none
+8818076 > tick
+8819402 > move - - on_ground
+8819404 > tick
+8906834 > tick
+8907987 > tick
+9009069 > tick
+9010219 > tick
+9109986 > tick
+9109987 > tick
+9215931 > tick
+9217155 > tick
+9316414 > tick
+9318098 > tick
+9422274 > tick
+9423900 > tick
+9516810 > tick
+9518016 > tick
+9617442 > tick
+9618725 > tick
+9718172 > tick
+9719361 > tick
+9816061 > move 3.5,100,1.5 - on_ground
+9816062 > tick
+9816062 > tick
+9916729 > tick
+9917847 > tick
+10017326 > tick
+10018472 > tick
+10119643 > tick
+10120786 > tick
+10120786 > tick
+10222290 > tick
+10223685 > tick
+10325452 > tick
+10325453 > tick
+10428874 > tick
+10430099 > tick
+10530675 > tick
+10532458 > tick

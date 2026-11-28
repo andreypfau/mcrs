@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_engine_physics"
-description = "The entity pass of a dimension world in Bevy: the row store as a resource generic over the mob column, the merge point, the freeze and the pass as systems, the row-only items, and the mob rows with their life cycle and tile events"
+description = "The entity pass of a dimension world in Bevy: the motion plugin, the mob spawn and the crowd damage over the entity components"
 version.workspace = true
 edition.workspace = true
 
@@ -10,8 +10,8 @@ doctest = false
 [lints]
 workspace = true
 
-# std: the side tables live in hash maps and BTreeMap
 [dependencies]
+mcrs_minecraft_pose.workspace = true
 mcrs_minecraft_entity_key.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
@@ -20,35 +20,41 @@ glam = { workspace = true, features = ["std"] }
 mcrs_engine_muxer.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_collision_table.workspace = true
-mcrs_minecraft_damage.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine_damage.workspace = true
+mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
-mcrs_minecraft_entity_rows = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_game_rule.workspace = true
-mcrs_minecraft_item.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 rustc-hash.workspace = true
 mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_simulation = { workspace = true, optional = true }
 mcrs_minecraft_volume.workspace = true
 mcrs_voxel.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-# Without it a pool of the tests and the benchmark runs every task on one thread.
+bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_tasks = { workspace = true, features = ["multi_threaded"] }
-criterion = { version = "0.7", default-features = false }
+criterion = { workspace = true }
 mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }
 mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_simulation.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
 [features]
-# A scene of walkers and items on a stone floor, for tests and benchmarks of the pass.
-testing = ["mcrs_minecraft_physics/testing"]
+testing = ["dep:mcrs_minecraft_simulation", "mcrs_minecraft_physics/testing"]
 
 [[bench]]
 name = "entity_pass"
+harness = false
+
+[[bench]]
+name = "motion_pass"
 harness = false

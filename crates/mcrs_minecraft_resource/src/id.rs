@@ -71,79 +71,11 @@ macro_rules! dense_id {
     };
 }
 
-/// The position of an entry in a registry. An id is made only by checking a number against the
-/// length of the table that issues it.
-///
-/// ```
-/// use mcrs_minecraft_resource::Id;
-///
-/// struct X;
-///
-/// assert!(Id::<X>::checked(0, 0).is_none());
-/// assert!(Id::<X>::checked(0, 1).is_some());
-/// assert!(Id::<X>::checked(1, 1).is_none());
-/// let last = Id::<X>::checked(65535, 65536).unwrap();
-/// assert_eq!((last.number(), last.index()), (65535, 65535));
-///
-/// const FIRST: Id<X> = match Id::<X>::checked(0, 1) {
-///     Some(id) => id,
-///     None => panic!("empty table"),
-/// };
-/// assert_eq!(FIRST.number(), 0);
-/// ```
-///
-/// ```compile_fail,E0599
-/// use mcrs_minecraft_resource::Id;
-///
-/// struct X;
-///
-/// let _ = Id::<X>::new(5);
-/// ```
-///
-/// ```compile_fail,E0451
-/// use mcrs_minecraft_resource::Id;
-/// use std::marker::PhantomData;
-///
-/// struct X;
-///
-/// let _ = Id::<X> { number: 5, registry: PhantomData };
-/// ```
 pub struct Id<R> {
     number: u16,
     registry: PhantomData<fn() -> R>,
 }
 
-/// The position of a tag in a registry's tag table. A tag id is made only by checking a number
-/// against the length of the table that issues it.
-///
-/// ```
-/// use mcrs_minecraft_resource::TagId;
-///
-/// struct X;
-///
-/// assert!(TagId::<X>::checked(0, 0).is_none());
-/// assert!(TagId::<X>::checked(0, 1).is_some());
-/// assert!(TagId::<X>::checked(1, 1).is_none());
-/// let last = TagId::<X>::checked(65535, 65536).unwrap();
-/// assert_eq!((last.number(), last.index()), (65535, 65535));
-/// ```
-///
-/// ```compile_fail,E0451
-/// use mcrs_minecraft_resource::TagId;
-/// use std::marker::PhantomData;
-///
-/// struct X;
-///
-/// let _ = TagId::<X> { number: 5, registry: PhantomData };
-/// ```
-///
-/// ```compile_fail,E0599
-/// use mcrs_minecraft_resource::TagId;
-///
-/// struct X;
-///
-/// let _ = TagId::<X>::new(5);
-/// ```
 pub struct TagId<R> {
     number: u16,
     registry: PhantomData<fn() -> R>,

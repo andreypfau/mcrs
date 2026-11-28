@@ -1,0 +1,21 @@
+mod apply_hits;
+mod bake_damage_types;
+mod crowd_count;
+mod damage_plugin;
+mod damage_request;
+mod damage_set;
+mod damaged;
+mod died;
+mod pending_hits;
+mod respawn_request;
+mod tick_vitals;
+mod vitals_work;
+
+pub use crowd_count::CrowdCount;
+pub use damage_plugin::DamagePlugin;
+pub use damage_request::DamageRequest;
+pub use damage_set::DamageSet;
+pub use damaged::Damaged;
+pub use died::Died;
+pub use pending_hits::PendingHits;
+pub use respawn_request::RespawnRequest;

@@ -2,7 +2,8 @@ use bevy_ecs::world::EntityWorldMut;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::Kind;
 
-/// Takes `items` from the count of the stack, and despawns the stack when none is left.
+use crate::slot_changed::touch;
+
 pub(crate) fn consume(mut entity: EntityWorldMut, items: u8) {
     if !entity.contains::<Kind>() {
         return;
@@ -14,6 +15,7 @@ pub(crate) fn consume(mut entity: EntityWorldMut, items: u8) {
         Some(left) if left == count => {}
         Some(left) => {
             entity.insert(left);
+            touch(&mut entity);
         }
         None => entity.despawn(),
     }

@@ -3,7 +3,8 @@ use bevy_ecs::message::Messages;
 use bevy_math::DVec3;
 use mcrs_engine_link::Placement;
 use mcrs_minecraft_chat_server::ChatPlugin;
-use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
+use mcrs_minecraft_core::Look;
+use mcrs_minecraft_engine::ability::PlayerFlying;
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
 use mcrs_minecraft_engine::game_profile::GameProfile;
@@ -13,14 +14,18 @@ use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::session::{Place, SessionPlacement};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
+use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundChunkCacheRadius,
 };
 use mcrs_minecraft_protocol_game::game_event::GameEventKind;
+use mcrs_minecraft_protocol_game::serverbound::{
+    ServerboundAcceptTeleportation, ServerboundMovePlayerPos,
+};
 use mcrs_minecraft_protocol_game::text::TextContent;
 use mcrs_minecraft_replication::LIST_INTERVAL_TICKS;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
@@ -34,14 +39,11 @@ fn player_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Option<(En
     Some((player, transform))
 }
 
-/// A server with the Overworld and the End, and the player `Walker` in the Overworld: the
-/// server, the anchor of the player, the Overworld and the End.
 fn walker_in_the_overworld() -> (PlayServer, Entity, Entity, Entity) {
     let (server, anchor, overworld, end, _) = walker_and_its_join();
     (server, anchor, overworld, end)
 }
 
-/// As [`walker_in_the_overworld`], with the packets the player received on joining.
 fn walker_and_its_join() -> (PlayServer, Entity, Entity, Entity, Vec<PacketPayload>) {
     let mut app = host_app::make_host_app();
     app.add_dimension_plugin(ChatPlugin);
@@ -81,7 +83,7 @@ fn the_end() -> ResourceKeyBuf<mcrs_minecraft_dimension::Dimension> {
 }
 
 #[test]
-fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_change() {
+fn request_in_a_dimension_moves_player_with_change_packets() {
     let (mut server, anchor, overworld, end, joined) = walker_and_its_join();
     let network_id = joined
         .iter()
@@ -169,7 +171,7 @@ fn a_request_written_in_a_dimension_moves_the_player_with_the_packets_of_the_cha
 }
 
 #[test]
-fn packets_the_old_dimension_still_holds_leave_before_the_respawn_under_the_old_epoch() {
+fn old_dimension_packets_leave_before_respawn_under_old_epoch() {
     let (mut server, anchor, overworld, _) = walker_in_the_overworld();
     let (player, transform) = player_in(&mut server, overworld, anchor).unwrap();
     let epoch = epoch_of(&server, anchor);
@@ -290,8 +292,6 @@ fn muxer_bytes_precede_the_respawn(muxer: Placement) {
         "{muxer:?}: the move of the watched player in the tick the mover left comes before the respawn {respawn}: {replicated:?}"
     );
 
-    // The mover is alone in the End, so all muxer bytes after the respawn would come from the
-    // Overworld, such as its player list.
     let later = server.ticks(mover, 2 * LIST_INTERVAL_TICKS as usize);
     let records: Vec<i32> = host_app::replicated(&later)
         .into_iter()
@@ -357,7 +357,7 @@ fn a_change_the_player_cannot_complete_leaves_it_where_it_is() {
 }
 
 #[test]
-fn an_observer_in_the_new_dimension_sees_the_mover_with_its_network_id_and_no_list_update() {
+fn new_dimension_observer_sees_mover_with_network_id_no_list_update() {
     let (mut server, anchor, overworld, end, joined) = walker_and_its_join();
     let walker = server.app.world().get::<GameProfile>(anchor).unwrap().id;
     let network_id = joined
@@ -503,8 +503,6 @@ fn the_chunk_cache_view_is_told_once_after_the_login_and_once_after_a_respawn() 
             assert!(center < batch && radius < batch, "{when}: {packets:?}");
         }
     }
-    // The client sees 2 columns far; the ring of columns that the view holds past it stays
-    // out of both values.
     let told: Vec<i32> = joined
         .iter()
         .filter_map(|packet| match packet {
@@ -550,4 +548,39 @@ fn the_chat_mode_a_player_chose_holds_after_a_dimension_change() {
             .any(|packet| matches!(packet.target, PacketTarget::AllPlayers)),
         "a hidden chat broadcasts nothing"
     );
+}
+
+#[test]
+fn a_move_of_a_player_that_changed_dimension_is_applied() {
+    let (mut server, anchor, overworld, end) = walker_in_the_overworld();
+    request_the_end(&mut server, overworld, anchor);
+    let arrival = server.ticks(anchor, 3);
+    let teleport = arrival
+        .iter()
+        .rev()
+        .find_map(|packet| match packet {
+            PacketPayload::PlayerPosition(position) => Some(position),
+            _ => None,
+        })
+        .unwrap();
+    server.send(
+        anchor,
+        &ServerboundAcceptTeleportation {
+            teleport_id: teleport.teleport_id,
+            position: teleport.position.into(),
+            look: Look::default(),
+        },
+    );
+
+    let to = teleport.position + DVec3::X;
+    server.send(
+        anchor,
+        &ServerboundMovePlayerPos {
+            position: to.into(),
+            flags: MoveFlags::new().with_on_ground(true),
+        },
+    );
+
+    let (_, at) = player_in(&mut server, end, anchor).unwrap();
+    assert_eq!(at.translation, to);
 }

@@ -35,12 +35,6 @@ import net.minecraft.world.level.block.entity.SignBlockEntity;
 import net.minecraft.world.level.block.entity.SignText;
 import org.joml.Matrix4fc;
 
-/**
- * Runs the sign text renderers of the client against a recording collector and writes what they submit.
- *
- * <p>The font is replaced by a stub that measures every code point as {@link #STUB_ADVANCE} and does not wrap, so the file
- * records the placement, the colours and the light of the renderers, not the metrics of the font.
- */
 final class SignTextOracle {
     private static final int STUB_ADVANCE = 3;
     private static final int LIGHT = LightCoordsUtil.pack(5, 3);
@@ -51,7 +45,6 @@ final class SignTextOracle {
 
     private SignTextOracle() {}
 
-    /** One text line as the collector received it. */
     private record Submitted(float x, float y, FormattedCharSequence text, boolean shadow, String mode, int light, int color, int background, int outline, Matrix4fc pose) {}
 
     private static final class Rig {
@@ -212,7 +205,6 @@ final class SignTextOracle {
         return (hangingFamily ? HANGING : SIGN).getMaxTextLineWidth();
     }
 
-    // Each side with one line: the pose of the collector is the map from block space to text space.
     private static void transforms(final Rig rig, final List<JsonObject> rows) {
         for (boolean hangingFamily : new boolean[] {false, true}) {
             var table = hangingFamily ? HangingSignRenderer.TRANSFORMATIONS : StandingSignRenderer.TRANSFORMATIONS;
@@ -258,7 +250,6 @@ final class SignTextOracle {
         throw new IllegalStateException("no line " + text);
     }
 
-    // Four lines of several widths: where the collector puts each line, with an identity transform.
     private static void layout(final Rig rig, final List<JsonObject> rows) {
         for (boolean hangingFamily : new boolean[] {false, true}) {
             SignRenderState state = state(
@@ -290,7 +281,6 @@ final class SignTextOracle {
         rows.add(row);
     }
 
-    // Colour, outline and light of every dye in both families, with and without glow, with and without the outline distance.
     private static void paint(final Rig rig, final List<JsonObject> rows) {
         for (boolean hangingFamily : new boolean[] {false, true}) {
         for (DyeColor dye : DyeColor.values()) {
@@ -319,7 +309,6 @@ final class SignTextOracle {
         }
     }
 
-    // The unfiltered and the filtered messages differ; the flag of the state selects one list.
     private static void filtering(final Rig rig, final List<JsonObject> rows) {
         for (boolean filtering : new boolean[] {false, true}) {
             List<Component> raw = List.of(Component.literal("raw1"), Component.literal("raw2"), Component.literal("raw3"), Component.literal("raw4"));
@@ -336,7 +325,6 @@ final class SignTextOracle {
         }
     }
 
-    // Formatting of the components reaches the collector as the style of each code point.
     private static void styles(final Rig rig, final List<JsonObject> rows) {
         styleRow(rig, rows, "styles", List.of(
             Component.literal("red").withColor(0xFF0000),
@@ -344,7 +332,6 @@ final class SignTextOracle {
             Component.literal("u").withStyle(style -> style.withUnderlined(true).withStrikethrough(true).withObfuscated(true)),
             Component.translatable("sign.test.missing.key")
         ));
-        // Inheritance from a parent, a font override, and a translation key with a fallback.
         styleRow(rig, rows, "styles_inherited", List.of(
             Component.literal("p").withColor(0xFF0000).append(Component.literal("c")),
             Component.literal("p").withStyle(style -> style.withBold(true)).append(Component.literal("c").withStyle(style -> style.withItalic(true))),

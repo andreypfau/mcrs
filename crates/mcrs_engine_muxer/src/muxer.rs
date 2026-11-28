@@ -20,48 +20,25 @@ use crate::viewer_bytes::ViewerBytes;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
 
-/// Decides which entity bytes each viewer receives. It starts no thread and reads no clock, so
-/// a game can call it from its own loop.
-///
-/// Each tick, it plans each viewer: the tiles near the viewer get a fast tier, the far ones a
-/// slow tier, the cap K limits the subjects that the viewer holds, and the budget lowers tiers
-/// when the viewer receives too many bytes. It encodes each tile once for each tier that is due
-/// and has viewers, and the viewers of a tier share the bytes, cut by layer.
-///
-/// A subject with a tracking range ([`ReplicationCodec::tracking_range`]) has none of this: a
-/// viewer holds it while it is within its range, the codec sends its updates, and it counts
-/// neither for the cap nor for the budget. The muxer judges such a subject again only when it
-/// enters or leaves a tile, when it moves in a tile on the edge of the range of a viewer, or when
-/// the viewer moves.
 #[derive(Debug)]
 pub struct Muxer<C> {
     codec: C,
-    /// The width of a tile on X and Z, in the units of the game. The distance of a tile to a
-    /// viewer is the distance on X and Z from the viewer to the nearest point of the tile.
     tile_width: NonZeroU32,
     tiles: BTreeMap<TileKey, TileStream>,
-    /// The tile of each subject.
     homes: BTreeMap<EntityId, TileKey>,
     viewers: BTreeMap<ViewerId, Viewer>,
-    /// The bytes of viewers that no longer subscribe.
     loose: Vec<ViewerBytes>,
     owed: Vec<ViewerBytes>,
-    /// The tiles with events that some tier has not encoded yet.
     unsent: BTreeSet<TileKey>,
-    /// The keyframes of this tick, shared by the viewers that change tier in it.
     keyframes: BTreeMap<TileTier, TileBlob>,
     headers: Vec<TileHeader>,
     candidates: Vec<EntityId>,
     scratch_viewers: Vec<ViewerId>,
     scratch_tiles: Vec<TileKey>,
     tick: u64,
-    /// The tracking range of each ranged subject.
     ranges: BTreeMap<EntityId, u32>,
-    /// The smallest and the largest tracking range seen, or `None` before the first.
     range_bounds: Option<RangeBounds>,
-    /// The tiles of this tick with events of ranged subjects.
     touches: Vec<TileTouch>,
-    /// The ranged subjects that despawned in this tick.
     departed: Vec<EntityId>,
 }
 
@@ -71,23 +48,16 @@ struct RangeBounds {
     max: u32,
 }
 
-/// The ranged subjects of one tile delta that a viewer of the tile may have to judge again.
 #[derive(Debug)]
 struct TileTouch {
     tile: TileKey,
-    /// The subjects that spawned, despawned, came in or went out.
     crossed: Vec<EntityId>,
-    /// The subjects that moved inside the tile.
     moved: Vec<EntityId>,
 }
 
-/// Which tiles of the region of a viewer the muxer judges again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Retrack {
-    /// Each tile, also when the viewer did not move.
     All,
-    /// Only after the viewer moved a step, and then only the tiles that were not and are not
-    /// inside every range.
     Moved,
 }
 
@@ -97,15 +67,12 @@ struct TileTier {
     tier: Tier,
 }
 
-/// A tile whose subjects changed in a tick.
 struct Membership {
     tile: TileKey,
     before: Vec<EntityId>,
-    /// The subjects that came in or went out.
     crossed: Vec<EntityId>,
 }
 
-/// What the clients gain and lose in a tick, before the muxer sends it.
 #[derive(Default)]
 struct Settled {
     gained: BTreeMap<ViewerId, Vec<Gain>>,
@@ -146,8 +113,6 @@ impl<C: ReplicationCodec> Muxer<C> {
         &mut self.codec
     }
 
-    /// Takes in the changes of one tick of a world, sends the moves of the tiers that are due,
-    /// and plans each viewer for the next tick.
     pub fn publish(&mut self, deltas: &TileDeltas<C::Data>) {
         self.tick = deltas.tick;
         self.keyframes.clear();
@@ -200,9 +165,6 @@ impl<C: ReplicationCodec> Muxer<C> {
         self.owed = owed;
     }
 
-    /// Subscribes `viewer` to the tiles of `view` and plans it at once. A viewer that keeps its
-    /// own subject keeps the tiles that stay in its view; a new own subject starts the view
-    /// again.
     pub fn subscribe(&mut self, viewer: ViewerId, view: View) {
         let mut lost = Vec::new();
         if let Some(state) = self.viewers.get(&viewer) {
@@ -232,9 +194,6 @@ impl<C: ReplicationCodec> Muxer<C> {
         self.send_settled(settled);
     }
 
-    /// Forgets `viewer`, and so does the codec. It gets no removal, because its connection is
-    /// gone or its client drops its entities by itself. The bytes it has not taken stay for
-    /// [`Self::take_output`], and no bytes come after them.
     pub fn unsubscribe(&mut self, viewer: ViewerId) {
         let Some(state) = self.viewers.remove(&viewer) else {
             return;
@@ -260,10 +219,6 @@ impl<C: ReplicationCodec> Muxer<C> {
         }
     }
 
-    /// Hands out the bytes of each viewer that has some: first the bytes of viewers while they
-    /// did not subscribe, then the viewers that subscribe in the order of [`ViewerId`]. Append
-    /// the outputs to the connections in this order: the bytes of a viewer before it subscribed
-    /// come before the bytes of its subscription.
     pub fn take_output(&mut self) -> impl Iterator<Item = ViewerBytes> + '_ {
         let Self { viewers, loose, .. } = self;
         loose
@@ -280,9 +235,6 @@ impl<C: ReplicationCodec> Muxer<C> {
             }))
     }
 
-    /// Moves the subjects that come into or go out of the tile of `delta`. Returns the change of
-    /// the subjects that the planner places, and records the events of the ranged subjects in
-    /// `touches`.
     fn take_in(&mut self, delta: &TileDelta<C::Data>) -> Option<Membership> {
         let tile = delta.tile;
         let stream = self.tiles.entry(tile).or_default();
@@ -376,8 +328,6 @@ impl<C: ReplicationCodec> Muxer<C> {
         })
     }
 
-    /// Judges the ranged subjects again: first for each viewer that moved, then for the subjects
-    /// with events in this tick. Sends the spawns and the removals that follow.
     fn track(&mut self, retrack: Retrack) {
         let mut settled = Settled::default();
         let mut viewers = mem::take(&mut self.scratch_viewers);
@@ -436,8 +386,6 @@ impl<C: ReplicationCodec> Muxer<C> {
         self.send_settled(settled);
     }
 
-    /// Measures the tracking region of `viewer` again from its position, and judges the ranged
-    /// subjects of the tiles that `retrack` names.
     fn retrack(&mut self, viewer: ViewerId, retrack: Retrack, settled: &mut Settled) {
         let Some(state) = self.viewers.get(&viewer) else {
             return;
@@ -504,7 +452,6 @@ impl<C: ReplicationCodec> Muxer<C> {
         self.scratch_tiles = judged;
     }
 
-    /// Finds what each viewer of a tile gains and loses after its subjects changed.
     fn settle(&mut self, membership: &Membership, settled: &mut Settled) {
         let Some(stream) = self.tiles.get(&membership.tile) else {
             return;
@@ -516,8 +463,6 @@ impl<C: ReplicationCodec> Muxer<C> {
             let stayed = membership.before.binary_search(subject).is_ok()
                 && after.binary_search(subject).is_ok();
             if stayed {
-                // The subject changed layer, and a viewer may receive the two layers at two
-                // tiers.
                 self.codec.refresh(*subject);
             }
         }
@@ -566,8 +511,6 @@ impl<C: ReplicationCodec> Muxer<C> {
         }
     }
 
-    /// Encodes each tile and tier that is due and has events to send, and appends the bytes to
-    /// the viewers of that tier.
     fn send_moves(&mut self, settled: &Settled) {
         let mut tiles = mem::take(&mut self.scratch_tiles);
         tiles.clear();
@@ -650,9 +593,6 @@ impl<C: ReplicationCodec> Muxer<C> {
         }
     }
 
-    /// Whether a plan of `state` would change nothing: its last plan changed nothing, and since
-    /// then it kept its position, no tile of its view changed its subjects, and the budget does
-    /// not act.
     fn is_settled(&self, state: &Viewer, memberships: &[Membership]) -> bool {
         state.settled_at == Some(self.position(&state.view))
             && !planner::reads_budget(state.measured)
@@ -661,7 +601,6 @@ impl<C: ReplicationCodec> Muxer<C> {
                 .any(|membership| state.view.contains(membership.tile))
     }
 
-    /// Where the planner measures the distances of the tiles of `view` from.
     fn position(&self, view: &View) -> Point {
         let width = f64::from(self.tile_width.get());
         match view
@@ -676,8 +615,6 @@ impl<C: ReplicationCodec> Muxer<C> {
         }
     }
 
-    /// Plans the subscriptions of `viewer` and sends what they change: spawns for the layers it
-    /// gains, removals for the layers it loses, and keyframes for the layers that change tier.
     fn replan(&mut self, viewer: ViewerId) {
         let Some(state) = self.viewers.get(&viewer) else {
             return;
@@ -781,7 +718,6 @@ impl<C: ReplicationCodec> Muxer<C> {
     }
 }
 
-/// The tier at which the client of `state` holds `subject`, or `None` when it does not hold it.
 fn wanted(
     tiles: &BTreeMap<TileKey, TileStream>,
     homes: &BTreeMap<EntityId, TileKey>,
@@ -796,15 +732,12 @@ fn wanted(
     state.subscriptions.get(tile)?.tier_of(rank)
 }
 
-/// Where a ranged subject is for a viewer: the reach of its tile and its range.
 #[derive(Clone, Copy, Debug)]
 struct Place {
     reach: TileReach,
     range: u32,
 }
 
-/// Whether the client of `state` holds the ranged `subject` at `place`, after this tick. A subject
-/// with no place, outside the region of the viewer or gone, is not held.
 fn wants<C: ReplicationCodec>(
     codec: &C,
     state: &Viewer,
@@ -825,7 +758,6 @@ fn wants<C: ReplicationCodec>(
     })
 }
 
-/// Records that the client of `viewer` holds `subject` or not, and what it gains or loses.
 fn record_hold(
     state: &mut Viewer,
     viewer: ViewerId,
@@ -845,8 +777,6 @@ fn record_hold(
     }
 }
 
-/// Whether tier `tier` of `tile` sends its moves at `tick`. The phase of a tile spreads the work
-/// of a slow tier over its ticks.
 fn due(tile: TileKey, tier: Tier, tick: u64) -> bool {
     let phase = (u64::from(tile.x as u32).wrapping_mul(0x9E37_79B9_7F4A_7C15)
         ^ u64::from(tile.y as u32).wrapping_mul(0xC2B2_AE3D_27D4_EB4F)
@@ -855,7 +785,6 @@ fn due(tile: TileKey, tier: Tier, tick: u64) -> bool {
     tick.wrapping_add(phase) % tier.interval() == 0
 }
 
-/// The subjects in exactly one of the first `end` of `before` and the first `end` of `after`.
 fn prefix_difference(before: &[EntityId], after: &[EntityId], end: usize) -> Vec<EntityId> {
     let old = before.get(..end).unwrap_or(before);
     let new = after.get(..end).unwrap_or(after);
@@ -876,13 +805,10 @@ mod tests {
     use crate::tile_blob::SubjectRange;
     use crate::tile_radius::TileRadius;
 
-    /// Writes each event as a short token, so the bytes of a viewer read as text.
     #[derive(Default)]
     struct TextCodec {
         encodes: usize,
-        /// The subjects that moved since the last encode of each tier.
         moved: [BTreeSet<EntityId>; 4],
-        /// Bytes for one viewer at the end of the next tick.
         owed: Vec<ViewerBytes>,
         ranges: BTreeMap<EntityId, u32>,
         positions: BTreeMap<EntityId, [f64; 3]>,
@@ -995,7 +921,6 @@ mod tests {
         }
     }
 
-    /// Publishes `tiles` at `tick`, then an empty tick, so tier 0 is due in one of the two.
     fn publish(muxer: &mut Muxer<TextCodec>, tick: u64, tiles: Vec<TileDelta<()>>) {
         muxer.publish(&TileDeltas { tick, tiles });
         muxer.publish(&TileDeltas {
@@ -1019,7 +944,7 @@ mod tests {
     }
 
     #[test]
-    fn a_new_viewer_gets_the_spawns_of_the_tile_then_its_moves_but_never_its_own_subject() {
+    fn new_viewer_gets_tile_spawns_then_moves_never_its_own_subject() {
         let mut muxer = muxer();
         let spawns = vec![
             event(1, EntityEvent::Spawn(())),
@@ -1039,7 +964,7 @@ mod tests {
     }
 
     #[test]
-    fn a_subject_that_crosses_tiles_is_removed_where_it_leaves_view_and_spawned_where_it_enters() {
+    fn tile_crossing_removes_where_it_leaves_and_spawns_where_it_enters() {
         let mut muxer = muxer();
         muxer.subscribe(ViewerId(1), view(ORIGIN, None));
         muxer.subscribe(ViewerId(2), view(FAR, None));
@@ -1152,7 +1077,6 @@ mod tests {
         let moves: Vec<SubjectEvent<()>> = (1..=300)
             .map(|subject| event(subject, EntityEvent::Move(())))
             .collect();
-        // Four ticks, so the tiers of layers 0 and 1 are each due once.
         publish(&mut muxer, 2, at(ORIGIN, moves));
         publish(&mut muxer, 4, Vec::new());
         let moved = text(&mut muxer)[&1].matches("move").count();
@@ -1164,7 +1088,6 @@ mod tests {
 
     const RANGE: u32 = 160;
 
-    /// Places a ranged subject with `RANGE` at `x`, `z`, and gives the delta of its spawn.
     fn spawn_ranged(muxer: &mut Muxer<TextCodec>, subject: u64, x: f64, z: f64) -> TileDelta<()> {
         let codec = muxer.codec_mut();
         codec.ranges.insert(EntityId(subject), RANGE);
@@ -1237,7 +1160,7 @@ mod tests {
     }
 
     #[test]
-    fn a_ranged_subject_is_removed_when_it_walks_out_of_range_and_spawned_when_it_comes_back() {
+    fn ranged_subject_is_removed_out_of_range_and_spawned_on_return() {
         let mut muxer = muxer();
         let home = TileKey::new(-1, 0, 0);
         muxer

@@ -1,8 +1,6 @@
 use bevy::math::DVec2;
 use bevy::prelude::*;
 
-/// What the local player asks to do this tick. Whatever drives the player, a keyboard, a script
-/// or a bot, writes it before `LocalPlayerTick`.
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct MovementInput {
     pub forward: bool,
@@ -25,7 +23,19 @@ impl MovementInput {
         sprint: false,
     };
 
-    /// The `(left, forward)` direction of the pressed keys, of length one or zero.
+    #[must_use]
+    pub fn or(self, other: MovementInput) -> MovementInput {
+        MovementInput {
+            forward: self.forward || other.forward,
+            backward: self.backward || other.backward,
+            left: self.left || other.left,
+            right: self.right || other.right,
+            jump: self.jump || other.jump,
+            shift: self.shift || other.shift,
+            sprint: self.sprint || other.sprint,
+        }
+    }
+
     pub fn move_vector(self) -> DVec2 {
         DVec2::new(
             impulse(self.left, self.right),

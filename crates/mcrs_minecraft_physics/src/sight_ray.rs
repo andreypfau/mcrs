@@ -10,11 +10,6 @@ use crate::CollisionWorld;
 use crate::SectionLookup;
 use crate::ShapeClass;
 
-/// True when the segment from `from` to `to` meets no block shape for no context
-/// ([`CollisionTable::shape_without_context`]); fluids do not stop it. A block out of the world is
-/// air, and a block in a chunk that is not loaded is a full cube.
-///
-/// The ray visits each block that the segment crosses, so the caller bounds its length.
 #[must_use]
 pub fn sight_clear<W: CollisionWorld>(
     world: &W,
@@ -91,8 +86,6 @@ fn sign(value: f64) -> i32 {
     }
 }
 
-/// True when the segment from `start` to `start + delta` meets the box from `min` to `max`, all
-/// relative to one block.
 fn segment_hits(start: DVec3, delta: DVec3, min: DVec3, max: DVec3) -> bool {
     let mut near = 0.0_f64;
     let mut far = 1.0_f64;

@@ -21,20 +21,14 @@ use crate::block_view::BlockView;
 use crate::forced_columns::ForcedColumns;
 use crate::landing::run_next_tick;
 
-/// The flags of a set of a command that is not strict: the clients hear of it, a block entity
-/// keeps its side effects quiet, and the neighbours get no update.
 const COMMAND_SET: BlockUpdateFlags =
     BlockUpdateFlags::CLIENTS.union(BlockUpdateFlags::SKIP_BLOCK_ENTITY_SIDEEFFECTS);
 const RECURSION: i16 = 512;
 
-/// Which positions of the region a fill changes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Mode {
-    /// Every position gets the block; `replace` without a filter is the same.
     Plain,
-    /// The border positions get the block; the inner positions do not change.
     Outline,
-    /// The border positions get the block; the inner positions get air.
     Hollow,
 }
 
@@ -68,7 +62,6 @@ pub(crate) fn build(
     Ok(FillCommand { from, to, block })
 }
 
-/// The box of block positions between two corners, both included.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Region {
     min: BlockPos,
@@ -83,7 +76,6 @@ impl Region {
         }
     }
 
-    /// The number of positions, as a 64-bit integer.
     pub(crate) fn volume(self) -> i64 {
         let side = |min: i32, max: i32| i64::from(max) - i64::from(min) + 1;
         side(self.min.x, self.max.x)
@@ -91,7 +83,6 @@ impl Region {
             .saturating_mul(side(self.min.z, self.max.z))
     }
 
-    /// Fails with `commands.fill.toobig` when the region has more than `limit` positions.
     pub(crate) fn check(self, limit: i32) -> Result<(), CommandFailure> {
         let volume = self.volume();
         if volume > i64::from(limit) {
@@ -112,7 +103,6 @@ impl Region {
             || pos.z == self.max.z
     }
 
-    /// Each position with x the fastest, then y, then z.
     fn positions(self) -> impl Iterator<Item = BlockPos> {
         (self.min.z..=self.max.z).flat_map(move |z| {
             (self.min.y..=self.max.y)
@@ -120,7 +110,6 @@ impl Region {
         })
     }
 
-    /// The state that `mode` gives `pos`, or `None` when it leaves the position alone.
     pub(crate) fn target(
         self,
         mode: Mode,
@@ -136,7 +125,6 @@ impl Region {
     }
 }
 
-/// What a fill reads of this world besides the context of the command.
 #[derive(SystemParam)]
 pub(crate) struct FillWorld<'w, 's> {
     view: BlockView<'w, 's>,
@@ -171,7 +159,7 @@ pub(crate) fn run(
     let (from, to) = (corner(command.from)?, corner(command.to)?);
     let landing = |pos: BlockPos| !view.is_loaded(pos) && forced.contains(ColumnPos::from(pos));
     if landing(from) || landing(to) {
-        run_next_tick(&mut commands, &context, &label, &call.invocation);
+        run_next_tick(commands.reborrow(), &context, &label, &call.invocation);
         return Ok(0);
     }
     view.readable(from)?;

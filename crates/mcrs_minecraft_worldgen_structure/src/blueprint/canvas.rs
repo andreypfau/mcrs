@@ -12,8 +12,6 @@ use super::rules::{self, Settle, World};
 use super::{BlueprintError, Cell, Fields, Pos, Turn, state};
 use mcrs_minecraft_block::block_keys::Block;
 
-/// The box a template fills, painted in order: a later call overwrites an
-/// earlier one, and the rule layer runs once when the template is built.
 pub struct Canvas {
     size: Pos,
     world: HashMap<Pos, Cell>,
@@ -23,12 +21,9 @@ pub struct Canvas {
     bare: Vec<([i32; 3], [i32; 3])>,
     block_data: HashMap<Pos, BlockData>,
     entities: Vec<TemplateEntity>,
-    /// The first mistake painted, which the template reports.
     fault: Option<BlueprintError>,
 }
 
-/// Two slopes climbing towards the middle of `span`, extruded over `length`
-/// along `ridge`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Gable {
     pub ridge: Axis,
@@ -67,7 +62,6 @@ fn moved(pos: Pos, turn: Turn, shift: [i32; 3]) -> Pos {
 }
 
 impl Canvas {
-    /// A box of air.
     pub fn new(size: [i32; 3]) -> Self {
         let air = Cell::Exact(rules::block(Block::Air.location()));
         let [x, y, z] = size;
@@ -114,12 +108,10 @@ impl Canvas {
         }
     }
 
-    /// Cells that are not part of the template at all.
     pub fn void(&mut self, min: [i32; 3], max: [i32; 3]) {
         self.solid(&Cell::Void, min, max);
     }
 
-    /// The same column of blocks, bottom layer first, over a rectangle.
     pub fn columns(&mut self, layers: &[&Cell], min: [i32; 2], max: [i32; 2]) {
         for x in min[0]..=max[0] {
             for z in min[1]..=max[1] {
@@ -130,7 +122,6 @@ impl Canvas {
         }
     }
 
-    /// The four walls of a rectangle, with `post` at the corners.
     pub fn walls(&mut self, wall: &Cell, post: &Cell, min: [i32; 3], max: [i32; 3]) {
         for (x, y, z) in boxed(min, max) {
             match (x == min[0] || x == max[0], z == min[2] || z == max[2]) {
@@ -141,11 +132,9 @@ impl Canvas {
         }
     }
 
-    /// Rings of stairs facing inward from `min` to `[x, z]` of `max`, each a
-    /// layer higher and a block smaller, with `lining` just inside each ring.
     #[expect(
         clippy::excessive_nesting,
-        reason = "lays the rings of the hip roof from the outside in, with the lining test for each cell inline, so the roof reads as the reference builds it"
+        reason = "lining test inline, rings laid from the outside in"
     )]
     pub fn hip_roof(
         &mut self,
@@ -219,25 +208,6 @@ impl Canvas {
         }
     }
 
-    /// A gable of stairs facing the ridge, `lining` just inside each slope and
-    /// `top` along the middle of an odd span.
-    pub fn gable_roof(
-        &mut self,
-        gable: Gable,
-        stairs: &str,
-        lining: Option<&Cell>,
-        top: Option<&Cell>,
-    ) {
-        let (low, high) = if gable.ridge == Axis::Z {
-            (Direction::East, Direction::West)
-        } else {
-            (Direction::South, Direction::North)
-        };
-        let (low, high) = (super::stairs(stairs, low), super::stairs(stairs, high));
-        self.gable(&gable, &low, &high, [lining, top]);
-    }
-
-    /// The stepped shape of a gable built from one block.
     pub fn stepped_gable(
         &mut self,
         gable: Gable,
@@ -248,8 +218,6 @@ impl Canvas {
         self.gable(&gable, block, block, [lining, top]);
     }
 
-    /// A box of `block`, and the same box moved along `axis` to start at `to`
-    /// with the block mirrored across that axis.
     pub fn mirrored(&mut self, block: &Cell, axis: Axis, min: [i32; 3], max: [i32; 3], to: i32) {
         let mirror = if axis == Axis::X {
             Mirror::FrontBack
@@ -278,8 +246,6 @@ impl Canvas {
         }
     }
 
-    /// Every block of the box as it stands, turned and moved by `shift`; void
-    /// cells are not copied.
     pub fn copy(&mut self, min: [i32; 3], max: [i32; 3], turn: Turn, shift: [i32; 3]) {
         let cells = boxed(min, max)
             .filter_map(|pos| Some((pos, self.world.get(&pos)?.clone())))
@@ -288,21 +254,6 @@ impl Canvas {
         self.copied(cells, turn, shift);
     }
 
-    /// Every column of the rectangle as it stands, turned and moved; a column
-    /// that is void from bottom to top is not copied.
-    pub fn copy_columns(&mut self, min: [i32; 2], max: [i32; 2], turn: Turn, shift: [i32; 2]) {
-        let top = self.size.1 - 1;
-        let cells = boxed([min[0], 0, min[1]], [max[0], top, max[1]])
-            .filter(|(x, _, z)| {
-                (0..=top).any(|y| self.world.get(&(*x, y, *z)) != Some(&Cell::Void))
-            })
-            .filter_map(|pos| Some((pos, self.world.get(&pos)?.clone())))
-            .collect();
-        self.copied(cells, turn, [shift[0], 0, shift[1]]);
-    }
-
-    /// Starts over from what `paint` leaves on a canvas of `size`, turned and
-    /// set against the origin corner; cells it does not reach are void.
     pub fn variant_of(&mut self, size: [i32; 3], turn: Turn, paint: impl FnOnce(&mut Canvas)) {
         let mut original = Canvas::new(size);
         paint(&mut original);
@@ -321,7 +272,6 @@ impl Canvas {
         );
     }
 
-    /// Replaces one block by another wherever it stands, keeping its properties.
     pub fn rename(&mut self, from: &str, to: &str) {
         let to = match ResourceLocationBuf::read(to) {
             Ok(to) => to,
@@ -342,12 +292,10 @@ impl Canvas {
         }
     }
 
-    /// In the lowest `height` layers, a cell under air or void is void.
     pub fn pad_void(&mut self, height: i32) {
         self.pad_void = Some(height);
     }
 
-    /// A block the pad rule must leave in place.
     pub fn keep(&mut self, block_state: &str, min: [i32; 3], max: [i32; 3]) {
         match state(block_state) {
             Ok(state) => self.kept.push((min, max, state)),
@@ -355,9 +303,6 @@ impl Canvas {
         }
     }
 
-    /// Thin snow on every cell open to the sky that stands on one of these
-    /// supports: a block name, `soil` for grass and dirt, `BOTTOM` for the
-    /// lowest layer.
     pub fn snow_on(&mut self, supports: &[&str]) {
         self.snow = supports.iter().map(|s| (*s).to_owned()).collect();
     }
@@ -366,13 +311,10 @@ impl Canvas {
         self.bare.push((min, max));
     }
 
-    /// The data of a jigsaw whose target is its own name. A vertical jigsaw
-    /// rolls, a horizontal one stays aligned.
     pub fn jigsaw(&mut self, at: [i32; 3], name: &str, pool: &str, final_state: &str) {
         self.jigsaw_data(at, name, pool, final_state, false);
     }
 
-    /// A vertical jigsaw that stays aligned.
     pub fn jigsaw_aligned(&mut self, at: [i32; 3], name: &str, pool: &str, final_state: &str) {
         self.jigsaw_data(at, name, pool, final_state, true);
     }
@@ -404,8 +346,6 @@ impl Canvas {
         self.block_data.insert((at[0], at[1], at[2]), data);
     }
 
-    /// An entity described in layers: what its kind is saved with, then how
-    /// this one differs.
     pub fn entity(&mut self, pos: [f64; 3], block_pos: [i32; 3], nbt: &[Fields]) {
         self.entities.push(TemplateEntity {
             nbt: layered(nbt),
@@ -414,12 +354,10 @@ impl Canvas {
         });
     }
 
-    /// What has been painted so far, before the rule layer.
     pub fn painted(&self) -> &HashMap<Pos, Cell> {
         &self.world
     }
 
-    /// Every block of the finished template, or the first mistake painted.
     pub fn cells(&self) -> Result<BTreeMap<Pos, PaletteState>, BlueprintError> {
         if let Some(fault) = &self.fault {
             return Err(fault.clone());

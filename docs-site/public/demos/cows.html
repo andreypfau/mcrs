@@ -3,7 +3,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: two side-by-side lanes (vanilla | mc.rs) on one shared clock, a block grid seen from above, a thread strip under each. */
 :root {
   --bg: #eceee9;
   --panel: #f8f9f6;
@@ -214,7 +213,6 @@ td.v { color: var(--vanilla); font-weight: 600; } td.m { color: var(--mcrs); fon
     for (const id of ["a", "b"]) {
       const g = el("g", { class: "cow" }, svg);
       el("rect", { class: "body", x: -W / 2, y: Y - W / 2, width: W, height: W, rx: 6, "fill-opacity": id === "b" ? 0.82 : 0.92 }, g);
-      // Boxes overlap by design, so spots and labels stay on the outer side of each cow.
       const out = id === "a" ? -1 : 1;
       el("rect", { class: "spot", x: out < 0 ? -25 : 11, y: Y - 23, width: 14, height: 10, rx: 3 }, g);
       el("rect", { class: "spot", x: out < 0 ? -23 : 11, y: Y + 11, width: 12, height: 12, rx: 3 }, g);

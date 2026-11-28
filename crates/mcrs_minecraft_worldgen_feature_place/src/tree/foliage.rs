@@ -14,9 +14,6 @@ use super::trunk::{Axis, FoliageAttachment, TreeContext, dist_manhattan};
 pub struct Foliage(pub FoliagePlacer);
 
 impl Foliage {
-    /// `radius` and `offset`, which every one of the twelve carries and samples
-    /// in that order — `radius` with the tree's other sizes, `offset` once per
-    /// attachment.
     pub fn base(&self) -> (&IntProvider, &IntProvider) {
         use FoliagePlacer::*;
         match &self.0 {
@@ -65,7 +62,7 @@ impl Foliage {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "one arm per foliage placer kind, in the reference's declaration order, so each reads against its kind"
+        reason = "one arm per foliage placer kind, in the reference's declaration order"
     )]
     pub fn create_foliage<W: WorldGenVolume>(
         &self,
@@ -368,8 +365,6 @@ impl Foliage {
         }
     }
 
-    /// The skip predicate is asked about **every** cell of the row, the ones it
-    /// skips included, and blob, bush and cherry draw inside it.
     fn place_leaves_row<W: WorldGenVolume>(
         &self,
         cx: &mut TreeContext<'_, W>,
@@ -389,9 +384,12 @@ impl Foliage {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the tree context and random source, the row's origin, radius, height and trunk width, and the hanging-leaves chance and its extension chance"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one foliage row"
+        )
     )]
     fn place_leaves_row_with_hanging_leaves_below<W: WorldGenVolume>(
         &self,
@@ -530,8 +528,6 @@ impl Foliage {
                     corner && rng.next_f32() < corner_hole_chance.0 as f32
                 }
             }
-            // The poplar rhombus needs the row's own height and flip, so
-            // `poplar_row` tests it and never asks here.
             FoliagePlacer::Poplar { .. } => false,
         }
     }
@@ -567,11 +563,12 @@ impl Foliage {
         self.try_place_leaf(cx, rng, at)
     }
 
-    /// The poplar's own row: its skip test needs the row's height and the
-    /// tree's rhombus flip, neither of which the shared predicate carries.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the tree context and random source, the side-hole chance, the row's origin, radius, height and trunk width, and the foliage height and rhombus flip its skip test needs"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one foliage row"
+        )
     )]
     fn poplar_row<W: WorldGenVolume>(
         &self,
@@ -619,11 +616,12 @@ impl Foliage {
         }
     }
 
-    /// The poplar's log pass. The foliage provider is sampled to compare
-    /// against the block already there, so it draws whether or not a log lands.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the tree context and random source, the row's origin, radius, height and trunk width, and the foliage height and rhombus flip of the poplar's log pass"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one foliage row"
+        )
     )]
     fn replace_leaves_with_log<W: WorldGenVolume>(
         &self,
@@ -719,8 +717,6 @@ mod tests {
         Foliage(serde_json::from_str(&json).unwrap())
     }
 
-    /// One case per foliage type, parameters taken from the shipped feature
-    /// that uses it. `tree_height` is the trunk the crown was told about.
     fn cases() -> Vec<(&'static str, Foliage, i32, bool)> {
         vec![
             ("blob", foliage("blob", 2, 0, r#","height":3"#), 5, false),
@@ -833,9 +829,6 @@ mod tests {
         }
     }
 
-    /// `placeLeavesRow` asks the skip predicate about every cell of the row,
-    /// so blob spends a draw on each corner — including the corners the answer
-    /// then refuses to fill.
     #[test]
     fn the_skip_predicate_draws_on_the_cells_it_skips() {
         let placer = foliage("blob", 1, 0, r#","height":0"#);
@@ -862,8 +855,6 @@ mod tests {
         }
     }
 
-    /// `dark_oak` overrides the *signed* predicate: at `y == 0` under a double
-    /// trunk it keeps the four outer corners rather than asking further.
     #[test]
     fn dark_oak_keeps_its_double_trunk_corners() {
         let placer = foliage("dark_oak", 0, 0, "");

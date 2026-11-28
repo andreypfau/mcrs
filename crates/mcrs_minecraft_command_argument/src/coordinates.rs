@@ -3,12 +3,9 @@ use glam::{BVec3, DVec3, Vec3};
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_numeric::{cos_nearest, radians_from_degrees, sin_nearest};
 
-/// A position as a command writes it, resolved against a source.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Coordinates {
-    /// The x, y and z axes, each absolute or relative to the position of the source.
     World([WorldCoordinate; 3]),
-    /// Left, up and forwards along the axes of the source rotation.
     Local([f64; 3]),
 }
 
@@ -37,7 +34,6 @@ pub(crate) fn local_position(
 }
 
 impl Coordinates {
-    /// The point the coordinates name against `source`.
     #[must_use]
     pub fn position<L>(&self, source: &Source<'_, L>) -> DVec3 {
         match self {
@@ -52,7 +48,6 @@ impl Coordinates {
         }
     }
 
-    /// The axes that are relative to the source.
     #[must_use]
     pub fn relative(&self) -> BVec3 {
         match self {

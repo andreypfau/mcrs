@@ -9,7 +9,6 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-/// A command tree under construction. A node added twice under one parent merges.
 #[derive(Clone, Debug)]
 pub struct GraphBuilder<A, R, H> {
     nodes: Vec<Node<A, R, H>>,
@@ -28,7 +27,6 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         }
     }
 
-    /// Adds a literal child to `parent`, or returns the equal child it has.
     pub fn literal(
         &mut self,
         parent: NodeId,
@@ -38,7 +36,6 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         self.add(parent, NodeKind::Literal(name.into()), requirement)
     }
 
-    /// Adds an argument child to `parent`, or returns the equal child it has.
     pub fn argument<T>(
         &mut self,
         parent: NodeId,
@@ -63,13 +60,11 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         })
     }
 
-    /// Makes the node executable; a later command replaces an earlier one.
     pub fn executes(&mut self, node: NodeId, command: H) -> Result<(), BuildError> {
         self.node_mut(node)?.command = Some(command);
         Ok(())
     }
 
-    /// Makes a parse continue at the children of `target` after the node.
     pub fn redirect(&mut self, node: NodeId, target: NodeId) -> Result<(), BuildError> {
         if self.nodes.get(target.index()).is_none() {
             return Err(BuildError::UnknownNode(target));
@@ -87,8 +82,6 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         }
     }
 
-    /// Gives the redirect of the node a modifier. A node with a modifier must have a redirect
-    /// when the tree freezes.
     pub fn modifies(
         &mut self,
         node: NodeId,
@@ -101,7 +94,6 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         Ok(())
     }
 
-    /// Checks the redirects and the modifiers and returns the tree.
     pub fn freeze(self) -> Result<Graph<A, R, H>, BuildError> {
         for (index, node) in self.nodes.iter().enumerate() {
             let id = NodeId(index as u32);
@@ -134,8 +126,6 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         Ok(Graph { nodes: self.nodes })
     }
 
-    /// Makes an existing node a child of one more parent. The node keeps its first parent, so
-    /// its requirement chain is the path through that parent.
     pub fn link(&mut self, parent: NodeId, child: NodeId) -> Result<(), BuildError> {
         let child_node = self
             .nodes
@@ -152,7 +142,6 @@ impl<A: PartialEq, R: PartialEq + Default, H> GraphBuilder<A, R, H> {
         Ok(())
     }
 
-    /// The child of `parent` with `name`. A parent that redirects takes no child.
     fn child_named(
         &self,
         parent: NodeId,

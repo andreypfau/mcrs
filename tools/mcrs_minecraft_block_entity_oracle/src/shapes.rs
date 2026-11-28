@@ -1,6 +1,3 @@
-//! The shapes, textures and placements of each static block entity, as the specification of
-//! block entity models states them in its section on shapes.
-
 use std::path::Path;
 
 use glam::{DMat3, DMat4, DVec3};
@@ -52,7 +49,6 @@ impl Literal {
     }
 }
 
-/// One layer entry of the model artefact, in one pose, as the entity pack holds it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GeometrySource {
     pub identifier: &'static str,
@@ -158,7 +154,6 @@ impl GeometrySource {
     }
 }
 
-/// Where the reference states the placement of a shape, when it states one.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArtefactPlacement {
     pub shape: &'static str,
@@ -176,7 +171,6 @@ pub struct Shape {
     pub artefact_placement: Option<ArtefactPlacement>,
 }
 
-/// The shapes of the states where each property of `conditions` has its value.
 pub struct Case {
     pub conditions: Vec<(&'static str, Literal)>,
     pub shapes: Vec<Shape>,
@@ -193,7 +187,6 @@ impl BlockShapes {
     }
 }
 
-/// The property names and values of a block, read from its block definition.
 pub fn block_properties(path: &str) -> Vec<(String, Vec<String>)> {
     let file = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../assets/mcrs/block_definition")

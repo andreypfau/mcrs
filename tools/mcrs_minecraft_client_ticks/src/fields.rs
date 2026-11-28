@@ -1,7 +1,6 @@
 use std::str::FromStr;
 use std::str::SplitWhitespace;
 
-/// The space-separated fields of one line, read in order.
 pub(crate) struct Fields<'a> {
     rest: SplitWhitespace<'a>,
 }

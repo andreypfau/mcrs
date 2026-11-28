@@ -1,3 +1,4 @@
+use bevy::platform::collections::HashMap;
 use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::render::Extract;
@@ -7,6 +8,9 @@ use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_mesh::SECTION_SIZE;
 use mcrs_minecraft_mesh::{Connectivity, OPEN, SEALED, along};
 use mcrs_minecraft_render::Terrain;
+
+use crate::section_drawn::SectionDrawn;
+use crate::stream_focus::StreamFocus;
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
     mcrs_minecraft_mesh::face_normal(0),
@@ -25,16 +29,10 @@ const NEVER: u8 = u8::MAX;
 
 const ALL_EXITS: u32 = 0x3f;
 
-/// The steps that would take the walk back along an axis it has already crossed. It never takes
-/// one, which is what lets a section be read through the flood for the octant being travelled
-/// instead of the unrestricted one.
 const fn turning_back(dirs: u32) -> u32 {
     (dirs & 0b010101) << 1 | (dirs & 0b101010) >> 1
 }
 
-/// The addressing box in sections, and how far it slides at a time. It is centred on the camera:
-/// a section outside it has no cell and is drawn rather than tested. What the walk costs is set by
-/// the span of sections laid into the box, not by this.
 pub const WALK: [usize; 3] = [96, 32, 96];
 
 const WALK_STEP: i32 = 16;
@@ -59,8 +57,6 @@ const _: () = {
         assert!(there[0] == -back[0] && there[1] == -back[1] && there[2] == -back[2]);
         face += 1;
     }
-    // Half a box plus the widest step still has to land inside the box, or the camera could
-    // stand outside its own walk.
     let mut axis = 0;
     while axis < 3 {
         assert!(WALK[axis] / 2 + WALK_STEP as usize <= WALK[axis]);
@@ -68,7 +64,6 @@ const _: () = {
     }
 };
 
-/// Clears cells `from..=to` of a bitset without touching the cells sharing their end words.
 fn clear_run(bits: &mut [u32], from: usize, to: usize) {
     let (first, last) = (from >> 5, to >> 5);
     let (head, tail) = (u32::MAX << (from & 31), u32::MAX >> (31 - (to & 31)));
@@ -120,21 +115,20 @@ enum Edit {
     Forget([i32; 3]),
 }
 
-/// Which sections a line of sight from the camera can reach through the sections' own
-/// connectivity. The truth is the loader's resident set, which reaches the walker as edits; the
-/// walk runs on the compute pool whenever the camera's section or the topology has changed, and
-/// its bits are adopted here when it lands. Between walks a section is drawn until told
-/// otherwise, and the frustum is the GPU cull's business.
+#[derive(Clone, Copy)]
+struct Laid {
+    slot: u32,
+    connectivity: Connectivity,
+}
+
 #[derive(Resource)]
 pub struct CaveCull {
     pub enabled: bool,
     pub bits: Box<[u32]>,
-    /// Counts the changes to `bits`, so a reader can skip the frames that made none.
     pub generation: u32,
+    laid: HashMap<[i32; 3], Laid>,
     corner: [i32; 3],
     edits: Vec<Edit>,
-    /// Edits made since the running walk took its tables, so a slot they laid stays drawn
-    /// whatever that walk concluded about the section that held the slot before.
     laid_meanwhile: Vec<u32>,
     walked_from: Option<[i32; 3]>,
     changed: bool,
@@ -164,6 +158,7 @@ impl CaveCull {
             enabled,
             bits: vec![u32::MAX; slots.div_ceil(32)].into_boxed_slice(),
             generation: 0,
+            laid: HashMap::new(),
             corner: [0; 3],
             edits: Vec::new(),
             laid_meanwhile: Vec::new(),
@@ -194,8 +189,6 @@ impl CaveCull {
         self.reached
     }
 
-    /// Slides the walk box onto the camera, in whole steps. A box that moved holds nothing until
-    /// the loader lays its resident sections back in.
     pub fn follow(&mut self, camera: Vec3) -> bool {
         let corner = corner_for(camera);
         if corner == self.corner {
@@ -203,10 +196,32 @@ impl CaveCull {
         }
         self.corner = corner;
         self.edit(Edit::Slide(corner));
+        let laid = std::mem::take(&mut self.laid);
+        for (&section, held) in &laid {
+            self.set_section(section, held.slot, held.connectivity);
+        }
+        self.laid = laid;
         true
     }
 
-    pub fn set_section(&mut self, section: [i32; 3], slot: u32, mask: Connectivity) {
+    pub fn record(&mut self, drawn: &SectionDrawn) {
+        match *drawn {
+            SectionDrawn::Laid {
+                section,
+                slot,
+                connectivity,
+            } => {
+                self.laid.insert(section, Laid { slot, connectivity });
+                self.set_section(section, slot, connectivity);
+            }
+            SectionDrawn::Forgotten { section } => {
+                self.laid.remove(&section);
+                self.forget(section);
+            }
+        }
+    }
+
+    fn set_section(&mut self, section: [i32; 3], slot: u32, mask: Connectivity) {
         if local_in(self.corner, section).is_none() {
             return;
         }
@@ -217,7 +232,7 @@ impl CaveCull {
         }
     }
 
-    pub fn forget(&mut self, section: [i32; 3]) {
+    fn forget(&mut self, section: [i32; 3]) {
         if local_in(self.corner, section).is_none() {
             return;
         }
@@ -266,7 +281,6 @@ impl CaveCull {
         walker
     }
 
-    /// The walk, run to completion on the calling thread.
     #[cfg(test)]
     fn walk_now(&mut self, camera: Vec3) {
         let mut walker = self.take_walker(camera);
@@ -274,12 +288,17 @@ impl CaveCull {
         self.adopt(walker);
     }
 
-    /// The walker's tables with every edit so far applied.
     #[cfg(test)]
     fn tables(&mut self) -> &mut Walker {
         let walker = self.idle.as_mut().expect("an idle walker");
         walker.apply(self.edits.drain(..));
         walker
+    }
+
+    #[cfg(test)]
+    pub(crate) fn walked_slot(&mut self, section: [i32; 3]) -> Option<u32> {
+        let walker = self.tables();
+        walker.cell(section).map(|cell| walker.slot[cell])
     }
 }
 
@@ -319,8 +338,6 @@ impl Walker {
         self.laid = None;
         self.conn.fill(OPEN);
         self.slot.fill(NO_SLOT);
-        // A cell is numbered against the corner, so sliding renumbers every one of them and the
-        // last walk's marks can no longer be found by the box they were made in.
         self.walked = None;
         self.spent.fill(NEVER);
         self.reached.fill(0);
@@ -355,8 +372,6 @@ impl Walker {
     fn run(&mut self, camera: Vec3) {
         let started = Instant::now();
         self.bits.fill(u32::MAX);
-        // Only the last walk's box can hold stale marks, so scrubbing it — before any early
-        // return — is what leaves the whole of `reached` and `spent` clean again.
         if let Some(walked) = self.walked.take() {
             self.scrub(walked);
         }
@@ -370,9 +385,6 @@ impl Walker {
             self.took_us = started.elapsed().as_micros() as u32;
             return;
         }
-        // The walk never turns back along an axis it has already stepped, so its path between two
-        // cells stays between them on every axis. Clipping it to the sections laid in — widened to
-        // wherever the camera stands — therefore drops no cell it could have reached.
         let lo: [i32; 3] = std::array::from_fn(|axis| laid_lo[axis].min(eye[axis]) as i32);
         let hi: [i32; 3] = std::array::from_fn(|axis| laid_hi[axis].max(eye[axis]) as i32);
         self.walked = Some([lo, hi]);
@@ -420,8 +432,6 @@ impl Walker {
         }
     }
 
-    /// The shader indexes visibility by table slot, so what the walk did not reach loses its bit.
-    /// A section the box does not cover has no cell here and keeps the bit it was filled with.
     fn project(&mut self, lo: [usize; 3], hi: [usize; 3]) {
         for y in lo[1]..=hi[1] {
             for z in lo[2]..=hi[2] {
@@ -447,6 +457,18 @@ impl Walker {
         self.reached[(cell >> 5) as usize] |= 1u32 << (cell & 31);
         self.queue
             .push(cell | entry << QUEUE_ENTRY_SHIFT | (merged as u32) << QUEUE_DIRS_SHIFT);
+    }
+}
+
+pub fn record_drawn_sections(
+    mut cave: ResMut<CaveCull>,
+    focus: Res<StreamFocus>,
+    mut drawn: MessageReader<SectionDrawn>,
+) {
+    let cave = cave.bypass_change_detection();
+    cave.follow(focus.eye());
+    for change in drawn.read() {
+        cave.record(change);
     }
 }
 
@@ -483,13 +505,10 @@ pub fn toggle(keys: Res<ButtonInput<KeyCode>>, mut cave: ResMut<CaveCull>) {
 
 pub fn extract_cave_visibility(
     cave: Extract<Res<CaveCull>>,
-    terrain: Option<Res<Terrain>>,
+    terrain: Res<Terrain>,
     queue: Res<RenderQueue>,
     mut uploaded: Local<Option<u32>>,
 ) {
-    let Some(terrain) = terrain else {
-        return;
-    };
     if *uploaded == Some(cave.generation) {
         return;
     }
@@ -503,9 +522,6 @@ mod tests {
     use mcrs_minecraft_mesh::CONNECT_ALL;
     use std::collections::HashMap;
 
-    /// The walk box is full of open air, so a test builds its topology into solid rock and opens
-    /// only the sections it means to talk about. A section gets a table slot the first time it is
-    /// opened, whatever its mask, because visibility is asked of slots.
     struct Slab {
         cave: CaveCull,
         slots: HashMap<[i32; 3], u32>,
@@ -518,7 +534,6 @@ mod tests {
             slab
         }
 
-        /// Every cell as the loader leaves one it has never reached: open air with no slot.
         fn in_the_open(eye: Vec3) -> Self {
             let mut cave = CaveCull::new(WALK_CELLS, true);
             cave.follow(eye);
@@ -560,7 +575,6 @@ mod tests {
         ) * SECTION_SIZE as f32
     }
 
-    /// One open storey with a wall across it, running from `from` in x to `to`.
     fn walled(from: i32, to: i32, wall: i32, eye: [i32; 3]) -> Slab {
         let mut slab = Slab::around(middle(eye));
         for x in from..to {
@@ -697,9 +711,6 @@ mod tests {
         );
     }
 
-    /// By the time the walk turns west out of the corner it has already stepped west, down and
-    /// north, so only that octant's flood is asked. A route through the corner that doubles back on
-    /// an axis lives in the other floods and is culled.
     #[test]
     fn a_walk_whose_box_moved_reports_only_what_this_walk_reached() {
         let mut slab = Slab::in_the_open(middle([0, 2, 0]));
@@ -753,6 +764,61 @@ mod tests {
         assert!(
             doubling_back([CONNECT_ALL; 4]).visible([6, 7, 7]),
             "an unrestricted corner still lets the walk through"
+        );
+    }
+
+    #[test]
+    fn sections_laid_and_forgotten_in_one_frame_keep_the_order_they_were_drawn_in() {
+        let mut app = App::new();
+        app.add_message::<SectionDrawn>()
+            .init_resource::<StreamFocus>()
+            .insert_resource(CaveCull::new(WALK_CELLS, true))
+            .add_systems(Update, record_drawn_sections);
+        let (relaid, gone, reused) = ([1, 0, 1], [2, 0, 1], [3, 0, 1]);
+        let laid = |section, slot| SectionDrawn::Laid {
+            section,
+            slot,
+            connectivity: SEALED,
+        };
+        app.world_mut().write_message(laid(relaid, 1));
+        app.update();
+        app.world_mut().write_message_batch([
+            SectionDrawn::Forgotten { section: relaid },
+            laid(relaid, 2),
+            laid(gone, 3),
+            SectionDrawn::Forgotten { section: gone },
+            laid(reused, 3),
+        ]);
+        app.update();
+
+        let cells = |app: &mut App| {
+            let tables = app
+                .world_mut()
+                .resource_mut::<CaveCull>()
+                .into_inner()
+                .tables();
+            [relaid, gone, reused].map(|section| {
+                let cell = tables.cell(section).expect("inside the walk box");
+                (tables.slot[cell], tables.conn[cell])
+            })
+        };
+        let expected = [(2, SEALED), (NO_SLOT, OPEN), (3, SEALED)];
+        assert_eq!(
+            cells(&mut app),
+            expected,
+            "a section forgotten and then laid is drawn, and one laid and then forgotten \
+             leaves its slot to the section that took it next"
+        );
+
+        let far = Vec3::X * (WALK[0] * SECTION_SIZE) as f32;
+        for eye in [far, Vec3::ZERO] {
+            app.world_mut().resource_mut::<StreamFocus>().look_from(eye);
+            app.update();
+        }
+        assert_eq!(
+            cells(&mut app),
+            expected,
+            "a slide away and back lays in the same sections from what the cave was told"
         );
     }
 

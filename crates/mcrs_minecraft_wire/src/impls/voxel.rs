@@ -4,8 +4,6 @@ use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
 use crate::{Context, Decode, Encode, Result};
 
-/// Packs three signed coordinates into one `u64`, `x` in the high bits, each in two's complement
-/// of its width.
 fn pack(pos: [i32; 3], bits: [u32; 3]) -> Option<u64> {
     let mut packed = 0;
     for (value, width) in pos.into_iter().zip(bits) {
@@ -26,7 +24,6 @@ fn unpack(packed: u64, bits: [u32; 3]) -> [i32; 3] {
     })
 }
 
-/// `x` 26 bits, `z` 26 bits, `y` 12 bits.
 const BLOCK_POS_BITS: [u32; 3] = [26, 26, 12];
 
 impl Encode for BlockPos {
@@ -44,7 +41,6 @@ impl Decode<'_> for BlockPos {
     }
 }
 
-/// `x` 22 bits, `z` 22 bits, `y` 20 bits.
 const SECTION_POS_BITS: [u32; 3] = [22, 22, 20];
 
 impl Encode for SectionPos {

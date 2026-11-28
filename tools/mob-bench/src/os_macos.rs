@@ -1,4 +1,3 @@
-//! The macOS counters: Mach per-CPU ticks, `proc_pid_rusage` per process, the load average.
 #![expect(
     deprecated,
     reason = "libc marks its Mach bindings deprecated in favour of mach2"
@@ -9,8 +8,6 @@ use std::mem::{MaybeUninit, size_of};
 
 use crate::os::{CoreTicks, ProcessUsage};
 
-/// The ticks each CPU spent in user, system, nice and idle state since boot, from
-/// `host_processor_info(PROCESSOR_CPU_LOAD_INFO)`.
 pub fn core_ticks() -> Vec<CoreTicks> {
     let mut count: libc::natural_t = 0;
     let mut info: libc::processor_info_array_t = std::ptr::null_mut();
@@ -54,7 +51,6 @@ pub fn core_ticks() -> Vec<CoreTicks> {
     cores
 }
 
-/// The CPU time and resident memory of `pid`, or `None` for a process this user may not read.
 pub fn process(pid: i32) -> Option<ProcessUsage> {
     let mut info = MaybeUninit::<libc::rusage_info_v2>::zeroed();
     // SAFETY: `info` is a buffer of the size the V2 flavour writes.
@@ -71,7 +67,6 @@ pub fn process(pid: i32) -> Option<ProcessUsage> {
     // SAFETY: the call succeeded, so the kernel filled the buffer.
     let info = unsafe { info.assume_init() };
     let (numer, denom) = timebase();
-    // `ri_user_time` is in Mach absolute time units, which are not nanoseconds on Apple silicon.
     let nanos = |ticks: u64| (u128::from(ticks) * u128::from(numer) / u128::from(denom)) as u64;
     Some(ProcessUsage {
         cpu_nanos: nanos(info.ri_user_time) + nanos(info.ri_system_time),
@@ -89,7 +84,6 @@ fn timebase() -> (u32, u32) {
     (info.numer, info.denom)
 }
 
-/// Every process id the kernel lists.
 pub fn pids() -> Vec<i32> {
     let mut pids = vec![0i32; 8192];
     let bytes = i32::try_from(pids.len() * size_of::<i32>()).unwrap_or(i32::MAX);
@@ -108,7 +102,6 @@ pub fn name(pid: i32) -> String {
     String::from_utf8_lossy(buffer.get(..length).unwrap_or_default()).into_owned()
 }
 
-/// The 1-, 5- and 15-minute load averages.
 pub fn load_average() -> [f64; 3] {
     let mut load = [0.0f64; 3];
     // SAFETY: the buffer holds three doubles.

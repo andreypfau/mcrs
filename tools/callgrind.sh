@@ -1,11 +1,4 @@
 #!/bin/bash
-# Counts the instructions of one tick of the entity pass scene (1 and 16 threads) and of the
-# prediction of 10,000 players, under callgrind in a Linux container:
-#   tools/callgrind.sh [linux/arm64 | linux/amd64]
-# Each scene runs to two tick counts; the difference over the ticks between removes the set-up,
-# the warm-up and the exit. Ir of all threads add up. Valgrind on arm64 loses returns, so its
-# inclusive Ir per function is wrong (over 100 % of the total); take the function map from amd64.
-# The cargo registry and the target directory stay in volumes with the name mcrs-callgrind-*.
 set -eu
 
 if [ "${1:-}" != inside ]; then
@@ -26,7 +19,6 @@ predict=$(cargo bench -q --locked -p mcrs_minecraft_move_predict --bench predict
 out=/target/callgrind
 mkdir -p $out
 
-# $1: name, $2 and $3: the two tick counts, then the command with TICKS for the tick count.
 count() {
     local name=$1 low=$2 high=$3
     shift 3

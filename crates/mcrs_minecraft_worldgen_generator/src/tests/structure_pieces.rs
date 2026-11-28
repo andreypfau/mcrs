@@ -20,16 +20,14 @@ use crate::structures::index::StructureIndex;
 
 const MAGIC: &[u8; 8] = b"MCSTRPC0";
 
-/// Fields the reference fills in at placement from the live world, which the
-/// layout fixes here from the density heights instead: they are dropped from
-/// both sides before a piece is compared, keyed by the piece's `id`.
-const PLACEMENT_FIXED_FIELDS: [(&str, &[&str]); 6] = [
+const PLACEMENT_FIXED_FIELDS: [(&str, &[&str]); 7] = [
     ("minecraft:tedp", &["HPos"]),
     ("minecraft:tejp", &["HPos"]),
     ("minecraft:tesh", &["HPos"]),
     ("minecraft:shipwreck", &["TPY", "height_adjusted"]),
     ("minecraft:orp", &["TPY"]),
     ("minecraft:iglu", &["TPY"]),
+    ("minecraft:omb", &["mcrs:rooms", "mcrs:children"]),
 ];
 
 pub(super) struct DumpCase {
@@ -146,6 +144,6 @@ mod exhaustive {
             }
             compared += 1;
         }
-        assert_eq!((compared, pieces), (591, 40785));
+        assert_eq!((compared, pieces), (592, 40906));
     }
 }

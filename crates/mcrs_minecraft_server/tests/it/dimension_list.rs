@@ -38,7 +38,7 @@ fn scratch_world(tag: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn a_save_supplies_the_dimension_list_whatever_the_preset_names_and_startup_builds_the_tables() {
+fn save_supplies_dimension_list_and_startup_builds_tables() {
     let mut dimensions = preset("minecraft:normal");
     dimensions.insert(key("test:extra"), debug_dimension("minecraft:overworld"));
     let world = scratch_world("save");
@@ -47,6 +47,9 @@ fn a_save_supplies_the_dimension_list_whatever_the_preset_names_and_startup_buil
         &WorldGenSettings {
             seed: 3,
             dimensions,
+            bonus_chest: false,
+            generate_structures: true,
+            legacy_custom_options: None,
         },
         test_registries(),
     )

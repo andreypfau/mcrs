@@ -1,11 +1,14 @@
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::clipboard::Clipboard;
+use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
+use bevy::time::common_conditions::on_timer;
 
 use mcrs_minecraft_render_probe::probe::{self, CpuTimings, GpuTimings};
 
@@ -16,7 +19,6 @@ const DEFAULT_DIR: &str = "screenshots";
 
 const TRIGGER: &str = "capture";
 
-/// Where screenshots land, and where the trigger file is watched for.
 #[derive(Resource)]
 pub struct ScreenshotDir(PathBuf);
 
@@ -44,7 +46,13 @@ impl Plugin for ScreenshotPlugin {
             .unwrap_or_else(|| PathBuf::from(DEFAULT_DIR));
         app.insert_resource(ScreenshotDir(dir))
             .add_systems(Startup, prepare_dir)
-            .add_systems(Update, capture);
+            .add_systems(
+                Update,
+                capture.run_if(
+                    on_timer(Duration::from_secs_f32(TRIGGER_POLL_SECONDS))
+                        .or_else(input_just_pressed(KeyCode::F2)),
+                ),
+            );
         if let Some(path) = knobs.capture_path() {
             app.insert_resource(SceneCapture(path))
                 .add_message::<Unsettled>()
@@ -64,20 +72,24 @@ fn prepare_dir(dir: Res<ScreenshotDir>) {
 
 const TRIGGER_POLL_SECONDS: f32 = 0.25;
 
-fn capture(
-    mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
-    dir: Res<ScreenshotDir>,
-    time: Res<Time>,
-    mut due: Local<f32>,
-) {
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the file name of a screenshot carries the wall-clock time"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "polled by timer; it builds the file name only on the frame that finds the trigger file"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn capture(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>, dir: Res<ScreenshotDir>) {
     let trigger = dir.trigger();
-    let now = time.elapsed_secs();
-    let poll = now >= *due;
-    if poll {
-        *due = now + TRIGGER_POLL_SECONDS;
-    }
-    if poll && trigger.exists() {
+    if trigger.exists() {
         remove_trigger(&trigger);
         let shot = dir.next_shot();
         info!(path = %shot.display(), "capturing screenshot");
@@ -93,7 +105,6 @@ fn capture(
     }
 }
 
-/// Where a scripted run writes its one screenshot of the settled scene.
 #[derive(Resource)]
 pub struct SceneCapture(pub PathBuf);
 
@@ -104,7 +115,6 @@ const SETTLE_SECS: f32 = 3.0;
 
 const SETTLE_TIMEOUT_SECS: f32 = 180.0;
 
-/// Kept below the GPU probe's 256-sample window, so every GPU figure comes from these frames.
 const TIMING_FRAMES: usize = 240;
 
 #[derive(Default)]
@@ -114,12 +124,22 @@ struct Settling {
     requested: bool,
 }
 
-/// Waits for the terrain to stay quiet, with no timeout of its own for work that reports
-/// `Unsettled`: work that never settles fails the capture rather than shooting it unfinished.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "watches the scene settle on each frame until the capture, and only when the capture knob is set"
+    )
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        mcrs::blocking_in_system,
+        reason = "allocates and writes the timing table only on the timeout and on the one frame that captures the scene"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 fn capture_scene(
     mut commands: Commands,
     capture: Res<SceneCapture>,
@@ -140,7 +160,17 @@ fn capture_scene(
     }
     let now = time.elapsed_secs();
     if now > SETTLE_TIMEOUT_SECS {
-        error!(path = %capture.0.display(), "the scene did not settle within 180 s");
+        let blockers = settling.settle.blockers();
+        error!(
+            path = %capture.0.display(),
+            blocking = ?blockers.names(),
+            unsettled_messages = blockers.unsettled_messages,
+            columns = blockers.columns,
+            queued = blockers.queued,
+            meshing = blockers.meshing,
+            uploads_waiting = blockers.uploads_waiting,
+            "the scene did not settle within 180 s"
+        );
         commands.write_message(AppExit::error());
         return;
     }
@@ -202,9 +232,6 @@ fn copy_to_clipboard(captured: On<ScreenshotCaptured>, mut clipboard: ResMut<Cli
     }
 }
 
-/// The clipboard takes packed RGBA8 where the window hands over its own
-/// swapchain format, and with HDR on the alpha channel carries brightness
-/// rather than opacity, which would paste as a see-through image.
 fn opaque_rgba8(image: &Image) -> Result<Image, bevy::image::IntoDynamicImageError> {
     let mut rgba = image.clone().try_into_dynamic()?.into_rgba8();
     for pixel in rgba.pixels_mut() {

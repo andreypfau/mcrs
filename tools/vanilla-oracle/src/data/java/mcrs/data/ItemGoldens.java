@@ -676,7 +676,6 @@ final class ItemGoldens {
         return false;
     }
 
-    // Gson prints 12345678.0 as 1.2345678E7; the golden files spell every double without an exponent.
     private static JsonElement plainNumbers(final JsonElement element) {
         if (element instanceof JsonObject object) {
             JsonObject copy = new JsonObject();
@@ -696,7 +695,6 @@ final class ItemGoldens {
         return element;
     }
 
-    // DataComponentExactPredicate encodes through a HashMap keyed by identity-hashed types, so its member order changes between runs.
     private static JsonElement sortedComponents(final JsonElement element) {
         if (element instanceof JsonObject object) {
             JsonObject copy = new JsonObject();

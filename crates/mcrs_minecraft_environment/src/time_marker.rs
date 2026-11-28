@@ -4,8 +4,6 @@ use serde::de::value::MapAccessDeserializer;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
-/// A time marker as a timeline declares it: a bare tick count, or an object
-/// that also asks for the marker to be offered to commands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimeMarker {
     pub ticks: u32,

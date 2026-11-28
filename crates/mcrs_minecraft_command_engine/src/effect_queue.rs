@@ -3,12 +3,8 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::resource::Resource;
 use std::collections::VecDeque;
 
-/// Applies the oldest effect of one type that a handler wrote in the world.
 pub(crate) type ApplyNext = fn(&mut Worlds<'_>);
 
-/// The effects of type `E` that a handler of this world wrote and the world did not apply yet,
-/// in the order of writing, and the function that applies one. A handler writes one with
-/// [`CommandOutput::effect`](crate::CommandOutput::effect).
 #[derive(Resource)]
 pub struct EffectQueue<E: Send + Sync + 'static> {
     pub(crate) values: VecDeque<E>,
@@ -26,7 +22,6 @@ pub(crate) fn apply_next<E: Send + Sync + 'static>(worlds: &mut Worlds<'_>) {
     }
 }
 
-/// Adds the queue of the effects of type `E` to each dimension world.
 pub(crate) struct EffectPlugin<E> {
     pub(crate) apply: fn(&mut Worlds<'_>, E),
 }

@@ -1,0 +1,237 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment A4
+step respawn
+instruction Release all keys. The console sets the attributes and kills the player; the client respawns at once.
+fill -16 99 -16 16 99 16 minecraft:stone
+events
+3504539 < abilities none 0.05
+3504539 < attribute minecraft:block_interaction_range 4.5
+3504539 < attribute minecraft:entity_interaction_range 3
+3504539 < attribute minecraft:movement_speed 0.10000000149011612
+3504539 < teleport 3 0.5 100 0.5 0 0 0 -90 0 0
+3551320 > move - - none
+3551321 > tick
+3600552 > move - - on_ground
+3601710 > tick
+3650483 > move 0.5,100,0.5 - on_ground
+3650484 > tick
+3701464 > tick
+3750679 > tick
+3801647 > tick
+3850553 > tick
+3901685 > tick
+3950579 > tick
+4001819 > tick
+4050705 > tick
+4101801 > tick
+4150627 > tick
+4201273 > tick
+4250636 > tick
+4300723 > tick
+4350513 > tick
+4401328 > tick
+4451655 > tick
+4501041 > tick
+4550564 > tick
+4600498 > tick
+4651463 > move 0.5,100,0.5 - on_ground
+4651464 > tick
+4700736 > tick
+4750525 > tick
+4800458 > tick
+4851418 > tick
+4900721 > tick
+4951753 > tick
+5000757 > tick
+5050406 > tick
+5101468 > tick
+5150574 > tick
+5201470 > tick
+5250468 > tick
+5300879 > tick
+5351433 > tick
+5400486 > tick
+5450984 > tick
+5500911 > tick
+5550644 > tick
+5601690 > tick
+5650700 > move 0.5,100,0.5 - on_ground
+5650701 > tick
+5700754 > tick
+5750567 > tick
+5800605 > tick
+5851634 > tick
+5900801 > tick
+5950498 > tick
+6000656 > tick
+6050528 > tick
+6101407 > tick
+6150453 > tick
+6201737 > tick
+6250986 > tick
+6300528 > tick
+6351437 > tick
+6401473 > tick
+6451337 > tick
+6500735 > tick
+6551476 > tick
+6604433 > tick
+6650477 > move 0.5,100,0.5 - on_ground
+6651649 > tick
+6700685 > tick
+6750857 > tick
+6802695 > tick
+6850615 > tick
+6900557 > tick
+6900565 < attribute minecraft:max_health 30
+6951462 > tick
+7000482 > tick
+7000657 < attribute minecraft:luck 0 test:a 1 0
+7050754 > tick
+7054084 < effect minecraft:speed 0
+7100741 > tick
+7105207 < attribute minecraft:movement_speed 0.10000000149011612 minecraft:effect.speed 0.20000000298023224 2
+7151567 > tick
+7200797 > tick
+7250681 > tick
+7300766 > tick
+7350493 > tick
+7400877 > tick
+7450554 > tick
+7501893 > tick
+7550777 > tick
+7601417 > tick
+7650297 > move 0.5,100,0.5 - on_ground
+7651462 > tick
+7701033 > tick
+7750620 > tick
+7800819 > tick
+7851189 > tick
+7900794 > tick
+7951638 > tick
+8001385 > tick
+8050691 > tick
+8103938 > tick
+8106247 < abilities none 0.05
+8106254 < teleport 4 -2.5 100 2.5 0 0 0 0 0 0
+8111024 < attribute minecraft:movement_speed 0.10000000149011612
+8111024 < attribute minecraft:luck 0
+8111024 < attribute minecraft:entity_interaction_range 3
+8111024 < attribute minecraft:max_health 30
+8111024 < attribute minecraft:block_interaction_range 4.5
+8213296 > tick
+8255677 > move -2.5,100,2.5 - none
+8255677 > tick
+8256833 > move - - on_ground
+8256834 > tick
+8308606 > tick
+8353372 > tick
+8403553 > tick
+8453948 > tick
+8502629 > tick
+8551427 > tick
+8600907 > tick
+8650711 > tick
+8701537 > tick
+8750908 > tick
+8800638 > tick
+8850703 > tick
+8900614 > tick
+8952181 > tick
+9004623 > tick
+9050773 > tick
+9100666 > tick
+9152065 > tick
+9200791 > move -2.5,100,2.5 - on_ground
+9200792 > tick
+9251840 > tick
+9301629 > tick
+9351046 > tick
+9400864 > tick
+9452237 > tick
+9501520 > tick
+9551098 > tick
+9602301 > tick
+9651746 > tick
+9701812 > tick
+9751966 > tick
+9801669 > tick
+9852742 > tick
+9901719 > tick
+9952897 > tick
+10002216 > tick
+10052875 > tick
+10102299 > tick
+10152231 > tick
+10201779 > move -2.5,100,2.5 - on_ground
+10202936 > tick
+10251980 > tick
+10302014 > tick
+10352103 > tick
+10402153 > tick
+10452165 > tick
+10502312 > tick
+10554268 > tick
+10602876 > tick
+10653246 > tick
+10703191 > tick
+10752915 > tick
+10802837 > tick
+10854215 > tick
+10902970 > tick
+10954292 > tick
+11003330 > tick
+11053171 > tick
+11102970 > tick
+11154540 > tick
+11203833 > move -2.5,100,2.5 - on_ground
+11203835 > tick
+11253068 > tick
+11302979 > tick
+11353156 > tick
+11402898 > tick
+11452955 > tick
+11502840 > tick
+11554039 > tick
+11604801 > tick
+11654055 > tick
+11704134 > tick
+11758070 > tick
+11806800 > tick
+11861335 > tick
+11906769 > tick
+11954284 > tick
+12023467 > tick
+12056070 > tick
+12105149 > tick
+12154943 > tick
+12205372 > move -2.5,100,2.5 - on_ground
+12205374 > tick
+12254695 > tick
+12304288 > tick
+12355320 > tick
+12406854 > tick
+12455724 > tick
+12504248 > tick
+12554289 > tick
+12604826 > tick
+12654277 > tick
+12704150 > tick
+12754874 > tick
+12804929 > tick
+12854590 > tick
+12904736 > tick
+12954226 > tick
+13004736 > tick
+13054158 > tick
+13106279 > tick
+13154513 > tick
+13204399 > move -2.5,100,2.5 - on_ground
+13204400 > tick
+13255590 > tick
+13304627 > tick
+13355225 > tick
+13405999 > tick
+13455646 > tick
+13505913 > tick

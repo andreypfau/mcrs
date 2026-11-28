@@ -7,15 +7,13 @@ use serde::Deserialize;
 use crate::model_file_error::ModelFileError;
 use crate::resource_id::full_id;
 
-/// The light that a GUI draws an item model with.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum GuiLight {
     Front,
     #[default]
     Side,
 }
 
-/// A slot value that is not a reference.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextureValue {
     pub sprite: String,
@@ -24,12 +22,10 @@ pub struct TextureValue {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SlotValue {
-    /// The name of another slot, without its `#`.
     Reference(String),
     Texture(TextureValue),
 }
 
-/// The contexts a model can declare a display transform for, in the order of [`DisplayContext::ALL`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DisplayContext {
     ThirdPersonRightHand,
@@ -77,7 +73,6 @@ impl DisplayContext {
     }
 }
 
-/// A display transform: degrees, then blocks after the clamp, then the clamped scale.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DisplayTransform {
     pub rotation_deg: Vec3,
@@ -99,7 +94,6 @@ impl Default for DisplayTransform {
     }
 }
 
-/// The turn of an element about its origin, in pixel space.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ElementRotation {
     pub origin: DVec3,
@@ -109,9 +103,7 @@ pub struct ElementRotation {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ElementTurn {
-    /// A right-handed turn about the positive end of one axis.
     Axis { axis: Axis, degrees: f64 },
-    /// Degrees about X, then Y, then Z.
     Euler(DVec3),
 }
 
@@ -122,25 +114,20 @@ pub enum Axis {
     Z,
 }
 
-/// One face entry of an element.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FaceEntry {
-    /// The `texture` string as the file writes it, such as `#side`.
     pub texture: String,
     pub uv: Option<[f64; 4]>,
     pub cullface: Option<Direction>,
-    /// Quarter turns, `0` to `3`.
     pub rotation: u8,
     pub tint: Option<u32>,
 }
 
-/// One element of a model, in pixel space.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Element {
     pub from: DVec3,
     pub to: DVec3,
     pub rotation: Option<ElementRotation>,
-    /// The face entries, indexed in direction order.
     pub faces: [Option<FaceEntry>; 6],
     pub shade_direction_override: Option<Direction>,
     pub light_emission: u8,
@@ -153,7 +140,6 @@ impl Element {
     }
 }
 
-/// A model file. A field is `None` when the file has no key for it.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ModelFile {
     pub parent: Option<String>,
@@ -161,12 +147,10 @@ pub struct ModelFile {
     pub textures: BTreeMap<String, SlotValue>,
     pub ambient_occlusion: Option<bool>,
     pub gui_light: Option<GuiLight>,
-    /// The transforms of the contexts this file declares, indexed by [`DisplayContext::index`].
     pub display: [Option<DisplayTransform>; 9],
 }
 
 impl ModelFile {
-    /// Reads a model file. An error is a content error: the model is then absent.
     pub fn parse(bytes: &[u8]) -> Result<Self, ModelFileError> {
         let raw: RawModel =
             serde_json::from_slice(bytes).map_err(|error| ModelFileError::Syntax {
@@ -241,7 +225,6 @@ fn display_table(
     Ok(table)
 }
 
-/// The direction that a name of a direction stands for.
 #[must_use]
 pub fn direction_named(name: &str) -> Option<Direction> {
     Direction::all()

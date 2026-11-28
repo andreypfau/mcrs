@@ -15,8 +15,12 @@ use mcrs_minecraft_engine::whitelist::{
     EditWhitelist, Whitelist, WhitelistEntry, WhitelistHostPlugin,
 };
 use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
-use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
-use mcrs_minecraft_engine_server::{LoopbackOps, ShutdownPlugin, ShutdownRequest};
+use mcrs_minecraft_engine_server::login::{
+    LoginPlugin, LoginState, ProxyForwarding, SingleplayerProfile,
+};
+use mcrs_minecraft_engine_server::{
+    ForwardingSecret, ServerProfile, ShutdownPlugin, ShutdownRequest,
+};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::event::run_event_loop;
@@ -31,23 +35,22 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::{
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::packets::login::clientbound::{
     ClientboundLoginDisconnect, ClientboundLoginFinished, ClientboundLoginFinishedWithOptions,
-    LoginCompression, OptionFlags,
+    CustomQuery, LoginCompression, OptionFlags,
 };
 use mcrs_minecraft_protocol::packets::login::serverbound::{
-    ServerboundHello, ServerboundLoginAcknowledged,
+    ServerboundCustomQueryAnswer, ServerboundHello, ServerboundLoginAcknowledged,
 };
 use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
 use mcrs_minecraft_protocol::uuid::{Uuid, uuid};
 use mcrs_minecraft_protocol::{
-    Bounded, CompressionThreshold, Decode, Encode, Packet, VarInt, WritePacket,
+    Bounded, CompressionThreshold, Decode, Encode, Packet, RawBytes, VarInt, WritePacket,
 };
-use mcrs_minecraft_text::Text;
+use mcrs_minecraft_text::{ItemHover, Text};
 
 use crate::mock_connection;
 
 const OPERATOR: Uuid = Uuid::from_u128(0x0bad_cafe_0000_4000_8000_0000_0000_0001);
 
-/// The game's offline ids of `Steve` and `Guest`.
 const STEVE: Uuid = uuid!("5627dd98-e6be-3c21-b8a8-e92344183641");
 const GUEST: Uuid = uuid!("404198aa-cc64-3021-9fdf-8766c0d0096c");
 
@@ -149,22 +152,16 @@ fn send<P: Encode + Packet>(app: &mut App, client: &Client, packet: &P) {
         .dispatch(P::STATE, P::ID, &data)
         .unwrap()
         .unwrap();
-    trigger.raise(
-        &mut app.world_mut().commands(),
-        client.connection,
-        data.into(),
-    );
+    trigger.raise(app.world_mut().commands(), client.connection, data.into());
     app.world_mut().flush();
 }
 
-/// A dimension whose control messages the test reads, and that never ticks.
 fn dimension(app: &mut App) -> Entity {
     let dim = app.world_mut().spawn_empty().id();
     app.world_mut().resource_mut::<DimInputs>().insert(dim);
     dim
 }
 
-/// The despawn the host sent to `dim` last.
 fn last_despawn(app: &App, dim: Entity) -> Option<InboundPlayerDespawn> {
     app.world()
         .resource::<DimInputs>()
@@ -272,7 +269,7 @@ fn an_acknowledged_switch_login_compresses_only_after_the_acknowledgement() {
 }
 
 #[test]
-fn an_acknowledged_switch_login_that_times_out_after_login_finished_closes_without_a_packet() {
+fn switch_login_timeout_after_login_finished_closes_without_packet() {
     let mut app = server(None);
     let mut client = connect_with(&mut app, SwitchMode::Acknowledged);
     send_hello(&mut app, &client, "Steve", Uuid::new_v4());
@@ -345,7 +342,7 @@ fn a_hello_under_an_empty_name_is_accepted_as_in_the_game() {
 }
 
 #[test]
-fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_is_saved() {
+fn second_login_ends_first_session_and_plays_once_player_is_saved() {
     let mut app = server(None);
     let dim = dimension(&mut app);
 
@@ -391,7 +388,6 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
     );
     assert!(sessions_under(&mut app, STEVE).is_empty());
 
-    // What the host does with a dimension that releases the session in its output.
     dim_outputs::forget_departures(app.world_mut(), |departing| {
         departing.dim == dim && departing.session == despawn.session
     });
@@ -424,7 +420,7 @@ fn a_connection_silent_in_login_is_disconnected_after_six_hundred_ticks() {
 }
 
 #[test]
-fn a_shutdown_after_the_login_finished_disconnects_in_the_protocol_the_client_switched_to() {
+fn shutdown_after_login_finished_disconnects_in_switched_protocol() {
     let mut app = server(None);
     app.add_plugins(ShutdownPlugin);
     let mut client = connect(&mut app);
@@ -757,43 +753,6 @@ fn ban_join_003_a_ban_with_a_future_end_names_its_time() {
 }
 
 #[test]
-fn a_loopback_hello_makes_an_operator_and_a_remote_one_does_not() {
-    let mut app = server(None);
-    app.insert_resource(LoopbackOps::Grant);
-    for (address, name) in [("127.0.0.1:50000", "Local"), ("[::1]:50000", "LocalSix")] {
-        let local = hello_from(&mut app, address, name);
-        assert_eq!(
-            app.world()
-                .resource::<OpList>()
-                .get(&local.id)
-                .map(|op| op.level),
-            Some(4),
-            "{address}"
-        );
-    }
-    let remote = hello_from(&mut app, "192.168.1.20:50000", "Remote");
-    assert!(app.world().resource::<OpList>().get(&remote.id).is_none());
-
-    app.insert_resource(LoopbackOps::Deny);
-    let denied = hello_from(&mut app, "127.0.0.1:50000", "Denied");
-    assert!(app.world().resource::<OpList>().get(&denied.id).is_none());
-}
-
-fn hello_from(app: &mut App, address: &str, username: &str) -> GameProfile {
-    let client = connect(app);
-    app.world_mut()
-        .get_mut::<ServerSideConnection>(client.connection)
-        .unwrap()
-        .raw
-        .remote_addr = address.parse().unwrap();
-    send_hello(app, &client, username, Uuid::new_v4());
-    app.world()
-        .get::<GameProfile>(client.connection)
-        .expect("the hello is accepted")
-        .clone()
-}
-
-#[test]
 fn ban_join_004_an_operator_has_no_exception() {
     let mut app = server(None);
     app.insert_resource(OpList::new([OpListEntry {
@@ -852,6 +811,31 @@ fn wl_join_002_a_player_that_is_not_listed_is_refused() {
     let mut app = server(None);
     app.insert_resource(Whitelist::default().enabled(true));
     assert_not_whitelisted(&mut app, "Steve");
+}
+
+#[test]
+fn loop_grant_003_a_loopback_join_that_the_whitelist_refuses_makes_no_operator() {
+    let mut app = server(None);
+    app.insert_resource(ServerProfile::Local);
+    app.insert_resource(Whitelist::default().enabled(true));
+    let mut client = connect(&mut app);
+    app.world_mut()
+        .get_mut::<ServerSideConnection>(client.connection)
+        .unwrap()
+        .raw
+        .remote_addr = "127.0.0.1:50000".parse().unwrap();
+    send_hello(&mut app, &client, "Steve", Uuid::new_v4());
+    assert_eq!(
+        login_disconnect_reason(&client.received(&mut app)),
+        serde_json::json!({"translate": "multiplayer.disconnect.not_whitelisted"})
+    );
+    assert!(!connected(&app, &client));
+    assert!(
+        app.world()
+            .resource::<OpList>()
+            .find_by_name("Steve")
+            .is_none()
+    );
 }
 
 #[test]
@@ -1104,4 +1088,167 @@ fn wl_enf_003_an_add_does_not_disconnect_an_operator_that_is_not_listed() {
     app.update();
 
     assert!(connected(&app, &client));
+}
+
+fn forwarding_server() -> App {
+    let mut app = server(Some(SingleplayerProfile {
+        name: "Steve".to_owned(),
+        id: OPERATOR,
+    }));
+    app.insert_resource(ProxyForwarding(
+        ForwardingSecret::new(crate::proxy_forwarding::SECRET).unwrap(),
+    ));
+    app
+}
+
+fn send_answer(app: &mut App, client: &Client, message_id: i32, payload: Option<&[u8]>) {
+    send(
+        app,
+        client,
+        &ServerboundCustomQueryAnswer {
+            message_id: VarInt(message_id),
+            payload: payload.map(|bytes| Bounded(RawBytes(bytes))),
+        },
+    );
+}
+
+fn forwarded_hello(app: &mut App) -> (Client, i32) {
+    let client = connect(app);
+    app.world_mut()
+        .get_mut::<ServerSideConnection>(client.connection)
+        .unwrap()
+        .raw
+        .remote_addr = "127.0.0.1:40000".parse().unwrap();
+    send_hello(app, &client, "Steve", Uuid::nil());
+    let mut client = client;
+    let frames = client.received(app);
+    assert_eq!(ids(&frames), [CustomQuery::ID], "only the forwarding query");
+    let query = CustomQuery::decode(&mut &frames[0].body[..]).unwrap();
+    assert_eq!(query.channel.to_string(), "velocity:player_info");
+    assert_eq!(query.data.0.0, [4]);
+    (client, query.message_id.0)
+}
+
+#[test]
+fn fwd_use_001_002_forwarded_login_takes_proxy_profile_and_address() {
+    let mut app = forwarding_server();
+    app.insert_resource(ServerProfile::Local);
+    let (mut client, message_id) = forwarded_hello(&mut app);
+    assert!(app.world().get::<GameProfile>(client.connection).is_none());
+
+    let payload = crate::proxy_forwarding::FORWARDED_PAYLOAD.to_vec();
+    send_answer(&mut app, &client, message_id, Some(&payload));
+
+    let profile = app
+        .world()
+        .get::<GameProfile>(client.connection)
+        .expect("the forwarded login is accepted")
+        .clone();
+    assert_eq!(
+        (profile.id, profile.username.as_str()),
+        (crate::proxy_forwarding::FORWARDED_ID, "Steve")
+    );
+    assert_eq!(
+        profile.properties,
+        crate::proxy_forwarding::forwarded_properties()
+    );
+    let remote_addr = app
+        .world()
+        .get::<ServerSideConnection>(client.connection)
+        .unwrap()
+        .remote_addr();
+    assert_eq!(remote_addr, "203.0.113.7:40000".parse().unwrap());
+    assert!(
+        app.world().resource::<OpList>().get(&profile.id).is_none(),
+        "the forwarded address is not loopback"
+    );
+    assert_eq!(
+        app.world().get::<LoginState>(client.connection),
+        Some(&LoginState::Accepted)
+    );
+    assert_eq!(
+        ids(&client.received(&mut app)),
+        [LoginCompression::ID, ClientboundLoginFinished::ID]
+    );
+}
+
+const LOOPBACK_FORWARDED_PAYLOAD: [u8; 81] = [
+    0xb0, 0x1c, 0x0e, 0x10, 0xd6, 0x5b, 0xf9, 0x14, 0x5d, 0x96, 0x4f, 0xc6, 0x94, 0x2a, 0x32, 0x85,
+    0x55, 0xfc, 0xfa, 0x26, 0xdc, 0x3c, 0xf9, 0x71, 0x6a, 0xad, 0x46, 0x2f, 0x0c, 0x3c, 0x4f, 0xdd,
+    0x04, 0x09, 0x31, 0x32, 0x37, 0x2e, 0x30, 0x2e, 0x30, 0x2e, 0x31, 0x00, 0x11, 0x22, 0x33, 0x44,
+    0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x05, 0x53, 0x74, 0x65, 0x76,
+    0x65, 0x01, 0x08, 0x74, 0x65, 0x78, 0x74, 0x75, 0x72, 0x65, 0x73, 0x04, 0x65, 0x33, 0x30, 0x3d,
+    0x00,
+];
+
+fn forwarded_op(profile: ServerProfile, payload: &[u8]) -> Option<OpListEntry> {
+    let mut app = forwarding_server();
+    app.insert_resource(profile);
+    let (client, message_id) = forwarded_hello(&mut app);
+    send_answer(&mut app, &client, message_id, Some(payload));
+    let id = app
+        .world()
+        .get::<GameProfile>(client.connection)
+        .expect("the forwarded login is accepted")
+        .id;
+    app.world().resource::<OpList>().get(&id).cloned()
+}
+
+#[test]
+fn loop_addr_001_loop_grant_002_forwarded_loopback_makes_no_operator() {
+    assert_eq!(
+        forwarded_op(ServerProfile::Public, &LOOPBACK_FORWARDED_PAYLOAD),
+        None
+    );
+    assert_eq!(
+        forwarded_op(ServerProfile::Local, &LOOPBACK_FORWARDED_PAYLOAD).map(|op| op.level),
+        Some(4),
+        "the payload is accepted and its address is loopback"
+    );
+}
+
+#[test]
+fn fwd_chk_001_a_refused_forwarding_answer_ends_the_login_with_its_reason() {
+    let payload = crate::proxy_forwarding::FORWARDED_PAYLOAD.to_vec();
+    let mut flipped = payload.clone();
+    *flipped.last_mut().unwrap() ^= 1;
+    let unexpected = serde_json::json!({
+        "translate": "multiplayer.disconnect.unexpected_query_response"
+    });
+    let cases: [(Option<i32>, Option<&[u8]>, serde_json::Value); 3] = [
+        (Some(1), Some(&payload), unexpected),
+        (
+            None,
+            None,
+            serde_json::to_value(Text::<ItemHover>::text(
+                "This server requires you to connect with Velocity.",
+            ))
+            .unwrap(),
+        ),
+        (
+            None,
+            Some(&flipped),
+            serde_json::to_value(Text::<ItemHover>::text("Unable to verify player details"))
+                .unwrap(),
+        ),
+    ];
+    for (message_id, payload, reason) in cases {
+        let mut app = forwarding_server();
+        let (mut client, sent_id) = forwarded_hello(&mut app);
+        send_answer(&mut app, &client, message_id.unwrap_or(sent_id), payload);
+        assert_eq!(login_disconnect_reason(&client.received(&mut app)), reason);
+        assert!(!connected(&app, &client), "{reason}");
+    }
+}
+
+#[test]
+fn login_oth_002_a_custom_query_answer_without_forwarding_ends_the_login() {
+    let mut app = server(None);
+    let mut client = connect(&mut app);
+    send_answer(&mut app, &client, 0, None);
+    assert_eq!(
+        login_disconnect_reason(&client.received(&mut app)),
+        serde_json::json!({ "translate": "multiplayer.disconnect.unexpected_query_response" })
+    );
+    assert!(!connected(&app, &client));
 }

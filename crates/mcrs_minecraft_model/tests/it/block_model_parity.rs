@@ -1,6 +1,3 @@
-//! The selected parts, the merged models and the chosen variants agree with the block model
-//! artefact of the reference client.
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use mcrs_minecraft_fixtures::fixture;
@@ -91,7 +88,6 @@ fn pairs(state: &str) -> Vec<(&str, &str)> {
         .collect()
 }
 
-/// The properties of a block, as the states of the artefact name them.
 fn properties(block: &BlockEntry) -> PropertyTable {
     let mut table = PropertyTable::default();
     for state in &block.states {

@@ -12,11 +12,6 @@ use crate::row;
 
 const WORD: usize = u64::BITS as usize;
 
-/// The slots of a holder: the stack in each slot, by index.
-///
-/// The hooks of [`InSlot`](crate::InSlot) keep it equal to the set of stacks whose `InSlot` names
-/// this holder. The removal of `Slots`, a new `Slots` in its place and the despawn of the holder
-/// despawn the stacks that it holds.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 #[component(on_discard = despawn_stacks)]
 pub struct Slots {
@@ -25,7 +20,6 @@ pub struct Slots {
 }
 
 impl Slots {
-    /// Empty slots. A size above 65,536 gives 65,536 slots, the count that a `u16` index reaches.
     #[must_use]
     pub fn new(size: usize) -> Self {
         let size = size.min(usize::from(u16::MAX) + 1);
@@ -45,23 +39,19 @@ impl Slots {
         self.stacks.is_empty()
     }
 
-    /// The stack of the slot `index`, or `None` when the slot is empty or does not exist.
     #[must_use]
     pub fn get(&self, index: usize) -> Option<Entity> {
         self.stacks.get(index).copied().flatten()
     }
 
-    /// The content of each slot, in the order of the indices.
     pub fn iter(&self) -> impl Iterator<Item = Option<Entity>> + '_ {
         self.stacks.iter().copied()
     }
 
-    /// The stacks, in the order of their slots.
     pub fn occupied(&self) -> impl Iterator<Item = Entity> + '_ {
         self.occupied_indices().filter_map(|index| self.get(index))
     }
 
-    /// The lowest index of an empty slot.
     #[must_use]
     pub fn first_free(&self) -> Option<u16> {
         let index = (self.occupied.iter().enumerate()).find_map(|(word, &bits)| {
@@ -75,7 +65,6 @@ impl Slots {
         u16::try_from(index).ok()
     }
 
-    /// The stack of the lowest occupied slot.
     #[must_use]
     pub fn first_occupied(&self) -> Option<Occupant> {
         let index = self.occupied_indices().next()?;
@@ -85,8 +74,6 @@ impl Slots {
         })
     }
 
-    /// Puts `stack` in the slot `index` and gives the previous content, or `None` when the slot
-    /// does not exist.
     pub(crate) fn replace(&mut self, index: u16, stack: Option<Entity>) -> Option<Option<Entity>> {
         let index = usize::from(index);
         let slot = self.stacks.get_mut(index)?;

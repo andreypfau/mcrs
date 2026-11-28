@@ -10,9 +10,6 @@ use crate::lent::Lent;
 use crate::tick::Tick;
 use crate::tick_error::TickError;
 
-/// The worlds that tick in lockstep: every world ticks `T` before any world ticks `T + 1`.
-///
-/// Each world runs where its [`Placement`] says. Dropping `Cells` stops every world.
 pub struct Cells<W: CellWorld> {
     cells: BTreeMap<CellId, Cell<W>>,
     next_id: u64,
@@ -44,7 +41,6 @@ impl<W: CellWorld> Cells<W> {
         }
     }
 
-    /// Places `world` as `placement` asks. It ticks first on the next [`Self::tick`].
     pub fn add(&mut self, world: W, placement: Placement) -> CellId {
         let cell = CellId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
@@ -59,8 +55,6 @@ impl<W: CellWorld> Cells<W> {
         cell
     }
 
-    /// Stops the world of `cell` and hands it back. It gives `None` when the world is lent
-    /// out or has stopped, and then the world goes when its [`Lent`] goes.
     pub async fn remove(&mut self, cell: CellId) -> Option<W> {
         let mut entry = self.cells.remove(&cell)?;
         if entry.whereabouts == Whereabouts::Lent {
@@ -74,9 +68,6 @@ impl<W: CellWorld> Cells<W> {
         })
     }
 
-    /// Sends `tick` with the input from `input` to every world, waits until every world has
-    /// ticked, and gives the outputs in [`CellId`] order. A world that has stopped gives no
-    /// output.
     pub async fn tick(
         &mut self,
         tick: Tick,
@@ -109,10 +100,6 @@ impl<W: CellWorld> Cells<W> {
         Ok(outputs)
     }
 
-    /// Takes the world of `cell` out between two ticks. No world ticks until it is given back.
-    /// It gives `None` when the world is lent out already or has stopped.
-    ///
-    /// For tests and tools only, as [`Lent`] says.
     pub async fn lend(&mut self, cell: CellId) -> Option<Lent<W>> {
         let entry = self.cells.get_mut(&cell)?;
         if entry.whereabouts == Whereabouts::Lent {
@@ -128,7 +115,6 @@ impl<W: CellWorld> Cells<W> {
         Some(Lent { cell, world })
     }
 
-    /// Puts a lent world back in its cell. A world whose cell was removed meanwhile is dropped.
     pub fn give_back(&mut self, lent: Lent<W>) {
         let Some(entry) = self.cells.get_mut(&lent.cell) else {
             return;
@@ -147,7 +133,6 @@ mod tests {
 
     use bevy_tasks::block_on;
 
-    /// Adds its tick and its input to a running total, and gives the total.
     struct Sum {
         total: u64,
     }
@@ -181,8 +166,6 @@ mod tests {
         }
     }
 
-    /// Signals the gate of another world, or waits on a gate of its own, and gives its name
-    /// followed by the digit of its input.
     struct Gated {
         name: u8,
         signal: Option<Sender<()>>,
@@ -205,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn each_world_gets_its_input_and_outputs_come_in_cell_order_whatever_world_finishes_first() {
+    fn outputs_keep_cell_order_whatever_world_finishes_first() {
         let (signal, gate) = mpsc::channel();
         let mut cells = Cells::new();
         let first = cells.add(
@@ -243,7 +226,6 @@ mod tests {
         );
     }
 
-    /// Holds the only sender of a channel, so the channel disconnects once the world is gone.
     struct Alive {
         _alive: Sender<()>,
     }

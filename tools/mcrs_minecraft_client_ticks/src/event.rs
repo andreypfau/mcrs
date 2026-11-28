@@ -1,42 +1,37 @@
 use std::fmt;
 
+use crate::Click;
+use crate::Content;
+use crate::SlotChange;
 use crate::fields::Fields;
 use crate::fields::bad;
 use crate::fields::parse_value;
 
-/// One packet of a recording. A clientbound event stands at the point where the client applied
-/// it: after the end of one client tick and before the packets of the next.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
-    /// `player_position`.
     Teleport(Teleport),
-    /// `set_entity_motion` for the player: the decoded velocity.
     Motion([f64; 3]),
-    /// `explode` with an impulse: the impulse that the client adds to its velocity.
     Explosion([f64; 3]),
-    /// `player_abilities`, clientbound.
     Abilities(Abilities),
-    /// One entry of `update_attributes` for the player.
     Attribute(Attribute),
-    /// `update_mob_effect` for the player.
     Effect(Effect),
-    /// `remove_mob_effect` for the player: the effect name.
     RemoveEffect(String),
-    /// `block_update`, or one entry of `section_blocks_update`.
     Block(BlockChange),
-    /// `forget_level_chunk`: the chunk x and z.
     ChunkForgotten([i32; 2]),
-    /// `player_input`.
+    EntityData(EntityData),
+    Slot(SlotChange),
+    Content(Content),
+    Cursor(String),
     Input(Keys),
-    /// `player_command` that starts (true) or stops (false) the sprint state.
     Sprinting(bool),
-    /// `use_item`.
+    Command(String),
+    Interact(bool),
     UseItem,
-    /// `player_action` that releases the item in use.
     ReleaseUseItem,
-    /// One of the four move packets.
+    Action(String),
+    Click(Click),
+    Removed(Box<Event>),
     Move(Move),
-    /// `client_tick_end`.
     TickEnd,
 }
 
@@ -52,7 +47,6 @@ pub struct Teleport {
     pub position: [f64; 3],
     pub velocity: [f64; 3],
     pub rotation: Rotation,
-    /// The bits of the packet that make a value relative.
     pub relative: u32,
 }
 
@@ -74,7 +68,6 @@ pub struct Attribute {
 pub struct Modifier {
     pub id: String,
     pub amount: f64,
-    /// 0 adds, 1 multiplies the base, 2 multiplies the total.
     pub operation: u8,
 }
 
@@ -87,8 +80,20 @@ pub struct Effect {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockChange {
     pub position: [i32; 3],
-    /// The state as `name[property=value,...]`.
     pub state: String,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum DataEntity {
+    Own,
+    Other(i32),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntityData {
+    pub entity: DataEntity,
+    pub index: u8,
+    pub value: String,
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -110,10 +115,8 @@ pub struct Move {
     pub horizontal_collision: bool,
 }
 
-/// A flag of a type and its name in the text.
 type Flag<'a> = (&'a mut bool, &'static str);
 
-/// Writes the names whose flag is set, comma-separated, or `none`.
 fn write_flags(f: &mut fmt::Formatter<'_>, flags: &[Flag<'_>]) -> fmt::Result {
     let names: Vec<&str> = flags
         .iter()
@@ -127,7 +130,6 @@ fn write_flags(f: &mut fmt::Formatter<'_>, flags: &[Flag<'_>]) -> fmt::Result {
     }
 }
 
-/// Sets each flag that a comma-separated list names; `none` is the empty list.
 fn parse_flags(fields: &mut Fields<'_>, field: &str, flags: &mut [Flag<'_>]) -> Result<(), String> {
     let word = fields.word(field)?;
     for name in word.split(',').filter(|name| *name != "none") {
@@ -209,13 +211,32 @@ impl fmt::Display for Event {
                 write!(f, "< block {x} {y} {z} {}", change.state)
             }
             Self::ChunkForgotten([x, z]) => write!(f, "< forget {x} {z}"),
+            Self::EntityData(data) => {
+                f.write_str("< data ")?;
+                match data.entity {
+                    DataEntity::Own => f.write_str("self")?,
+                    DataEntity::Other(id) => write!(f, "{id}")?,
+                }
+                write!(f, " {} {}", data.index, data.value)
+            }
+            Self::Slot(change) => write!(f, "< slot {change}"),
+            Self::Content(content) => write!(f, "< content {content}"),
+            Self::Cursor(stack) => write!(f, "< cursor {stack}"),
             Self::Input(keys) => {
                 f.write_str("> input ")?;
                 write_flags(f, &{ *keys }.flags())
             }
             Self::Sprinting(sprinting) => write!(f, "> sprint {sprinting}"),
+            Self::Command(action) => write!(f, "> command {action}"),
+            Self::Interact(secondary) => write!(f, "> interact {secondary}"),
             Self::UseItem => f.write_str("> use_item"),
             Self::ReleaseUseItem => f.write_str("> release_use_item"),
+            Self::Action(action) => write!(f, "> action {action}"),
+            Self::Click(click) => write!(f, "> click {click}"),
+            Self::Removed(event) => {
+                let text = event.to_string();
+                write!(f, "> removed {}", text.strip_prefix("> ").unwrap_or(&text))
+            }
             Self::Move(step) => {
                 f.write_str("> move ")?;
                 match step.position {
@@ -234,26 +255,35 @@ impl fmt::Display for Event {
 }
 
 impl Event {
-    /// True for a packet from the server to the client.
     #[must_use]
     pub fn is_clientbound(&self) -> bool {
         !matches!(
             self,
             Self::Input(_)
                 | Self::Sprinting(_)
+                | Self::Command(_)
+                | Self::Interact(_)
                 | Self::UseItem
                 | Self::ReleaseUseItem
+                | Self::Action(_)
+                | Self::Click(_)
+                | Self::Removed(_)
                 | Self::Move(_)
                 | Self::TickEnd
         )
     }
 
-    /// Parses one event line, the direction mark included.
     pub(crate) fn parse(line: &str) -> Result<Self, String> {
         let mut fields = Fields::new(line);
         let direction = fields.word("direction")?;
         let kind = fields.word("kind")?;
-        let event = match (direction, kind) {
+        let event = Self::parse_kind(direction, kind, &mut fields)?;
+        fields.end()?;
+        Ok(event)
+    }
+
+    fn parse_kind(direction: &str, kind: &str, fields: &mut Fields<'_>) -> Result<Self, String> {
+        Ok(match (direction, kind) {
             ("<", "teleport") => Self::Teleport(Teleport {
                 id: fields.value("id")?,
                 position: fields.array3("position")?,
@@ -268,7 +298,7 @@ impl Event {
             ("<", "explosion") => Self::Explosion(fields.array3("impulse")?),
             ("<", "abilities") => {
                 let mut abilities = Abilities::default();
-                parse_flags(&mut fields, "flags", &mut abilities.flags())?;
+                parse_flags(fields, "flags", &mut abilities.flags())?;
                 abilities.flying_speed = fields.value("flying_speed")?;
                 Self::Abilities(abilities)
             }
@@ -299,20 +329,37 @@ impl Event {
                 state: fields.word("state")?.to_owned(),
             }),
             ("<", "forget") => Self::ChunkForgotten([fields.value("x")?, fields.value("z")?]),
+            ("<", "data") => Self::EntityData(EntityData {
+                entity: match fields.word("entity")? {
+                    "self" => DataEntity::Own,
+                    word => DataEntity::Other(parse_value("entity", word)?),
+                },
+                index: fields.value("index")?,
+                value: fields.word("value")?.to_owned(),
+            }),
+            ("<", "slot") => Self::Slot(SlotChange::parse(fields)?),
+            ("<", "content") => Self::Content(Content::parse(fields)?),
+            ("<", "cursor") => Self::Cursor(fields.word("stack")?.to_owned()),
             (">", "input") => {
                 let mut keys = Keys::default();
-                parse_flags(&mut fields, "keys", &mut keys.flags())?;
+                parse_flags(fields, "keys", &mut keys.flags())?;
                 Self::Input(keys)
             }
             (">", "sprint") => Self::Sprinting(fields.value("sprint")?),
+            (">", "command") => Self::Command(fields.word("action")?.to_owned()),
+            (">", "interact") => Self::Interact(fields.value("secondary")?),
             (">", "use_item") => Self::UseItem,
             (">", "release_use_item") => Self::ReleaseUseItem,
-            (">", "move") => parse_move(&mut fields)?,
+            (">", "action") => Self::Action(fields.word("action")?.to_owned()),
+            (">", "click") => Self::Click(Click::parse(fields)?),
+            (">", "removed") => {
+                let kind = fields.word("kind")?;
+                Self::Removed(Box::new(Self::parse_kind(">", kind, fields)?))
+            }
+            (">", "move") => parse_move(fields)?,
             (">", "tick") => Self::TickEnd,
             _ => return Err(format!("unknown event `{direction} {kind}`")),
-        };
-        fields.end()?;
-        Ok(event)
+        })
     }
 }
 

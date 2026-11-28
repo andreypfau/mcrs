@@ -43,8 +43,6 @@ fn check(label: &str, value: impl Into<ItemComponentValue>) {
     check_read_as(label, value.clone(), value);
 }
 
-/// `read` is what vanilla's own JSON output reads back as, when that is not
-/// the value it was written from.
 fn check_read_as(label: &str, value: ItemComponentValue, read: ItemComponentValue) {
     let row = &GOLDEN[label];
     let kind = value.kind();
@@ -352,22 +350,11 @@ fn profiles_match_vanilla() {
             .contains(r#"String "abcdefghijklmnopq" is too long: 17, expected range [0-16]"#)
     );
     let nine = r#"["1","2","3","4","5","6","7","8","9"]"#;
-    let eighteen = parse::<Profile>(&format!(
-        r#"{{"name":"Steve","properties":{{"a":{nine},"b":{nine}}}}}"#
-    ));
-    let ProfileIdentity::Partial { properties, .. } = &eighteen.profile else {
-        panic!("{eighteen:?}");
-    };
-    assert_eq!(properties.len(), 18);
-    assert_eq!(
-        json_error(eighteen.clone()),
-        "List is too long: 18, expected range [0-16]"
-    );
-    let mut wire = Vec::new();
     assert!(
-        ItemComponentValue::from(eighteen)
-            .encode_checked(&lookup(), &mut wire)
-            .is_err()
+        error::<Profile>(&format!(
+            r#"{{"name":"Steve","properties":{{"a":{nine},"b":{nine}}}}}"#
+        ))
+        .contains("List is too long: 18, expected range [0-16]")
     );
     let name65 = "n".repeat(65);
     let err = wire_error(
@@ -384,6 +371,7 @@ fn profiles_match_vanilla() {
         value: "b".into(),
         signature: None,
     });
+    let mut wire = Vec::new();
     let err = ItemComponentValue::from(long_name)
         .encode_checked(&lookup(), &mut wire)
         .unwrap_err();

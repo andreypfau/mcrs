@@ -1,0 +1,20 @@
+[package]
+name = "mcrs_minecraft_inventory_click"
+description = "The operations of a Java Edition menu click: pick up, quick move, swap with a hotbar key, clone, throw, drag and pick up all"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_container_click.workspace = true
+mcrs_minecraft_inventory_player.workspace = true
+mcrs_minecraft_inventory_transaction.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_inventory_menu.workspace = true

@@ -24,7 +24,6 @@ macro_rules! enum_samples {
     )*};
 }
 
-/// Explicit wire ids.
 macro_rules! sparse_enum {
     ($name:ident { $($variant:ident = $id:literal),* $(,)? }) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -118,7 +117,6 @@ sparse_enum!(RabbitVariant {
     Evil = 99,
 });
 
-// The id is `base | index << 8`, small base 0 and large base 1.
 sparse_enum!(TropicalFishPattern {
     Kob = 0,
     Sunstreak = 256,
@@ -219,7 +217,6 @@ ordinal_enum_wire!(
     AxolotlVariant
 );
 
-/// The wire id is the ordinal; an out-of-range id is clamped or wrapped.
 macro_rules! continuous_enum_wire {
     ($($name:ident [$strategy:ident]),* $(,)?) => {$(
         impl Encode for $name {
@@ -253,7 +250,6 @@ continuous_enum_wire!(
     HorseVariant[wrap],
 );
 
-/// An unknown id reads as the first variant.
 macro_rules! sparse_enum_wire {
     ($($name:ident),* $(,)?) => {$(
         impl Encode for $name {

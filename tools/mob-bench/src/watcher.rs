@@ -1,6 +1,3 @@
-//! The watcher: one protocol client that hovers near the pigs, tracks the pigs the server shows
-//! it, and times the server's ticks from the packets it gets.
-
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -29,15 +26,12 @@ use tokio::time::MissedTickBehavior;
 use crate::scene::WATCHER_NAME;
 
 const POLL: Duration = Duration::from_millis(1);
-/// The reader hands packets over through a channel of 256, so a poll drains it, yields to the
-/// reader and drains again: 50,000 pigs send more packets than one drain a millisecond takes.
 const DRAINS_PER_POLL: usize = 64;
 const DELTA_STEPS_PER_BLOCK: f64 = 4096.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct PigTrack {
     pub position: DVec3,
-    /// The length of the path the packets moved the pig along since it was added.
     pub path: f64,
 }
 
@@ -45,9 +39,7 @@ pub struct PigSnapshot {
     pub at: std::time::Instant,
     pub pigs: HashMap<i32, PigTrack>,
     pub move_packets: u64,
-    /// The server placed the watcher's player, so it is in the world.
     pub placed: bool,
-    /// The game mode of the last login or game mode change packet.
     pub game_mode: Option<String>,
 }
 
@@ -60,7 +52,6 @@ pub struct TimeSample {
 #[derive(Default)]
 pub struct WatcherLog {
     pub times: Vec<TimeSample>,
-    /// Why the watcher stopped before it was asked to.
     pub error: Option<String>,
 }
 
@@ -82,14 +73,12 @@ impl Watcher {
         Self { requests, task }
     }
 
-    /// The pigs the watcher tracks now, or `None` once it stopped.
     pub fn snapshot(&self, runtime: &tokio::runtime::Runtime) -> Option<PigSnapshot> {
         let (reply, answer) = oneshot::channel();
         self.requests.send(Request::Snapshot(reply)).ok()?;
         runtime.block_on(answer).ok()
     }
 
-    /// Whether the server placed the watcher's player; `false` once it stopped.
     pub fn placed(&self, runtime: &tokio::runtime::Runtime) -> bool {
         let (reply, answer) = oneshot::channel();
         self.requests.send(Request::Placed(reply)).is_ok()
@@ -188,7 +177,6 @@ async fn serve(
     }
 }
 
-/// Handles every packet the reader has handed over and returns how many there were.
 fn receive(connection: &mut RawConnection, state: &mut State) -> anyhow::Result<usize> {
     let mut received = 0;
     while let Some(packet) = connection.try_recv()? {

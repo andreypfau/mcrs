@@ -1,17 +1,12 @@
-/// The length of `text` in UTF-16 code units, the unit of a string limit on the wire.
 pub fn utf16_len(text: &str) -> usize {
     text.encode_utf16().count()
 }
 
-/// The UTF-16 position of the byte offset `offset` in `text`, the unit of a position on the
-/// wire. An offset inside a character counts from the start of that character.
 pub fn utf16_position(text: &str, offset: usize) -> usize {
     text.get(..text.floor_char_boundary(offset))
         .map_or(0, utf16_len)
 }
 
-/// The byte offset of the UTF-16 position `position` in `text`, clamped to its end. A position
-/// inside a surrogate pair gives the offset after the pair.
 pub fn utf16_byte_offset(text: &str, position: usize) -> usize {
     let mut units = 0;
     for (offset, c) in text.char_indices() {

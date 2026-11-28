@@ -6,30 +6,21 @@ use mcrs_minecraft_engine::dim_tick::{TickDimensions, TickDimensionsSet};
 use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuilders;
 use mcrs_minecraft_engine_world::world::sub_app::DimSpawnEnqueue;
 
+use crate::dimension_plans::build_dimension_plans;
 use crate::dimension_world::build_dimension_world;
-use crate::features::FeaturePlugin;
-use crate::modern_carvers::ModernCarverPlugin;
-use crate::routers::build_dimension_routers;
-use crate::structures::{StructurePlugin, build_dimension_structures};
 use crate::world_generation::{
     WorldGeneration, ask_world_columns, build_world_generation, deliver_world_columns,
+    generates_worlds,
 };
 
-/// Generates and reads the columns of every dimension. The host inserts the
-/// [`DimensionList`](mcrs_minecraft_engine_world::world::dimension_list::DimensionList),
-/// [`DimensionGenerators`](mcrs_minecraft_engine::dimension_generators::DimensionGenerators) and [`WorldSeed`](mcrs_minecraft_engine_world::world_seed::WorldSeed) before
-/// `OnEnter(AppState::Playing)`.
 #[derive(Clone, Debug, Default)]
 pub struct WorldGenPlugin;
 
 impl Plugin for WorldGenPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((ModernCarverPlugin, FeaturePlugin, StructurePlugin));
         app.add_systems(
             OnEnter(AppState::Playing),
-            build_dimension_routers
-                .after(build_dimension_structures)
-                .before(DimSpawnEnqueue),
+            build_dimension_plans.before(DimSpawnEnqueue),
         );
         let mut builders = app.world_mut().get_resource_or_init::<DimensionBuilders>();
         builders.add(build_dimension_world);
@@ -38,8 +29,12 @@ impl Plugin for WorldGenPlugin {
         app.add_systems(
             TickDimensions,
             (
-                deliver_world_columns.before(TickDimensionsSet::Tick),
-                ask_world_columns.after(TickDimensionsSet::Tick),
+                deliver_world_columns
+                    .run_if(generates_worlds)
+                    .before(TickDimensionsSet::Tick),
+                ask_world_columns
+                    .run_if(generates_worlds)
+                    .after(TickDimensionsSet::Tick),
             ),
         );
     }

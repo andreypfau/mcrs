@@ -1,20 +1,30 @@
-//! Bytes written by the vanilla packet stream codecs; `id` lines are the registry
-//! ids the capture session had.
 use crate::common::encoded;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
 use mcrs_minecraft_core::codec::Bounded as Range;
+use mcrs_minecraft_engine_registries::RegistryNames;
+use mcrs_minecraft_engine_registries::test_item_table;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_menu::menu_keys::MenuType;
+use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_stack::HashScratch;
+use mcrs_minecraft_item_stack::HashedStack;
+use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::WireStackWithLength;
+use mcrs_minecraft_item_stack::hash_stack;
+use mcrs_minecraft_item_stack::matches_hashed;
+use mcrs_minecraft_menu_key::menu_keys::MenuType;
+use mcrs_minecraft_nbt::{NbtBudget, NbtQuotaExceeded};
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::clientbound::*;
 use mcrs_minecraft_protocol_game::item::Text as ItemText;
 use mcrs_minecraft_protocol_game::item::{
-    ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, DelimitedStack, HashedStack,
-    ItemCost, MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
-    Unbreakable,
+    ComponentMap, ComponentPatch, CustomName, Damage, ItemCost, MaxStackSize, MerchantOffer,
+    QuickCraftButton, QuickCraftKind, QuickCraftStage, Unbreakable,
 };
 use mcrs_minecraft_protocol_game::serverbound::*;
 use mcrs_minecraft_protocol_game::text::{RawText, Text};
@@ -88,6 +98,20 @@ fn sword(fixture: &Fixture) -> ProtoStack {
     ProtoStack::new(item(fixture, "diamond_sword"), 1, patch)
 }
 
+fn one(fixture: &Fixture, path: &str) -> ItemStack {
+    let count = Count::new(1).expect("1 is a count");
+    ItemStack::new(Kind(item(fixture, path).number()), count)
+}
+
+fn sword_stack(fixture: &Fixture) -> ItemStack {
+    one(fixture, "diamond_sword")
+        .set(mcrs_minecraft_item_stack::Damage(7))
+        .set(mcrs_minecraft_item_stack::CustomName(
+            mcrs_minecraft_text::Text::text("named"),
+        ))
+        .set(mcrs_minecraft_item_stack::Unbreakable)
+}
+
 fn plain(f: &Fixture, path: &str, n: i32) -> ProtoStack<Wire> {
     wire_form(&ProtoStack::new(item(f, path), n, ComponentPatch::EMPTY))
 }
@@ -99,6 +123,8 @@ fn plain(f: &Fixture, path: &str, n: i32) -> ProtoStack<Wire> {
 )]
 fn container_packets_are_the_games_bytes() {
     let f = &fixture();
+    let items = test_item_table();
+    let names = RegistryNames::new(test_registries(), &items);
     check(
         f,
         "container_set_slot",
@@ -202,22 +228,16 @@ fn container_packets_are_the_games_bytes() {
             carried_item: ProtoStack::default(),
         },
     );
-    check(
-        f,
-        "set_creative_mode_slot",
-        ServerboundSetCreativeModeSlot {
-            slot: 36,
-            item: DelimitedStack(sword(f).to_wire(&lookup()).unwrap()),
-        },
-    );
-    let (packet, _) = decode::<ServerboundSetCreativeModeSlot>(f, "set_creative_mode_slot");
-    assert_eq!(packet.item.check(&lookup()).unwrap(), sword(f));
+    let (packet, bytes) = decode::<ServerboundSetCreativeModeSlot>(f, "set_creative_mode_slot");
+    assert_eq!(encoded(&packet), bytes);
+    assert_eq!(packet.slot, 36);
+    assert_eq!(packet.item.read(&names), Ok(Some(sword_stack(f))));
     check(
         f,
         "set_creative_mode_slot_empty",
         ServerboundSetCreativeModeSlot {
             slot: -1,
-            item: DelimitedStack::default(),
+            item: WireStackWithLength::EMPTY,
         },
     );
     check(
@@ -394,8 +414,6 @@ fn an_offer_never_sells_an_empty_stack() {
     assert!(format!("{error:#}").contains("Empty ItemStack not allowed"));
 }
 
-/// Vanilla hashes the patch into a hash map, so the entry order on the wire
-/// is not the insertion order; the decoded map is compared by `matches`.
 #[test]
 fn container_click_carries_hashed_slots() {
     let f = &fixture();
@@ -403,20 +421,28 @@ fn container_click_carries_hashed_slots() {
     assert_eq!(encoded(&packet), bytes);
     assert_eq!(packet.container_id, VarInt(1));
     assert_eq!(packet.state_seqno, VarInt(2));
-    assert_eq!(packet.slot_index, 3);
-    assert_eq!(packet.button, 0);
-    assert_eq!(packet.container_input, ContainerInput::Pickup);
+    assert_eq!(
+        packet.click,
+        Click {
+            kind: ClickKind::PickUp,
+            button: 0,
+            clicked: Clicked::Entry(3),
+        }
+    );
     let [(4, None), (3, Some(changed))] = &packet.changed_slots.0[..] else {
         panic!("{:?}", packet.changed_slots);
     };
-    assert!(changed.matches(&sword(f), &lookup()));
+    let items = test_item_table();
+    let names = RegistryNames::new(test_registries(), &items);
+    let mut scratch = HashScratch::default();
+    let sword = sword_stack(f);
+    assert_eq!(
+        matches_hashed(Some(changed), Some(&sword), &names, &mut scratch),
+        Ok(true)
+    );
     assert_eq!(
         packet.carried_item,
-        HashedStack::create(
-            &ProtoStack::new(item(f, "apple"), 1, ComponentPatch::EMPTY),
-            &lookup()
-        )
-        .unwrap()
+        hash_stack(Some(&one(f, "apple")), &names, &mut scratch).unwrap()
     );
 }
 
@@ -430,9 +456,7 @@ fn container_click_bounds_the_changed_slots() {
     let mut bytes = Vec::new();
     packet.container_id.encode(&mut bytes).unwrap();
     packet.state_seqno.encode(&mut bytes).unwrap();
-    packet.slot_index.encode(&mut bytes).unwrap();
-    packet.button.encode(&mut bytes).unwrap();
-    packet.container_input.encode(&mut bytes).unwrap();
+    packet.click.encode(&mut bytes).unwrap();
     VarInt(MAX_CHANGED_SLOTS as i32 + 1)
         .encode(&mut bytes)
         .unwrap();
@@ -441,6 +465,37 @@ fn container_click_bounds_the_changed_slots() {
     }
     packet.carried_item.encode(&mut bytes).unwrap();
     assert!(ServerboundContainerClick::decode(&mut &bytes[..]).is_err());
+}
+
+#[test]
+fn click_reads_the_slot_the_button_and_the_kind_id() {
+    let cases = [
+        (3i16, 0, ClickKind::PickUp, Clicked::Entry(3)),
+        (-999, 1, ClickKind::QuickMove, Clicked::Outside),
+        (-1, 2, ClickKind::Swap, Clicked::Nowhere),
+        (-5, 3, ClickKind::Clone, Clicked::Nowhere),
+        (0, 4, ClickKind::Throw, Clicked::Entry(0)),
+        (-999, 5, ClickKind::Drag, Clicked::Outside),
+        (7, 6, ClickKind::PickUpAll, Clicked::Entry(7)),
+    ];
+    for (slot, id, kind, clicked) in cases {
+        let mut bytes = Vec::new();
+        slot.encode(&mut bytes).unwrap();
+        1u8.encode(&mut bytes).unwrap();
+        VarInt(id).encode(&mut bytes).unwrap();
+        let click = Click::decode(&mut &bytes[..]).unwrap();
+        let expected = Click {
+            kind,
+            button: 1,
+            clicked,
+        };
+        assert_eq!(click, expected, "slot {slot}, kind id {id}");
+    }
+    let mut unknown = Vec::new();
+    0i16.encode(&mut unknown).unwrap();
+    0u8.encode(&mut unknown).unwrap();
+    VarInt(7).encode(&mut unknown).unwrap();
+    assert!(Click::decode(&mut &unknown[..]).is_err());
 }
 
 #[test]
@@ -466,6 +521,234 @@ fn edit_book_bounds_pages_and_title() {
         title: Some(Bounded(title.as_str())),
     };
     assert!(packet.encode(&mut out).is_err());
+}
+
+#[test]
+fn edit_book_refuses_one_page_past_the_limit_on_decode() {
+    let book = |pages: usize| {
+        let mut bytes = vec![0, u8::try_from(pages).expect("below 128 pages")];
+        for _ in 0..pages {
+            bytes.extend_from_slice(&[1, b'x']);
+        }
+        bytes.push(0);
+        bytes
+    };
+    assert!(
+        ServerboundEditBook::decode(&mut book(MAX_BOOK_PAGES).as_slice()).is_ok(),
+        "a book at the page limit decodes"
+    );
+    assert!(
+        ServerboundEditBook::decode(&mut book(MAX_BOOK_PAGES + 1).as_slice()).is_err(),
+        "a book past the page limit is refused"
+    );
+}
+
+const CUSTOM_DATA: usize = 0;
+const CUSTOM_NAME: usize = 6;
+const WRITTEN_BOOK_CONTENT: usize = 57;
+const CONTAINER: usize = 77;
+
+fn var_int(value: usize) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    VarInt(i32::try_from(value).expect("the test lengths fit in 32 bits"))
+        .encode(&mut bytes)
+        .expect("a Vec takes every byte");
+    bytes
+}
+
+fn byte_array_under_a(length: usize) -> Vec<u8> {
+    let declared = i32::try_from(length).expect("the test lengths fit in 32 bits");
+    let mut nbt = vec![10, 7, 0, 1, b'a'];
+    nbt.extend_from_slice(&declared.to_be_bytes());
+    nbt.resize(nbt.len() + length, 0);
+    nbt.push(0);
+    nbt
+}
+
+fn with_component(kind: usize, value: &[u8]) -> Vec<u8> {
+    [var_int(1), var_int(0), var_int(kind), value.to_vec()].concat()
+}
+
+fn creative_slot(kind: usize, value: &[u8]) -> Vec<u8> {
+    let component = [var_int(value.len()), value.to_vec()].concat();
+    [
+        36i16.to_be_bytes().to_vec(),
+        var_int(1),
+        var_int(1),
+        with_component(kind, &component),
+    ]
+    .concat()
+}
+
+fn container_of_two(length: usize) -> Vec<u8> {
+    let template = [
+        vec![1],
+        var_int(1),
+        var_int(1),
+        with_component(0, &byte_array_under_a(length)),
+    ]
+    .concat();
+    [var_int(2), template.clone(), template].concat()
+}
+
+fn text(content: &str) -> Vec<u8> {
+    let length = u16::try_from(content.len()).expect("the text fits a String");
+    [
+        vec![8],
+        length.to_be_bytes().to_vec(),
+        content.as_bytes().to_vec(),
+    ]
+    .concat()
+}
+
+fn book_of(pages: usize, page: &str, filtered: bool) -> Vec<u8> {
+    let text = if filtered {
+        [text(page), vec![1], text(page)].concat()
+    } else {
+        [text(page), vec![0]].concat()
+    };
+    let mut book = [
+        var_int(1),
+        b"t".to_vec(),
+        vec![0],
+        var_int(1),
+        b"a".to_vec(),
+    ]
+    .concat();
+    book.extend([var_int(0), var_int(pages)].concat());
+    for _ in 0..pages {
+        book.extend_from_slice(&text);
+    }
+    book.push(0);
+    book
+}
+
+#[test]
+fn a_creative_slot_packet_shares_one_nbt_budget_across_its_stack() {
+    let cases = [
+        (
+            creative_slot(CUSTOM_DATA, &byte_array_under_a(2_097_148)),
+            true,
+        ),
+        (
+            creative_slot(CUSTOM_DATA, &byte_array_under_a(2_097_149)),
+            false,
+        ),
+        (creative_slot(CONTAINER, &container_of_two(1_048_572)), true),
+        (
+            creative_slot(CONTAINER, &container_of_two(1_048_573)),
+            false,
+        ),
+        (
+            creative_slot(
+                WRITTEN_BOOK_CONTENT,
+                &book_of(100, &"x".repeat(10_485), false),
+            ),
+            true,
+        ),
+        (
+            creative_slot(
+                WRITTEN_BOOK_CONTENT,
+                &book_of(100, &"x".repeat(10_486), false),
+            ),
+            false,
+        ),
+        (
+            creative_slot(WRITTEN_BOOK_CONTENT, &book_of(262_145, "", false)),
+            false,
+        ),
+    ];
+    let budget = NbtBudget {
+        bytes: 2_097_152,
+        tags: 262_144,
+    };
+    for (index, (bytes, passes)) in cases.iter().enumerate() {
+        let read = mcrs_minecraft_nbt::with_nbt_budget(budget, || {
+            ServerboundSetCreativeModeSlot::decode(&mut bytes.as_slice()).map(|_| ())
+        });
+        if *passes {
+            assert!(matches!(read, Ok(Ok(()))), "{index}: {read:?}");
+        } else {
+            assert!(matches!(read, Err(NbtQuotaExceeded)), "{index}: {read:?}");
+        }
+    }
+}
+
+fn named_patch(name: Option<&str>, kind: usize, value: &[u8]) -> Vec<u8> {
+    match name {
+        Some(name) => [
+            var_int(2),
+            var_int(0),
+            var_int(CUSTOM_NAME),
+            text(name),
+            var_int(kind),
+            value.to_vec(),
+        ]
+        .concat(),
+        None => with_component(kind, value),
+    }
+}
+
+fn shulker_of_books(books: usize, name: Option<&str>) -> Vec<u8> {
+    let page = "\u{3042}".repeat(1024);
+    let book = [
+        vec![1],
+        var_int(1),
+        var_int(1),
+        named_patch(name, WRITTEN_BOOK_CONTENT, &book_of(100, &page, true)),
+    ]
+    .concat();
+    [var_int(books), book.repeat(books)].concat()
+}
+
+fn at_default_budget(read: impl FnOnce() -> bool) -> Result<bool, NbtQuotaExceeded> {
+    mcrs_minecraft_nbt::with_nbt_budget(NbtBudget::default(), read)
+}
+
+#[test]
+fn a_survival_shulker_of_books_passes_and_a_long_list_is_refused_at_the_default_budget() {
+    let creative = |bytes: &[u8]| ServerboundSetCreativeModeSlot::decode(&mut &*bytes).is_ok();
+    let thirteen_books = creative_slot(CONTAINER, &shulker_of_books(13, None));
+    assert_eq!(
+        at_default_budget(|| creative(&thirteen_books)),
+        Ok(true),
+        "NBQ-VEC-018"
+    );
+
+    let mut list = vec![10, 9, 0, 1, b'a', 1];
+    list.extend_from_slice(&300_000i32.to_be_bytes());
+    list.resize(list.len() + 300_000, 0);
+    list.push(0);
+    let long_list = creative_slot(CUSTOM_DATA, &list);
+    assert_eq!(
+        at_default_budget(|| creative(&long_list)),
+        Err(NbtQuotaExceeded),
+        "NBQ-VEC-019"
+    );
+
+    let name = "\u{3042}".repeat(50);
+    let full_shulker = [
+        var_int(1),
+        var_int(1),
+        named_patch(Some(&name), CONTAINER, &shulker_of_books(27, Some(&name))),
+    ]
+    .concat();
+    assert_eq!(
+        at_default_budget(|| ProtoStack::decode(&mut full_shulker.as_slice()).is_ok()),
+        Ok(true),
+        "NBQ-VEC-020"
+    );
+    let one_short = NbtBudget {
+        bytes: 33_185_999,
+        tags: 262_144,
+    };
+    assert_eq!(
+        mcrs_minecraft_nbt::with_nbt_budget(one_short, || {
+            ProtoStack::decode(&mut full_shulker.as_slice()).is_ok()
+        }),
+        Err(NbtQuotaExceeded),
+        "the charge of NBQ-VEC-020 is 33 186 000"
+    );
 }
 
 #[test]

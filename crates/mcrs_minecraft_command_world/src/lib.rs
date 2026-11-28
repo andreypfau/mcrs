@@ -1,7 +1,3 @@
-//! The commands that change the world and the server: `fill`, `forceload`, `gamerule`,
-//! `weather clear`, and `tick query` and `tick sprint`.
-
-// std: bevy_ecs needs it.
 mod block_view;
 mod fill;
 mod forced_columns;

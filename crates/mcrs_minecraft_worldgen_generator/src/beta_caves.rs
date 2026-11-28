@@ -16,8 +16,6 @@ pub struct BetaCaveBlockIds {
     pub stone: VoxelId,
     pub dirt: VoxelId,
     pub grass: VoxelId,
-    /// Beta's abort tests both flowing and stationary water; the fill and the
-    /// surface place only the one source state.
     pub water: VoxelId,
 }
 
@@ -37,10 +35,6 @@ impl BetaCaveBlockIds {
     }
 }
 
-/// Every water block of the column, as the carver's abort oracle.
-///
-/// Section cells are dense and in palette index order, so one linear scan per
-/// section covers the whole column.
 fn water_mask(column: &ColumnBlocks, water: VoxelId) -> WaterMask {
     let mut mask = WaterMask::default();
     for (slot, &section_y) in column.y_sections().iter().enumerate() {
@@ -62,14 +56,8 @@ fn water_mask(column: &ColumnBlocks, water: VoxelId) -> WaterMask {
     mask
 }
 
-/// Below this the freed block is lava rather than air.
 const LAVA_LEVEL: i32 = 10;
 
-/// Fill the space the carver freed: lava under the lava level, air above it,
-/// and dirt turned to grass directly under the first grass seen coming down.
-///
-/// One pass per carved run, top down, which is where the grass fixup has to
-/// look: the block it converts is the next Y the same run visits.
 fn apply_cave_substance(column: &ColumnBlocks, mask: &CarvingMask, ids: &BetaCaveBlockIds) {
     mask.visit(|x, z, bottom_y, top_y| {
         let mut has_grass = false;
@@ -81,8 +69,6 @@ fn apply_cave_substance(column: &ColumnBlocks, mask: &CarvingMask, ids: &BetaCav
             if state != ids.stone && state != ids.dirt && state != ids.grass {
                 continue;
             }
-            // Beta's lava threshold is on the Y the ellipsoid test accepted,
-            // which is one below the block that test frees.
             if y - 1 < LAVA_LEVEL {
                 column.set(x, y, z, ids.lava);
             } else {
@@ -95,11 +81,12 @@ fn apply_cave_substance(column: &ColumnBlocks, mask: &CarvingMask, ids: &BetaCav
     });
 }
 
-/// Beta's carving of one column: the source loop every dimension shares, with
-/// Beta's carver in it, then Beta's own fill of what it freed.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the column, its chunk position and the world seed, and the router, workspace, biome table, height context and block ids that one chunk's carving reads"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one chunk's carving"
+    )
 )]
 pub fn apply_beta_carvers(
     column: &ColumnBlocks,

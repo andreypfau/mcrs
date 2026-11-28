@@ -12,32 +12,25 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_protocol::{Packet, anyhow};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundCommands;
 
-/// The command graph. The host keeps the graph it froze, and every dimension world holds a copy,
-/// in which the lines of its players parse, get suggestions and run.
 #[derive(Resource)]
 pub struct CommandTree<S: CommandSet> {
     pub(crate) graph: SetGraph<S>,
 }
 
-/// The command graph of the set `S`.
 pub type SetGraph<S> = Graph<<S as CommandSet>::Argument, PermissionCheck, Handler>;
 
 impl<S: CommandSet> CommandTree<S> {
-    /// The frozen graph.
     pub fn graph(&self) -> &SetGraph<S> {
         &self.graph
     }
 }
 
-/// The `commands` packet of each command level, which every dimension sends to
-/// the players that join it.
 #[derive(Resource, Clone, Debug)]
 pub struct CommandTreePackets {
     by_level: [Bytes; 5],
 }
 
 impl CommandTreePackets {
-    /// The command tree a player with `op_level` can see.
     pub fn to_player(
         &self,
         session: PlayerSession,
@@ -64,7 +57,6 @@ impl CommandTreePackets {
     }
 }
 
-/// Sends each player that was told its operator level the command tree of that level.
 pub(crate) fn send_command_tree(
     mut announced: MessageReader<OpLevelAnnounced>,
     packets: Res<CommandTreePackets>,
@@ -77,7 +69,6 @@ pub(crate) fn send_command_tree(
     }
 }
 
-/// The tree that plugins add commands to while the app builds.
 #[derive(Resource)]
 pub(crate) struct CommandTreeBuilder<S: CommandSet> {
     pub(crate) builder: GraphBuilder<S::Argument, PermissionCheck, Handler>,

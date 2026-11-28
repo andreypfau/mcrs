@@ -6,28 +6,21 @@ use mcrs_minecraft_command_argument::KeywordError;
 use mcrs_minecraft_command_argument::TimeError;
 use mcrs_minecraft_command_argument_block::BlockError;
 use mcrs_minecraft_command_argument_entity::EntityError;
+use mcrs_minecraft_nbt_path::NbtPathError;
 use mcrs_minecraft_snbt::SnbtError;
-use mcrs_minecraft_text::Text;
+use mcrs_minecraft_text::{IntoText, Text};
 
-/// The syntax errors of the vanilla argument types. An error of an identifier or of a resource
-/// is [`ArgumentError::Resource`] whichever argument read it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ArgumentError {
-    /// An error of an identifier or of a registry entry.
     Resource(ResourceError),
-    /// An error of an argument that reads one word of a fixed set.
     Keyword(KeywordError),
-    /// An error of a coordinate, rotation or swizzle argument.
     Coordinates(CoordinatesError),
-    /// An error of an entity selector.
     Entity(EntityError),
-    /// An error of a block predicate.
     Block(BlockError),
-    /// An error of a tick count.
     Time(TimeError),
-    /// An error of an SNBT compound.
     Nbt(SnbtError),
+    NbtPath(NbtPathError),
 }
 
 impl fmt::Display for ArgumentError {
@@ -40,16 +33,15 @@ impl fmt::Display for ArgumentError {
             ArgumentError::Block(error) => fmt::Display::fmt(error, f),
             ArgumentError::Time(error) => fmt::Display::fmt(error, f),
             ArgumentError::Nbt(error) => fmt::Display::fmt(error, f),
+            ArgumentError::NbtPath(error) => fmt::Display::fmt(error, f),
         }
     }
 }
 
 impl core::error::Error for ArgumentError {}
 
-/// A syntax error of a vanilla command line.
 pub type CommandSyntaxError = SyntaxError<ArgumentError>;
 
-/// A library argument type has no errors of its own.
 impl From<core::convert::Infallible> for ArgumentError {
     fn from(never: core::convert::Infallible) -> Self {
         match never {}
@@ -98,6 +90,12 @@ impl From<SnbtError> for ArgumentError {
     }
 }
 
+impl From<NbtPathError> for ArgumentError {
+    fn from(error: NbtPathError) -> Self {
+        ArgumentError::NbtPath(error)
+    }
+}
+
 impl From<TimeError> for ArgumentError {
     fn from(error: TimeError) -> Self {
         ArgumentError::Time(error)
@@ -114,6 +112,7 @@ impl ErrorText for ArgumentError {
             ArgumentError::Block(error) => error.text(input),
             ArgumentError::Time(error) => error.text(input),
             ArgumentError::Nbt(error) => snbt_text(input, *error),
+            ArgumentError::NbtPath(error) => error.to_string().into_text(),
         }
     }
 }

@@ -32,14 +32,6 @@ fn density_functions(
     named(registries)
 }
 
-/// Compiles one dimension's router and material rules from its noise settings
-/// and the density functions, noises, material rules and conditions of
-/// `registries`. A `biome_is` set resolves to the biome numbers of `registries`,
-/// the numbering the column's biome grid holds.
-///
-/// `block` resolves a datapack block state against the block registry this
-/// crate does not have; the terrain block and the sea fluid come from the settings
-/// themselves, so they are per dimension rather than global.
 pub fn build_dimension_router(
     registries: &Registries,
     settings: &NoiseGeneratorSettings,
@@ -84,8 +76,6 @@ pub fn build_dimension_router(
     )
 }
 
-/// Where one dimension's `final_density` places the beardifier, with its
-/// references resolved through the density functions of `registries`.
 pub fn dimension_beardifier_placement(
     registries: &Registries,
     settings: &NoiseGeneratorSettings,

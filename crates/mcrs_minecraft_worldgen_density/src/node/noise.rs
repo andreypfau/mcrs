@@ -28,13 +28,10 @@ impl NoiseFunctionParams {
         }
     }
 
-    /// The declared bound of the octaves behind it. `NoiseFunction.range()`.
     pub fn range(&self) -> mcrs_minecraft_noise::interval::Interval {
         self.noise.range()
     }
 
-    /// A zero scale is the only way a noise sheds an axis: the coordinate is
-    /// multiplied by it before the lattice sees it.
     pub fn axes(&self) -> mcrs_minecraft_noise::strata::Axes {
         use mcrs_minecraft_noise::strata::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z};
         let mut axes = ALL_AXES;
@@ -47,23 +44,16 @@ impl NoiseFunctionParams {
         axes
     }
 
-    /// `shift_b` reads the noise transposed and scales its result by 4, but the
-    /// coordinate factor is the same 0.25 a plain `shift` uses.
     pub fn shift_b(noise: Arc<NoiseStack<Octave>>) -> Self {
         Self::new(noise, 0.25, 0.25)
     }
 
-    /// The whole extent in one batch, which is the point: every octave hoists its
-    /// per-layer setup across all of it rather than across one column.
     pub fn eval_plain(&self, out: &mut [f32], ext: &SampleGrid) {
         out.fill(0.0);
         self.noise
             .add_to_volume(out, ext, self.xz_scale, self.y_scale, 1.0);
     }
 
-    /// World Z becomes the noise X axis and world X its Y axis, so the extent is
-    /// transposed rather than walked column by column. Y-fastest in the transposed
-    /// volume is X-fastest in the stratum, which is the layout an `X|Z` buffer has.
     pub fn eval_shift_b(&self, out: &mut [f32], ext: &SampleGrid) {
         let (size, min, step) = (ext.size(), ext.min_block(), ext.step_block());
         debug_assert_eq!(size.y, 1, "shift_b does not vary along Y");
@@ -82,12 +72,6 @@ impl NoiseFunctionParams {
         );
     }
 
-    /// Unlike [`Self::eval_plain`], this forms each octave's coordinate as
-    /// `coordinate * frequency` rather than folding the scale into the frequency:
-    /// vanilla's shifted volume path calls `Noise.get` per position instead of
-    /// `addToVolume`, and the two associations differ by an f64 ulp. Widening the
-    /// batch past one column would move it onto the other association, so the
-    /// columns stay the unit here however large the extent is.
     pub fn eval_shifted(
         &self,
         out: &mut [f32],
@@ -184,8 +168,6 @@ mod tests {
         assert_eq!(shifted_head[0].to_bits(), shifted_run[0].to_bits());
     }
 
-    /// Widening the batch is the whole point of the node-major fill, so a box and
-    /// the columns it is made of must not disagree by a bit.
     #[test]
     fn a_whole_extent_batch_agrees_with_the_columns_it_covers() {
         let p = NoiseFunctionParams::new(noise(23), 0.37, 0.11);
@@ -270,16 +252,9 @@ mod tests {
         }
     }
 
-    /// The fast profile is allowed to reassociate, so the two orders are no
-    /// longer required to differ there and the ulp this counts falls below its
-    /// rounding.
     #[cfg(not(feature = "fast"))]
     #[test]
     fn eval_plain_folds_the_scale_into_the_frequency() {
-        // `block * (xz_scale * frequency)` and `(block * xz_scale) * frequency` differ
-        // by an f64 ulp, which survives the narrowing to f32 only rarely; a sweep this
-        // wide at a non-power-of-two scale is what it takes to catch one. Reusing the
-        // point kernel here would silently unify them and zero this count.
         let n = sampler(9, 0, &[1.0; 9]);
         let p = NoiseFunctionParams::new(n.clone(), 0.6, 0.0);
         let mut differing = 0;
@@ -307,8 +282,6 @@ mod tests {
         assert_eq!(low.to_bits(), shift_b_at(&p, 5, -17, 100).to_bits());
         assert_ne!(low, shift_b_at(&p, -17, 5, 0));
 
-        // The volume path folds the factor of 4 into every layer's amplitude where the
-        // point path applies it once after the sum, so this is close, not bit-exact.
         let point = n.get(-17.0 * 0.25, 5.0 * 0.25, 0.0) * SHIFT_B_VALUE_FACTOR;
         assert!((low - point).abs() < 1e-4, "{low} vs {point}");
     }

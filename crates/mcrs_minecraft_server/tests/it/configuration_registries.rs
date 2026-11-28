@@ -53,7 +53,6 @@ fn served(root: &Path, local_pack: &str) -> (Registries, NetworkSnapshot) {
     (registries, synced.0)
 }
 
-/// The registry data packets the server encoded, decoded as a client reads them.
 pub(crate) fn sent(network: &NetworkSnapshot, known: bool) -> Vec<ClientboundRegistryData<'_>> {
     network
         .registry_data(known)
@@ -182,6 +181,7 @@ pub(crate) fn shipped_packs() -> Vec<ShippedPack> {
     let mut local: Vec<_> = std::fs::read_dir(assets.join("mcrs/datapacks"))
         .unwrap()
         .map(|entry| entry.unwrap().path())
+        .filter(|path| path.is_dir())
         .collect();
     local.sort();
     for root in local {

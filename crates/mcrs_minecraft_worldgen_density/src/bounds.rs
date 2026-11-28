@@ -6,34 +6,18 @@ use mcrs_minecraft_noise::jmath::mul_add;
 use mcrs_minecraft_noise::sample_grid::Axis;
 use mcrs_minecraft_numeric::max_f32;
 
-/// Which of the two bounds a walk over the graph is after. The arithmetic over
-/// the operators is the same either way; only the leaves and the selections
-/// differ, and they differ because the two answers are used for different
-/// things.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Bounds {
-    /// What vanilla's `DensityFunction.range()` reports: a noise's bound is
-    /// statistical and a sample may legitimately fall outside it, and a
-    /// selection reports the union over its arms without consulting its input.
-    /// Branch elimination consumes this one, so narrowing it deletes branches
-    /// vanilla keeps.
     Declared,
-    /// Rigorous over one cell, the inclusive block box given. A leaf whose
-    /// value is not rigorously bounded answers `None`, which sends the cell
-    /// down the per-block path, and a selection narrows to the arms its input
-    /// can actually reach.
     Cell { min: IVec3, max: IVec3 },
 }
 
-/// Interval arithmetic over the operators. `at` answers for a node's inputs,
-/// which are always resolved first.
 #[expect(
     clippy::too_many_lines,
-    reason = "one arm per node kind, in the node's declaration order, so each interval rule reads against its kind"
+    reason = "one arm per node kind, in the node's declaration order"
 )]
 pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -> Option<Interval> {
     Some(match node {
-        // A fold can land a NaN in a constant, and nothing is known about it.
         Node::Constant(value) if value.is_nan() => Interval::NAI,
         Node::Constant(value) => Interval::exact(*value),
 
@@ -42,9 +26,6 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
             scale,
             offset,
         } => {
-            // Rounded the way the sampler rounds: a bound that fuses where the
-            // sampler does not, or the other way round, lands an ulp off the
-            // values it has to contain.
             let input = at(*input);
             Interval::encapsulating(
                 mul_add(input.min(), *scale, *offset),
@@ -66,7 +47,6 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
             };
             let input = at(*input);
             let hull = Interval::encapsulating(apply(input.min()), apply(input.max()));
-            // The breakpoint is an extremum too, but only where it is reachable.
             if input.min() < 0.0 && input.max() >= 0.0 {
                 hull.union_value(*offset)
             } else {
@@ -108,11 +88,6 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
             second,
         } => Interval::lerp(at(*alpha), at(*first), at(*second)),
 
-        // A slice reads its input at a pinned coordinate, so the input's bound
-        // over *this cell* says nothing about it. The declared bound carries
-        // through; a cell bound gives up and sends the cell down the per-block
-        // path, which no shipped graph reaches because the one slice in the
-        // corpus sits below an interpolation.
         Node::Slice { input, .. } => match mode {
             Bounds::Declared => at(*input),
             Bounds::Cell { .. } => return None,
@@ -171,11 +146,7 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
         }
 
         Node::Interpolated { input, .. } => match mode {
-            // The interpolant is a convex combination of its corners, so it
-            // never leaves the hull of the values it reads.
             Bounds::Declared => at(*input),
-            // The corner intervals are supplied from outside, so the walk is
-            // never asked about a wrapper.
             Bounds::Cell { .. } => return None,
         },
 
@@ -198,9 +169,6 @@ pub fn node_bounds(node: &Node, mode: Bounds, at: impl Fn(NodeId) -> Interval) -
     })
 }
 
-/// The bound each leaf publishes about itself, which for a noise is the
-/// six-sigma estimate its parameters declare rather than anything the sampler
-/// is held to.
 fn declared_leaf(node: &Node, at: impl Fn(NodeId) -> Interval) -> Option<Interval> {
     Some(match node {
         Node::Noise { params } | Node::ShiftedNoise { params, .. } => params.range(),
@@ -212,8 +180,6 @@ fn declared_leaf(node: &Node, at: impl Fn(NodeId) -> Interval) -> Option<Interva
             let coord_ranges: Vec<Interval> = coords.iter().map(|&id| at(id)).collect();
             spline.range(&coord_ranges)
         }
-        // `max_f32`, so a NaI upper bound propagates NaN into `Interval::of` and
-        // aborts the load, as vanilla does.
         Node::FindTopSurface {
             upper_bound,
             lower_bound,
@@ -226,9 +192,6 @@ fn declared_leaf(node: &Node, at: impl Fn(NodeId) -> Interval) -> Option<Interva
     })
 }
 
-/// A clamped gradient is monotone along its axis, so the box's two end
-/// coordinates bound it; a repeating one may wrap inside the box, and then only
-/// the hull of its two values does.
 fn gradient_over(g: &GradientParams, min: IVec3, max: IVec3) -> Interval {
     if g.tiling != Tiling::ClampToEdge {
         return Interval::encapsulating(g.from_value, g.to_value);
@@ -243,9 +206,6 @@ fn gradient_over(g: &GradientParams, min: IVec3, max: IVec3) -> Interval {
     Interval::encapsulating(ends[0], ends[1])
 }
 
-/// Does not model the sampler's `multiple == 0.0` passthrough: an exactly
-/// `[0, 0]` multiple yields NaI here while the sampler returns its input.
-/// Vanilla has the same omission.
 pub(crate) fn round_range(value: Interval, multiple: Interval, kind: RoundKind) -> Interval {
     (value / multiple).map_monotonic(|v| kind.apply(v)) * multiple
 }

@@ -15,7 +15,6 @@ use mcrs_minecraft_worldgen_density::router::{
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
-/// The density functions an overworld preset reads its climate from.
 struct Climate {
     temperature: ResourceLocation<'static>,
     vegetation: ResourceLocation<'static>,

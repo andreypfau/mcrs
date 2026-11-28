@@ -32,8 +32,6 @@ use mcrs_minecraft_worldgen_structure_place::template::place_ocean_ruin;
 use mcrs_minecraft_worldgen_structure_place::template_piece::{paint_igloo, paint_shipwreck};
 use mcrs_minecraft_worldgen_structure_place::woodland_mansion::place_woodland_mansion_piece;
 
-/// `ChunkGenerator.getWritableArea`: the column's footprint from one above the
-/// dimension floor to its ceiling.
 pub fn column_clip(col: ColumnPos, y_sections: &[i32]) -> BoundingBox {
     let (first, last) = y_sections
         .first()
@@ -47,11 +45,12 @@ pub fn column_clip(col: ColumnPos, y_sections: &[i32]) -> BoundingBox {
     }
 }
 
-/// `StructureStart.placeInChunk` for every start of `step` reaching the column:
-/// one stream per structure, shared by all of its starts and pieces here.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the frozen structures and program, the run and region, the starts of one step, the clip and the decoration seed of one step's placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one step's placement"
+    )
 )]
 pub fn place_structures<W: WorldGenVolume>(
     frozen: &FrozenStructures,
@@ -82,10 +81,6 @@ pub fn place_structures<W: WorldGenVolume>(
     }
 }
 
-/// The reference sinks a desert pyramid by `nextInt(3)` of whichever column
-/// decorates it first and every later column only spends the draw. The column
-/// nearest the origin among those the box meets stands in for that chunk, as
-/// it does for a mineshaft's spawner, so the columns agree whichever runs first.
 fn desert_pyramid_sink(
     world_seed: i64,
     piece: &DesertPyramidPiece,
@@ -110,16 +105,16 @@ fn sunk_bounds(piece: &DesertPyramidPiece, sink: i32) -> BoundingBox {
     ))
 }
 
-/// `StructureStart.placeInChunk` for one start: every piece whose box meets
-/// the clip, in piece order, with the first piece's box centre at its floor as
-/// the reference position, then the structure's after-place hook.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the frozen structures and program, the run and region, the start, the clip, the random source and the liquid settings of one structure start"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one structure start"
+    )
 )]
 #[expect(
     clippy::too_many_lines,
-    reason = "places each piece of one start in piece order and then runs the structure's after-place hook, as the reference's placeInChunk does"
+    reason = "pieces place in piece order, then the after-place hook runs"
 )]
 pub fn place_start<W: WorldGenVolume>(
     frozen: &FrozenStructures,
@@ -438,10 +433,12 @@ pub fn place_start<W: WorldGenVolume>(
     }
 }
 
-/// `StructurePoolElement.place` over a compiled element.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the program, the run and region, the element with its position, reference, rotation and clip, the random source and the liquid settings of one jigsaw element's placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one jigsaw element's placement"
+    )
 )]
 pub fn place_element<W: WorldGenVolume>(
     program: &FeatureProgram,

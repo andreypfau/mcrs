@@ -31,8 +31,6 @@ impl PacketEncoder {
         Ok(())
     }
 
-    /// Frames a packet that `encode_with_id` wrote earlier, so a packet that many connections
-    /// receive is encoded once.
     pub fn append_encoded(&mut self, packet: &[u8]) -> anyhow::Result<()> {
         let start = self.buf.len();
         self.buf.extend_from_slice(packet);
@@ -40,7 +38,6 @@ impl PacketEncoder {
         Ok(())
     }
 
-    /// Hands over the frames made so far and leaves the encoder empty.
     pub fn take(&mut self) -> BytesMut {
         self.buf.split()
     }
@@ -58,10 +55,7 @@ impl PacketEncoder {
     }
 }
 
-/// Types that can have packets written to them.
 pub trait WritePacket {
-    /// Writes a packet to this object. Encoding errors are typically logged and
-    /// discarded.
     fn write_packet<P>(&mut self, packet: &P)
     where
         P: Packet + Encode,
@@ -76,8 +70,6 @@ pub trait WritePacket {
         }
     }
 
-    /// Writes a packet to this object. The result of encoding the packet is
-    /// returned.
     fn write_packet_fallible<P>(&mut self, packet: &P) -> anyhow::Result<()>
     where
         P: Packet + Encode;

@@ -2,23 +2,15 @@ use core::fmt;
 use mcrs_minecraft_command::ErrorText;
 use mcrs_minecraft_text::Text;
 
-/// The errors of the coordinate, rotation and swizzle arguments.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CoordinatesError {
-    /// Local `^` and world coordinates are mixed.
     PosMixed,
-    /// A decimal coordinate is missing.
     PosMissingDouble,
-    /// A position has fewer than three coordinates.
     Pos3dIncomplete,
-    /// A column position has fewer than two coordinates.
     Pos2dIncomplete,
-    /// A rotation has fewer than two angles.
     RotationIncomplete,
-    /// An integer coordinate is missing.
     PosMissingInt,
-    /// A swizzle holds a letter other than `x`, `y` or `z`, or one twice.
     SwizzleInvalid,
 }
 

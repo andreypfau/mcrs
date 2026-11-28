@@ -15,46 +15,82 @@ use mcrs_minecraft_render::{
 use crate::entity_assets::EntityAssets;
 use crate::entity_gpu::{Capacities, DrawTargets, EntityGpu, PassQueries};
 use crate::entity_library::EntityLibrary;
+use crate::figure_targets::FigureTargets;
+use crate::figure_view::{FigureFrame, FigureView};
 use crate::frame_uniform::FrameUniform;
+use crate::gpu_layouts::tables_fit;
 use crate::height_threshold::HeightThreshold;
 use crate::main_world::EntityClock;
+use crate::player_skin::{SkinSlots, SkinUpload};
 use crate::slot_upload::{SCATTER_FRESH, SlotArena, SlotUpload};
 
-/// The full rigs that one frame draws, in all and of one definition: the full-rig cap of the
-/// native tier.
 pub const FULL_RIG_CAP: u32 = 75_000;
 
-/// The render world state of the entity passes.
 #[derive(Resource, Default)]
 pub(crate) struct EntityRenderState {
     generation: Option<u32>,
     library: Option<EntityLibrary>,
     gpu: Option<EntityGpu>,
+    unfit: bool,
     hiz: Option<TextureViewId>,
     pending: SlotUpload,
+    pending_skins: Vec<SkinUpload>,
     clock: EntityClock,
     threshold: HeightThreshold,
+    figure: Option<FigureFrame>,
 }
 
+impl EntityRenderState {
+    pub(crate) fn gpu(&self) -> Option<&EntityGpu> {
+        self.gpu.as_ref()
+    }
+
+    pub(crate) fn has_figure(&self) -> bool {
+        self.figure.is_some()
+    }
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the queued uploads move to the render state on each frame, and the full resend and the library clone happen only after an asset reload"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(10))]
 pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<EntityRenderState>) {
-    if let Some(clock) = main.get_resource::<EntityClock>() {
+    if let Some(clock) = main.get_resource::<EntityClock>()
+        && state.clock != *clock
+    {
         state.clock = *clock;
+    }
+    let figure = main
+        .get_resource::<FigureView>()
+        .and_then(|figure| figure.0);
+    if state.figure != figure {
+        state.figure = figure;
     }
     if let Some(assets) = main.get_resource::<EntityAssets>()
         && state.generation != Some(assets.generation)
     {
         state.generation = Some(assets.generation);
         state.library = Some(assets.library.clone());
+        state.pending_skins.clear();
+    }
+    if let Some(mut skins) = main.get_resource_mut::<SkinSlots>() {
+        let uploads = skins.take_uploads();
+        state.pending_skins.extend(uploads);
     }
     let Some(mut arena) = main.get_resource_mut::<SlotArena>() else {
         return;
     };
+    if state.library.is_some() {
+        arena.resend(state.clock.tick);
+    }
     let upload = arena.take_upload();
     merge(&mut state.pending, upload);
 }
 
-/// Adds the writes of `next` after those of `pending`. A slot keeps its last tick record and
-/// stays fresh when an earlier write made it fresh.
 fn merge(pending: &mut SlotUpload, next: SlotUpload) {
     if pending.ticks.is_empty()
         && pending.culls.is_empty()
@@ -93,17 +129,44 @@ fn merge(pending: &mut SlotUpload, next: SlotUpload) {
     pending.inputs.extend(next.inputs);
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the GPU objects are built only when the entity library loads, the depth pyramid changes or the figure targets change"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(86))]
 pub(crate) fn prepare_entities(
     mut state: ResMut<EntityRenderState>,
     terrain: Option<Res<Terrain>>,
+    figure_targets: Option<Res<FigureTargets>>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
     let Some(terrain) = terrain else {
         return;
     };
-    let pyramid = terrain.depth_pyramid();
+    let Some(pyramid) = terrain.depth_pyramid() else {
+        return;
+    };
     if let Some(library) = state.library.take() {
+        let unfit = !tables_fit(&library, &device.limits());
+        if state.unfit != unfit {
+            state.unfit = unfit;
+        }
+        if unfit {
+            warn!(
+                models = library.models.len(),
+                bones = library.bones.len(),
+                variants = library.variants.len(),
+                "the entity tables exceed the uniform buffers of this device: entities are not drawn"
+            );
+            state.gpu = None;
+            std::mem::take(&mut state.pending);
+            state.pending_skins.clear();
+            return;
+        }
         let capacities = Capacities::for_cap(&library, FULL_RIG_CAP);
         let slots = state.pending.slot_capacity.max(1024);
         state.gpu = Some(EntityGpu::new(
@@ -119,7 +182,9 @@ pub(crate) fn prepare_entities(
             },
             &queue,
         ));
-        state.hiz = Some(pyramid.id());
+        if state.hiz != Some(pyramid.id()) {
+            state.hiz = Some(pyramid.id());
+        }
         info!(
             definitions = library.definitions.len(),
             models = library.models.len(),
@@ -130,15 +195,29 @@ pub(crate) fn prepare_entities(
             warn!("{diagnostic}");
         }
     }
+    let state = &mut *state;
+    for skin in state.pending_skins.drain(..) {
+        if let Some(gpu) = &state.gpu {
+            gpu.write_texels(&queue, skin.variant, skin.image.rgba());
+        }
+    }
     if state.hiz != Some(pyramid.id())
         && let Some(gpu) = state.gpu.as_mut()
     {
         gpu.set_hiz(device.wgpu_device(), (**pyramid).clone());
         state.hiz = Some(pyramid.id());
     }
+    if let (Some(targets), Some(gpu)) = (figure_targets, state.gpu.as_mut()) {
+        let sprites = &terrain.sprites;
+        gpu.prepare_figure(
+            device.wgpu_device(),
+            *targets,
+            sprites.lightmap_view(),
+            sprites.lightmap_sampler(),
+        );
+    }
 }
 
-/// The parts of the render world that the entity pass reads.
 #[derive(bevy::ecs::system::SystemParam)]
 pub(crate) struct EntityFrameParams<'w> {
     frame: Option<Res<'w, DeferredFrame>>,
@@ -152,8 +231,6 @@ pub(crate) struct EntityFrameParams<'w> {
     queue: Res<'w, RenderQueue>,
 }
 
-/// The entity passes of a frame: the upload of the slots, the cull, the pose and the expand,
-/// then the draw of the face records into the gbuffer.
 pub(crate) fn draw_entities(
     depth: ViewQuery<&ViewDepthStencilTexture>,
     mut state: ResMut<EntityRenderState>,
@@ -172,7 +249,9 @@ pub(crate) fn draw_entities(
     let clock = state.clock;
     let mut threshold = state.threshold;
     let Some(gpu) = state.gpu.as_mut() else {
-        state.pending = pending;
+        if !state.unfit {
+            state.pending = pending;
+        }
         return;
     };
     if let Some(counts) = gpu.take_counts() {
@@ -229,7 +308,26 @@ pub(crate) fn draw_entities(
     });
     gpu.encode_draw(&mut pass);
     drop(pass);
-    state.threshold = threshold;
+    if state.threshold != threshold {
+        state.threshold = threshold;
+    }
+}
+
+pub(crate) fn figure_requested(state: Res<EntityRenderState>) -> bool {
+    state.figure.is_some()
+}
+
+pub(crate) fn run_figure_view(
+    state: Res<EntityRenderState>,
+    queue: Res<RenderQueue>,
+    mut ctx: RenderContext,
+) {
+    let (Some(figure), Some(gpu)) = (state.figure, state.gpu.as_ref()) else {
+        return;
+    };
+    let clock = state.clock;
+    gpu.write_figure_frame(&queue, &figure, clock.tick, clock.partial_tick);
+    gpu.encode_figure_compute(ctx.command_encoder());
 }
 
 #[cfg(test)]

@@ -180,7 +180,7 @@ fn presets_spawn_their_dimensions_with_their_entry_types(include: impl Fn(&str) 
 }
 
 #[test]
-fn the_beta_preset_spawns_its_dimensions_with_their_entry_types_and_joins_send_them() {
+fn beta_preset_spawns_dimensions_with_entry_types_and_joins_send_them() {
     presets_spawn_their_dimensions_with_their_entry_types(|name| name == "minecraft:beta");
 }
 

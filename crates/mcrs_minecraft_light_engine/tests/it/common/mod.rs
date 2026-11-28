@@ -41,7 +41,6 @@ fn top_slab_shape() -> &'static VoxelShape {
     SHAPE.get_or_init(|| slab_shape(UPPER_HALF))
 }
 
-/// The state a test block stands for in a section; the test table holds ten.
 pub fn state(block: VoxelId) -> BlockStateId {
     BlockStateId::checked(block.0, 10).expect("a block of the test table")
 }
@@ -55,11 +54,7 @@ pub fn registry() -> Arc<LightRegistry> {
         vec![
             LightProperties::AIR,
             LightProperties::SOLID,
-            // Glass is transparent to light and, crucially, does not end a run
-            // of sky sources.
             LightProperties::transparent(0),
-            // Water and leaves dim by one, which is invisible to block light but
-            // does end the sky column.
             LightProperties::transparent(1),
             LightProperties::transparent(1),
             LightProperties::transparent(15),
@@ -137,10 +132,6 @@ impl TestWorld {
         self.world.update_now(edits)
     }
 
-    /// Walls a single column in with stone between `top` and `bottom`, so that
-    /// light reaching the cells inside can only have come down the column.
-    /// Without this, an open world lights every cell from the side and a
-    /// vertical profile says nothing.
     pub fn build_shaft(&mut self, x: i32, z: i32, top: i32, bottom: i32) {
         let mut walls = Vec::new();
         for y in bottom..=top {
@@ -163,7 +154,6 @@ impl TestWorld {
         self.world.light_at(pos, LightLayer::Sky).get()
     }
 
-    /// Sky light going down a column, from `top` to `bottom` inclusive.
     pub fn sky_profile(&self, x: i32, z: i32, top: i32, bottom: i32) -> Vec<u8> {
         (bottom..=top)
             .rev()
@@ -183,12 +173,6 @@ fn flat_index(min: BlockPos, dim: (i32, i32, i32), p: BlockPos) -> usize {
     (((p.y - min.y) * dim.2 + (p.z - min.z)) * dim.0 + (p.x - min.x)) as usize
 }
 
-/// An independent solver used to check the incremental engine.
-///
-/// It reuses the block rules — those are pinned by the targeted tests — but
-/// finds the answer by recomputing every cell from its neighbours until nothing
-/// moves. It shares no code with the frontier relaxation, the influence boxes
-/// or the erase phase.
 pub struct Reference {
     min: BlockPos,
     dim: (i32, i32, i32),
@@ -199,7 +183,7 @@ pub struct Reference {
 impl Reference {
     #[expect(
         clippy::excessive_nesting,
-        reason = "computes the sky and block light of every cell by brute force over the region, so the oracle reads cell by cell with no shared helper to share a bug with"
+        reason = "computes the sky and block light of every cell by brute force over the region"
     )]
     pub fn compute(world: &LightWorld, min: BlockPos, max: BlockPos) -> Self {
         let registry = world.registry().clone();
@@ -253,7 +237,6 @@ impl Reference {
                                 continue;
                             }
                             let neighbour = world.block_at(q);
-                            // Travelling from q into p goes the opposite way.
                             let Some(cost) = registry.attenuation(neighbour, here, dir.opposite())
                             else {
                                 continue;

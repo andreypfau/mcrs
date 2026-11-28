@@ -1,7 +1,5 @@
 use mcrs_minecraft_random::Random;
 
-/// `Mth.nextInt`, which — unlike `randomBetweenInclusive` — spends no draw on a
-/// degenerate range. The height providers rely on that to keep their draw counts.
 pub(crate) fn next_int_guarded<R: Random>(rng: &mut R, min: i32, max_inclusive: i32) -> i32 {
     if min >= max_inclusive {
         min

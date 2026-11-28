@@ -1,0 +1,258 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.player.walk": {
+      "loop": true,
+      "bones": {
+        "right_leg": {
+          "rotation": [
+            "math.cos(q.modified_distance_moved * 38.1704) * 80.2141 * q.modified_move_speed",
+            0,
+            0
+          ]
+        },
+        "left_leg": {
+          "rotation": [
+            "-math.cos(q.modified_distance_moved * 38.1704) * 80.2141 * q.modified_move_speed",
+            0,
+            0
+          ]
+        },
+        "right_arm": {
+          "rotation": [
+            "-math.cos(q.modified_distance_moved * 38.1704) * 57.2958 * q.modified_move_speed",
+            0,
+            0
+          ]
+        },
+        "left_arm": {
+          "rotation": [
+            "math.cos(q.modified_distance_moved * 38.1704) * 57.2958 * q.modified_move_speed",
+            0,
+            0
+          ]
+        }
+      }
+    },
+    "animation.player.look_at_target": {
+      "loop": true,
+      "bones": {
+        "head": {
+          "rotation": [
+            "q.target_x_rotation",
+            "q.target_y_rotation",
+            0
+          ]
+        }
+      }
+    },
+    "animation.player.sneak": {
+      "loop": true,
+      "bones": {
+        "head": {
+          "position": [
+            0,
+            -6.2,
+            0
+          ]
+        },
+        "body": {
+          "rotation": [
+            28.6479,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            -5.2,
+            0
+          ]
+        },
+        "right_arm": {
+          "rotation": [
+            22.9183,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            -5.2,
+            0
+          ]
+        },
+        "left_arm": {
+          "rotation": [
+            22.9183,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            -5.2,
+            0
+          ]
+        },
+        "right_leg": {
+          "position": [
+            0,
+            -2,
+            4
+          ]
+        },
+        "left_leg": {
+          "position": [
+            0,
+            -2,
+            4
+          ]
+        }
+      }
+    },
+    "animation.player.spin_attack": {
+      "loop": true,
+      "bones": {
+        "root": {
+          "rotation": [
+            "-math.atan2(math.sin((-90 - q.target_x_rotation)) * math.cos((q.swim_amount * (q.is_in_water ? -90 - q.target_x_rotation : -90))) + math.cos((-90 - q.target_x_rotation)) * math.cos((-75 * (q.life_time * 20))) * math.sin((q.swim_amount * (q.is_in_water ? -90 - q.target_x_rotation : -90))), math.cos((-90 - q.target_x_rotation)) * math.cos((-75 * (q.life_time * 20))) * math.cos((q.swim_amount * (q.is_in_water ? -90 - q.target_x_rotation : -90))) - math.sin((-90 - q.target_x_rotation)) * math.sin((q.swim_amount * (q.is_in_water ? -90 - q.target_x_rotation : -90))))",
+            "-math.asin(math.cos((-90 - q.target_x_rotation)) * math.sin((-75 * (q.life_time * 20))))",
+            "math.atan2(math.sin((-90 - q.target_x_rotation)) * math.sin((-75 * (q.life_time * 20))), math.cos((-75 * (q.life_time * 20))))"
+          ]
+        }
+      }
+    },
+    "animation.player.spin_attack_glide": {
+      "loop": true,
+      "bones": {
+        "root": {
+          "rotation": [
+            "-math.atan2(math.sin((-90 - q.target_x_rotation)), math.cos((-90 - q.target_x_rotation)))",
+            "-math.asin(math.cos((-90 - q.target_x_rotation)) * math.sin(((-75 * (q.life_time * 20)) + (((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z) > 0.00001 && math.cos(q.target_x_rotation) * math.cos(q.target_x_rotation) > 0.00001) ? math.sign(q.velocity_x * math.cos(q.head_y_rotation(0)) + q.velocity_z * math.sin(q.head_y_rotation(0))) * math.acos(math.clamp(math.abs(q.velocity_z * math.cos(q.head_y_rotation(0)) - q.velocity_x * math.sin(q.head_y_rotation(0))) / math.sqrt(math.max((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z), 0.00001)), 0, 1)) : 0))))",
+            "math.atan2(math.sin((-90 - q.target_x_rotation)) * math.sin(((-75 * (q.life_time * 20)) + (((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z) > 0.00001 && math.cos(q.target_x_rotation) * math.cos(q.target_x_rotation) > 0.00001) ? math.sign(q.velocity_x * math.cos(q.head_y_rotation(0)) + q.velocity_z * math.sin(q.head_y_rotation(0))) * math.acos(math.clamp(math.abs(q.velocity_z * math.cos(q.head_y_rotation(0)) - q.velocity_x * math.sin(q.head_y_rotation(0))) / math.sqrt(math.max((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z), 0.00001)), 0, 1)) : 0))), math.cos(((-75 * (q.life_time * 20)) + (((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z) > 0.00001 && math.cos(q.target_x_rotation) * math.cos(q.target_x_rotation) > 0.00001) ? math.sign(q.velocity_x * math.cos(q.head_y_rotation(0)) + q.velocity_z * math.sin(q.head_y_rotation(0))) * math.acos(math.clamp(math.abs(q.velocity_z * math.cos(q.head_y_rotation(0)) - q.velocity_x * math.sin(q.head_y_rotation(0))) / math.sqrt(math.max((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z), 0.00001)), 0, 1)) : 0))))"
+          ]
+        }
+      }
+    },
+    "animation.player.sleep": {
+      "loop": true,
+      "bones": {
+        "root": {
+          "rotation": [
+            "-90 - q.swim_amount * (q.is_in_water ? -90 - q.target_x_rotation : -90)",
+            "270 - q.bed_y_rotation - q.body_y_rotation",
+            0
+          ]
+        }
+      }
+    },
+    "animation.player.sleep_bed_shift": {
+      "loop": true,
+      "bones": {
+        "root": {
+          "position": [
+            "(25.92 - 1.6 / q.model_scale) * math.cos(q.bed_y_rotation + q.body_y_rotation)",
+            0,
+            "(25.92 - 1.6 / q.model_scale) * math.sin(q.bed_y_rotation + q.body_y_rotation)"
+          ]
+        }
+      }
+    },
+    "animation.player.glide": {
+      "loop": true,
+      "bones": {
+        "root": {
+          "rotation": [
+            "-math.atan2(math.sin((math.clamp((q.fall_flying_ticks + q.frame_alpha) * (q.fall_flying_ticks + q.frame_alpha) / 100, 0, 1) * (-90 - q.target_x_rotation))), math.cos((math.clamp((q.fall_flying_ticks + q.frame_alpha) * (q.fall_flying_ticks + q.frame_alpha) / 100, 0, 1) * (-90 - q.target_x_rotation))))",
+            "-math.asin(math.cos((math.clamp((q.fall_flying_ticks + q.frame_alpha) * (q.fall_flying_ticks + q.frame_alpha) / 100, 0, 1) * (-90 - q.target_x_rotation))) * math.sin((((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z) > 0.00001 && math.cos(q.target_x_rotation) * math.cos(q.target_x_rotation) > 0.00001) ? math.sign(q.velocity_x * math.cos(q.head_y_rotation(0)) + q.velocity_z * math.sin(q.head_y_rotation(0))) * math.acos(math.clamp(math.abs(q.velocity_z * math.cos(q.head_y_rotation(0)) - q.velocity_x * math.sin(q.head_y_rotation(0))) / math.sqrt(math.max((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z), 0.00001)), 0, 1)) : 0)))",
+            "math.atan2(math.sin((math.clamp((q.fall_flying_ticks + q.frame_alpha) * (q.fall_flying_ticks + q.frame_alpha) / 100, 0, 1) * (-90 - q.target_x_rotation))) * math.sin((((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z) > 0.00001 && math.cos(q.target_x_rotation) * math.cos(q.target_x_rotation) > 0.00001) ? math.sign(q.velocity_x * math.cos(q.head_y_rotation(0)) + q.velocity_z * math.sin(q.head_y_rotation(0))) * math.acos(math.clamp(math.abs(q.velocity_z * math.cos(q.head_y_rotation(0)) - q.velocity_x * math.sin(q.head_y_rotation(0))) / math.sqrt(math.max((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z), 0.00001)), 0, 1)) : 0)), math.cos((((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z) > 0.00001 && math.cos(q.target_x_rotation) * math.cos(q.target_x_rotation) > 0.00001) ? math.sign(q.velocity_x * math.cos(q.head_y_rotation(0)) + q.velocity_z * math.sin(q.head_y_rotation(0))) * math.acos(math.clamp(math.abs(q.velocity_z * math.cos(q.head_y_rotation(0)) - q.velocity_x * math.sin(q.head_y_rotation(0))) / math.sqrt(math.max((q.velocity_x * q.velocity_x + q.velocity_z * q.velocity_z), 0.00001)), 0, 1)) : 0)))"
+          ]
+        }
+      }
+    },
+    "animation.player.swim": {
+      "loop": true,
+      "bones": {
+        "root": {
+          "rotation": [
+            "-q.swim_amount * (q.is_in_water ? -90 - q.target_x_rotation : -90)",
+            0,
+            0
+          ]
+        }
+      }
+    },
+    "animation.player.swim_shift": {
+      "loop": true,
+      "bones": {
+        "root": {
+          "position": [
+            0,
+            "-16 * math.cos(q.swim_amount * (q.is_in_water ? -90 - q.target_x_rotation : -90)) - 4.8 * math.sin(q.swim_amount * (q.is_in_water ? -90 - q.target_x_rotation : -90))",
+            "-16 * math.sin(q.swim_amount * (q.is_in_water ? -90 - q.target_x_rotation : -90)) + 4.8 * math.cos(q.swim_amount * (q.is_in_water ? -90 - q.target_x_rotation : -90))"
+          ]
+        }
+      }
+    },
+    "animation.player.glide_parts": {
+      "loop": true,
+      "bones": {
+        "head": {
+          "rotation": [
+            "-45 - this",
+            0,
+            0
+          ]
+        }
+      }
+    },
+    "animation.player.swim_head": {
+      "loop": true,
+      "bones": {
+        "head": {
+          "rotation": [
+            "math.min_angle(-45 - this)",
+            0,
+            0
+          ]
+        }
+      }
+    },
+    "animation.player.swim_legs": {
+      "loop": true,
+      "bones": {
+        "right_leg": {
+          "rotation": [
+            "17.1887 * math.cos(q.modified_distance_moved * 19.0986) - this",
+            0,
+            0
+          ]
+        },
+        "left_leg": {
+          "rotation": [
+            "-17.1887 * math.cos(q.modified_distance_moved * 19.0986) - this",
+            0,
+            0
+          ]
+        }
+      }
+    },
+    "animation.player.swim_arms": {
+      "loop": true,
+      "bones": {
+        "right_arm": {
+          "rotation": [
+            "(math.mod(q.modified_distance_moved, 26) < 14 ? 0 : (math.mod(q.modified_distance_moved, 26) < 22 ? 90 * (math.mod(q.modified_distance_moved, 26) - 14) / 8 : 90 - 90 * (math.mod(q.modified_distance_moved, 26) - 22) / 4)) - this",
+            "180 - this",
+            "(math.mod(q.modified_distance_moved, 26) < 14 ? 180 - 107.1868 * (math.mod(q.modified_distance_moved, 26) * math.mod(q.modified_distance_moved, 26) - 65 * math.mod(q.modified_distance_moved, 26)) / -714 : (math.mod(q.modified_distance_moved, 26) < 22 ? 72.8132 + 107.1868 * (math.mod(q.modified_distance_moved, 26) - 14) / 8 : 180)) - this"
+          ]
+        },
+        "left_arm": {
+          "rotation": [
+            "math.min_angle((math.mod(q.modified_distance_moved, 26) < 14 ? 0 : (math.mod(q.modified_distance_moved, 26) < 22 ? 90 * (math.mod(q.modified_distance_moved, 26) - 14) / 8 : 90 - 90 * (math.mod(q.modified_distance_moved, 26) - 22) / 4)) - this)",
+            "math.min_angle(180 - this)",
+            "math.min_angle(360 - (math.mod(q.modified_distance_moved, 26) < 14 ? 180 - 107.1868 * (math.mod(q.modified_distance_moved, 26) * math.mod(q.modified_distance_moved, 26) - 65 * math.mod(q.modified_distance_moved, 26)) / -714 : (math.mod(q.modified_distance_moved, 26) < 22 ? 72.8132 + 107.1868 * (math.mod(q.modified_distance_moved, 26) - 14) / 8 : 180)) - this)"
+          ]
+        }
+      }
+    }
+  }
+}
