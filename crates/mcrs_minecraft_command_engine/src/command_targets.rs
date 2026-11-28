@@ -8,9 +8,9 @@ use rustc_hash::FxHashMap;
 
 #[derive(Resource, Debug, Default)]
 pub struct CommandTargets {
-    pub(crate) dimensions: Vec<DimensionEntry>,
-    pub(crate) players: Vec<PlayerEntry>,
-    pub(crate) by_session: FxHashMap<PlayerSession, usize>,
+    dimensions: Vec<DimensionEntry>,
+    players: Vec<PlayerEntry>,
+    by_session: FxHashMap<PlayerSession, usize>,
 }
 
 impl CommandTargets {
@@ -46,7 +46,15 @@ impl CommandTargets {
         self.players.get_mut(*self.by_session.get(&session)?)
     }
 
-    pub(crate) fn index_players(&mut self) {
+    pub(crate) fn rebuild(
+        &mut self,
+        dimensions: impl IntoIterator<Item = DimensionEntry>,
+        players: impl IntoIterator<Item = PlayerEntry>,
+    ) {
+        self.dimensions.clear();
+        self.dimensions.extend(dimensions);
+        self.players.clear();
+        self.players.extend(players);
         self.players.sort_unstable_by_key(|player| player.session.0);
         self.by_session.clear();
         self.by_session.extend(
