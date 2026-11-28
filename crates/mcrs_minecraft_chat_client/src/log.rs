@@ -112,6 +112,11 @@ pub fn fade(age: u64) -> f32 {
     (t * t) as f32
 }
 
+#[must_use]
+pub fn fades_at(age: u64) -> bool {
+    fade(age) != fade(age.saturating_sub(1))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum View {
     Open,

@@ -1,5 +1,6 @@
 use bevy::math::IVec2;
 use bevy::prelude::*;
+use mcrs_minecraft_client_world::GuiTick;
 use mcrs_minecraft_client_world::food_level::FoodLevel;
 use mcrs_minecraft_client_world::hardcore_mode::HardcoreMode;
 use mcrs_minecraft_client_world::player::Player;
@@ -9,8 +10,12 @@ use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 
-use crate::hud_systems::HudSystems;
-use crate::scene::{GuiQuad, GuiScene, GuiSize, sprite};
+use crate::draw_gate::layer_stale;
+use crate::gui_band::GuiBand;
+use crate::gui_layer::{GuiLayer, spawn_layer};
+use crate::gui_phase::GuiPhase;
+use crate::gui_quad::{GuiQuad, sprite};
+use crate::gui_size::GuiSize;
 
 const ICON: IVec2 = IVec2::splat(9);
 const HALF_HOTBAR_WIDTH: i32 = 91;
@@ -26,26 +31,48 @@ pub struct HealthHudPlugin;
 
 impl Plugin for HealthHudPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<HudTicks>()
-            .add_systems(FixedUpdate, count_hud_ticks)
+        app.add_systems(Startup, spawn_layer::<HealthLayer>)
             .add_systems(
                 PostUpdate,
                 draw_health_hud
-                    .in_set(HudSystems)
-                    .run_if(resource_exists::<GuiScene>),
+                    .run_if(
+                        layer_stale::<HealthLayer>()
+                            .or_else(resource_changed_or_removed::<Screen>)
+                            .or_else(resource_changed::<GuiTick>.and_then(hearts_shaking))
+                            .or_else(
+                                any_match_filter::<(
+                                    With<Player>,
+                                    Or<(
+                                        Changed<PlayerGameMode>,
+                                        Changed<Vitals>,
+                                        Changed<FoodLevel>,
+                                        Changed<AttributeInstances>,
+                                        Changed<HardcoreMode>,
+                                    )>,
+                                )>,
+                            )
+                            .or_else(any_component_removed::<Player>)
+                            .or_else(any_component_removed::<PlayerGameMode>)
+                            .or_else(any_component_removed::<Vitals>)
+                            .or_else(any_component_removed::<FoodLevel>)
+                            .or_else(any_component_removed::<AttributeInstances>)
+                            .or_else(any_component_removed::<HardcoreMode>),
+                    )
+                    .in_set(GuiPhase::Draw),
             );
     }
 }
 
-#[derive(Resource, Default)]
-struct HudTicks(u32);
+#[derive(Component, Default)]
+#[require(GuiLayer = GuiLayer::new(GuiBand::Hud, 0))]
+pub struct HealthLayer;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Hearts {
     health: f32,
     max_health: f32,
     hardcore: HardcoreMode,
-    tick: u32,
+    tick: u64,
 }
 
 struct HeartSprites {
@@ -66,19 +93,8 @@ const HARDCORE_HEARTS: HeartSprites = HeartSprites {
     half: "hud/heart/hardcore_half",
 };
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "the heart shake animation counts every fixed tick, so each run writes a new value"
-    )
-)]
-fn count_hud_ticks(mut ticks: ResMut<HudTicks>) {
-    ticks.0 = ticks.0.wrapping_add(1);
-}
-
 fn draw_health_hud(
-    player: Single<
+    player: Query<
         (
             &PlayerGameMode,
             &Vitals,
@@ -89,10 +105,14 @@ fn draw_health_hud(
         With<Player>,
     >,
     screen: Option<Res<Screen>>,
-    ticks: Res<HudTicks>,
-    mut scene: ResMut<GuiScene>,
+    ticks: Res<GuiTick>,
+    size: Res<GuiSize>,
+    mut layer: Single<&mut GuiLayer, With<HealthLayer>>,
 ) {
-    let (mode, vitals, food, attributes, hardcore) = *player;
+    let out = layer.redraw();
+    let Ok((mode, vitals, food, attributes, hardcore)) = player.single() else {
+        return;
+    };
     if !matches!(mode.0, GameMode::Survival | GameMode::Adventure)
         || screen.is_some_and(|screen| *screen == Screen::LevelLoading)
     {
@@ -106,14 +126,13 @@ fn draw_health_hud(
         hardcore: hardcore.copied().unwrap_or_default(),
         tick: ticks.0,
     };
-    let scene = &mut *scene;
-    push_hearts(hearts, scene.size, &mut scene.quads);
-    push_food_bar(food.food, scene.size, &mut scene.quads);
+    push_hearts(hearts, *size, out);
+    push_food_bar(food.food, *size, out);
 }
 
 fn push_hearts(hearts: Hearts, size: GuiSize, quads: &mut Vec<GuiQuad>) {
-    let limit = Attribute::MaxHealth.definition().range.max as f32;
-    let health = hearts.health.ceil().clamp(0.0, limit) as i32;
+    let limit = max_health_limit();
+    let health = displayed_health(hearts.health);
     let health_limit = hearts.max_health.clamp(0.0, limit).max(health as f32);
     let count = (health_limit / 2.0).ceil() as i32;
     let rows = (health_limit / HEALTH_PER_ROW).ceil() as i32;
@@ -125,7 +144,7 @@ fn push_hearts(hearts: Hearts, size: GuiSize, quads: &mut Vec<GuiQuad>) {
     let left = size.width.div_euclid(2) - HALF_HOTBAR_WIDTH;
     let bottom = size.height - ROW_ZERO_ABOVE_BOTTOM;
     for index in (0..count).rev() {
-        let shake = if health <= SHAKE_HEALTH {
+        let shake = if shakes(health) {
             shake(hearts.tick, index)
         } else {
             0
@@ -162,9 +181,27 @@ fn push_food_bar(food: i32, size: GuiSize, quads: &mut Vec<GuiQuad>) {
     }
 }
 
-fn shake(tick: u32, heart: i32) -> i32 {
+fn max_health_limit() -> f32 {
+    Attribute::MaxHealth.definition().range.max as f32
+}
+
+fn displayed_health(health: f32) -> i32 {
+    health.ceil().clamp(0.0, max_health_limit()) as i32
+}
+
+fn shakes(displayed_health: i32) -> bool {
+    displayed_health <= SHAKE_HEALTH
+}
+
+fn hearts_shaking(players: Query<&Vitals, With<Player>>) -> bool {
+    players
+        .iter()
+        .any(|vitals| shakes(displayed_health(vitals.health)))
+}
+
+fn shake(tick: u64, heart: i32) -> i32 {
     let mut mixed =
-        tick.wrapping_mul(0x9E37_79B9) ^ heart.cast_unsigned().wrapping_mul(0x85EB_CA6B);
+        (tick as u32).wrapping_mul(0x9E37_79B9) ^ heart.cast_unsigned().wrapping_mul(0x85EB_CA6B);
     mixed ^= mixed >> 16;
     mixed = mixed.wrapping_mul(0x7FEB_352D);
     mixed ^= mixed >> 15;

@@ -1,12 +1,14 @@
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_client_widget::{TabBar, TabSprite, Widget, WidgetKind};
 
-use crate::font::draw_str;
+use crate::font::Font;
+use crate::gui_atlas_layout::GuiAtlasLayout;
+use crate::gui_quad::GuiQuad;
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
+use crate::irect::{irect, point};
 use crate::menu::Menu;
-use crate::menu_draw::{irect, point};
-use crate::scene::{GuiAtlasData, GuiQuad};
+use crate::text_draw::draw_str;
 
 const HEADER_TILE: i32 = 16;
 const BACKGROUND_TILE: i32 = 32;
@@ -15,11 +17,12 @@ pub(crate) fn draw_tab_bar(
     menu: &Menu,
     widget: &Widget,
     now_ms: u64,
-    atlas: &GuiAtlasData,
+    atlas: &GuiAtlasLayout,
+    font: &Font,
     out: &mut Vec<GuiQuad>,
-) {
+) -> bool {
     let WidgetKind::TabBar(bar) = widget.kind() else {
-        return;
+        return false;
     };
     let screen_width = menu.widgets.screen().width;
     let rect = irect(widget.rect());
@@ -43,6 +46,7 @@ pub(crate) fn draw_tab_bar(
             out,
         );
     }
+    let mut scrolls = false;
     for (index, tab) in bar.tabs().iter().enumerate() {
         let Some(bounds) = bar.tab_rect(widget.rect(), index) else {
             continue;
@@ -50,7 +54,7 @@ pub(crate) fn draw_tab_bar(
         if let Some(sprite) = menu.widgets.tab_sprite(widget, index) {
             atlas.sprite(tab_sprite_id(sprite)).draw(irect(bounds), out);
         }
-        let label_width = atlas.font.str_width(&tab.label);
+        let label_width = font.str_width(&tab.label);
         let color = tab.label_color();
         if index == bar.current() {
             if let Some(background) = bar.current_background(widget.rect()) {
@@ -74,11 +78,12 @@ pub(crate) fn draw_tab_bar(
         let Some(layout) = bar.label_layout(widget.rect(), index, label_width, now_ms) else {
             continue;
         };
+        scrolls |= layout.scrolls;
         if let Some(clip) = layout.clip {
             out.push(GuiQuad::Clip { rect: irect(clip) });
         }
         draw_str(
-            &atlas.font,
+            font,
             point(layout.origin).as_vec2(),
             &tab.label,
             color,
@@ -89,6 +94,7 @@ pub(crate) fn draw_tab_bar(
             out.push(GuiQuad::EndClip);
         }
     }
+    scrolls
 }
 
 fn tab_sprite_id(sprite: TabSprite) -> GuiSpriteId {
@@ -111,9 +117,11 @@ mod tests {
         use mcrs_minecraft_model::resource_set::ResourceSet;
 
         use super::*;
+        use crate::font::corpus_font;
+        use crate::gui_atlas_load::{GuiAtlasParts, build_gui_atlas};
+        use crate::gui_size::GuiSize;
         use crate::menu::MenuBackground;
-        use crate::menu_draw::{WorldPresence, draw_menu};
-        use crate::scene::GuiSize;
+        use crate::menu_draw::draw_menu;
 
         const GUI: GuiSize = GuiSize {
             width: 427,
@@ -121,8 +129,8 @@ mod tests {
             scale: 2,
         };
 
-        static ATLAS: LazyLock<GuiAtlasData> =
-            LazyLock::new(|| GuiAtlasData::load(ResourceSet::corpus()).unwrap());
+        static ATLAS: LazyLock<GuiAtlasParts> =
+            LazyLock::new(|| build_gui_atlas(ResourceSet::corpus(), corpus_font()).unwrap());
 
         #[test]
         fn each_tab_at_427_draws_the_sprite_of_its_state_in_its_rectangle() {
@@ -160,12 +168,13 @@ mod tests {
                 widgets.mouse_move(mouse);
                 let menu = Menu::new(widgets, MenuBackground::None);
                 let mut quads = Vec::new();
-                draw_menu(&menu, WorldPresence::NoWorld, 0, GUI, &ATLAS, &mut quads);
+                draw_menu(&menu, 0, GUI, &ATLAS.layout, corpus_font(), &mut quads);
 
                 let mut from = 0;
                 for (left, name) in [28, 152, 276].into_iter().zip(sprites) {
                     let mut run = Vec::new();
                     ATLAS
+                        .layout
                         .sprite(name)
                         .draw(IRect::new(left, 0, left + 124, 24), &mut run);
                     let at = quads

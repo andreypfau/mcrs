@@ -3,14 +3,14 @@ use bevy::input::mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel};
 use bevy::input::touch::TouchPhase;
 use bevy::input::{ButtonState, InputPlugin};
 use bevy::prelude::*;
-use bevy::window::{CursorOptions, PrimaryWindow};
+use bevy::window::{CursorMoved, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_client::test_support;
 use mcrs_minecraft_client_gui::creative_screen_plugin::CreativeScreenPlugin;
 use mcrs_minecraft_client_gui::creative_screen_state::CreativeScreenState;
 use mcrs_minecraft_client_gui::creative_tab_content::CreativeTabContent;
 use mcrs_minecraft_client_gui::inventory_clicks::InventoryClicksPlugin;
 use mcrs_minecraft_client_gui::language::ClientLanguage;
-use mcrs_minecraft_client_gui::scene::GuiConfig;
+use mcrs_minecraft_client_gui::scene::{GuiConfig, GuiPointerPlugin};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_container_click::{Click, ClickKind, Clicked};
@@ -696,18 +696,22 @@ fn add_input(app: &mut App) {
     if !app.is_plugin_added::<InputPlugin>() {
         app.add_plugins(InputPlugin);
     }
-    app.add_plugins((InventoryClicksPlugin, CreativeScreenPlugin))
-        .insert_resource(GuiConfig {
-            scale: GUI_SCALE,
-            cursor: None,
-            frozen_ticks: None,
-            advanced_tooltips: false,
-        })
-        .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
-        .init_resource::<SentActions>()
-        .init_resource::<JustPressed>()
-        .add_systems(Update, record_just_pressed)
-        .add_systems(Last, record_actions);
+    app.add_plugins((
+        InventoryClicksPlugin,
+        CreativeScreenPlugin,
+        GuiPointerPlugin,
+    ))
+    .insert_resource(GuiConfig {
+        scale: GUI_SCALE,
+        cursor: None,
+        frozen_ticks: None,
+        advanced_tooltips: false,
+    })
+    .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
+    .init_resource::<SentActions>()
+    .init_resource::<JustPressed>()
+    .add_systems(Update, record_just_pressed)
+    .add_systems(Last, record_actions);
     app.world_mut()
         .spawn((Window::default(), CursorOptions::default(), PrimaryWindow));
 }
@@ -737,9 +741,15 @@ fn play(app: &mut App, frame: &[Event]) {
         };
         match event {
             Event::Move(pointer) => {
-                let physical = gui_point(pointer) * GUI_SCALE.cast_signed() + 1;
-                let mut window = world.get_mut::<Window>(window).unwrap();
-                window.set_physical_cursor_position(Some(physical.as_dvec2()));
+                let at = gui_point(pointer).as_dvec2() + 1.0 / f64::from(GUI_SCALE);
+                let scale_factor = world
+                    .get::<Window>(window)
+                    .map_or(1.0, Window::scale_factor);
+                world.write_message(CursorMoved {
+                    window,
+                    position: (at * f64::from(GUI_SCALE) / f64::from(scale_factor)).as_vec2(),
+                    delta: None,
+                });
             }
             Event::Press(button) => {
                 world.write_message(mouse(button, ButtonState::Pressed));

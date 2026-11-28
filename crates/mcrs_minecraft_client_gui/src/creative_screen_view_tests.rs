@@ -1,10 +1,9 @@
-use std::sync::Arc;
-
 use bevy::math::{IRect, Rect};
 use bevy::prelude::*;
 use bevy::time::Real;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_container_gesture::DragPreview;
 use mcrs_minecraft_engine_item::{ItemCommandsExt, ItemPlugin, StackCommandsExt};
 use mcrs_minecraft_game_mode::{Abilities, GameMode};
 use mcrs_minecraft_inventory_click::{DragEntry, DragKind, DragSplit};
@@ -21,20 +20,25 @@ use mcrs_minecraft_player_holders::{PlayerHolders, PlayerHoldersPlugin, restore_
 use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::creative_screen_draw::{
-    CreativeTextTooltip, draw_creative_screen, rebuild_creative_text,
+    CreativeLayer, CreativeTextTooltip, draw_creative_screen, rebuild_creative_text,
 };
 use crate::creative_screen_open::open_creative_screen;
 use crate::creative_screen_shown::creative_screen_shown;
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_screen_tests::VANILLA;
 use crate::creative_tab_content::CreativeTabContent;
-use crate::drag_preview::DragPreview;
-use crate::item_decorations::WHITE;
+use crate::gui_layer::GuiLayer;
+use crate::gui_pointer::GuiPointer;
+use crate::gui_quad::GuiQuad;
+use crate::gui_quad::WHITE;
+use crate::gui_size::GuiSize;
 use crate::language::ClientLanguage;
 use crate::mark_creative_screen::mark_creative_screen;
-use crate::menu_test_app::{ATLAS, MODELS, TABLE};
-use crate::scene::{GuiAtlas, GuiQuad, GuiScene, GuiSize, SceneIcon};
+use crate::menu_test_app::{ATLAS, MODELS, TABLE, insert_gui_assets};
+use crate::scene_icon::SceneIcon;
+use crate::shown_drag_preview::ShownDragPreview;
 use crate::slot_icon::SlotIconPlugin;
+use crate::tooltip::Tooltip;
 
 const BUILDING_BLOCKS: usize = 0;
 const SEARCH: usize = 6;
@@ -138,19 +142,17 @@ fn tab_icon(name: &str) -> SceneIcon {
 
 pub(crate) fn creative_app() -> App {
     let mut app = App::new();
+    insert_gui_assets(app.world_mut());
     app.insert_resource::<ItemTable>(*TABLE)
         .add_plugins((ItemPlugin::default(), PlayerHoldersPlugin, SlotIconPlugin))
         .insert_resource(MODELS.clone())
         .insert_resource(Screen::None)
-        .insert_resource(GuiScene {
-            size: GuiSize {
-                width: 427,
-                height: 240,
-                scale: 1,
-            },
-            ..GuiScene::default()
+        .insert_resource(GuiSize {
+            width: 427,
+            height: 240,
+            scale: 1,
         })
-        .insert_resource(GuiAtlas(Arc::clone(&ATLAS)))
+        .insert_resource(GuiPointer::default())
         .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
         .insert_resource(VANILLA.clone())
         .init_resource::<CreativeScreenState>()
@@ -167,6 +169,7 @@ pub(crate) fn creative_app() -> App {
                 .chain(),
         );
     let world = app.world_mut();
+    world.spawn(CreativeLayer);
     let player = world.spawn_empty().id();
     world
         .run_system_cached_with(restore_holders, (player, PlayerItems::default()))
@@ -184,10 +187,16 @@ pub(crate) fn creative_app() -> App {
 }
 
 fn draw(app: &mut App) {
-    let mut scene = app.world_mut().resource_mut::<GuiScene>();
-    scene.quads.clear();
-    scene.icons.clear();
+    let world = app.world_mut();
+    for mut layer in world.query::<&mut GuiLayer>().iter_mut(world) {
+        layer.redraw();
+    }
     app.update();
+}
+
+fn creative_layer(app: &mut App) -> &GuiLayer {
+    let world = app.world_mut();
+    world.query::<&GuiLayer>().single(world).unwrap()
 }
 
 pub(crate) fn creative(
@@ -207,6 +216,7 @@ struct DrawRow {
     thumb: Option<&'static str>,
     grid: bool,
     items: &'static [(i32, i32)],
+    figure: Option<IRect>,
 }
 
 fn expected_sprites(row: &DrawRow, others: &[usize]) -> Vec<(String, IRect)> {
@@ -225,9 +235,9 @@ fn expected_sprites(row: &DrawRow, others: &[usize]) -> Vec<(String, IRect)> {
     expected
 }
 
-fn creative_sprites(scene: &GuiScene) -> Vec<(String, IRect)> {
-    scene
-        .quads
+fn creative_sprites(layer: &GuiLayer) -> Vec<(String, IRect)> {
+    layer
+        .quads()
         .iter()
         .filter_map(|quad| match quad {
             GuiQuad::Sprite { region, rect, .. }
@@ -240,9 +250,26 @@ fn creative_sprites(scene: &GuiScene) -> Vec<(String, IRect)> {
         .collect()
 }
 
-fn icon_origins(scene: &GuiScene) -> Vec<IVec2> {
-    scene
-        .quads
+fn assert_figure(layer: &GuiLayer, row: &DrawRow) {
+    let figures: Vec<IRect> = layer
+        .quads()
+        .iter()
+        .filter_map(|quad| match quad {
+            GuiQuad::Figure { rect } => Some(*rect),
+            _ => None,
+        })
+        .collect();
+    let expected: Vec<IRect> = row
+        .figure
+        .iter()
+        .map(|rect| IRect::from_corners(WINDOW + rect.min, WINDOW + rect.max))
+        .collect();
+    assert_eq!(figures, expected, "{}: the figure rectangle", row.name);
+}
+
+fn icon_origins(layer: &GuiLayer) -> Vec<IVec2> {
+    layer
+        .quads()
         .iter()
         .filter_map(|quad| match quad {
             GuiQuad::Icon { origin, .. } => Some(*origin),
@@ -261,6 +288,7 @@ fn the_creative_screen_draws_the_tabs_the_background_and_the_slots_of_the_select
             thumb: Some("container/creative_inventory/scroller"),
             grid: true,
             items: &[(9, 112)],
+            figure: None,
         },
         DrawRow {
             name: "the survival inventory tab",
@@ -269,6 +297,7 @@ fn the_creative_screen_draws_the_tabs_the_background_and_the_slots_of_the_select
             thumb: None,
             grid: false,
             items: &[(54, 6), (9, 54), (9, 112), (35, 20)],
+            figure: Some(IRect::new(73, 6, 105, 49)),
         },
     ];
     for row in rows {
@@ -284,11 +313,11 @@ fn the_creative_screen_draws_the_tabs_the_background_and_the_slots_of_the_select
             );
         });
         draw(&mut app);
-        let scene = app.world().resource::<GuiScene>();
+        let layer = creative_layer(&mut app);
 
-        let image = ATLAS.region(row.background).min.as_vec2();
-        let texels: Vec<_> = scene
-            .quads
+        let image = ATLAS.layout.region(row.background).min.as_vec2();
+        let texels: Vec<_> = layer
+            .quads()
             .iter()
             .filter(|quad| matches!(quad, GuiQuad::Texels { .. }))
             .copied()
@@ -304,13 +333,15 @@ fn the_creative_screen_draws_the_tabs_the_background_and_the_slots_of_the_select
             row.name
         );
 
+        assert_figure(layer, &row);
+
         let visible = |index: &usize| *index != OP_BLOCKS;
         let others: Vec<usize> = (0..TABS.len())
             .filter(visible)
             .filter(|index| *index != row.tab)
             .collect();
         assert_eq!(
-            creative_sprites(scene),
+            creative_sprites(layer),
             expected_sprites(&row, &others),
             "{}: the tab and thumb sprites",
             row.name
@@ -333,19 +364,19 @@ fn the_creative_screen_draws_the_tabs_the_background_and_the_slots_of_the_select
         }
         origins.extend(row.items.iter().map(|(x, y)| WINDOW + IVec2::new(*x, *y)));
         assert_eq!(
-            icon_origins(scene),
+            icon_origins(layer),
             origins,
             "{}: the icon positions",
             row.name
         );
         assert_eq!(
-            scene.icons.get(..tab_icons.len()),
+            layer.icons().get(..tab_icons.len()),
             Some(tab_icons.as_slice()),
             "{}: the tab icons are their stacks",
             row.name
         );
         assert!(
-            scene.icons[tab_icons.len()..]
+            layer.icons()[tab_icons.len()..]
                 .iter()
                 .all(|icon| icon.overlays == Overlays::Stack),
             "{}: the grid stacks and the menu entries draw with their decorations",
@@ -415,15 +446,18 @@ fn a_steady_frame_over_a_tab_draws_its_title_without_allocation() {
     let (_, colored_blocks) = TABS[1].sprite("unselected");
     let world = app.world_mut();
     world
-        .resource_mut::<GuiScene>()
-        .map_unchanged(|resource| &mut resource.cursor)
-        .set_if_neq(colored_blocks.center());
+        .resource_mut::<GuiPointer>()
+        .set_if_neq(GuiPointer::new(colored_blocks.center().as_dvec2()));
     let system = world.register_system(draw_creative_screen);
-    let frame = |world: &mut World| {
-        let mut scene = world.resource_mut::<GuiScene>();
-        scene.quads.clear();
-        scene.icons.clear();
-        scene.tooltip.clear();
+    let mut layers = world.query::<&mut GuiLayer>();
+    let mut tooltips = world.query::<&mut Tooltip>();
+    let mut frame = |world: &mut World| {
+        for mut layer in layers.iter_mut(world) {
+            layer.redraw();
+        }
+        for mut tooltip in tooltips.iter_mut(world) {
+            tooltip.clear();
+        }
         world.run_system(system).unwrap();
     };
     frame(world);
@@ -432,11 +466,13 @@ fn a_steady_frame_over_a_tab_draws_its_title_without_allocation() {
     frame(world);
     let allocations = mcrs_test_alloc::allocations() - before;
     assert_eq!(allocations, 0, "the pointer stays over the same tab");
-    let scene = app.world().resource::<GuiScene>();
-    let lines = scene
-        .tooltip
-        .lines()
-        .expect("the hovered tab shows its title");
+    let request = app
+        .world()
+        .try_query::<&Tooltip>()
+        .unwrap()
+        .single(app.world())
+        .unwrap();
+    let lines = request.lines().expect("the hovered tab shows its title");
     let title: Vec<&str> = lines
         .iter()
         .flatten()
@@ -467,19 +503,20 @@ fn a_drag_over_the_hotbar_previews_the_split_and_the_rest_of_the_carried_stack()
         max: 64,
         size: 3,
     });
-    world.insert_resource(drag);
+    let mut shown = ShownDragPreview::default();
+    shown.show(&mut drag);
+    world.insert_resource(shown);
     world.resource_mut::<Screen>().set_if_neq(Screen::Menu);
     let cursor = IVec2::new(400, 230);
     world
-        .resource_mut::<GuiScene>()
-        .map_unchanged(|resource| &mut resource.cursor)
-        .set_if_neq(cursor);
+        .resource_mut::<GuiPointer>()
+        .set_if_neq(GuiPointer::new(cursor.as_dvec2()));
     draw(&mut app);
-    let scene = app.world().resource::<GuiScene>();
+    let layer = creative_layer(&mut app);
     let corners: Vec<IVec2> = (1..4)
         .map(|column| WINDOW + IVec2::new(9 + 18 * column, 112))
         .collect();
-    let fills: Vec<IRect> = (scene.quads.iter())
+    let fills: Vec<IRect> = (layer.quads().iter())
         .filter_map(|quad| match quad {
             GuiQuad::Fill {
                 rect,
@@ -492,12 +529,12 @@ fn a_drag_over_the_hotbar_previews_the_split_and_the_rest_of_the_carried_stack()
         .map(|corner| IRect::from_corners(*corner, *corner + 16))
         .collect();
     assert_eq!(fills, areas, "a white fill on each previewed hotbar entry");
-    let drawn: Vec<(IVec2, u8)> = (scene.quads.iter())
+    let drawn: Vec<(IVec2, u8)> = (layer.quads().iter())
         .filter_map(|quad| match *quad {
             GuiQuad::Icon { origin, index }
                 if corners.contains(&origin) || origin == cursor - 8 =>
             {
-                Some((origin, scene.icons[index].overlay.count))
+                Some((origin, layer.icons()[index].overlay.count))
             }
             _ => None,
         })

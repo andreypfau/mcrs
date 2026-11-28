@@ -56,17 +56,8 @@ fn a_line_holds_for_nine_seconds_and_fades_over_the_tenth() {
 #[test]
 fn the_overlay_shows_for_three_seconds_and_fades_in_the_last() {
     let mut overlay = Overlay::default();
-    overlay.set("a");
-    for _ in 0..40 {
-        overlay.tick();
-    }
-    assert_eq!(overlay.shown(0.0), Some((&"a", 255)));
-    for _ in 0..10 {
-        overlay.tick();
-    }
-    assert_eq!(overlay.shown(0.0), Some((&"a", 127)));
-    for _ in 0..10 {
-        overlay.tick();
-    }
-    assert_eq!(overlay.shown(0.0), None);
+    overlay.set("a", 5);
+    assert_eq!(overlay.shown(45, 0.0), Some((&"a", 255)));
+    assert_eq!(overlay.shown(55, 0.0), Some((&"a", 127)));
+    assert_eq!(overlay.shown(65, 0.0), None);
 }

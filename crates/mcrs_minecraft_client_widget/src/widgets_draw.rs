@@ -200,6 +200,35 @@ impl Widgets {
         shape
     }
 
+    #[must_use]
+    pub fn next_tooltip_ms(&self, now_ms: u64) -> Option<u64> {
+        self.widgets
+            .iter()
+            .filter_map(|widget| {
+                let start = widget.tooltip_start_ms?;
+                let tooltip = widget.tooltip?;
+                Some(
+                    start
+                        .saturating_add(u64::from(tooltip.delay_ms))
+                        .saturating_add(1),
+                )
+            })
+            .filter(|&at| at > now_ms)
+            .min()
+    }
+
+    #[must_use]
+    pub fn next_redraw_ms(&self, now_ms: u64) -> Option<u64> {
+        let blink = self
+            .focused
+            .and_then(|index| self.edit_box(index))
+            .and_then(|edit| edit.next_blink_ms(now_ms));
+        [self.next_tooltip_ms(now_ms), blink]
+            .into_iter()
+            .flatten()
+            .min()
+    }
+
     pub fn tooltip(&mut self, now_ms: u64) -> Option<TooltipRequest> {
         let keyboard = self.input.device().is_keyboard();
         let mouse = self.input.mouse();

@@ -1,10 +1,15 @@
+use bevy::math::IVec2;
 use bevy::prelude::*;
 use mcrs_minecraft_engine_inventory_menu::MenuTitle;
 use mcrs_minecraft_item::ItemHoverMap;
+use mcrs_minecraft_menu_geometry::{MenuGeometry, MenuLabels, TitlePosition};
 
-use crate::font::Span;
+use crate::font::{Font, Span};
+use crate::gui_quad::GuiQuad;
+use crate::irect;
 use crate::language::ClientLanguage;
 use crate::text::text_spans;
+use crate::text_draw::draw_text_without_shadow;
 
 pub(crate) const LABEL_COLOR: u32 = 0xFF40_4040;
 const INVENTORY_LABEL: &str = "container.inventory";
@@ -44,13 +49,33 @@ impl MenuLabelText {
         self.inventory = language.translate(INVENTORY_LABEL, LABEL_COLOR, &[]);
     }
 
-    #[must_use]
-    pub fn title(&self) -> &[Span] {
-        &self.title
-    }
-
-    #[must_use]
-    pub fn inventory(&self) -> &[Span] {
-        &self.inventory
+    pub(crate) fn draw(
+        &self,
+        font: &Font,
+        top_left: IVec2,
+        geometry: &MenuGeometry,
+        positions: MenuLabels,
+        out: &mut Vec<GuiQuad>,
+    ) {
+        let title = match positions.title {
+            TitlePosition::Left(at) => Some(irect::point(at)),
+            TitlePosition::Centred { y } => Some(IVec2::new(
+                geometry
+                    .width()
+                    .saturating_sub(font.width(&self.title))
+                    .div_euclid(2),
+                y,
+            )),
+            _ => None,
+        };
+        if let Some(title) = title {
+            draw_text_without_shadow(font, top_left + title, &self.title, out);
+        }
+        draw_text_without_shadow(
+            font,
+            top_left + irect::point(positions.player_inventory),
+            &self.inventory,
+            out,
+        );
     }
 }

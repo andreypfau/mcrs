@@ -1,43 +1,16 @@
 use mcrs_minecraft_client_jar::Directory;
-use serde::Deserialize;
 
-use crate::font_definition::{CodePoint, Filter};
 use crate::font_glyph::{Glyph, GlyphImage, ImageSource};
 
 pub const CELL: usize = 16;
 pub(crate) const CELL_BYTES: usize = CELL * CELL * 4;
 
-#[derive(Deserialize)]
-pub(crate) struct UnihexSpec {
-    #[serde(default)]
-    pub(crate) filter: Filter,
-    pub(crate) hex_file: String,
-    #[serde(default)]
-    size_overrides: Vec<SizeOverride>,
-}
-
-impl UnihexSpec {
-    pub(crate) fn check(&self) -> Result<(), String> {
-        match self
-            .size_overrides
-            .iter()
-            .find(|size| size.from.0 >= size.to.0)
-        {
-            Some(size) => Err(format!(
-                "{}: an override from {:?} is not below {:?}",
-                self.hex_file, size.from.0, size.to.0
-            )),
-            None => Ok(()),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-struct SizeOverride {
-    from: CodePoint,
-    to: CodePoint,
-    left: i32,
-    right: i32,
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SizeOverride {
+    pub(crate) from: char,
+    pub(crate) to: char,
+    pub(crate) left: i32,
+    pub(crate) right: i32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -49,14 +22,14 @@ struct Entry {
     right: i32,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Unihex {
     entries: Vec<Entry>,
     rows: Vec<u8>,
 }
 
 impl Unihex {
-    pub(crate) fn new(spec: &UnihexSpec, archive: &[u8]) -> Result<Self, String> {
+    pub(crate) fn new(archive: &[u8], size_overrides: &[SizeOverride]) -> Result<Self, String> {
         let directory = Directory::of(archive)?;
         let mut entries = Vec::new();
         let mut rows = Vec::new();
@@ -78,14 +51,14 @@ impl Unihex {
             entries: unique,
             rows,
         };
-        hex.override_sizes(&spec.size_overrides);
+        hex.override_sizes(size_overrides);
         Ok(hex)
     }
 
     fn override_sizes(&mut self, overrides: &[SizeOverride]) {
         let mut taken = vec![false; self.entries.len()];
         for size in overrides {
-            let (from, to) = (u32::from(size.from.0), u32::from(size.to.0));
+            let (from, to) = (u32::from(size.from), u32::from(size.to));
             let first = self
                 .entries
                 .partition_point(|entry| entry.code_point < from);

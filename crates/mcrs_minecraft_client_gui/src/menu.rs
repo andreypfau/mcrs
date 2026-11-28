@@ -5,11 +5,13 @@ use mcrs_minecraft_client_widget::{WidgetId, Widgets};
 use crate::font::Span;
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
+use crate::world_presence::WorldPresence;
 
 #[derive(Resource, Debug)]
 pub struct Menu {
     pub widgets: Widgets,
     pub background: MenuBackground,
+    pub world: WorldPresence,
     pub separators: Option<MenuSeparators>,
     pub tooltips: Vec<WidgetTooltip>,
     pub hints: Vec<WidgetHint>,
@@ -24,6 +26,7 @@ impl Menu {
         Self {
             widgets,
             background,
+            world: WorldPresence::NoWorld,
             separators: None,
             tooltips: Vec::new(),
             hints: Vec::new(),

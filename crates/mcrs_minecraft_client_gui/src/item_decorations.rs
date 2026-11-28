@@ -3,11 +3,13 @@ use std::io::Write;
 use bevy::color::{ColorToPacked, Hsva, Srgba};
 use bevy::math::{IRect, IVec2, Vec2};
 
-use crate::font::{Font, draw_str};
-use crate::scene::GuiQuad;
+use crate::font::Font;
+
+use crate::gui_quad::GuiQuad;
+use crate::text_draw::draw_str;
 use mcrs_minecraft_item_icon::Durability;
 
-pub const WHITE: u32 = 0xFFFF_FFFF;
+use crate::gui_quad::WHITE;
 const CAPPED: u32 = 0xFFFF_FF55;
 const BAR_BACK: u32 = 0xFF00_0000;
 

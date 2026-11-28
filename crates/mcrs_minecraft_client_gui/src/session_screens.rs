@@ -231,7 +231,7 @@ mod tests {
         use super::super::*;
         use crate::disconnected_screen::{self, disconnected_screen};
         use crate::font::{Span, corpus_font};
-        use crate::item_decorations::WHITE;
+        use crate::gui_quad::WHITE;
         use crate::level_loading_screen::level_loading_screen;
         use crate::menu_test_app::{GUI, advance, caption, click, game_app, grab_mode, screen};
         use crate::message_screen;

@@ -136,6 +136,7 @@ impl Widget {
                         rect.y.saturating_add(SECTION_LABEL_TEXT_TOP),
                     ),
                     clip: None,
+                    scrolls: false,
                 })
             }
             WidgetKind::IconButton { icon, .. } => {
@@ -161,6 +162,7 @@ impl Widget {
                 Some(CaptionLayout {
                     origin: GuiPoint::new(rect.x, top),
                     clip: None,
+                    scrolls: false,
                 })
             }
         }

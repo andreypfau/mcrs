@@ -42,8 +42,10 @@ mod tests {
     };
 
     use super::*;
+    use crate::gui_config::GuiConfig;
+    use crate::gui_pointer::GuiPointer;
+    use crate::gui_size::GuiSize;
     use crate::menu::MenuBackground;
-    use crate::scene::{GuiConfig, GuiScene};
 
     #[derive(Resource, Default)]
     struct Seen(Vec<MenuEvent>);
@@ -144,11 +146,12 @@ mod tests {
         app.add_plugins(MenuPlugin)
             .insert_resource(GuiConfig {
                 scale: 1,
-                cursor: Some(IVec2::new(20, 45)),
+                cursor: None,
                 frozen_ticks: None,
                 advanced_tooltips: false,
             })
-            .init_resource::<GuiScene>()
+            .insert_resource(GuiPointer::new(IVec2::new(20, 45).as_dvec2()))
+            .init_resource::<GuiSize>()
             .init_resource::<Time<Real>>()
             .init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<ButtonInput<MouseButton>>()
@@ -237,9 +240,8 @@ mod tests {
 
     fn point_at(app: &mut App, x: i32, y: i32) {
         app.world_mut()
-            .resource_mut::<GuiConfig>()
-            .map_unchanged(|resource| &mut resource.cursor)
-            .set_if_neq(Some(IVec2::new(x, y)));
+            .resource_mut::<GuiPointer>()
+            .set_if_neq(GuiPointer::new(IVec2::new(x, y).as_dvec2()));
     }
 
     fn click(app: &mut App) -> Vec<MenuEvent> {

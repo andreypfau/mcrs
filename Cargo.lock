@@ -4534,6 +4534,7 @@ dependencies = [
  "mcrs_minecraft_client_world",
  "mcrs_minecraft_command",
  "mcrs_minecraft_container_click",
+ "mcrs_minecraft_container_gesture",
  "mcrs_minecraft_core",
  "mcrs_minecraft_creative_content",
  "mcrs_minecraft_creative_report",
@@ -4971,6 +4972,14 @@ name = "mcrs_minecraft_container_click"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_wire",
+]
+
+[[package]]
+name = "mcrs_minecraft_container_gesture"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_container_click",
+ "mcrs_minecraft_inventory_click",
 ]
 
 [[package]]

@@ -1,4 +1,5 @@
-use bevy::prelude::*;
+use alloc::vec::Vec;
+
 use mcrs_minecraft_inventory_click::{DragEntry, DragSplit, EntryPreview};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -8,7 +9,7 @@ struct PreviewEntry {
     preview: Option<EntryPreview>,
 }
 
-#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DragPreview {
     entries: Vec<PreviewEntry>,
     cursor: Option<u8>,
@@ -28,8 +29,12 @@ impl DragPreview {
         });
     }
 
+    pub(crate) fn retain(&mut self, mut keep: impl FnMut(u16) -> bool) {
+        self.entries.retain(|joined| keep(joined.index));
+    }
+
     #[must_use]
-    pub fn entry_count(&self) -> u32 {
+    pub(crate) fn entry_count(&self) -> u32 {
         u32::try_from(self.entries.len()).unwrap_or(u32::MAX)
     }
 

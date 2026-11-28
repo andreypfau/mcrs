@@ -1,30 +1,36 @@
-use bevy::prelude::*;
 use mcrs_minecraft_inventory_click::DragKind;
 
+use crate::gesture_button::GestureButton;
 use crate::press_kind::PressKind;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct OpenDrag {
-    pub(crate) kind: DragKind,
-    pub(crate) opened_by: PressKind,
+    kind: DragKind,
+    opened_by: PressKind,
+    button: GestureButton,
     entries: u128,
 }
 
 impl OpenDrag {
-    pub(crate) fn new(kind: DragKind, opened_by: PressKind) -> Self {
+    pub(crate) fn new(kind: DragKind, opened_by: PressKind, button: GestureButton) -> Self {
         Self {
             kind,
             opened_by,
+            button,
             entries: 0,
         }
     }
 
-    pub(crate) fn button(self) -> MouseButton {
-        match self.kind {
-            DragKind::Split => MouseButton::Left,
-            DragKind::Single => MouseButton::Right,
-            DragKind::Full => MouseButton::Middle,
-        }
+    pub(crate) fn kind(self) -> DragKind {
+        self.kind
+    }
+
+    pub(crate) fn opened_by(self) -> PressKind {
+        self.opened_by
+    }
+
+    pub(crate) fn button(self) -> GestureButton {
+        self.button
     }
 
     pub(crate) fn len(self) -> u32 {

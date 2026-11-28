@@ -1,4 +1,4 @@
-use std::sync::{Arc, LazyLock};
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use bevy::input::keyboard::{Key, KeyboardInput};
@@ -21,14 +21,23 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_save::{ListedLevel, WorldSummary};
 use time::UtcOffset;
 
+use crate::font::corpus_font;
+use crate::gui_atlas_load::{GuiAtlasParts, build_gui_atlas};
+use crate::gui_config::GuiConfig;
+use crate::gui_pointer::GuiPointer;
+use crate::gui_size::GuiSize;
 use crate::language::ClientLanguage;
 use crate::menu::Menu;
 use crate::menu_plugin::MenuPlugin;
 use crate::menu_screens_plugin::MenuScreensPlugin;
-use crate::scene::{GuiAtlas, GuiAtlasData, GuiConfig, GuiScene, GuiSize};
 
-pub(crate) static ATLAS: LazyLock<Arc<GuiAtlasData>> =
-    LazyLock::new(|| Arc::new(GuiAtlasData::load(ResourceSet::corpus()).unwrap()));
+pub(crate) static ATLAS: LazyLock<GuiAtlasParts> =
+    LazyLock::new(|| build_gui_atlas(ResourceSet::corpus(), corpus_font()).unwrap());
+
+pub(crate) fn insert_gui_assets(world: &mut World) {
+    world.insert_resource(ATLAS.layout.clone());
+    world.insert_resource(corpus_font().clone());
+}
 
 pub(crate) static TABLE: LazyLock<ItemTable> = LazyLock::new(test_item_table);
 
@@ -50,23 +59,21 @@ pub(crate) fn game_app() -> App {
     ))
     .insert_resource(GuiConfig {
         scale: 1,
-        cursor: Some(IVec2::ZERO),
+        cursor: None,
         frozen_ticks: None,
         advanced_tooltips: false,
     })
-    .insert_resource(GuiScene {
-        size: GuiSize {
-            width: GUI.width,
-            height: GUI.height,
-            scale: 1,
-        },
-        ..GuiScene::default()
+    .insert_resource(GuiSize {
+        width: GUI.width,
+        height: GUI.height,
+        scale: 1,
     })
-    .insert_resource(GuiAtlas(Arc::clone(&ATLAS)))
+    .insert_resource(GuiPointer::default())
     .insert_resource(ClientLanguage::load(ResourceSet::corpus()).unwrap())
     .init_resource::<ClientOptions>()
     .init_resource::<Screen>()
     .init_resource::<Time<Real>>();
+    insert_gui_assets(app.world_mut());
     app.world_mut().spawn((Window::default(), PrimaryWindow));
     app.world_mut().spawn(Player);
     app.update();
@@ -89,9 +96,8 @@ pub(crate) fn tap_escape(app: &mut App) {
 
 pub(crate) fn click(app: &mut App, x: i32, y: i32) {
     app.world_mut()
-        .resource_mut::<GuiConfig>()
-        .map_unchanged(|resource| &mut resource.cursor)
-        .set_if_neq(Some(IVec2::new(x, y)));
+        .resource_mut::<GuiPointer>()
+        .set_if_neq(GuiPointer::new(IVec2::new(x, y).as_dvec2()));
     for state in [ButtonState::Pressed, ButtonState::Released] {
         app.world_mut().write_message(MouseButtonInput {
             button: MouseButton::Left,

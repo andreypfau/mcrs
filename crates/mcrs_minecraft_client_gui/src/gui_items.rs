@@ -1,20 +1,23 @@
 use std::num::NonZeroU64;
 use std::ops::Range;
 
+use bevy::asset::AssetEventSystems;
 use bevy::camera::NormalizedRenderTarget;
 use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_transparent_pass_3d};
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::mesh::VertexBufferLayout;
 use bevy::prelude::*;
 use bevy::render::camera::ExtractedCamera;
+use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_phase::TrackedRenderPass;
 use bevy::render::render_resource::binding_types::{
     sampler, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
+use bevy::render::texture::GpuImage;
 use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
-use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
+use bevy::render::{ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
 use mcrs_minecraft_entity_render::{FigureDraw, FigureTargets, FigureViewSystems};
 use mcrs_minecraft_render::{
@@ -22,22 +25,56 @@ use mcrs_minecraft_render::{
 };
 
 use crate::font_unihex::CELL;
-use crate::glyph_cache;
-use crate::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch, GuiDraw, GuiDrawKind};
+use crate::glyph_cache::{self, GlyphCache};
+use crate::glyph_uploads::{GlyphCell, GlyphUploads, glyphs_pending, queue_glyphs};
+use crate::gui_batch::{GuiBatch, GuiDraw, GuiDrawKind};
+use crate::gui_batch_extract::{extract_gui_batch, gui_batch_extract_due};
+use crate::gui_glint::{GLINT_ALPHA, GuiGlint};
+use crate::gui_images::GuiImages;
+use crate::gui_phase::GuiPhase;
 
 pub struct GuiItemsPlugin;
 
 impl Plugin for GuiItemsPlugin {
     fn build(&self, app: &mut App) {
         bevy::asset::embedded_asset!(app, "gui_items.wesl");
+        if app.get_sub_app(RenderApp).is_none() {
+            return;
+        }
+        app.init_resource::<GlyphUploads>().add_systems(
+            PostUpdate,
+            queue_glyphs
+                .after(GuiPhase::Batch)
+                .after(AssetEventSystems)
+                .run_if(
+                    resource_exists_and_changed::<GlyphCache>
+                        .or_else(on_message::<AssetEvent<Image>>)
+                        .or_else(resource_exists_and_changed::<GuiImages>),
+                ),
+        );
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
         render_app
+            .init_resource::<GuiBatch>()
+            .init_resource::<GlyphUploads>()
+            .add_systems(
+                ExtractSchedule,
+                extract_gui_batch.run_if(gui_batch_extract_due),
+            )
             .add_systems(RenderStartup, init_gui_pass)
             .add_systems(
                 Render,
-                (prepare_gui_pass, upload_glyphs, write_gui_buffers)
+                (
+                    prepare_gui_pass.run_if(gui_pass_stale),
+                    upload_glyphs.run_if(glyphs_pending),
+                    write_gui_buffers.run_if(resource_changed::<GuiBatch>),
+                    write_gui_uniform.run_if(
+                        resource_changed::<GuiBatch>
+                            .or_else(resource_exists_and_changed::<GuiGlint>)
+                            .or_else(gui_viewport_changed),
+                    ),
+                )
                     .chain()
                     .in_set(RenderSystems::Prepare),
             )
@@ -70,9 +107,32 @@ pub struct GuiPass {
     uniform: Buffer,
     vertices: Option<Buffer>,
     pipelines: Option<GuiPipelines>,
-    textures: Option<GuiTextures>,
-    resident: Vec<Option<char>>,
-    bind_group: Option<([TextureId; 4], BindGroup)>,
+    key: Option<GuiPassKey>,
+    viewport: Option<UVec2>,
+    bind_group: Option<BindGroup>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct GuiPassKey {
+    format: TextureFormat,
+    terrain: [TextureId; 4],
+    atlas: TextureViewId,
+    glint: TextureViewId,
+}
+
+impl GuiPassKey {
+    fn of(view: &ExtractedView, terrain: &Terrain, atlas: &GpuImage, glint: &GpuImage) -> Self {
+        Self {
+            format: view.target_format,
+            terrain: terrain
+                .sprites
+                .atlases
+                .each_ref()
+                .map(|slot| slot.texture.id()),
+            atlas: atlas.texture_view.id(),
+            glint: glint.texture_view.id(),
+        }
+    }
 }
 
 struct GuiPipelines {
@@ -91,13 +151,6 @@ const INVERT: BlendState = BlendState {
     },
     alpha: BlendComponent::REPLACE,
 };
-
-struct GuiTextures {
-    atlas: Texture,
-    atlas_view: TextureView,
-    glint_view: TextureView,
-    glint_sampler: Sampler,
-}
 
 pub(super) fn init_gui_pass(
     mut commands: Commands,
@@ -129,113 +182,58 @@ pub(super) fn init_gui_pass(
         uniform: uniform_buffer("gui items", size_of::<GuiUniform>() as u64, &device),
         vertices: None,
         pipelines: None,
-        textures: None,
-        resident: Vec::new(),
+        key: None,
+        viewport: None,
         bind_group: None,
     });
 }
 
-fn srgb_texture(
-    label: &str,
-    width: u32,
-    height: u32,
-    pixels: &[u8],
-    device: &RenderDevice,
-    queue: &RenderQueue,
-) -> Texture {
-    device.create_texture_with_data(
-        queue,
-        &TextureDescriptor {
-            label: Some(label),
-            size: Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::Rgba8UnormSrgb,
-            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-            view_formats: &[],
-        },
-        wgpu::util::TextureDataOrder::LayerMajor,
-        pixels,
-    )
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+fn gui_pass_stale(
+    pass: Option<Res<GuiPass>>,
+    terrain: Option<Res<Terrain>>,
+    images: Option<Res<GuiImages>>,
+    gpu: Res<RenderAssets<GpuImage>>,
+    views: Query<(&ExtractedView, &ExtractedCamera)>,
+) -> bool {
+    let (Some(pass), Some(terrain), Some(images)) = (pass, terrain, images) else {
+        return false;
+    };
+    let (Some(view), Some(atlas), Some(glint)) = (
+        window_view(&views),
+        gpu.get(images.atlas),
+        gpu.get(images.glint),
+    ) else {
+        return false;
+    };
+    pass.key != Some(GuiPassKey::of(view, &terrain, atlas, glint))
 }
 
 #[expect(
     clippy::too_many_lines,
     reason = "a render prepare step creates each target in dependency order"
 )]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "checks on each frame that the textures, the pipelines and the bind group match the window view and the terrain atlases"
-    )
-)]
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "allocates only when it creates the GUI textures, the pipelines for a new target format or a bind group for new atlases"
-    )
-)]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(7))]
 pub(super) fn prepare_gui_pass(
     mut commands: Commands,
     pass: Option<ResMut<GuiPass>>,
-    atlas: Option<Res<GuiAtlas>>,
+    images: Option<Res<GuiImages>>,
+    gpu: Res<RenderAssets<GpuImage>>,
     terrain: Option<Res<Terrain>>,
     views: Query<(&ExtractedView, &ExtractedCamera)>,
     device: Res<RenderDevice>,
-    queue: Res<RenderQueue>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let (Some(mut pass), Some(terrain)) = (pass, terrain) else {
+    let (Some(mut pass), Some(terrain), Some(images)) = (pass, terrain, images) else {
         return;
     };
-    let Some(view) = window_view(&views) else {
+    let (Some(view), Some(atlas), Some(glint)) = (
+        window_view(&views),
+        gpu.get(images.atlas),
+        gpu.get(images.glint),
+    ) else {
         return;
     };
     let pass = &mut *pass;
-    if pass.textures.is_none() {
-        let Some(atlas) = atlas.as_deref() else {
-            return;
-        };
-        let atlas = &*atlas.0;
-        let atlas_texture = srgb_texture(
-            "gui atlas",
-            atlas.width,
-            atlas.height,
-            &atlas.pixels,
-            &device,
-            &queue,
-        );
-        pass.resident.clear();
-        pass.textures = Some(GuiTextures {
-            atlas_view: atlas_texture.create_view(&TextureViewDescriptor::default()),
-            atlas: atlas_texture,
-            glint_view: srgb_texture(
-                "enchanted glint",
-                atlas.glint.0,
-                atlas.glint.1,
-                &atlas.glint.2,
-                &device,
-                &queue,
-            )
-            .create_view(&TextureViewDescriptor::default()),
-            glint_sampler: device.create_sampler(&SamplerDescriptor {
-                label: Some("enchanted glint"),
-                address_mode_u: AddressMode::Repeat,
-                address_mode_v: AddressMode::Repeat,
-                mag_filter: FilterMode::Linear,
-                min_filter: FilterMode::Linear,
-                ..default()
-            }),
-        });
-    }
     if pass
         .pipelines
         .as_ref()
@@ -320,73 +318,47 @@ pub(super) fn prepare_gui_pass(
         });
     }
     let sprites = &terrain.sprites;
-    let atlas_ids = sprites.atlases.each_ref().map(|slot| slot.texture.id());
-    if pass
-        .bind_group
-        .as_ref()
-        .is_none_or(|(ids, _)| *ids != atlas_ids)
-    {
-        let Some(textures) = pass.textures.as_ref() else {
-            return;
-        };
-        let bind_group = device.create_bind_group(
-            "gui items",
-            &pipeline_cache.get_bind_group_layout(&pass.layout),
-            &BindGroupEntries::sequential((
-                pass.uniform.as_entire_buffer_binding(),
-                &sprites.atlases[0].view,
-                &sprites.atlases[1].view,
-                &sprites.atlases[2].view,
-                &sprites.atlases[3].view,
-                &sprites.atlas_sampler,
-                sprites.frames.binding(),
-                sprites.table.binding(),
-                &textures.atlas_view,
-                &textures.glint_view,
-                &textures.glint_sampler,
-            )),
-        );
-        pass.bind_group = Some((atlas_ids, bind_group));
-    }
+    pass.bind_group = Some(device.create_bind_group(
+        "gui items",
+        &pipeline_cache.get_bind_group_layout(&pass.layout),
+        &BindGroupEntries::sequential((
+            pass.uniform.as_entire_buffer_binding(),
+            &sprites.atlases[0].view,
+            &sprites.atlases[1].view,
+            &sprites.atlases[2].view,
+            &sprites.atlases[3].view,
+            &sprites.atlas_sampler,
+            sprites.frames.binding(),
+            sprites.table.binding(),
+            &atlas.texture_view,
+            &glint.texture_view,
+            &glint.sampler,
+        )),
+    ));
+    pass.key = Some(GuiPassKey::of(view, &terrain, atlas, glint));
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "the main world rebuilds the GUI batch on each frame, so the render world uploads its glyphs on each frame"
-    )
-)]
 pub(super) fn upload_glyphs(
-    pass: Option<ResMut<GuiPass>>,
-    batch: Option<Res<GuiBatch>>,
-    atlas: Option<Res<GuiAtlas>>,
+    images: Option<Res<GuiImages>>,
+    gpu: Res<RenderAssets<GpuImage>>,
+    mut uploads: ResMut<GlyphUploads>,
     queue: Res<RenderQueue>,
 ) {
-    let (Some(mut pass), Some(batch), Some(atlas)) = (pass, batch, atlas) else {
+    let Some(images) = images else {
         return;
     };
-    let pass = &mut *pass;
-    let Some(textures) = pass.textures.as_ref() else {
+    let Some(atlas) = gpu.get(images.atlas) else {
         return;
     };
-    pass.resident.resize(batch.glyphs.len(), None);
-    for (cell, (wanted, drawn)) in batch.glyphs.iter().zip(&mut pass.resident).enumerate() {
-        if wanted == drawn {
-            continue;
-        }
-        *drawn = *wanted;
-        let Some(pixels) = wanted.and_then(|glyph| atlas.0.font.unifont_cell(glyph)) else {
-            continue;
-        };
+    for GlyphCell { cell, pixels } in uploads.cells.drain(..) {
         let (x, y) = glyph_cache::cell_origin(cell);
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
-                texture: &textures.atlas,
+                texture: &atlas.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d {
-                    x: atlas.0.glyph_origin.x as u32 + x,
-                    y: atlas.0.glyph_origin.y as u32 + y,
+                    x: images.glyph_origin.x + x,
+                    y: images.glyph_origin.y + y,
                     z: 0,
                 },
                 aspect: wgpu::TextureAspect::All,
@@ -418,39 +390,57 @@ fn window_view<'a>(
         .find_map(|(view, camera)| on_window(camera).then_some(view))
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::ungated_system,
-        reason = "the main world rebuilds the GUI batch on each frame, so the render world uploads its vertices on each frame"
-    )
-)]
-pub(super) fn write_gui_buffers(
-    pass: Option<ResMut<GuiPass>>,
-    batch: Option<Res<GuiBatch>>,
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+fn gui_viewport_changed(
+    pass: Option<Res<GuiPass>>,
     views: Query<(&ExtractedView, &ExtractedCamera)>,
-    device: Res<RenderDevice>,
+) -> bool {
+    let (Some(pass), Some(view)) = (pass, window_view(&views)) else {
+        return false;
+    };
+    pass.viewport != Some(view.viewport.zw())
+}
+
+pub(super) fn write_gui_uniform(
+    pass: Option<ResMut<GuiPass>>,
+    batch: Res<GuiBatch>,
+    glint: Option<Res<GuiGlint>>,
+    views: Query<(&ExtractedView, &ExtractedCamera)>,
     queue: Res<RenderQueue>,
 ) {
-    let (Some(mut pass), Some(batch)) = (pass, batch) else {
+    let Some(mut pass) = pass else {
         return;
     };
     let Some(view) = window_view(&views) else {
         return;
     };
-    let pass = &mut *pass;
-    let viewport = view.viewport.zw().as_vec2();
+    let size = view.viewport.zw();
+    if pass.viewport != Some(size) {
+        pass.viewport = Some(size);
+    }
+    let viewport = size.as_vec2();
     queue.write_buffer(
         &pass.uniform,
         0,
         bytemuck::bytes_of(&GuiUniform {
             framebuffer: viewport.to_array(),
-            glint_offset: batch.glint_offset,
+            glint_offset: glint.map_or([0.0; 2], |glint| glint.offset),
             scale: batch.scale as f32,
             glint_alpha: GLINT_ALPHA,
             _pad: [0.0; 2],
         }),
     );
+}
+
+pub(super) fn write_gui_buffers(
+    pass: Option<ResMut<GuiPass>>,
+    batch: Res<GuiBatch>,
+    device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
+) {
+    let Some(mut pass) = pass else {
+        return;
+    };
     if batch.vertices.is_empty() {
         return;
     }
@@ -519,13 +509,10 @@ pub fn draw_gui(
     if batch.draws.is_empty() {
         return;
     }
-    let (Some(ids), Some((_, bind_group)), Some(vertices)) = (
-        gui.pipelines.as_ref(),
-        gui.bind_group.as_ref(),
-        gui.vertices.as_ref(),
-    ) else {
+    let (Some(ids), Some(bind_group)) = (gui.pipelines.as_ref(), gui.bind_group.as_ref()) else {
         return;
     };
+    let vertices = gui.vertices.as_ref();
     let (Some(flat), Some(item)) = (
         pipeline_cache.get_render_pipeline(ids.flat),
         pipeline_cache.get_render_pipeline(ids.item),
@@ -539,7 +526,9 @@ pub fn draw_gui(
         |draw: &&GuiDraw| matches!(draw.kind, GuiDrawKind::Item | GuiDrawKind::Figure { .. });
     let bands = batch.draws.iter().filter(banded).count().max(1) as f32;
     pass.set_bind_group(0, bind_group, &[]);
-    pass.set_vertex_buffer(0, vertices.slice(..));
+    if let Some(vertices) = vertices {
+        pass.set_vertex_buffer(0, vertices.slice(..));
+    }
     let mut band = 0;
     let band_range = |band: u32| band as f32 / bands..(band + 1) as f32 / bands;
     for draw in &batch.draws {
@@ -558,12 +547,14 @@ pub fn draw_gui(
                     );
                     draw_figure(&mut pass, figure, scissor, size, depth);
                     pass.set_bind_group(0, bind_group, &[]);
-                    pass.set_vertex_buffer(0, vertices.slice(..));
+                    if let Some(vertices) = vertices {
+                        pass.set_vertex_buffer(0, vertices.slice(..));
+                    }
                 }
                 continue;
             }
         };
-        let Some(pipeline) = pipeline else {
+        let (Some(pipeline), Some(_)) = (pipeline, vertices) else {
             continue;
         };
         pass.set_render_pipeline(pipeline);

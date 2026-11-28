@@ -4,7 +4,7 @@ use mcrs_minecraft_client_widget::{
 };
 
 use crate::font::{Font, Span};
-use crate::item_decorations::WHITE;
+use crate::gui_quad::WHITE;
 use crate::language::ClientLanguage;
 use crate::text::{self, Wrap};
 

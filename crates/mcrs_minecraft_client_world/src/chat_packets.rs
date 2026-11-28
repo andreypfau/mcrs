@@ -1,3 +1,4 @@
+use crate::GuiTick;
 use bevy::prelude::*;
 use mcrs_minecraft_chat_client::Tag;
 use mcrs_minecraft_command::Source;
@@ -83,6 +84,7 @@ pub(crate) fn server_text(raw: &RawText<'_>) -> Option<Text> {
 pub(crate) fn on_system_chat(
     event: On<Received<ClientboundSystemChatPacket<'static>>>,
     mut chat: ResMut<Chat>,
+    tick: Res<GuiTick>,
     mut messages: MessageWriter<ChatMessage>,
 ) {
     let Some(packet) = event.packet() else {
@@ -92,7 +94,7 @@ pub(crate) fn on_system_chat(
         return;
     };
     if packet.overlay {
-        chat.overlay.set(content);
+        chat.overlay.set(content, tick.0);
     } else {
         messages.write(ChatMessage {
             text: content,
@@ -105,9 +107,10 @@ pub(crate) fn on_system_chat(
 pub(crate) fn on_action_bar(
     event: On<Received<ClientboundSetActionBarText<'static>>>,
     mut chat: ResMut<Chat>,
+    tick: Res<GuiTick>,
 ) {
     if let Some(text) = event.packet().and_then(|packet| server_text(&packet.text)) {
-        chat.overlay.set(text);
+        chat.overlay.set(text, tick.0);
     }
 }
 

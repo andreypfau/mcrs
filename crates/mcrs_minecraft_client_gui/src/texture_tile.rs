@@ -1,10 +1,11 @@
 use bevy::math::{IRect, IVec2, Rect};
 
+use crate::gui_atlas_layout::GuiAtlasLayout;
+use crate::gui_quad::GuiQuad;
+use crate::gui_quad::WHITE;
 use crate::gui_texture_id::GuiTextureId;
-use crate::item_decorations::WHITE;
-use crate::scene::{GuiAtlasData, GuiQuad};
 
-impl GuiAtlasData {
+impl GuiAtlasLayout {
     pub fn tile(
         &self,
         texture: GuiTextureId,

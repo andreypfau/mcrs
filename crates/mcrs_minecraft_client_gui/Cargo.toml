@@ -21,6 +21,7 @@ mcrs_minecraft_client_widget.workspace = true
 mcrs_minecraft_client_jar.workspace = true
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_container_click.workspace = true
+mcrs_minecraft_container_gesture.workspace = true
 mcrs_minecraft_inventory_client.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }

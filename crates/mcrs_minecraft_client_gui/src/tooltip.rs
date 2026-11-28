@@ -1,9 +1,14 @@
+use bevy::ecs::component::Component;
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_client_widget::{GuiExtent, TooltipRequest, WidgetId};
 
-use crate::font::{self, Font, Span};
+use crate::font::{Font, Span};
+
+use crate::gui_atlas_layout::GuiAtlasLayout;
+use crate::gui_quad::GuiQuad;
+use crate::gui_size::GuiSize;
 use crate::gui_sprite_id::GuiSpriteId;
-use crate::scene::{GuiAtlasData, GuiQuad, GuiSize};
+use crate::text_draw;
 
 const LINE: i32 = 10;
 const OFFSET: i32 = 12;
@@ -16,7 +21,7 @@ pub enum LineGap {
     AfterFirst,
 }
 
-#[derive(Debug, Default)]
+#[derive(Component, Debug, Default)]
 pub struct Tooltip {
     lines: Vec<Vec<Span>>,
     at: IVec2,
@@ -137,11 +142,16 @@ pub fn content_origin(mouse: IVec2, size: IVec2, gui: IVec2) -> IVec2 {
     at
 }
 
-pub fn draw(tooltip: &Tooltip, gui: GuiSize, atlas: &GuiAtlasData, out: &mut Vec<GuiQuad>) {
+pub fn draw(
+    tooltip: &Tooltip,
+    gui: GuiSize,
+    atlas: &GuiAtlasLayout,
+    font: &Font,
+    out: &mut Vec<GuiQuad>,
+) {
     let Some(lines) = tooltip.lines() else {
         return;
     };
-    let font = &atlas.font;
     let size = content_size(font, lines, tooltip.gap);
     let at = match tooltip.widget {
         Some(widget) => {
@@ -155,7 +165,7 @@ pub fn draw(tooltip: &Tooltip, gui: GuiSize, atlas: &GuiAtlasData, out: &mut Vec
         atlas.sprite(sprite).draw(background, out);
     }
     for (index, line) in lines.iter().enumerate() {
-        font::draw_text(
+        text_draw::draw_text(
             font,
             IVec2::new(at.x, at.y + line_top(index, tooltip.gap)),
             line,
@@ -185,7 +195,7 @@ mod tests {
 
     #[test]
     fn the_first_request_with_lines_wins_until_the_frame_clears() {
-        use crate::item_decorations::WHITE;
+        use crate::gui_quad::WHITE;
         fn line(text: &'static str) -> impl FnOnce(&mut Vec<Vec<Span>>) {
             move |rows| rows.push(vec![Span::new(text, WHITE)])
         }
@@ -207,7 +217,7 @@ mod tests {
 
     #[test]
     fn only_the_request_of_the_focused_widget_replaces_the_first_request() {
-        use crate::item_decorations::WHITE;
+        use crate::gui_quad::WHITE;
         use mcrs_minecraft_client_widget::{GuiRect, TooltipAnchor};
         fn line(text: &'static str) -> impl FnOnce(&mut Vec<Vec<Span>>) {
             move |rows| rows.push(vec![Span::new(text, WHITE)])

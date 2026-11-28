@@ -4,11 +4,13 @@ use mcrs_minecraft_client_world::sign::{SignFamily, SignMount};
 use mcrs_minecraft_protocol_game::text::{IntoText, Text};
 use mcrs_voxel::BlockPos;
 
-use crate::font::{Font, Span, draw_glyphs};
+use crate::font::{Font, Span};
+
 use crate::font_glyph::ImageSource;
+use crate::gui_quad::GuiQuad;
 use crate::language::ClientLanguage;
-use crate::scene::GuiQuad;
 use crate::text::{Wrap, text_spans, wrap};
+use crate::text_draw::{Shadow, draw_glyphs};
 
 pub const FULL_BRIGHT_LIGHT: u32 = 15_728_880;
 pub const BLACK_GLOW_OUTLINE: u32 = 0xFFF0_EBCC;
@@ -288,7 +290,7 @@ pub fn span_quads(
             Vec2::new(x, start.y),
             chars,
             color,
-            false,
+            Shadow::Omitted,
             &mut glyphs,
         );
     }

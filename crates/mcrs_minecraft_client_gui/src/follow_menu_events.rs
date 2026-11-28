@@ -14,12 +14,13 @@ use crate::delete_world_screen;
 use crate::disconnected_screen;
 use crate::menu::Menu;
 use crate::menu_event::MenuEvent;
-use crate::menu_screens_plugin::{next_screen, world_presence};
+use crate::next_screen::next_screen;
 use crate::pause_screen;
 use crate::select_world_screen::{self, selected_row, selected_world, world_at};
 use crate::title_draw::TitleScreenState;
 use crate::title_screen;
 use crate::world_list_error_screen;
+use crate::world_presence::world_presence;
 #[derive(Resource, Default, PartialEq)]
 pub(crate) struct DeleteTarget(pub(crate) Option<String>);
 

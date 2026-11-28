@@ -11,7 +11,7 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_save::{NewWorld, NewWorldMode};
 
 use crate::font::{Font, Span};
-use crate::item_decorations::WHITE;
+use crate::gui_quad::WHITE;
 use crate::language::ClientLanguage;
 use crate::menu::{Menu, MenuBackground, MenuSeparators, WidgetHint, WidgetTooltip};
 use crate::option_caption::option_caption;

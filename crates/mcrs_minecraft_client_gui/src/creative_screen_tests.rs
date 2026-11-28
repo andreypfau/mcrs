@@ -457,7 +457,7 @@ fn a_search_key_keeps_the_caret_in_view_and_copies_only_a_selection() {
                     edit,
                     &input,
                     CreativeGeometry::SEARCH_BOX,
-                    None,
+                    0.0,
                     &width,
                     || None,
                 )

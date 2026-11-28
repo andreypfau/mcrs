@@ -10,7 +10,8 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use mcrs_minecraft_client_jar::{self as client_jar, Files, IndexLayer, Progress};
 
-use mcrs_minecraft_client_gui::font::{Font, Span, draw_centered_text};
+use mcrs_minecraft_client_gui::draw_centered_text;
+use mcrs_minecraft_client_gui::font::{Font, Span};
 use mcrs_minecraft_client_gui::font_definition::FontOptions;
 use mcrs_minecraft_client_gui::font_glyph::ImageSource;
 use mcrs_minecraft_client_gui::scene::GuiQuad;

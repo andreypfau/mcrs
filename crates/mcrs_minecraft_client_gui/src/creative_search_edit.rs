@@ -2,36 +2,35 @@ use bevy::input::keyboard::KeyboardInput;
 use mcrs_minecraft_chat_client::Key;
 use mcrs_minecraft_client_widget::{EditBox, GuiRect, KeyModifiers};
 
-use crate::chat_input;
+use crate::edit_input;
 use crate::search_input::SearchInput;
 
 pub(crate) fn apply_search(
     edit: &mut EditBox,
     input: &SearchInput,
     search_box: GuiRect,
-    mouse_x: Option<f64>,
+    mouse_x: f64,
     width: &impl Fn(&str) -> i32,
     paste: impl FnOnce() -> Option<String>,
 ) -> Option<String> {
-    let copied = match (input, mouse_x) {
-        (SearchInput::Key { input, modifiers }, _) => type_key(edit, input, *modifiers, paste),
-        (SearchInput::SelectAll, _) => {
+    let copied = match input {
+        SearchInput::Key { input, modifiers } => type_key(edit, input, *modifiers, paste),
+        SearchInput::SelectAll => {
             edit.select_all();
             None
         }
-        (SearchInput::Click(anchor), Some(x)) => {
-            edit.click(search_box, x, *anchor, width);
+        SearchInput::Click(anchor) => {
+            edit.click(search_box, mouse_x, *anchor, width);
             None
         }
-        (SearchInput::SelectWord, Some(x)) => {
-            edit.select_word(search_box, x, width);
+        SearchInput::SelectWord => {
+            edit.select_word(search_box, mouse_x, width);
             None
         }
-        (SearchInput::Drag, Some(x)) => {
-            edit.drag(search_box, x, width);
+        SearchInput::Drag => {
+            edit.drag(search_box, mouse_x, width);
             None
         }
-        (SearchInput::Click(_) | SearchInput::SelectWord | SearchInput::Drag, None) => None,
     };
     edit.scroll(search_box, width);
     copied
@@ -43,8 +42,8 @@ fn type_key(
     modifiers: KeyModifiers,
     paste: impl FnOnce() -> Option<String>,
 ) -> Option<String> {
-    let Some(key) = chat_input::screen_key(input.key_code, modifiers) else {
-        if chat_input::pastes(input.key_code, modifiers) {
+    let Some(key) = edit_input::screen_key(input.key_code, modifiers) else {
+        if edit_input::pastes(input.key_code, modifiers) {
             if let Some(text) = paste() {
                 edit.insert(&text);
             }

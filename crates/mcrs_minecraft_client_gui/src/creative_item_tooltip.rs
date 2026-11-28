@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy::time::Real;
-use mcrs_minecraft_client_widget::{GuiPoint, GuiRect};
+use mcrs_minecraft_client_widget::GuiRect;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_creative_content::SearchQuery;
 use mcrs_minecraft_engine_inventory_menu::{MenuParts, Menus};
@@ -15,14 +15,21 @@ use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_text::{Color, IntoText, Text};
 
-use crate::creative_screen_draw::{self, ENTRY_SIZE};
+use crate::creative_screen_draw::{self, CreativeLayer, ENTRY_SIZE};
 use crate::creative_screen_state::CreativeScreenState;
 use crate::creative_tab_content::CreativeTabContent;
+use crate::font::Font;
+use crate::gui_atlas_layout::GuiAtlasLayout;
+use crate::gui_config::GuiConfig;
+use crate::gui_layer::GuiLayer;
+use crate::gui_pointer::GuiPointer;
+use crate::gui_size::GuiSize;
 use crate::language::ClientLanguage;
+use crate::menu_input;
 use crate::menu_item_tooltip::{
     self, HoveredItem, HoveredStack, LineSources, MenuItemTooltip, TooltipSlot, TooltipStyle,
 };
-use crate::scene::{GuiAtlas, GuiConfig, GuiScene};
+use crate::tooltip::Tooltip;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AddedParts {
@@ -31,13 +38,6 @@ enum AddedParts {
     TabsAndTags { entry: usize },
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "the tooltip caches its lines, so it allocates only when the hovered stack or the tooltip style changes"
-    )
-)]
 #[cfg_attr(mcrs_lint, mcrs::alloc_sites(13))]
 pub(crate) fn request_creative_item_tooltip(
     player: Query<(&PlayerHolders, &Menus, Option<&AttributeInstances>), With<Player>>,
@@ -47,16 +47,23 @@ pub(crate) fn request_creative_item_tooltip(
     items: Res<ItemTable>,
     registries: Option<Res<CurrentRegistries>>,
     language: Option<Res<ClientLanguage>>,
-    atlas: Option<Res<GuiAtlas>>,
+    atlas: Option<Res<GuiAtlasLayout>>,
+    font: Option<Res<Font>>,
     config: Res<GuiConfig>,
     creative: Res<CreativeScreenState>,
     content: Res<CreativeTabContent>,
     time: Res<Time<Real>>,
-    mut scene: ResMut<GuiScene>,
+    (size, pointer): (Res<GuiSize>, Res<GuiPointer>),
+    mut layer: Single<(&mut Tooltip, &mut GuiLayer), With<CreativeLayer>>,
     mut tooltip: Local<MenuItemTooltip>,
 ) {
-    let (Some(language), Some(atlas), Some(registries), Ok((player, player_menus, instances))) =
-        (language, atlas, registries, player.single())
+    let (
+        Some(language),
+        Some(atlas),
+        Some(font),
+        Some(registries),
+        Ok((player, player_menus, instances)),
+    ) = (language, atlas, font, registries, player.single())
     else {
         tooltip.leave();
         return;
@@ -65,6 +72,7 @@ pub(crate) fn request_creative_item_tooltip(
         || items.is_changed()
         || registries.is_changed()
         || atlas.is_changed()
+        || font.is_changed()
         || creative.is_changed()
         || content.is_changed()
     {
@@ -75,8 +83,8 @@ pub(crate) fn request_creative_item_tooltip(
         holder: player.cursor,
         index: 0,
     };
-    let pointer = GuiPoint::new(scene.cursor.x, scene.cursor.y);
-    let window = CreativeGeometry::window(scene.size.width, scene.size.height);
+    let pointer = pointer.point();
+    let window = CreativeGeometry::window(size.width, size.height);
     let kind = creative.selected_tab().kind;
     let hit = CreativeGeometry::hit(window, pointer, kind, content.visible_tabs());
     let menu = player_menus.open();
@@ -121,17 +129,7 @@ pub(crate) fn request_creative_item_tooltip(
     } else {
         TooltipView::Standard
     };
-    let added = match (hit, kind) {
-        (CreativeHit::GridSlot(_), CreativeTabKind::Items) => AddedParts::None,
-        (CreativeHit::GridSlot(slot), CreativeTabKind::Search)
-            if creative.search_box().text().starts_with('#') =>
-        {
-            creative
-                .grid_search_entry(slot, &content)
-                .map_or(AddedParts::Tabs, |entry| AddedParts::TabsAndTags { entry })
-        }
-        _ => AddedParts::Tabs,
-    };
+    let added = added_parts(hit, kind, &creative, &content);
     let style = TooltipStyle {
         view,
         detail: menu_item_tooltip::tooltip_detail(&config),
@@ -141,14 +139,36 @@ pub(crate) fn request_creative_item_tooltip(
         items: &items,
         registries: &registries,
         language: &language,
-        font: &atlas.0.font,
+        font: &font,
     };
     let search_text = creative.search_box().text();
     tooltip.follow(hovered, style, &mut stacks, &sources, |stack, parts| {
         push_added_parts(stack, added, &content, search_text, parts);
     });
-    let now_ms = u64::try_from(time.elapsed().as_millis()).unwrap_or(u64::MAX);
-    tooltip.request(hovered, now_ms, pointer, &mut scene);
+    let now_ms = menu_input::menu_clock(&time);
+    let (request, layer) = &mut *layer;
+    if let Some(at) = tooltip.request(hovered, now_ms, pointer, *size, request) {
+        layer.redraw_at(at);
+    }
+}
+
+fn added_parts(
+    hit: CreativeHit,
+    kind: CreativeTabKind,
+    creative: &CreativeScreenState,
+    content: &CreativeTabContent,
+) -> AddedParts {
+    match (hit, kind) {
+        (CreativeHit::GridSlot(_), CreativeTabKind::Items) => AddedParts::None,
+        (CreativeHit::GridSlot(slot), CreativeTabKind::Search)
+            if creative.search_box().text().starts_with('#') =>
+        {
+            creative
+                .grid_search_entry(slot, content)
+                .map_or(AddedParts::Tabs, |entry| AddedParts::TabsAndTags { entry })
+        }
+        _ => AddedParts::Tabs,
+    }
 }
 
 fn push_added_parts(

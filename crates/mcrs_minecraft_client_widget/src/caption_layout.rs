@@ -10,6 +10,7 @@ use crate::standard_sizes::LINE_HEIGHT;
 pub struct CaptionLayout {
     pub origin: GuiPoint,
     pub clip: Option<GuiRect>,
+    pub scrolls: bool,
 }
 
 #[must_use]
@@ -35,6 +36,7 @@ pub(crate) fn label(area: GuiRect, centre: i32, text_width: i32, now_ms: u64) ->
     CaptionLayout {
         origin: GuiPoint::new(saturate::saturate(clamped - half), text_top(area)),
         clip: Some(area),
+        scrolls: false,
     }
 }
 
@@ -46,6 +48,7 @@ pub(crate) fn scrolled(area: GuiRect, text_width: i32, now_ms: u64) -> CaptionLa
             text_top(area),
         ),
         clip: Some(area),
+        scrolls: true,
     }
 }
 

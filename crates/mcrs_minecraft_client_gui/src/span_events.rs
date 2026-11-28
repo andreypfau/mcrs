@@ -1,9 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
+use crate::event_index::EventIndex;
 use crate::font::{ClickEvent, Hover, Span};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct EventIndex(u64);
 
 #[derive(Debug, Default)]
 pub struct SpanEvents {
@@ -30,6 +28,10 @@ impl<T> Table<T> {
     fn get(&self, index: EventIndex) -> Option<&T> {
         let offset = index.0.checked_sub(self.first)?;
         self.stored.get(usize::try_from(offset).ok()?)
+    }
+
+    fn len(&self) -> usize {
+        self.stored.len()
     }
 
     fn end(&self) -> u64 {
@@ -69,7 +71,7 @@ impl SpanEvents {
     }
 
     pub fn len(&self) -> usize {
-        self.hovers.stored.len() + self.clicks.stored.len()
+        self.hovers.len() + self.clicks.len()
     }
 
     pub fn is_empty(&self) -> bool {

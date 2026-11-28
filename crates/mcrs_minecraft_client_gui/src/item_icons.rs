@@ -8,7 +8,8 @@ use mcrs_minecraft_model::item_model_bake::ItemModels;
 use mcrs_minecraft_model::stack_view::StackView;
 use mcrs_minecraft_registries::CurrentRegistries;
 
-use crate::scene::{GuiQuad, GuiScene, SceneIcon};
+use crate::gui_layer::GuiLayer;
+use crate::scene_icon::SceneIcon;
 use crate::slot_icon::SlotIcon;
 
 #[derive(SystemParam)]
@@ -22,7 +23,7 @@ pub struct ItemIcons<'w> {
 impl ItemIcons<'_> {
     pub fn draw_stack(
         &self,
-        scene: &mut GuiScene,
+        layer: &mut GuiLayer,
         origin: IVec2,
         stack: &ItemStack,
         overlays: Overlays,
@@ -36,23 +37,24 @@ impl ItemIcons<'_> {
             registries: self.registries.as_deref().map(|registries| &**registries),
         };
         let SlotIcon { icon, overlay } = SlotIcon::of(view, &sources);
-        Self::draw_icon(scene, origin, icon, overlay, overlays);
+        Self::draw_icon(layer, origin, icon, overlay, overlays);
     }
 
     pub fn draw_icon(
-        scene: &mut GuiScene,
+        layer: &mut GuiLayer,
         origin: IVec2,
         icon: ItemIcon,
         overlay: StackOverlay,
         overlays: Overlays,
     ) {
-        let index = scene.icons.len();
-        scene.icons.push(SceneIcon {
-            icon,
-            overlay,
-            overlays,
-        });
-        scene.quads.push(GuiQuad::Icon { origin, index });
+        layer.push_icon(
+            origin,
+            SceneIcon {
+                icon,
+                overlay,
+                overlays,
+            },
+        );
     }
 
     pub(crate) fn meshes(&self) -> Option<&IconMeshes> {

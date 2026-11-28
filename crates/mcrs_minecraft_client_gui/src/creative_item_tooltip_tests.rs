@@ -14,7 +14,9 @@ use crate::creative_item_tooltip::request_creative_item_tooltip;
 use crate::creative_screen_draw::draw_creative_screen;
 use crate::creative_screen_shown::creative_screen_shown;
 use crate::creative_screen_view_tests::{creative, creative_app, item};
-use crate::scene::{GuiConfig, GuiScene};
+use crate::gui_config::GuiConfig;
+use crate::gui_pointer::GuiPointer;
+use crate::tooltip::Tooltip;
 
 const BUILDING_BLOCKS: usize = 0;
 const SEARCH: usize = 6;
@@ -46,7 +48,10 @@ fn frame(app: &mut App) {
     world
         .resource_mut::<Time<Real>>()
         .update_with_duration(Duration::from_millis(5));
-    world.resource_mut::<GuiScene>().tooltip.clear();
+    let mut tooltips = world.query::<&mut Tooltip>();
+    for mut tooltip in tooltips.iter_mut(world) {
+        tooltip.clear();
+    }
     app.update();
 }
 
@@ -107,9 +112,13 @@ fn hover_point(app: &mut App, target: Target) -> IVec2 {
 }
 
 fn shown_lines(app: &App) -> Vec<(String, u32)> {
-    let scene = app.world().resource::<GuiScene>();
-    let mut lines: Vec<(String, u32)> = scene
-        .tooltip
+    let request = app
+        .world()
+        .try_query::<&Tooltip>()
+        .unwrap()
+        .single(app.world())
+        .unwrap();
+    let mut lines: Vec<(String, u32)> = request
         .lines()
         .unwrap_or_default()
         .iter()
@@ -200,9 +209,8 @@ fn the_creative_screen_shows_the_item_tooltip_of_the_hovered_slot_with_the_creat
         });
         let at = hover_point(&mut app, row.target);
         app.world_mut()
-            .resource_mut::<GuiScene>()
-            .map_unchanged(|resource| &mut resource.cursor)
-            .set_if_neq(at);
+            .resource_mut::<GuiPointer>()
+            .set_if_neq(GuiPointer::new(at.as_dvec2()));
         frame(&mut app);
         frame(&mut app);
         let expected: Vec<(String, u32)> = row

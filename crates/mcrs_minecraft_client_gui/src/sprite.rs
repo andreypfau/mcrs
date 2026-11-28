@@ -5,8 +5,8 @@ use serde::de::value::MapAccessDeserializer;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use crate::item_decorations::WHITE;
-use crate::scene::GuiQuad;
+use crate::gui_quad::GuiQuad;
+use crate::gui_quad::WHITE;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub struct Border {

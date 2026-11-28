@@ -4,8 +4,8 @@ use mcrs_minecraft_client_widget::{
 use mcrs_minecraft_core::VERSION;
 
 use crate::font::{Font, Span};
+use crate::gui_quad::WHITE;
 use crate::gui_sprite_id::GuiSpriteId;
-use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
 use crate::menu::{WidgetIcon, WidgetTooltip};
 
