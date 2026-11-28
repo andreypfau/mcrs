@@ -1,7 +1,9 @@
 pub mod channels;
 pub mod dimension;
 pub mod dimension_builders;
+pub mod dimension_bundle;
 pub mod dimension_list;
+pub mod dimension_plugin;
 pub mod lifecycle;
 pub mod light_gate;
 pub mod storage;

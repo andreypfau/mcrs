@@ -6,7 +6,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use criterion::{Criterion, criterion_group, criterion_main};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
-use mcrs_minecraft_engine_world::world::storage::random_ticks::{RandomListing, RandomTickIndex};
+use mcrs_minecraft_engine_world::world::storage::random_listing::RandomListing;
+use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, Cx, Env, Footprints, GameTick, KernelConfig, Kinds,

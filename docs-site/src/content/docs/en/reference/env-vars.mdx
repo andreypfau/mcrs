@@ -45,7 +45,7 @@ import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
 
-This page lists the `MCRS_*` environment variables that the server, the tests, the benchmarks and the build read, with their defaults. The server reads 14 of them. The variables of the client are on [Client variables](/docs/en/client/env-vars/), including the `dev` settings `MCRS_MENU` for a sample container and `MCRS_PLAY` to start the world given as the argument.
+This page lists the `MCRS_*` environment variables that the server, the tests, the benchmarks and the build read, with their defaults. The server reads 16 of them. The variables of the client are on [Client variables](/docs/en/client/env-vars/), including the `dev` settings `MCRS_MENU` for a sample container and `MCRS_PLAY` to start the world given as the argument.
 
 Public client plugin fields, including `ClientRegistriesPlugin.defer_definitions`, are described under [Library configuration](/docs/en/client/env-vars/#library-configuration).
 
@@ -71,6 +71,8 @@ A variable that is on or off accepts `on`, `1`, `true` or `yes` for on, and `off
 | `MCRS_FORWARDING` | off | Whether the server takes the player's UUID, name, profile properties and address from a Velocity proxy (modern forwarding). When it is on, every login must come through the proxy. |
 | `MCRS_FORWARDING_SECRET` | empty | The secret that the server shares with Velocity. The server uses the value exactly as it is and does not trim whitespace. |
 | `MCRS_PROXY_UPSTREAMS` | empty | Exact IP addresses of trusted proxies, separated by commas. A connection from one of them must start with a PROXY protocol header, version 1 or 2, and the server takes the client address from that header. Leave the variable unset to turn the feature off. An empty value stops the server. |
+| `MCRS_LOCAL_PACKS` | none | Folder names of extra data packs below `mcrs/datapacks`, separated by commas, for example a world generation pack to try. They join `mcrs` and `beta`, and all local packs are layered by folder name: where two packs ship the same file, the later name wins, whatever the order in the variable. A name with a path separator is refused. |
+| `MCRS_SPAWN` | none | Where a joining player stands, as `x,y,z` in blocks, over the saved position and the level spawn. The player starts in flight where the game mode allows it. A client reads it for its own integrated server. |
 
 <Aside type="caution" title="No authentication">
 The server has no online mode yet.[^82] It listens on `0.0.0.0:25565`, and anyone who connects can use any player name. Do not open the port to the internet.

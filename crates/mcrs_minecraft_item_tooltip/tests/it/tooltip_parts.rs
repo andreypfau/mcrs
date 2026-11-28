@@ -252,8 +252,7 @@ fn plain_cases() -> Vec<Case> {
     );
     advanced_stone.detail = TooltipDetail::Advanced;
     let mut hidden = case("hide_tooltip", "minecraft:stone", Vec::new());
-    let mut display = TooltipDisplay::hiding([]);
-    display.hide_tooltip = true;
+    let display = TooltipDisplay::new(true, []);
     hidden.stack = hidden.stack.set(display.clone());
     let mut creative = case(
         "hide_tooltip, creative",
@@ -294,7 +293,7 @@ fn plain_cases() -> Vec<Case> {
     hidden_lore.stack = hidden_lore
         .stack
         .set(lore())
-        .set(TooltipDisplay::hiding([component_type("lore")]));
+        .set(TooltipDisplay::new(false, [component_type("lore")]));
     vec![
         case("stone", "minecraft:stone", vec![stone_name()]),
         advanced_stone,

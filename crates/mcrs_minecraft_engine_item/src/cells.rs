@@ -8,8 +8,6 @@ use mcrs_minecraft_item_stack::ItemComponent;
 use crate::Removed;
 use crate::column::Column;
 use crate::effective;
-use crate::row::Row;
-use crate::row::row_mask;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Cells<'w> {
@@ -39,13 +37,17 @@ impl<'w> Cells<'w> {
         cells
     }
 
-    pub(crate) fn in_world(world: &'w World, stack: Entity, rows: &[Row]) -> Option<Self> {
+    pub(crate) fn in_world(
+        world: &'w World,
+        stack: Entity,
+        mask: impl FnOnce(&Table) -> u128,
+    ) -> Option<Self> {
         let location = world.entities().get(stack).ok()??;
         let table = world.storages().tables.get(location.table_id)?;
         let mut cells = Self {
             table,
             row: location.table_row,
-            mask: row_mask(rows, |id| table.has_column(id)),
+            mask: mask(table),
             removed: None,
         };
         cells.removed =

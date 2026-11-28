@@ -43,6 +43,7 @@ use crate::BlockGoalWorld;
 use crate::BrainState;
 use crate::MobAi;
 use crate::ai_window::AiWindow;
+use crate::brain_panic_causes::BrainPanicCauses;
 use crate::mob_ai::Arrival;
 use crate::mob_ai::BrainOut;
 use crate::mob_ai::Thinking;
@@ -96,16 +97,15 @@ where
                 MobBrainSet::Stage.in_set(TickSet::Simulate).run_if(ready),
             ),
         );
+        app.init_resource::<BrainPanicCauses<B>>();
+        app.init_resource::<AiWindow<B>>();
         app.add_observer(admit_brain::<B>);
         app.add_observer(release_brain::<B>);
         app.add_systems(
             FixedUpdate,
             (
                 set_panic_causes::<B>(self.panic_causes)
-                    .run_if(
-                        resource_exists::<MobAi<B>>
-                            .and_then(resource_exists_and_changed::<CurrentRegistries>),
-                    )
+                    .run_if(resource_exists_and_changed::<CurrentRegistries>)
                     .after(TickSet::ClientInput)
                     .before(MobBrainSet::Prepare),
                 prepare::<B>.in_set(MobBrainSet::Prepare),
@@ -175,9 +175,9 @@ fn release_brain<B: Send + Sync + 'static>(
 
 fn set_panic_causes<B: Send + Sync + 'static>(
     panic_causes: TagKey<'static, DamageType>,
-) -> impl FnMut(Res<CurrentRegistries>, ResMut<MobAi<B>>) {
-    move |registries, mut ai| {
-        ai.set_panic_causes(panic_causes_in(&registries, panic_causes));
+) -> impl FnMut(Res<CurrentRegistries>, ResMut<BrainPanicCauses<B>>) {
+    move |registries, mut causes| {
+        *causes = BrainPanicCauses::new(panic_causes_in(&registries, panic_causes));
     }
 }
 
@@ -202,6 +202,7 @@ fn prepare<B>(
     tables: Res<PhysicsTables>,
     players: Players,
     mut mobs: Thinking,
+    panic_causes: Res<BrainPanicCauses<B>>,
     mut ai: ResMut<MobAi<B>>,
     mut threads: Local<Parallel<BrainOut>>,
 ) where
@@ -214,6 +215,7 @@ fn prepare<B>(
     ai.prepare(
         &goal_world,
         player_table(&players),
+        &panic_causes.causes,
         mobs.reborrow(),
         &mut threads,
     );
@@ -231,7 +233,7 @@ fn run_stage<B>(
     world: WorldView,
     tables: Res<PhysicsTables>,
     mut ai: ResMut<MobAi<B>>,
-    mut window: Local<AiWindow>,
+    mut window: ResMut<AiWindow<B>>,
 ) where
     B: for<'a, 'w> MobBrain<BlockGoalWorld<'a, DimensionView<'w>>> + Send + Sync + 'static,
 {
@@ -239,6 +241,6 @@ fn run_stage<B>(
         return;
     };
     let goal_world = BlockGoalWorld::new(&blocks, tables.collision());
-    ai.run_stage(ComputeTaskPool::get(), &goal_world);
-    window.add(ai.tick(), ai.stats());
+    let stats = ai.run_stage(ComputeTaskPool::get(), &goal_world);
+    window.record(ai.tick(), ai.prepared(), &stats);
 }

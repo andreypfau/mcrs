@@ -22,6 +22,7 @@ mod replica;
 mod selector;
 mod stage;
 mod stage_config;
+mod stage_run;
 mod tile_brains;
 
 pub use ai_delay::*;
@@ -44,4 +45,5 @@ pub use replica::*;
 pub use selector::*;
 pub use stage::*;
 pub use stage_config::*;
+pub use stage_run::*;
 pub use tile_brains::*;

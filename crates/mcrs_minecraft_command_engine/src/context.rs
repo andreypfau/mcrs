@@ -1,7 +1,7 @@
 use crate::command_failure::CommandFailure;
 use crate::command_set::{CommandSet, SetLookup};
 use crate::command_targets::CommandTargets;
-use crate::command_tree::CommandTree;
+use crate::command_tree::{CommandTree, SetGraph};
 use crate::invocation::Invocation;
 use crate::running_command::RunningCommand;
 use crate::source_state::SourceState;
@@ -13,7 +13,7 @@ use mcrs_minecraft_pose::Pose;
 
 #[derive(SystemParam)]
 pub struct CommandContext<'w, 's, S: CommandSet> {
-    pub(crate) tree: Res<'w, CommandTree<S>>,
+    tree: Res<'w, CommandTree<S>>,
     running: Res<'w, RunningCommand>,
     pub(crate) targets: Res<'w, CommandTargets>,
     lookup: StaticSystemParam<'w, 's, <S as CommandSet>::Lookup>,
@@ -54,6 +54,10 @@ impl<'w, 's, S: CommandSet> CommandContext<'w, 's, S> {
 
     pub fn lookup(&self) -> &SetLookup<'w, 's, S> {
         &self.lookup
+    }
+
+    pub(crate) fn graph(&self) -> &SetGraph<S> {
+        self.tree.graph()
     }
 
     pub fn targets(&self) -> &CommandTargets {

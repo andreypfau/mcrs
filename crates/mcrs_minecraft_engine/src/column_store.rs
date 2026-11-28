@@ -9,12 +9,11 @@ use mcrs_engine_store::{ChunkVersion, StoreInput, StoreOutput, VersionedChunk};
 use mcrs_minecraft_engine_world::block_update::BlockPlaced;
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStageChanged;
-use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
-    ChunkSpawnSet, ColumnCoolSet, SectionEntitySet,
-};
+use mcrs_minecraft_engine_world::world::lifecycle::ticket::{ColumnCoolSet, SectionEntitySet};
 use mcrs_minecraft_engine_world::world::light_gate::ColumnLightSettled;
+use mcrs_minecraft_engine_world::world::storage::chunk_spawn_set::ChunkSpawnSet;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
+use mcrs_minecraft_engine_world::world::storage::section_stage::SectionStageChanged;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 

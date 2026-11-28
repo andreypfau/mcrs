@@ -29,11 +29,10 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
-use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
-    BlockTicking, EntityTicking, SimulationDistance,
-};
-use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, SimulationDistance};
+use mcrs_minecraft_engine_world::world::storage::entity_ticking::EntityTicking;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_engine_world::world::storage::section_stage::SectionStage;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_item_key::item_keys::Item;

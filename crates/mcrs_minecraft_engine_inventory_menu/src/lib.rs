@@ -12,16 +12,15 @@ mod menu_opened;
 mod menu_parts;
 mod menu_plugin;
 mod menu_title;
-mod menus;
 
 pub use entry_pressed::EntryPressed;
 pub use menu_buttons::MenuButtons;
 pub use menu_closed::MenuClosed;
 pub use menu_commands_ext::MenuCommandsExt;
 pub use menu_of::MenuOf;
+pub use menu_of::Menus;
 pub use menu_opened::MenuOpened;
 pub use menu_parts::MAX_PARTS;
 pub use menu_parts::MenuParts;
 pub use menu_plugin::MenuPlugin;
 pub use menu_title::MenuTitle;
-pub use menus::Menus;

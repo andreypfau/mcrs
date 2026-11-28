@@ -5,13 +5,14 @@ use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
 #[derive(Clone, Debug)]
-pub(crate) enum Identifier {
+pub enum Identifier {
     Borrowed(ResourceLocation<'static>),
     Owned(ResourceLocationBuf),
 }
 
 impl Identifier {
-    pub(crate) fn as_location(&self) -> ResourceLocation<'_> {
+    #[must_use]
+    pub fn as_location(&self) -> ResourceLocation<'_> {
         match self {
             Self::Borrowed(location) => *location,
             Self::Owned(location) => location.as_location(),

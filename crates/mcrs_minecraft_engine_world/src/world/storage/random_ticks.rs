@@ -1,19 +1,20 @@
-use core::ops::Range;
-
 use bevy_app::{App, Plugin};
 use bevy_ecs::lifecycle::{Insert, Remove};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Query, ResMut};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_simulation::{
-    PRECIPITATION_TILE, RandomHit, RandomPick, RandomTickTable, SectionStreams, Spread,
-    TickingPositions, TickingSectionMut, block_tile, draw_random_picks,
+    RandomTickTable, SectionStreams, Spread, TickingPositions, TickingSectionMut, block_tile,
 };
 use mcrs_minecraft_volume::{PaletteBuffer, SectionBlocks, SectionBlocksMut};
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashMap;
 
-use crate::world::lifecycle::simulation::EntityTicking;
+use crate::world::storage::block_tile::BlockTile;
+use crate::world::storage::entity_ticking::EntityTicking;
+use crate::world::storage::indexed_section::IndexedSection;
+use crate::world::storage::random_listing::RandomListing;
+use crate::world::storage::tile_batch::TileBatch;
 
 pub struct RandomTickIndexPlugin;
 
@@ -33,127 +34,8 @@ pub struct RandomTickIndex {
     batches: Vec<TileBatch>,
 }
 
-#[derive(Debug, Default)]
-struct TileBatch {
-    tiles: Range<usize>,
-    drawn: Vec<u16>,
-    picks: Vec<RandomPick>,
-    pick_slots: Vec<u16>,
-    listing: RandomListing,
-    stale: Vec<ColumnPos>,
-}
-
-#[derive(Debug, Default)]
-struct BlockTile {
-    sections: Vec<IndexedSection>,
-    listed: Vec<u16>,
-    columns: [u16; COLUMNS + 1],
-    random_ticked_columns: u16,
-}
-
-const TILES_IN_BATCH: usize = 32;
-
-const COLUMNS: usize = (PRECIPITATION_TILE * PRECIPITATION_TILE) as usize;
-
-#[derive(Debug)]
-struct IndexedSection {
-    pos: SectionPos,
-    random_ticked: bool,
-    ticking: TickingPositions,
-}
-
-impl IndexedSection {
-    fn is_listed(&self) -> bool {
-        self.random_ticked && !self.ticking.as_slice().is_empty()
-    }
-}
-
-fn is_listed(sections: &[IndexedSection], slot: u16) -> bool {
-    sections
-        .get(usize::from(slot))
-        .is_some_and(IndexedSection::is_listed)
-}
-
 fn tile_of(pos: SectionPos) -> ColumnPos {
     block_tile(ColumnPos::from(pos))
-}
-
-fn column_in_tile(pos: SectionPos) -> usize {
-    (pos.x.rem_euclid(PRECIPITATION_TILE) * PRECIPITATION_TILE
-        + pos.z.rem_euclid(PRECIPITATION_TILE)) as usize
-}
-
-impl BlockTile {
-    fn slot(&self, pos: SectionPos) -> Result<usize, usize> {
-        let column = column_in_tile(pos);
-        let start = self
-            .columns
-            .get(column)
-            .map_or(0, |&start| usize::from(start));
-        let end = self
-            .columns
-            .get(column + 1)
-            .map_or(start, |&end| usize::from(end));
-        let column = self.sections.get(start..end).unwrap_or_default();
-        let guess = column
-            .first()
-            .and_then(|lowest| usize::try_from(pos.y.wrapping_sub(lowest.pos.y)).ok());
-        if let Some(guess) = guess
-            && column.get(guess).is_some_and(|section| section.pos == pos)
-        {
-            return Ok(start + guess);
-        }
-        column
-            .binary_search_by_key(&pos.y, |section| section.pos.y)
-            .map(|slot| start + slot)
-            .map_err(|slot| start + slot)
-    }
-
-    fn mark_random_ticked_columns(&mut self) {
-        self.random_ticked_columns = self
-            .sections
-            .iter()
-            .filter(|section| section.random_ticked)
-            .fold(0, |mask, section| mask | 1 << column_in_tile(section.pos));
-    }
-
-    fn relist(&mut self) {
-        self.mark_random_ticked_columns();
-        let mut slot = 0;
-        for (column, start) in self.columns.iter_mut().enumerate() {
-            *start = slot;
-            while self
-                .sections
-                .get(usize::from(slot))
-                .is_some_and(|section| column_in_tile(section.pos) == column)
-            {
-                slot += 1;
-            }
-        }
-        self.listed.clear();
-        self.listed.extend(
-            (0u16..)
-                .zip(&self.sections)
-                .filter(|(_, section)| section.is_listed())
-                .map(|(slot, _)| slot),
-        );
-    }
-
-    fn prune(&mut self) {
-        let Self {
-            sections, listed, ..
-        } = self;
-        listed.retain(|&slot| is_listed(sections, slot));
-    }
-
-    fn list(&mut self, slot: usize) {
-        let Ok(slot) = u16::try_from(slot) else {
-            return;
-        };
-        if let Err(at) = self.listed.binary_search(&slot) {
-            self.listed.insert(at, slot);
-        }
-    }
 }
 
 impl RandomTickIndex {
@@ -171,21 +53,14 @@ impl RandomTickIndex {
     pub fn insert<S: SectionBlocks>(&mut self, pos: SectionPos, blocks: &S, random_ticked: bool) {
         let mut ticking = TickingPositions::default();
         ticking.rebuild(blocks, &self.table, &mut self.palette);
-        let tile = self.tiles.entry(tile_of(pos)).or_default();
-        let section = IndexedSection {
-            pos,
-            random_ticked,
-            ticking,
-        };
-        match tile.slot(pos) {
-            Ok(slot) => {
-                if let Some(held) = tile.sections.get_mut(slot) {
-                    *held = section;
-                }
-            }
-            Err(slot) => tile.sections.insert(slot, section),
-        }
-        tile.relist();
+        self.tiles
+            .entry(tile_of(pos))
+            .or_default()
+            .upsert(IndexedSection {
+                pos,
+                random_ticked,
+                ticking,
+            });
     }
 
     pub(crate) fn remove(&mut self, pos: SectionPos) {
@@ -193,38 +68,23 @@ impl RandomTickIndex {
         let Some(tile) = self.tiles.get_mut(&tile_pos) else {
             return;
         };
-        if let Ok(slot) = tile.slot(pos) {
-            tile.sections.remove(slot);
-            tile.relist();
-        }
-        if tile.sections.is_empty() {
+        tile.remove(pos);
+        if tile.is_empty() {
             self.tiles.remove(&tile_pos);
         }
     }
 
     fn set_random_ticked(&mut self, pos: SectionPos, random_ticked: bool) {
-        let Some(tile) = self.tiles.get_mut(&tile_of(pos)) else {
-            return;
-        };
-        let Ok(slot) = tile.slot(pos) else {
-            return;
-        };
-        let Some(section) = tile.sections.get_mut(slot) else {
-            return;
-        };
-        section.random_ticked = random_ticked;
-        if section.is_listed() {
-            tile.list(slot);
+        if let Some(tile) = self.tiles.get_mut(&tile_of(pos)) {
+            tile.set_random_ticked(pos, random_ticked);
         }
-        tile.mark_random_ticked_columns();
     }
 
     #[cfg(test)]
     fn ticking(&self, pos: SectionPos) -> &[u16] {
         self.tiles
             .get(&tile_of(pos))
-            .and_then(|tile| tile.sections.get(tile.slot(pos).ok()?))
-            .map_or(&[], |section| section.ticking.as_slice())
+            .map_or(&[], |tile| tile.ticking(pos))
     }
 
     pub(crate) fn section_mut<'a, S: SectionBlocksMut>(
@@ -232,21 +92,8 @@ impl RandomTickIndex {
         pos: SectionPos,
         blocks: S,
     ) -> TickingSectionMut<'a, S> {
-        let Some(tile) = self.tiles.get_mut(&tile_of(pos)) else {
-            return TickingSectionMut::untracked(blocks);
-        };
-        let Ok(slot) = tile.slot(pos) else {
-            return TickingSectionMut::untracked(blocks);
-        };
-        if tile
-            .sections
-            .get(slot)
-            .is_some_and(|section| section.random_ticked)
-        {
-            tile.list(slot);
-        }
-        match tile.sections.get_mut(slot) {
-            Some(section) => TickingSectionMut::new(blocks, &mut section.ticking, &self.table),
+        match self.tiles.get_mut(&tile_of(pos)) {
+            Some(tile) => tile.section_mut(pos, blocks, &self.table),
             None => TickingSectionMut::untracked(blocks),
         }
     }
@@ -269,98 +116,25 @@ impl RandomTickIndex {
         order.extend(
             tiles
                 .iter()
-                .filter(|(_, tile)| tile.random_ticked_columns != 0)
+                .filter(|(_, tile)| tile.is_random_ticked())
                 .map(|(pos, _)| *pos),
         );
         order.sort_unstable();
-        batches.resize_with(order.len().div_ceil(TILES_IN_BATCH), TileBatch::default);
-        for (index, batch) in batches.iter_mut().enumerate() {
-            batch.tiles = index * TILES_IN_BATCH..order.len().min((index + 1) * TILES_IN_BATCH);
-        }
+        TileBatch::split(batches, order.len());
         spread.spread(batches, &|batch: &mut TileBatch| {
-            for tile_pos in order.get(batch.tiles.clone()).unwrap_or_default() {
-                if let Some(tile) = tiles.get(tile_pos) {
-                    batch.draw(*tile_pos, tile, &owns, speed, streams);
-                }
-            }
+            batch.draw_tiles(order, tiles, &owns, speed, streams);
         });
         out.hits.clear();
         out.columns.clear();
         for batch in batches {
-            out.hits.append(&mut batch.listing.hits);
-            out.columns.append(&mut batch.listing.columns);
-            for tile_pos in batch.stale.drain(..) {
+            batch.drain_into(out);
+            for tile_pos in batch.drain_stale() {
                 if let Some(tile) = tiles.get_mut(&tile_pos) {
                     tile.prune();
                 }
             }
         }
     }
-}
-
-impl TileBatch {
-    fn draw(
-        &mut self,
-        tile_pos: ColumnPos,
-        tile: &BlockTile,
-        owns: impl Fn(ColumnPos) -> bool,
-        speed: u32,
-        streams: SectionStreams,
-    ) {
-        let Self {
-            drawn,
-            picks,
-            pick_slots,
-            listing,
-            stale,
-            ..
-        } = self;
-        let column_pos = |column: i32| {
-            ColumnPos::new(
-                tile_pos.x * PRECIPITATION_TILE + column / PRECIPITATION_TILE,
-                tile_pos.z * PRECIPITATION_TILE + column % PRECIPITATION_TILE,
-            )
-        };
-        let columns = 0..PRECIPITATION_TILE * PRECIPITATION_TILE;
-        let owned = columns
-            .clone()
-            .filter(|&column| tile.random_ticked_columns & 1 << column != 0)
-            .filter(|&column| owns(column_pos(column)))
-            .fold(0u16, |mask, column| mask | 1 << column);
-        drawn.clone_from(&tile.listed);
-        drawn.retain(|&slot| is_listed(&tile.sections, slot));
-        if drawn.len() < tile.listed.len() {
-            stale.push(tile_pos);
-        }
-        for &slot in &*drawn {
-            if let Some(section) = tile.sections.get(usize::from(slot))
-                && owned & 1 << column_in_tile(section.pos) != 0
-            {
-                let ticking = section.ticking.as_slice().len();
-                draw_random_picks(section.pos, ticking, speed, streams, picks);
-                pick_slots.resize(picks.len(), slot);
-            }
-        }
-        for (slot, pick) in pick_slots.drain(..).zip(picks.drain(..)) {
-            if let Some(section) = tile.sections.get(usize::from(slot)) {
-                let ticking = section.ticking.as_slice();
-                listing
-                    .hits
-                    .extend(RandomHit::of(section.pos, ticking, pick));
-            }
-        }
-        listing.columns.extend(
-            columns
-                .filter(|&column| owned & 1 << column != 0)
-                .map(column_pos),
-        );
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct RandomListing {
-    pub hits: Vec<RandomHit>,
-    pub columns: Vec<ColumnPos>,
 }
 
 fn start_random_ticks(
@@ -387,7 +161,9 @@ fn stop_random_ticks(
 mod tests {
     use super::*;
     use crate::palette::{ChunkBlocks, SectionStates, air_section};
-    use mcrs_minecraft_simulation::{GameTick, RandomTicks, Serial, StreamSeed};
+    use mcrs_minecraft_simulation::{
+        GameTick, PRECIPITATION_TILE, RandomTicks, Serial, StreamSeed,
+    };
     use mcrs_minecraft_volume::PalettedSection;
     use mcrs_voxel::BlockStateId;
 
