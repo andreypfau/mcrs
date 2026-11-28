@@ -4,14 +4,10 @@ use crate::error::Error;
 use crate::traits::{BedrockDecode, BedrockEncode};
 use crate::var_int::VarI32;
 
-/// A `sblockpos`: a varint32 x, a varint32 y and a varint32 z.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct NetworkSignedBlockPos {
-    /// The x coordinate.
     pub x: i32,
-    /// The y coordinate.
     pub y: i32,
-    /// The z coordinate.
     pub z: i32,
 }
 

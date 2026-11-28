@@ -1,6 +1,3 @@
-//! The `minecraft:entity` argument: the selector, its options and the search over entities.
-
-// std: mcrs_minecraft_core needs it.
 mod bounds;
 mod entity_argument;
 mod error;

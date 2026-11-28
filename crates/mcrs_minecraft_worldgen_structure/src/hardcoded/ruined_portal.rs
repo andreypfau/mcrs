@@ -9,7 +9,7 @@ use mcrs_minecraft_worldgen_feature::template::bounding_box;
 use crate::frozen::TemplateId;
 use crate::orient::random_rotation;
 use crate::piece::{Piece, PortalProperties, RuinedPortalPiece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 use crate::{PortalPlacement, RuinedPortalSetup};
 
 pub const TEMPLATES: &[ResourceLocation<'static>] = &[
@@ -45,14 +45,12 @@ pub fn site(
     setups: &[RuinedPortalSetup],
     portals: &[TemplateId],
     giant_portals: &[TemplateId],
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
     let setup = if setups.len() > 1 {
         let total: f32 = setups.iter().map(|s| s.weight.0).sum();
         let mut pick = rng.next_f32();
-        // Rounding can leave the draw past the last setup, where the reference
-        // throws; the start is refused instead.
         setups.iter().position(|s| {
             pick -= s.weight.0 / total;
             pick < 0.0
@@ -152,7 +150,7 @@ fn portal_site(
 }
 
 fn template_bounds(
-    ctx: &Context<'_>,
+    ctx: &Context<'_, impl SiteWorld>,
     template: TemplateId,
     position: IVec3,
     rotation: Rotation,
@@ -182,7 +180,11 @@ fn within_interval(rng: &mut LegacyRandom, min_preferred: i32, max: i32) -> i32 
     }
 }
 
-pub fn layout(setups: &[RuinedPortalSetup], ctx: &mut Context<'_>, site: Site) -> Vec<Piece> {
+pub fn layout(
+    setups: &[RuinedPortalSetup],
+    ctx: &mut Context<'_, impl SiteWorld>,
+    site: Site,
+) -> Vec<Piece> {
     let Stub::Portal {
         setup,
         air_pocket,

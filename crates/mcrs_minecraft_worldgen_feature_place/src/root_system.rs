@@ -8,8 +8,6 @@ use mcrs_voxel::BlockPos;
 use crate::tree::provider::StateProvider;
 use crate::tree::survive::SurviveRule;
 
-/// `Direction.from2DDataValue`, which is the order the level test walks its
-/// four corners in.
 const BY_2D: [IVec3; 4] = [
     IVec3::new(0, 0, 1),
     IVec3::new(-1, 0, 0),
@@ -17,7 +15,6 @@ const BY_2D: [IVec3; 4] = [
     IVec3::new(1, 0, 0),
 ];
 
-/// One `root_system` feature with every name it carries already resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledRootSystem {
     pub required_vertical_space_for_tree: i32,
@@ -34,20 +31,15 @@ pub struct CompiledRootSystem {
     pub hanging_root_placement_attempts: i32,
     pub allowed_vertical_water_for_tree: i32,
     pub allowed_tree_position: Predicate,
-    /// `canSurvive` of the state the hanging provider hands back, when its
-    /// block is one of the families the freeze answers. A block outside them
-    /// survives, which is the default `BlockBehaviour.canSurvive`.
     pub hanging_survive: Option<SurviveRule>,
 }
 
-/// `RootSystemFeature.place`. `place_tree` runs the nested placed feature — its
-/// own modifier chain over the same random source.
 pub fn place_root_system<W>(
     config: &CompiledRootSystem,
     volume: &mut W,
     rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_tree: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    place_tree: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -66,7 +58,7 @@ fn place_dirt_and_tree<W>(
     volume: &mut W,
     rng: &mut WorldgenRandom,
     origin: BlockPos,
-    place_tree: &mut dyn FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
+    mut place_tree: impl FnMut(&mut W, &mut WorldgenRandom, BlockPos) -> bool,
 ) -> bool
 where
     W: WorldGenVolume,
@@ -96,8 +88,6 @@ where
     false
 }
 
-/// `spaceForTree`: a clear run above, and — when the feature asks for it — four
-/// corners whose ground sits within the allowed deviation.
 fn space_for_tree<W: WorldGenVolume>(
     config: &CompiledRootSystem,
     volume: &W,
@@ -193,8 +183,6 @@ mod tests {
     const ORIGIN: BlockPos = BlockPos::new(0, 30, 0);
     const SURFACE: i32 = 63;
 
-    /// A dirt column with one air cell at the origin, air above the surface,
-    /// and a `WORLD_SURFACE` that never stops the climb.
     fn fixture() -> (CompiledRootSystem, FakeVolume) {
         let config = CompiledRootSystem {
             required_vertical_space_for_tree: 3,
@@ -231,10 +219,6 @@ mod tests {
         (config, volume)
     }
 
-    /// The climb stops at the first cell the predicate accepts with solid
-    /// ground under it, the dirt column runs from the origin up to it, and the
-    /// draws are the reference's: four per rooted-dirt attempt, six per
-    /// hanging-root attempt.
     #[test]
     fn a_root_system_plants_its_tree_and_fills_the_column_under_it() {
         let (config, mut volume) = fixture();
@@ -245,7 +229,7 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |_, _, at| {
+            |_, _, at| {
                 planted = Some(at);
                 true
             }
@@ -292,8 +276,6 @@ mod tests {
         );
     }
 
-    /// The whole feature is a no-op when the origin is not air, and it reports
-    /// failure rather than the unconditional success of the placed case.
     #[test]
     fn an_origin_that_is_not_air_places_nothing() {
         let (config, mut volume) = fixture();
@@ -305,14 +287,12 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |_, _, _| panic!("no tree is planted")
+            |_, _, _| panic!("no tree is planted")
         ));
         assert!(volume.writes.is_empty());
         assert_eq!(rng, before, "and it draws nothing");
     }
 
-    /// A tree the nested feature refuses does not stop the climb, and with no
-    /// spot accepted nothing is rooted — but the call still reports success.
     #[test]
     fn a_refused_tree_leaves_the_column_untouched() {
         let (config, mut volume) = fixture();
@@ -323,7 +303,7 @@ mod tests {
             &mut volume,
             &mut rng,
             ORIGIN,
-            &mut |_, _, _| {
+            |_, _, _| {
                 attempts += 1;
                 false
             }

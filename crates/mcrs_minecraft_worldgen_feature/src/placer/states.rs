@@ -6,8 +6,6 @@ use mcrs_minecraft_resource::Id;
 
 use super::StateMask;
 
-/// The size of the block-state table the voxel numbers of a world index. A world built without a
-/// table accepts every number.
 #[derive(Clone, Copy, Debug)]
 pub struct StateCount(pub usize);
 
@@ -17,8 +15,6 @@ impl Default for StateCount {
     }
 }
 
-/// The state sets every generator asks about and no feature configures: the
-/// same for every feature of a dimension, resolved once at freeze.
 #[derive(Clone, Debug, Default)]
 pub struct WorldStates {
     pub state_count: StateCount,
@@ -26,55 +22,30 @@ pub struct WorldStates {
     pub cave_air: VoxelId,
     pub water: VoxelId,
     pub lava: VoxelId,
-    /// `BlockState.isAir()`: air, cave air and void air.
     pub air_states: StateMask,
-    /// Every state of the water block, source and flowing.
     pub water_states: StateMask,
     pub lava_states: StateMask,
-    /// Every state whose fluid is water, waterlogged blocks included: `isWaterAt`.
     pub water_fluid: StateMask,
-    /// Every state holding source water: `FluidState.isSource` over water.
     pub water_source: StateMask,
-    /// Source water held by the water block itself, never by a waterlogged
-    /// block: the only state `Biome.shouldFreeze` turns to ice.
     pub freezable_water: StateMask,
     pub lava_fluid: StateMask,
     pub any_source_fluid: StateMask,
     pub any_fluid: StateMask,
     pub replaceable: StateMask,
-    /// `BlockBehaviour.isSolid`, the legacy flag.
     pub solid: StateMask,
     pub solid_render: StateMask,
-    /// `isCollisionShapeFullBlock`, which is what `isFaceSturdy(UP)` reads on a
-    /// full cube: the floor most features ask for.
     pub sturdy_up: StateMask,
-    /// `isFaceSturdy(DOWN, SupportType.CENTER)`: the collision shape covers
-    /// the middle of the underside, which is what a hanging block asks of
-    /// its ceiling.
     pub center_down: StateMask,
-    /// States whose collision shape is empty.
     pub empty_collision: StateMask,
     pub bedrock: StateMask,
-    /// States whose block declares side properties yet never rotates them:
-    /// fire and chorus plant.
     pub unrotated: StateMask,
-    /// States whose block declares facing or side properties yet never
-    /// mirrors them: the anvils on top of `unrotated`.
     pub unmirrored: StateMask,
-    /// `BlockState.hasBlockEntity`: the only states a block entity can sit on.
     pub has_block_entity: StateMask,
-    /// The block each state id belongs to; a state past the table is its own
-    /// block.
     pub block_of_state: Arc<[Id<Block>]>,
-    /// Per block index, its properties as the digits of its state ids.
     pub layouts: Arc<[BlockLayout]>,
-    /// Per state id, a number two states share exactly when their fluid
-    /// states are equal; 0 is the empty fluid, and so is a state past the table.
     pub fluid_states: Arc<[u16]>,
 }
 
-/// One property of a block as a digit of its state ids: the values in declared
-/// order, each `stride` ids apart.
 #[derive(Clone, Debug)]
 pub struct PropertyLayout {
     pub name: Arc<str>,
@@ -82,8 +53,6 @@ pub struct PropertyLayout {
     pub stride: u16,
 }
 
-/// The value index of a property `stride` ids apart and `count` values wide
-/// in a block whose first state is `base`.
 pub fn digit(state: VoxelId, base: u16, stride: u16, count: u16) -> u16 {
     (state.0 - base) / stride % count
 }
@@ -123,8 +92,6 @@ impl BlockLayout {
         )
     }
 
-    /// `BlockState.trySetValue`: a property this block lacks, or a value
-    /// outside it, leaves the state alone.
     pub fn try_set(&self, state: VoxelId, name: &str, value: &str) -> VoxelId {
         let Some(property) = self.property(name) else {
             return state;
@@ -135,8 +102,6 @@ impl BlockLayout {
         }
     }
 
-    /// `BlockState.withPropertiesOf`: every property `source` shares by name
-    /// and value text, copied over.
     pub fn with_properties_of(
         &self,
         state: VoxelId,
@@ -167,8 +132,6 @@ impl WorldStates {
         self.layouts.get(self.block_of(state)?.index())
     }
 
-    /// [`BlockLayout::with_properties_of`], leaving `target` alone when either
-    /// state has no layout.
     pub fn with_properties_of(&self, target: VoxelId, source: VoxelId) -> VoxelId {
         match (self.layout_of(target), self.layout_of(source)) {
             (Some(into), Some(from)) => into.with_properties_of(target, from, source),
@@ -176,7 +139,6 @@ impl WorldStates {
         }
     }
 
-    /// `SpeleothemUtils.isEmptyOrWater`: air, or the water block itself.
     pub fn is_empty_or_water(&self, state: VoxelId) -> bool {
         self.air_states.contains(state.0 as usize) || self.water_states.contains(state.0 as usize)
     }

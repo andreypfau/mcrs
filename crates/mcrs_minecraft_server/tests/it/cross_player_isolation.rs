@@ -1,20 +1,10 @@
-//! Cross-player isolation under disconnect/reconnect id churn.
-//!
-//! Scenario A: a packet stamped with a disconnected session's id never reaches
-//! a newly-connected session that happens to reuse the same socket entity
-//! generation. Verifies the `bridge_outbound` registry-miss drop.
-//!
-//! Scenario B: a stale `InboundPlayerDespawn` carrying `PlayerSession(1)` does
-//! not despawn a dim-world entity owned by `PlayerSession(2)`. Sessions are never
-//! reused, so a freshly-connected player cannot be accidentally removed by a slow
-//! dim processing an old message.
-
 use crate::mock_connection;
 
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPriority};
+use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use mcrs_minecraft_engine::despawn_inbound_player::despawn_inbound_player;
 use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
@@ -25,26 +15,17 @@ use mock_connection::{
     drain_queue, register_session, run_system, spawn_connection, write_packet_stamped,
 };
 
-// ---------------------------------------------------------------------------
-// Scenario A — no cross-session delivery under id churn
-// ---------------------------------------------------------------------------
-
-/// Under disconnect/reconnect id churn, a packet stamped with a disconnected
-/// session's id must never reach a newly-connected session's queue even when
-/// the session reuses the same connection entity slot.
 #[test]
 fn cross_player_isolation() {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
     world.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
 
-    // --- Connect player A ---
     let session_a = PlayerSession(1);
     let socket_a = spawn_connection(&mut world);
     register_session(&mut world, session_a, socket_a, 0);
 
-    // --- Disconnect A: despawn its session ---
     let anchor_a = world
         .query::<(Entity, &Session)>()
         .iter(&world)
@@ -53,24 +34,16 @@ fn cross_player_isolation() {
         .expect("session_a registered");
     world.despawn(anchor_a);
 
-    // Despawn the socket so Bevy can potentially reuse the slot (simulating
-    // the entity generation churn that happens under real disconnect/reconnect).
     let raw_index = socket_a.index();
     world.despawn(socket_a);
 
-    // --- Connect player B: new session, re-spawned socket ---
-    // Spawn a new entity. Bevy may or may not reuse the same index with a
-    // higher generation, which is exactly the churn risk under test.
     let session_b = PlayerSession(2);
     let socket_b = spawn_connection(&mut world);
     register_session(&mut world, session_b, socket_b, 0);
 
-    // --- Emit a packet stamped with A's removed session ---
-    write_packet_stamped(&mut world, session_a, 0, PacketPriority::Normal, 1);
+    write_packet_stamped(&mut world, session_a, 0, 1);
     run_system(&mut world, bridge_outbound);
 
-    // B's queue must be empty: A's session is gone, so bridge_outbound finds
-    // no session to route to and drops the packet.
     let queue_b = world
         .get::<OutboundQueue>(socket_b)
         .expect("OutboundQueue on socket_b");
@@ -80,33 +53,23 @@ fn cross_player_isolation() {
         "packet stamped with removed session_a must not reach session_b's queue"
     );
 
-    // Sanity: B still receives its own packets.
-    write_packet_stamped(&mut world, session_b, 0, PacketPriority::Normal, 2);
+    write_packet_stamped(&mut world, session_b, 0, 2);
     run_system(&mut world, bridge_outbound);
 
     let packets_b = drain_queue(&mut world, socket_b);
     assert_eq!(packets_b.len(), 1, "session_b must receive its own packets");
 
-    let _ = raw_index; // suppress unused-variable warning
+    let _ = raw_index;
 }
 
-// ---------------------------------------------------------------------------
-// Scenario B — stale despawn does not kill a freshly-connected player
-// ---------------------------------------------------------------------------
-
-/// A slow dim processing a stale `InboundPlayerDespawn { session: PlayerSession(1) }`
-/// must not despawn an entity owned by `PlayerSession(2)`: the session-keyed
-/// `DimPlayerIndex` holds no entity for session 1.
 #[test]
 fn stale_despawn_does_not_kill_fresh_player() {
     let mut world = World::new();
-    world.init_resource::<Messages<InboundPlayerDespawn>>();
+    MessageRegistry::register_message::<InboundPlayerDespawn>(&mut world);
     world.init_resource::<DimPlayerIndex>();
 
-    // --- Spawn an entity for player B in the dim world; its Owner indexes it ---
     let entity_b = world.spawn((Player, Owner(PlayerSession(2)))).id();
 
-    // --- Emit a stale despawn for player A ---
     world
         .resource_mut::<Messages<InboundPlayerDespawn>>()
         .write(InboundPlayerDespawn {
@@ -120,8 +83,6 @@ fn stale_despawn_does_not_kill_fresh_player() {
         "entity_b must survive a stale despawn for a different session"
     );
 
-    // DimPlayerIndex must still contain session_b: session_a (1) was absent
-    // so nothing was despawned; session_b (2) is untouched.
     let index = world.resource::<DimPlayerIndex>();
     assert!(
         index.0.contains_key(&PlayerSession(2)),

@@ -2,15 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
-Source of these values: `assets/minecraft/version.json`. The rules were checked against the
-behaviour of `26.4-snapshot-7`. In `26.4-snapshot-4`, the water test of CCAM-FOV-005 used only the
-cell of the camera position.
+| Version | see `assets/minecraft/version.json` |
 
 This document states how the client places the camera of the local player in each frame, and
-how the client calculates the field of view. The document does not prescribe an architecture.
+how the client calculates the field of view.
 
 ## 0. Conventions
 
@@ -50,13 +45,6 @@ The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of 
 section "Semantics, not accidents". No artefact of the game confirms a rule of this document
 yet. Each rule with the label `source_suggested` therefore has an experiment.
 
-Each rule has a line `Milestone`. `1` means the first release of this document. `later` means a
-rule that a later release implements. A client that does not implement a `later` rule uses the
-value that the rule gives when its condition is false.
-
-A parity test of this document compares the field of view with a tolerance of `1e-4` degree,
-angles with `1e-4` degree, and positions with `1e-6` block.
-
 ### 0.3 ID prefixes
 
 | Prefix | Subject |
@@ -68,19 +56,7 @@ angles with `1e-4` degree, and positions with `1e-6` block.
 | `CCAM-PROJ` | the projection |
 | `CCAM-OPT` | the options |
 | `CCAM-LATER` | behaviour that a later release adds |
-| `CCAM-TEST` | parity tests |
 | `CCAM-DEV` | intentional deviations |
-
-### 0.4 Scope
-
-In scope: the first-person camera of the local player, the zoom filter, the field of view of
-the world, the eye filter and the projection.
-
-Out of scope: the field of view of the hand and of the held item, view bobbing, the tilt of the
-view when the player takes damage, the nausea and the portal distortion, the smooth camera
-option, the cull frustum, the fog and the panorama mode. Section 7 lists the later camera modes.
-
----
 
 ## 1. Order
 
@@ -100,7 +76,6 @@ option, the cull frustum, the fog and the panorama mode. Section 7 lists the lat
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: start to sprint
 in a frame that is just after a tick. Record frames at 240 Hz. The field of view starts to
 change at the second tick after the input, not at the first tick.
-Milestone: 1.
 
 ### CCAM-TIME-002: Camera in a frame
 
@@ -115,7 +90,6 @@ Milestone: 1.
   for all the world content that it draws.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high.
-Milestone: 1.
 
 ---
 
@@ -147,7 +121,7 @@ of the entity data type `pose`.
 Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: press the sneak key
 and record frames at 240 Hz. The camera moves down by `0.175`, `0.0875`, `0.04375` blocks in the
 first three ticks.
-Milestone: 1. A client that has only the pose `standing` uses the eye height `1.62`.
+ A client that has only the pose `standing` uses the eye height `1.62`.
 
 ### CCAM-EYE-002: Start value of the eye filter
 
@@ -164,7 +138,6 @@ Milestone: 1. A client that has only the pose `standing` uses the eye height `1.
   change.
 
 Provenance: `design`. Kind: deviation (CCAM-DEV-001). Confidence: high.
-Milestone: 1.
 
 ---
 
@@ -186,7 +159,6 @@ The previous position is the position at the start of the last tick of the local
 Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: fly forward at a
 constant speed and record frames at 240 Hz. The camera position changes in each frame, and the
 change between two frames is constant.
-Milestone: 1.
 
 ### CCAM-POSE-002: Camera orientation
 
@@ -210,7 +182,6 @@ Milestone: 1.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: turn the mouse
 between two ticks. The view turns in the frame of the input.
-Milestone: 1.
 
 ---
 
@@ -235,19 +206,13 @@ Milestone: 1.
 Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: set the effect
 scale to 100 %. Fly in creative mode with no sprint. The field of view settles at `1.1 · O`.
 Then sprint. The field of view settles at `1.265 · O`.
-Milestone: 1 for steps 1 to 3 and 6. `later` for steps 4 and 5.
 
 ### CCAM-FOV-002: Attribute value
 
 - **Inputs:** the base value `b` of an attribute; its modifiers, each with an amount and an
   operation; the range `[lo, hi]` of the attribute.
-- **Behavior:** in `f64`:
-  1. Let `b₁ = b +` the sum of the amounts of the modifiers with the operation `add_value`.
-  2. Let `r = b₁ + b₁ ·` the sum of the amounts with the operation `add_multiplied_base`.
-  3. For each modifier with the operation `add_multiplied_total`, `r = r · (1 + amount)`.
-  4. The attribute value is `r`, clamped to `[lo, hi]`.
-- **Postconditions:** the order of the modifiers in one operation does not change the value,
-  apart from rounding.
+- **Behavior:** the attribute value is the result of ATR-VAL-001 to ATR-VAL-003 of
+  `attributes.md`, in `f64`. ATR-VAL-002 gives the order of the modifiers in one operation.
 
 For `minecraft:movement_speed` of a player:
 
@@ -259,11 +224,11 @@ For `minecraft:movement_speed` of a player:
   `add_multiplied_total`. The client removes it when the player stops to sprint.
 - The client narrows the attribute value to `f32` before step 3 of CCAM-FOV-001.
 
-Provenance: `documentation` for steps 1 to 4. `source_suggested` for the values of the player.
+Provenance: that of the ATR-VAL rules for the value. `source_suggested` for the values of the player.
 Kind: semantic. Confidence: high. Experiment: give the player the effect `minecraft:speed` with
 the amplifier 0, stand still and do not fly, with the effect scale at 100 %. The field of view settles at
 `1.1 · O` (`v = 0.12`).
-Milestone: 1. A client that has no attribute data uses the base value and the sprint modifier.
+ A client that has no attribute data uses the base value and the sprint modifier.
 
 ### CCAM-FOV-003: Camera entity that is not a player
 
@@ -272,7 +237,6 @@ Milestone: 1. A client that has no attribute data uses the base value and the sp
 - **Behavior:** `m* = 1`.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
-Milestone: later.
 
 ### CCAM-FOV-004: Zoom filter
 
@@ -287,7 +251,6 @@ Milestone: later.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: as CCAM-FOV-001.
 Record frames at 240 Hz. Count the ticks until the field of view settles.
-Milestone: 1.
 
 The start value of `m` and `m'` is the target modifier of the first camera tick
 (CCAM-DEV-001). Provenance: `design`.
@@ -295,30 +258,22 @@ The start value of `m` and `m'` is the target modifier of the first camera tick
 ### CCAM-FOV-005: Field of view of a frame
 
 - **Inputs:** the FOV option `O`; `m` and `m'`; `pt`; the effect scale `k`; the dying state and
-  the death time `d` of the local player (CENTS-DEATH-002); the fluid that contains the camera
-  position.
+  the death time `d` of the local player (CENTS-DEATH-002); the camera medium
+  (`client-fog.md`, CFOG-TYPE-001).
 - **Behavior:** in `f32`:
   1. `F = O · lerp(pt, m', m)`.
   2. If the local player is dying, let `t = min(d + pt, 20)`. Then
      `F = F / ((1 − 500 / (t + 500)) · 2 + 1)`.
-  3. If the camera is in water or in lava, `F = F · lerp(k, 1, 6/7)`.
+  3. If the camera medium is water or lava, `F = F · lerp(k, 1, 6/7)`.
 - **Postconditions:** `F` is the vertical field of view of the projection (CCAM-PROJ-001).
 
-The test of step 3 has these steps:
-
-1. Make five points: the camera position plus the centre of the near plane of CCAM-PROJ-001, and
-   the camera position plus each of the four corners of that plane, in the order top left, top
-   right, bottom left, bottom right.
-2. For each point in that order, find the block cell that contains the point. When the cell holds
-   a fluid and the point `y` is at or below the cell bottom plus the height of the fluid surface
-   in that cell, the result is that fluid: water or lava. Stop at the first such point.
-
-The test belongs to the fog rules, which a later document states.
+`client-fog.md`, CFOG-TYPE-001, states the test of the camera medium. Its near plane uses `O`,
+not `F`. A cell of powder snow stops the test with the medium powder snow, and step 3 then does
+not apply.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: with `O = 70`, die.
 The field of view goes down to about `65` in 20 ticks. Swim with the camera under water. The
 field of view is `60` with `k = 1`.
-Milestone: 1 for step 1. `later` for steps 2 and 3.
 
 ---
 
@@ -342,7 +297,6 @@ Provenance: `source_suggested` for items 1 to 3. `design` for item 4: a client w
 or infinite depth range can put the far plane farther. Kind: semantic. Confidence: high.
 Experiment: stand with the eye `0.1` blocks from a wall and look at the wall. The wall is not
 clipped.
-Milestone: 1.
 
 ---
 
@@ -357,18 +311,18 @@ Milestone: 1.
   3. The options file stores the line `fov:<x>` with `x = (O − 70) / 40` as a decimal number. A
      reader sets `O = trunc(x · 40 + 70)`.
   4. The options file stores the line `fovEffectScale:<k>`.
-  5. The slider of the effect scale shows `√k` as a percentage. A position `q` of the slider
-     sets `k = q²`.
+  5. The caption of the slider of the effect scale shows `k` as a percentage, and its handle is
+     at the position `√k`. A position `q` of the slider sets `k = q²` (`client-menu.md`,
+     MENU-VAL-002).
 - **Postconditions:** the defaults give `m* = 1.1` for a player that flies and does not sprint.
 
 Provenance: `source_suggested`. Kind: client agreement for items 3 and 4, semantic for the
 other items. Confidence: high. Experiment: set the field of view to 90 in the options screen,
 close the game, and read `options.txt`. The line is `fov:0.5`.
-Milestone: 1 for items 1 and 2 with the default values. `later` for items 3 to 5.
 
 ---
 
-## 7. Later work
+## 7. Later behaviour
 
 ### CCAM-LATER-001: Third person
 
@@ -388,7 +342,6 @@ Milestone: 1 for items 1 and 2 with the default values. `later` for items 3 to 5
 - **Postconditions:** the camera does not go into a block.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
-Milestone: later.
 
 ### CCAM-LATER-002: Other placements
 
@@ -399,30 +352,6 @@ Milestone: later.
   interpolated position of the minecart plus the seat offset and the eye filter value.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: low.
-Milestone: later.
-
----
-
-## 8. Parity tests
-
-### CCAM-TEST-001: Zoom filter sequence
-
-- **Inputs:** `O = 70`, `k = 1`, a player that flies, starts to sprint and does not stop.
-- **Behavior:** start with `m = m' = 1.1`. Run five camera ticks with `m* = 1.265`.
-- **Postconditions:** `O · m` after each tick is `82.775`, `85.6625`, `87.10625`, `87.828125`
-  and `88.18906`, within `1e-4`.
-
-### CCAM-TEST-002: Orientation
-
-- **Inputs:** the yaw and pitch pairs `(0, 0)`, `(−139.9493, 8.099984)`, `(90, −30)`,
-  `(180, 45)`, `(−90, 90)`, `(45, −90)`.
-- **Postconditions:** the view direction of the camera is the facing vector of each pair, within
-  `1e-5` on each axis.
-
-### CCAM-TEST-003: Field of view in a frame
-
-- **Inputs:** `O = 70`, `m' = 1.1`, `m = 1.1825`, `pt = 0.25`.
-- **Postconditions:** `F = 70 · 1.120625 = 78.44375`, within `1e-4`.
 
 ---
 
@@ -439,8 +368,7 @@ Milestone: later.
 
 ---
 
-## 10. Open questions
+## 10. Unresolved
 
 1. CCAM-FOV-001: the bow use ticks of the reference count from the start of the use on the
    client. This document does not state how a use that the server cancels resets `u`.
-2. CCAM-FOV-005, step 3: the fluid test depends on the fog rules, which no document states yet.

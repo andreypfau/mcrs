@@ -1,6 +1,6 @@
 use crate::inbound_rate::{InboundPacketRate, InboundRateLimit};
 use crate::intent::status_frame;
-use crate::metrics::Malformed;
+use crate::metrics::{Malformed, PacketDispatcher};
 use crate::{ConnectionState, NetworkSet, RawConnection, WriterWakes};
 use crate::{connect, event, lan, webtransport};
 use base64::engine::general_purpose::STANDARD;
@@ -10,51 +10,38 @@ use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Res;
-use bevy_ecs::world::{FromWorld, World};
+use bevy_ecs::world::{FromWorld, Mut, World};
 use bytes::Bytes;
+use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginDisconnect;
 use mcrs_minecraft_protocol::packets::{configuration, game};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Encode, Packet, WritePacket};
 use mcrs_minecraft_text::Text;
 use socket2::{Domain, Protocol, Socket, Type};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::{Handle, Runtime};
-use tokio::sync::mpsc::{Sender, channel};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
 use tokio::sync::watch;
 use tracing::{info, warn};
 
 pub struct NetworkPlugin {
-    /// Port 0 asks the OS for a free port; read the result back from
-    /// [`BoundAddress`].
     pub address: SocketAddr,
-    /// A listener beyond loopback announces itself on the local network.
     pub announce_on_lan: bool,
     pub max_players: u32,
     pub motd: String,
     pub favicon: Option<String>,
-    /// A handshake with the transfer intent continues as a login only when this is set;
-    /// otherwise the client gets `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
-    /// Turned on, the status response keeps the online and maximum counts but carries no sample
-    /// of player names.
     pub hide_online_players: bool,
-    /// Turned off, a status connection closes after the handshake without a packet; a login is
-    /// not affected.
     pub enable_status: bool,
-    /// The kernel send buffer of each connection, in bytes. Autotuning would let every slow
-    /// reader pin up to 4 MiB of kernel memory, and a few hundred of them exhaust the network
-    /// memory of the host. macOS then fails sends with `ENOBUFS` after it may have queued part of
-    /// the bytes, so no writer can resume its stream. A fixed buffer keeps a slow reader's
-    /// backlog in its own outbound queue. 512 KiB still carries 5 MB/s at a round trip of 100 ms.
     pub send_buffer_bytes: usize,
-    /// The length of the queue of connections the kernel completes before the accept loop takes
-    /// them. A burst of clients beyond this length gets connection resets.
     pub accept_backlog: u32,
-    /// The largest average of packets per second of one connection; 0 turns the limit off.
     pub rate_limit: InboundRateLimit,
+    pub nbt_budget: NbtBudget,
+    pub per_ip_accept_limit: bool,
+    pub proxy_upstreams: Vec<IpAddr>,
 }
 
 const SERVER_ICON: &[u8] = include_bytes!(concat!(
@@ -62,7 +49,6 @@ const SERVER_ICON: &[u8] = include_bytes!(concat!(
     "/../../assets/mcrs/server-icon.png"
 ));
 
-/// The mc.rs icon as a `data:` URL for the `favicon` key of the status response.
 #[must_use]
 pub fn default_favicon() -> String {
     use base64::Engine;
@@ -83,21 +69,16 @@ impl Default for NetworkPlugin {
             send_buffer_bytes: 512 * 1024,
             accept_backlog: 1024,
             rate_limit: InboundRateLimit::default(),
+            nbt_budget: NbtBudget::default(),
+            per_ip_accept_limit: true,
+            proxy_upstreams: Vec::new(),
         }
     }
 }
 
-/// The address the listener is actually bound to, inserted while the plugin
-/// builds, so a caller that asked for port 0 can read the port before the app
-/// ever ticks.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct BoundAddress(pub SocketAddr);
 
-/// The UDP address the WebTransport endpoint is bound to, plus the SHA-256 of
-/// the DER certificate it minted at startup. A browser can only reach a
-/// self-signed endpoint by passing that hash in `serverCertificateHashes`, and
-/// only accepts one whose certificate is valid for at most 14 days, so the
-/// certificate is ephemeral and its hash has to travel out of band.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct WebTransportEndpoint {
     pub address: SocketAddr,
@@ -116,8 +97,6 @@ pub struct StatusPublisher {
 }
 
 impl StatusPublisher {
-    /// Replaces the online players; the next status exchange sees them. A system that calls this
-    /// must run before [`NetworkSet::RefreshStatus`] to show the change in the same frame.
     pub fn publish(&mut self, players: StatusPlayers) {
         self.players = players;
     }
@@ -153,7 +132,6 @@ fn bind_listener(address: SocketAddr, backlog: u32) -> std::io::Result<std::net:
         Type::STREAM,
         Some(Protocol::TCP),
     )?;
-    // std sets this on Unix; a restart must not wait for old connections in TIME_WAIT.
     #[cfg(unix)]
     socket.set_reuse_address(true)?;
     socket.bind(&address.into())?;
@@ -168,8 +146,6 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
     let runtime = Runtime::new()?;
     let tokio_handle = runtime.handle().clone();
 
-    // Binding through std keeps this usable from a caller that is itself
-    // already inside a tokio runtime, where `block_on` would panic.
     let std_listener = bind_listener(address, plugin.accept_backlog)?;
     let bound = std_listener.local_addr()?;
     let listener = {
@@ -177,7 +153,7 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         tokio::net::TcpListener::from_std(std_listener)?
     };
 
-    let (new_sessions_send, mut new_sessions_recv) = channel(128);
+    let (new_sessions_send, new_sessions_recv) = channel(128);
     let (status_send, status_recv) = tokio::sync::watch::channel(Bytes::new());
 
     let shared_state = SharedNetworkState(Arc::new(SharedNetworkStateInner {
@@ -192,6 +168,12 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         hide_online_players: plugin.hide_online_players,
         enable_status: plugin.enable_status,
         send_buffer_bytes: plugin.send_buffer_bytes,
+        per_ip_accept_limit: plugin.per_ip_accept_limit,
+        proxy_upstreams: plugin
+            .proxy_upstreams
+            .iter()
+            .map(IpAddr::to_canonical)
+            .collect(),
     }));
     status_send.send_replace(status_frame(&StatusPlayers::default(), &shared_state.0)?);
 
@@ -244,32 +226,52 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         }
         tokio::spawn(connect::start_accept_loop(shared_state.clone(), listener));
     };
-    let spawn_new_raw_connections = move |world: &mut World| {
-        for _ in 0..new_sessions_recv.len() {
-            match new_sessions_recv.try_recv() {
-                Ok(session) => {
-                    // The outbound queue lives in mcrs_minecraft_server, which attaches it.
-                    world.spawn((
-                        ServerSideConnection { raw: session },
-                        ConnectionState::Login,
-                    ))
-                }
-                Err(_) => break,
-            };
-        }
-    };
-
     app.add_systems(PostStartup, start_accept_loop);
+    add_connection_spawner(app, new_sessions_recv);
+    app.add_plugins(event::EventLoopPlugin);
+    let mut dispatcher = app.world_mut().resource_mut::<PacketDispatcher>();
+    dispatcher.set_nbt_budget(plugin.nbt_budget);
+
+    Ok(())
+}
+
+#[derive(Resource)]
+struct NewConnections(Receiver<Box<RawConnection>>);
+
+fn add_connection_spawner(app: &mut App, new_sessions_recv: Receiver<Box<RawConnection>>) {
+    app.insert_resource(NewConnections(new_sessions_recv));
     app.configure_sets(FixedPreUpdate, NetworkSet::SpawnConnections);
     app.add_systems(
         FixedPreUpdate,
-        spawn_new_raw_connections.in_set(NetworkSet::SpawnConnections),
+        spawn_new_raw_connections
+            .run_if(connections_pending)
+            .in_set(NetworkSet::SpawnConnections),
     );
-    // flush_packets and check_congestion removed; the FixedPostUpdate bridge chain
-    // is registered by BridgePlugin in mcrs_minecraft_server.
-    app.add_plugins(event::EventLoopPlugin);
+}
 
-    Ok(())
+fn connections_pending(new: Res<NewConnections>) -> bool {
+    !new.0.is_empty()
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "spawns the accepted connections at once, so the systems later in `FixedPreUpdate` see them in the same tick"
+    )
+)]
+fn spawn_new_raw_connections(world: &mut World) {
+    world.try_resource_scope(|world, mut new: Mut<NewConnections>| {
+        for _ in 0..new.0.len() {
+            match new.0.try_recv() {
+                Ok(session) => world.spawn((
+                    ServerSideConnection { raw: session },
+                    ConnectionState::Login,
+                )),
+                Err(_) => break,
+            };
+        }
+    });
 }
 
 fn insert_status(app: &mut App, sender: watch::Sender<Bytes>) {
@@ -288,10 +290,19 @@ fn insert_status(app: &mut App, sender: watch::Sender<Bytes>) {
     );
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn status_due(publisher: Res<StatusPublisher>, clock: Res<StatusClock>) -> bool {
     publisher.is_changed() || clock.built_at.elapsed() >= STATUS_PERIOD
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        mcrs::missed_set_if_neq,
+        reason = "the status period counts wall-clock time for the server list, and each refresh stores a new instant"
+    )
+)]
 fn refresh_status(
     publisher: Res<StatusPublisher>,
     mut clock: ResMut<StatusClock>,
@@ -325,10 +336,10 @@ pub(crate) struct SharedNetworkStateInner {
     pub(crate) hide_online_players: bool,
     pub(crate) enable_status: bool,
     pub(crate) send_buffer_bytes: usize,
+    pub(crate) per_ip_accept_limit: bool,
+    pub(crate) proxy_upstreams: Box<[IpAddr]>,
 }
 
-/// The writers of the server wake on its runtime; without the network plugin, on the thread of
-/// the flush.
 impl FromWorld for WriterWakes {
     fn from_world(world: &mut World) -> Self {
         match world.get_resource::<SharedNetworkState>() {
@@ -349,9 +360,6 @@ impl ServerSideConnection {
         self.raw.remote_addr
     }
 
-    /// Sends the disconnect packet of the protocol the client decodes in `state`, behind
-    /// what is already written; the caller then removes the connection. While the client
-    /// reads a layer the server does not yet write, the connection closes with no packet.
     pub fn disconnect(&mut self, state: ConnectionState, reason: Text) -> anyhow::Result<()> {
         if self.raw.awaits_login_acknowledgement() {
             return Ok(());
@@ -371,14 +379,12 @@ impl ServerSideConnection {
                 self.raw
                     .append(&game::clientbound::ClientboundDisconnect { reason })?;
             }
-            // Neither protocol has a disconnect packet; the connection only closes.
             ConnectionState::Handshaking | ConnectionState::Status => return Ok(()),
         }
         self.raw.send_written();
         Ok(())
     }
 
-    /// Logs a frame the game's decoder rejects and disconnects its client as the game does.
     pub fn reject(&mut self, state: ConnectionState, malformed: &Malformed) {
         if let Some(line) = &malformed.log {
             warn!("{line}");

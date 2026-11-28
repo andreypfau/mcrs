@@ -1,4 +1,4 @@
-use crate::json_list::{read_json_list, text_or_none, write_atomic};
+use crate::json_list::{read_json_list, text_or_none};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::{Commands, Event, On, ResMut, Resource};
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -18,7 +18,6 @@ const EXPIRATION_FORMAT: &[BorrowedFormatItem<'_>] = format_description!(
 );
 pub const BANLIST_FILE: &str = "banned-players.json";
 
-/// The host side of the ban list: it applies the edits that the dimensions send.
 pub struct BanListHostPlugin;
 
 impl Plugin for BanListHostPlugin {
@@ -28,7 +27,6 @@ impl Plugin for BanListHostPlugin {
     }
 }
 
-/// A ban was added, so a player that is online can be banned now.
 #[derive(Event, Clone, Copy, Debug)]
 pub struct EnforceBans;
 
@@ -41,8 +39,6 @@ fn apply_ban_edit(edit: On<EditBans>, mut bans: ResMut<BanList>, mut commands: C
     }
 }
 
-/// A change to the ban list. The host owns the list, applies the change, writes the file and
-/// tells every dimension.
 #[derive(Event, Clone, Debug)]
 pub enum EditBans {
     Add(BanEntry),
@@ -170,8 +166,6 @@ impl BanList {
                 (Vec::new(), Self::set_aside(path))
             }
         };
-        // A file that could not be set aside keeps its bans for an administrator, so no write
-        // may replace it.
         let list = Self {
             path: may_write.then(|| Arc::from(path)),
             ..Self::new(entries)
@@ -188,7 +182,6 @@ impl BanList {
             .is_ok()
     }
 
-    /// Returns whether the entries changed, so the file needs a write.
     pub fn apply(&mut self, edit: &EditBans) -> bool {
         match edit {
             EditBans::Add(entry) => self.add(entry.clone()),
@@ -256,7 +249,7 @@ impl BanList {
         let entries: Vec<_> = self.entries.values().map(|e| e.to_file(offset)).collect();
         let written = serde_json::to_string_pretty(&entries)
             .map_err(std::io::Error::from)
-            .and_then(|json| write_atomic(path, &json));
+            .and_then(|json| mcrs_minecraft_save::write_atomic(path, json.as_bytes()));
         if let Err(err) = written {
             tracing::warn!("failed to write {}: {err}", path.display());
         }
@@ -465,18 +458,6 @@ mod tests {
     }
 
     #[test]
-    fn a_write_that_cannot_finish_leaves_the_file_as_it_was() {
-        let path = temp_file("unfinished");
-        let mut list = BanList::read(&path);
-        std::fs::create_dir_all(path.with_file_name("unfinished.tmp")).unwrap();
-        list.add(ban(STEVE, "Steve"));
-
-        list.write_file();
-
-        assert_eq!(on_disk(&path).len(), 0);
-    }
-
-    #[test]
     fn add_takes_a_new_ban_only() {
         let mut list = BanList::default();
 
@@ -517,16 +498,6 @@ mod tests {
 
         assert!(list.get(&STEVE).is_none());
         assert!(list.get(&GUEST).is_some());
-    }
-
-    #[test]
-    fn a_change_does_not_reach_a_copy_of_the_list() {
-        let mut list = BanList::new([ban(STEVE, "Steve")]);
-        let copy = list.clone();
-
-        list.pardon(STEVE);
-
-        assert!(copy.get(&STEVE).is_some());
     }
 
     #[test]

@@ -1,6 +1,3 @@
-//! Writes the keyframe clips of the frog from the clip artefact, and checks that the file in the
-//! repository is current.
-
 use std::fmt::Write;
 
 use mcrs_minecraft_fixtures::fixture;
@@ -10,10 +7,8 @@ use crate::pack;
 
 const FROG_ANIMATIONS: &str = "animations/frog.animation.json";
 
-/// The settings of a clip that the artefact does not give.
 struct Settings {
     id: &'static str,
-    /// The loop mode of a clip that the artefact does not mark as looping.
     hold: bool,
     anim_time_update: Option<&'static str>,
 }
@@ -51,7 +46,6 @@ const FROG: [Settings; 6] = [
     },
 ];
 
-/// The head scale of the tongue clip differs from the reference and is dropped.
 fn dropped(clip: &str, bone: &str, channel: &str) -> bool {
     clip == "frog/tongue" && bone == "head" && channel == "scale"
 }
@@ -70,7 +64,6 @@ fn vector(value: [f64; 3]) -> String {
     )
 }
 
-/// A value of the artefact in file space.
 fn file_value(channel: &str, [x, y, z]: [f64; 3]) -> [f64; 3] {
     match channel {
         "position" => [x, -y, z],

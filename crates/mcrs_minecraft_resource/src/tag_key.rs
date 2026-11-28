@@ -4,8 +4,6 @@ use core::marker::PhantomData;
 
 use crate::{ResourceLocation, TagKeyBuf};
 
-/// A borrowed reference to a tag of the registry `R`. It is `Copy`, and the generated
-/// constants are `TagKey<'static, R>`; [`TagKeyBuf`] is the owned form.
 pub struct TagKey<'a, R> {
     location: ResourceLocation<'a>,
     _marker: PhantomData<fn() -> R>,
@@ -32,7 +30,6 @@ impl<'a, R> TagKey<'a, R> {
         self.location
     }
 
-    /// The owned form, with one allocation.
     pub fn to_buf(self) -> TagKeyBuf<R> {
         TagKeyBuf::from_location(self.location.to_buf())
     }

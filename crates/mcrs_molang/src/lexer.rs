@@ -72,9 +72,7 @@ impl Punct {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum TokenKind {
     Number(f32),
-    /// The text between the quotes, with its case.
     String(Box<str>),
-    /// A name, folded to lower case.
     Name(Box<str>),
     Punct(Punct),
     End,
@@ -116,7 +114,6 @@ const PUNCTS: [(&str, Punct); 27] = [
     (".", Punct::Dot),
 ];
 
-/// Splits the text into tokens. The last token is always [`TokenKind::End`].
 pub(crate) fn lex(source: &str, diagnostics: &mut Vec<Diagnostic>) -> Vec<Token> {
     let bytes = source.as_bytes();
     let mut tokens = Vec::new();

@@ -1,0 +1,225 @@
+{
+  "version": {
+    "name": "26.4 Snapshot 7",
+    "protocol": 1073742169
+  },
+  "steps": [
+    {
+      "id": "operator_joins",
+      "observed": "joined"
+    },
+    {
+      "id": "player_joins",
+      "observed": "joined"
+    },
+    {
+      "id": "ban_online_player",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.ban.success",
+              "with": [
+                "blonline",
+                {
+                  "translate": "multiplayer.disconnect.banned.reason.default"
+                }
+              ]
+            },
+            {
+              "translate": "multiplayer.player.left",
+              "with": [
+                {
+                  "text": "blonline",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell blonline "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      -573004449,
+                      -356436017,
+                      -1977198953,
+                      -1678172225
+                    ],
+                    "name": "blonline"
+                  },
+                  "insertion": "blonline"
+                }
+              ],
+              "color": "yellow"
+            }
+          ],
+          "disconnects": [
+            {
+              "client": "blonline",
+              "reason": {
+                "translate": "multiplayer.disconnect.banned"
+              }
+            }
+          ]
+        }
+      },
+      "player_bans": [
+        {
+          "uuid": "ddd8a55f-eac1-37cf-8a26-56979bf91fbf",
+          "name": "blonline",
+          "source": "bloperator",
+          "expires": "forever"
+        }
+      ]
+    },
+    {
+      "id": "ban_banned_player",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "commands.ban.failed"
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "banlist",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.banlist.list",
+              "with": [
+                1
+              ]
+            },
+            {
+              "translate": "commands.banlist.entry",
+              "with": [
+                "blonline",
+                "bloperator",
+                {
+                  "translate": "multiplayer.disconnect.banned.reason.default"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "banned_player_joins",
+      "observed": {
+        "refused": {
+          "state": "login",
+          "reason": {
+            "translate": "multiplayer.disconnect.banned.reason",
+            "with": [
+              {
+                "translate": "multiplayer.disconnect.banned.reason.default"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "ban_with_reason",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.ban.success",
+              "with": [
+                "blreason",
+                "griefing the spawn"
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "player_bans": [
+        {
+          "uuid": "ddd8a55f-eac1-37cf-8a26-56979bf91fbf",
+          "name": "blonline",
+          "source": "bloperator",
+          "expires": "forever"
+        },
+        {
+          "uuid": "abe2353f-4d01-3b7f-9d0e-c7a56b0fbf26",
+          "name": "blreason",
+          "source": "bloperator",
+          "expires": "forever",
+          "reason": "griefing the spawn"
+        }
+      ]
+    },
+    {
+      "id": "player_banned_with_reason_joins",
+      "observed": {
+        "refused": {
+          "state": "login",
+          "reason": {
+            "translate": "multiplayer.disconnect.banned.reason",
+            "with": [
+              "griefing the spawn"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "pardon",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.pardon.success",
+              "with": [
+                "blreason"
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pardon_again",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "commands.pardon.failed"
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pardoned_player_joins",
+      "observed": "joined"
+    },
+    {
+      "id": "pardoned_player_leaves",
+      "observed": "left"
+    }
+  ]
+}

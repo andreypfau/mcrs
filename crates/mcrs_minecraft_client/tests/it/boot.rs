@@ -43,6 +43,7 @@ pub fn boot(extra: impl FnOnce(&mut App)) -> App {
     })
     .add_plugins(ClientRegistriesPlugin {
         local_corpus: Some(test_packs()),
+        ..default()
     });
     extra(&mut app);
     app.finish();
@@ -50,8 +51,6 @@ pub fn boot(extra: impl FnOnce(&mut App)) -> App {
     app
 }
 
-/// Hands the client what a server holding the local corpus sends at the end of configuration:
-/// the vanilla entries arrive without data. `edit` changes it on the way.
 pub fn receive_registries(app: &mut App, connection: Entity, edit: impl FnOnce(&mut Received)) {
     let mut registries = sent_by(test_registries(), true);
     edit(&mut registries);
@@ -108,7 +107,6 @@ fn body<P: Encode>(packet: &P) -> Bytes {
     body.into()
 }
 
-/// The number `name` has in the received registry of `V`.
 pub fn received_id<V: RegistryValue + 'static>(app: &App, name: &str) -> Id<V::Registry> {
     let registry = app
         .world()

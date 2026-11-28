@@ -32,7 +32,7 @@ use mcrs_minecraft_brain::TileWork;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_voxel::BlockPos;
 
@@ -42,32 +42,23 @@ use crate::PigBrain;
 use crate::Pond;
 use crate::STROLL_IDLE_LIMIT;
 
-/// How the pen sets the idle time of a pig.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum IdleRule {
-    /// As the reference: 0 while a player is within 32 blocks, else one more in each tick.
     FromPlayers,
-    /// Always 0, as if a player stood near each pig.
     AlwaysNear,
-    /// Always above the limit of the stroll, as if each player were far.
     AlwaysFar,
 }
 
-/// The scene of a pen.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PenConfig {
     pub side: i32,
     pub pigs: u32,
     pub players: u32,
-    /// The chance of a hit of a type that causes panic, for each pig in each tick.
     pub hurt_chance: f64,
     pub idle: IdleRule,
     pub seed: u64,
 }
 
-/// A host for tests and benches of the stage: pigs on a [`FlatGround`] with a few players that do
-/// not move. In each tick it publishes the snapshot, runs the stage, applies the due decisions and
-/// moves each pig straight to its target at the steady speed of a walk on grass.
 #[derive(Debug)]
 pub struct PigPen {
     config: PenConfig,
@@ -82,7 +73,7 @@ pub struct PigPen {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct HostPig {
-    key: EntityKey,
+    key: EntityUuid,
     position: DVec3,
     tile: TileKey,
     cadence: Cadence,
@@ -108,7 +99,6 @@ enum Look {
     Around,
 }
 
-/// What one tick of the pen did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PenTick {
     pub tick: u64,
@@ -129,7 +119,7 @@ impl PigPen {
         let mut driver = AiDriver::new(stage_config);
         let pigs: Vec<HostPig> = (0..config.pigs)
             .map(|index| {
-                let key = EntityKey(u128::from(index) << 64);
+                let key = EntityUuid::from_u128(u128::from(index) << 64);
                 let mut random = KeyedRandom::new(seed, &key, 0, PLACE);
                 let position = DVec3::new(random.unit() * side, 0.0, random.unit() * side);
                 let offset = u8::try_from(random.below(4)).unwrap_or(0);
@@ -162,13 +152,13 @@ impl PigPen {
         }
         let players = (0..config.players)
             .map(|index| {
-                let key = EntityKey(u128::from(index) << 64 | 1);
+                let key = EntityUuid::from_u128(u128::from(index) << 64 | 1);
                 let mut random = KeyedRandom::new(seed, &key, 0, PLACE);
                 PlayerRow {
                     player: EntityId(u64::from(index)),
                     key,
                     position: DVec3::new(random.unit() * side, 0.0, random.unit() * side),
-                    eye_height: 1.62,
+                    eye_height: EntityTypeData::PLAYER.eye_height,
                     flags: PlayerFlags::ALIVE,
                     visibility: 1.0,
                     vehicle: None,
@@ -190,8 +180,6 @@ impl PigPen {
         }
     }
 
-    /// One tick: the snapshot, the stage through `run` (a parallel map over the tile tasks, or
-    /// [`run_tiles`]), the application of the due decisions and the hot step of each pig.
     pub fn step(
         &mut self,
         run: impl FnOnce(&mut [TileWork<'_, PigBrain>], &TickContext<'_, FlatGround>),
@@ -209,7 +197,6 @@ impl PigPen {
         PenTick { tick, decisions }
     }
 
-    /// The tick of the next [`PigPen::step`].
     #[must_use]
     pub const fn tick(&self) -> u64 {
         self.driver.tick().saturating_add(1)
@@ -225,19 +212,16 @@ impl PigPen {
         self.decisions
     }
 
-    /// The ticks in which a due decision was not ready; 0 when the stage runs inside the tick.
     #[must_use]
     pub const fn waits(&self) -> u64 {
         self.driver.waits()
     }
 
-    /// The count of pigs that walk now.
     #[must_use]
     pub fn walking(&self) -> usize {
         self.pigs.iter().filter(|pig| pig.walk.is_some()).count()
     }
 
-    /// A hash of the pigs and of every brain: equal runs give equal hashes in each tick.
     #[must_use]
     pub fn state_hash(&self, scope: HashScope) -> u64 {
         let mut hasher = StateHasher::default();
@@ -262,7 +246,6 @@ impl PigPen {
         hasher.finish()
     }
 
-    /// Sets the damage record of pig `index` as a hit in the last tick.
     pub fn hurt(&mut self, index: usize, cause: DamageCause) {
         let tick = self.driver.tick();
         if let Some(pig) = self.pigs.get_mut(index) {
@@ -275,7 +258,6 @@ impl PigPen {
         }
     }
 
-    /// The position of pig `index` and whether it walks.
     #[must_use]
     pub fn pig(&self, index: usize) -> Option<PenPig> {
         self.pigs.get(index).map(|pig| PenPig {
@@ -291,7 +273,6 @@ impl PigPen {
         })
     }
 
-    /// Puts pig `index` at `position`.
     pub fn place_pig(&mut self, index: usize, position: DVec3) {
         if let Some(pig) = self.pigs.get_mut(index) {
             pig.position = position;
@@ -300,19 +281,16 @@ impl PigPen {
         }
     }
 
-    /// Fills `pond` with water. A pig whose feet are in it is in water.
     pub fn flood(&mut self, pond: Pond) {
         self.ground.pond = Some(pond);
     }
 
-    /// Sets whether pig `index` burns.
     pub fn set_on_fire(&mut self, index: usize, on_fire: bool) {
         if let Some(pig) = self.pigs.get_mut(index) {
             pig.on_fire = on_fire;
         }
     }
 
-    /// Moves the players to `players`.
     pub fn set_players(&mut self, players: Vec<PlayerRow>) {
         self.players = players;
     }
@@ -446,19 +424,15 @@ impl PigPen {
     }
 }
 
-/// One pig of a pen, as a test reads it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PenPig {
     pub position: DVec3,
-    /// The blocks that the pig walks in each tick, while it walks.
     pub walk_speed: Option<f64>,
-    /// The end of the walk, while the pig walks.
     pub walk_target: Option<DVec3>,
     pub look: PenLook,
     pub panic: Panic,
 }
 
-/// What a pig of a pen looks at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PenLook {
     Idle,
@@ -466,16 +440,12 @@ pub enum PenLook {
     Around,
 }
 
-/// Which state a hash of a pen covers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HashScope {
-    /// The pigs, the brains and the wake tick of each brain.
     Everything,
-    /// The pigs and the brains without their wake ticks, which differ between the wake modes.
     Decisions,
 }
 
-/// Runs the tile tasks one after the other.
 pub fn run_tiles(work: &mut [TileWork<'_, PigBrain>], cx: &TickContext<'_, FlatGround>) {
     for task in work {
         task.run(cx);
@@ -523,7 +493,6 @@ fn view(index: usize, pig: &HostPig, in_water: bool) -> MobView {
     }
 }
 
-/// FNV-1a over the bytes that the state writes.
 struct StateHasher(u64);
 
 impl Default for StateHasher {

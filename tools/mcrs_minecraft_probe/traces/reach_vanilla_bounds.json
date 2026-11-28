@@ -1,0 +1,1121 @@
+{
+  "version": {
+    "name": "26.4 Snapshot 7",
+    "protocol": 1073742169
+  },
+  "steps": [
+    {
+      "id": "join",
+      "observed": "joined",
+      "inventory": [
+        {
+          "client": "reachboundsprobe",
+          "kind": "set_held_slot",
+          "slot": 0
+        },
+        {
+          "client": "reachboundsprobe",
+          "kind": "container_set_content",
+          "container": 0,
+          "state_id": 1,
+          "slots": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "carried": null
+        }
+      ]
+    },
+    {
+      "id": "prepare",
+      "observed": {
+        "console": {
+          "output": [
+            "The difficulty has been set to Peaceful",
+            "Game rule spawn_mobs is now set to false",
+            "Killed 2 entities",
+            "No blocks were filled",
+            "Successfully filled 187 block(s)",
+            "No items were found on player reachboundsprobe"
+          ],
+          "chat": [
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.difficulty.success",
+                    "with": [
+                      {
+                        "translate": "options.difficulty.peaceful"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.gamerule.set",
+                    "with": [
+                      "spawn_mobs",
+                      "false"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.kill.success.multiple",
+                    "with": [
+                      2
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.fill.success",
+                    "with": [
+                      187
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "inventory": [
+        {
+          "client": "reachboundsprobe",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 2,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "setup_attack_5_95",
+      "observed": {
+        "console": {
+          "output": [
+            "No entity was found",
+            "Summoned new Pig",
+            "Teleported reachboundsprobe to 0.500000, -60.000000, 0.500000"
+          ],
+          "chat": [
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            -2057679446,
+                            2049394525,
+                            -1891612539,
+                            -911637187
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "855a4daa-7a27-475d-8f40-4885c9a9853d"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachboundsprobe",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachboundsprobe "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            68902170,
+                            1240284815,
+                            -1405348000,
+                            138495623
+                          ],
+                          "name": "reachboundsprobe"
+                        },
+                        "insertion": "reachboundsprobe"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.500000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "wait_attack_5_95",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "attack_5_95",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "read_attack_5_95",
+      "observed": {
+        "console": {
+          "output": [
+            "Pig has the following entity data: 9.0f"
+          ]
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "setup_attack_6_05",
+      "observed": {
+        "console": {
+          "output": [
+            "Killed Pig",
+            "Summoned new Pig",
+            "Teleported reachboundsprobe to 0.500000, -60.000000, 0.500000"
+          ],
+          "chat": [
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.kill.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            -2057679446,
+                            2049394525,
+                            -1891612539,
+                            -911637187
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "855a4daa-7a27-475d-8f40-4885c9a9853d"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.pig",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:pig",
+                          "uuid": [
+                            150035750,
+                            -1464646761,
+                            -1322811532,
+                            -1523027638
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.pig"
+                          }
+                        },
+                        "insertion": "08f15d26-a8b3-4397-b127-7f74a538714a"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachboundsprobe",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachboundsprobe "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            68902170,
+                            1240284815,
+                            -1405348000,
+                            138495623
+                          ],
+                          "name": "reachboundsprobe"
+                        },
+                        "insertion": "reachboundsprobe"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.500000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "wait_attack_6_05",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "attack_6_05",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "read_attack_6_05",
+      "observed": {
+        "console": {
+          "output": [
+            "Pig has the following entity data: 10.0f"
+          ]
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "setup_interact_5_95",
+      "observed": {
+        "console": {
+          "output": [
+            "No entity was found",
+            "Summoned new Minecart with Chest",
+            "Teleported reachboundsprobe to 0.500000, -60.000000, 0.500000"
+          ],
+          "chat": [
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.chest_minecart",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:chest_minecart",
+                          "uuid": [
+                            1937331528,
+                            1573736336,
+                            -1634565807,
+                            -1645196328
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.chest_minecart"
+                          }
+                        },
+                        "insertion": "73795548-5dcd-4f90-9e92-81519df04bd8"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachboundsprobe",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachboundsprobe "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            68902170,
+                            1240284815,
+                            -1405348000,
+                            138495623
+                          ],
+                          "name": "reachboundsprobe"
+                        },
+                        "insertion": "reachboundsprobe"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.500000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "wait_interact_5_95",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "interact_5_95",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "reachboundsprobe",
+          "kind": "open_screen",
+          "container": 1,
+          "menu": "minecraft:generic_9x3",
+          "title": {
+            "translate": "entity.minecraft.chest_minecart",
+            "hover_event": {
+              "action": "show_entity",
+              "id": "minecraft:chest_minecart",
+              "uuid": [
+                1937331528,
+                1573736336,
+                -1634565807,
+                -1645196328
+              ],
+              "name": {
+                "translate": "entity.minecraft.chest_minecart"
+              }
+            },
+            "insertion": "73795548-5dcd-4f90-9e92-81519df04bd8"
+          }
+        },
+        {
+          "client": "reachboundsprobe",
+          "kind": "container_set_content",
+          "container": 1,
+          "state_id": 1,
+          "slots": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "carried": null
+        }
+      ]
+    },
+    {
+      "id": "close_interact_5_95",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "setup_interact_6_05",
+      "observed": {
+        "console": {
+          "output": [
+            "Killed Minecart with Chest",
+            "Summoned new Minecart with Chest",
+            "Teleported reachboundsprobe to 0.500000, -60.000000, 0.500000"
+          ],
+          "chat": [
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.kill.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.chest_minecart",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:chest_minecart",
+                          "uuid": [
+                            1937331528,
+                            1573736336,
+                            -1634565807,
+                            -1645196328
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.chest_minecart"
+                          }
+                        },
+                        "insertion": "73795548-5dcd-4f90-9e92-81519df04bd8"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.summon.success",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.chest_minecart",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:chest_minecart",
+                          "uuid": [
+                            -1245484888,
+                            1257784377,
+                            -2027095435,
+                            311453244
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.chest_minecart"
+                          }
+                        },
+                        "insertion": "b5c368a8-4af8-4439-872c-fa751290663c"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachboundsprobe",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachboundsprobe "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            68902170,
+                            1240284815,
+                            -1405348000,
+                            138495623
+                          ],
+                          "name": "reachboundsprobe"
+                        },
+                        "insertion": "reachboundsprobe"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.500000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "wait_interact_6_05",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "interact_6_05",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "close_interact_6_05",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "setup_menu",
+      "observed": {
+        "console": {
+          "output": [
+            "Killed Minecart with Chest",
+            "Changed the block at 0, -60, 2",
+            "Teleported reachboundsprobe to 0.500000, -60.000000, 0.500000"
+          ],
+          "chat": [
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.kill.success.single",
+                    "with": [
+                      {
+                        "translate": "entity.minecraft.chest_minecart",
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:chest_minecart",
+                          "uuid": [
+                            -1245484888,
+                            1257784377,
+                            -2027095435,
+                            311453244
+                          ],
+                          "name": {
+                            "translate": "entity.minecraft.chest_minecart"
+                          }
+                        },
+                        "insertion": "b5c368a8-4af8-4439-872c-fa751290663c"
+                      }
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.setblock.success",
+                    "with": [
+                      0,
+                      -60,
+                      2
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            },
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachboundsprobe",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachboundsprobe "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            68902170,
+                            1240284815,
+                            -1405348000,
+                            138495623
+                          ],
+                          "name": "reachboundsprobe"
+                        },
+                        "insertion": "reachboundsprobe"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "0.500000"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "wait_menu",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "open_chest",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "reachboundsprobe",
+          "kind": "open_screen",
+          "container": 2,
+          "menu": "minecraft:generic_9x3",
+          "title": {
+            "translate": "container.chest"
+          }
+        },
+        {
+          "client": "reachboundsprobe",
+          "kind": "container_set_content",
+          "container": 2,
+          "state_id": 1,
+          "slots": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "carried": null
+        }
+      ]
+    },
+    {
+      "id": "move_8_4",
+      "observed": {
+        "console": {
+          "output": [
+            "Teleported reachboundsprobe to 0.500000, -60.000000, -6.377090"
+          ],
+          "chat": [
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachboundsprobe",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachboundsprobe "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            68902170,
+                            1240284815,
+                            -1405348000,
+                            138495623
+                          ],
+                          "name": "reachboundsprobe"
+                        },
+                        "insertion": "reachboundsprobe"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "-6.377090"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "wait_8_4",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "move_8_6",
+      "observed": {
+        "console": {
+          "output": [
+            "Teleported reachboundsprobe to 0.500000, -60.000000, -6.577620"
+          ],
+          "chat": [
+            {
+              "client": "reachboundsprobe",
+              "text": {
+                "translate": "chat.type.admin",
+                "with": [
+                  "Server",
+                  {
+                    "translate": "commands.teleport.success.location.single",
+                    "with": [
+                      {
+                        "text": "reachboundsprobe",
+                        "click_event": {
+                          "action": "suggest_command",
+                          "command": "/tell reachboundsprobe "
+                        },
+                        "hover_event": {
+                          "action": "show_entity",
+                          "id": "minecraft:player",
+                          "uuid": [
+                            68902170,
+                            1240284815,
+                            -1405348000,
+                            138495623
+                          ],
+                          "name": "reachboundsprobe"
+                        },
+                        "insertion": "reachboundsprobe"
+                      },
+                      "0.500000",
+                      "-60.000000",
+                      "-6.577620"
+                    ]
+                  }
+                ],
+                "color": "gray",
+                "italic": true
+              }
+            }
+          ]
+        }
+      },
+      "inventory": [
+        {
+          "client": "reachboundsprobe",
+          "kind": "container_close",
+          "container": 2
+        }
+      ]
+    },
+    {
+      "id": "wait_8_6",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    }
+  ]
+}

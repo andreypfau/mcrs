@@ -1,14 +1,6 @@
-//! A node is evaluated over its whole stratum, one column at a time, and within
-//! a column it holds either a single scalar or a run of `sy` values. These
-//! helpers resolve which, once, outside the inner loop, so the loop the compiler
-//! sees has no branch and no indirection.
-
 use crate::sample_grid::SampleGrid;
 use crate::strata::{AXIS_X, AXIS_Z, Axes, run_len};
 
-/// One node's whole stratum buffer, addressed by the column being evaluated. An
-/// axis the stratum drops gets stride zero, so the same lookup broadcasts it
-/// over every column that shares the value.
 #[derive(Clone, Copy)]
 pub struct Runs<'a> {
     data: &'a [f32],
@@ -36,15 +28,23 @@ impl<'a> Runs<'a> {
     }
 
     #[inline]
+    fn whole(self, ext: &SampleGrid, len: usize) -> Option<&'a [f32]> {
+        let size = ext.size();
+        let (sx, sy) = (size.x as usize, size.y as usize);
+        if self.run == sy && self.stride_x == sy && self.stride_z == sx * sy {
+            self.data.get(..len)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
     pub fn col(self, ix: usize, iz: usize) -> &'a [f32] {
         let base = ix * self.stride_x + iz * self.stride_z;
         self.data.get(base..base + self.run).unwrap_or_default()
     }
 }
 
-/// Splits a node's output buffer into its columns, in the order the stratum lays
-/// them out: Y fastest, then X, then Z, with a dropped axis contributing one
-/// iteration. `ext` is the node's own stratum, so its size *is* the loop bound.
 #[inline]
 pub fn each_column(out: &mut [f32], ext: &SampleGrid, mut f: impl FnMut(&mut [f32], usize, usize)) {
     let size = ext.size();
@@ -111,9 +111,6 @@ fn zip3(out: &mut [f32], a: &[f32], b: &[f32], c: &[f32], f: impl Fn(f32, f32, f
         }
         return;
     }
-    // A broadcast run holds one value, so its stride is zero and `i * stride`
-    // re-reads element zero for every i. Which operands broadcast is settled
-    // here; the loop that runs carries no test of its own.
     let stride = |s: &[f32]| usize::from(s.len() == n);
     let (sa, sb, sc) = (stride(a), stride(b), stride(c));
     let read = |s: &[f32], i: usize| s.get(i).copied().unwrap_or_default();
@@ -124,6 +121,12 @@ fn zip3(out: &mut [f32], a: &[f32], b: &[f32], c: &[f32], f: impl Fn(f32, f32, f
 
 #[inline]
 pub fn map_columns(out: &mut [f32], ext: &SampleGrid, a: Runs<'_>, f: impl Fn(f32) -> f32) {
+    if let Some(a) = a.whole(ext, out.len()) {
+        for (o, &x) in out.iter_mut().zip(a) {
+            *o = f(x);
+        }
+        return;
+    }
     each_column(out, ext, |run, ix, iz| map1(run, a.col(ix, iz), &f));
 }
 
@@ -135,6 +138,12 @@ pub fn zip2_columns(
     b: Runs<'_>,
     f: impl Fn(f32, f32) -> f32,
 ) {
+    if let (Some(a), Some(b)) = (a.whole(ext, out.len()), b.whole(ext, out.len())) {
+        for (o, (&x, &y)) in out.iter_mut().zip(a.iter().zip(b)) {
+            *o = f(x, y);
+        }
+        return;
+    }
     each_column(out, ext, |run, ix, iz| {
         zip2(run, a.col(ix, iz), b.col(ix, iz), &f)
     });
@@ -154,8 +163,6 @@ pub fn zip3_columns(
     });
 }
 
-/// Reads element `i` of a run that may be a broadcast scalar. Only for paths
-/// that cannot hoist the decision, such as the arm merge in a selection node.
 #[inline]
 pub fn at(s: &[f32], i: usize) -> f32 {
     match s {

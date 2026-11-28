@@ -24,7 +24,6 @@ use mcrs_minecraft_block::block_keys::Block;
 const MAX_PILLAR_HEIGHT: i32 = 20;
 const MAX_CHAIN_HEIGHT: i32 = 50;
 
-/// The blocks whose class is `FallingBlock`, which a chain never hangs from.
 const FALLING_BLOCKS: [Block; 23] = [
     Block::Sand,
     Block::RedSand,
@@ -66,17 +65,15 @@ pub struct MineshaftBlocks {
     pub torch_south: Oriented,
     pub torch_north: Oriented,
     pub spawner: VoxelId,
-    /// `canBeReplaced`, negated: the timber a `placeBlock` never overwrites.
     pub timber: StateMask,
     pub replaceable_by_structures: StateMask,
-    /// `canHangChainBelow`: `canSupportCenter(DOWN)` on a block that does not fall.
     pub chain_support: StateMask,
     pub blocking: BiomeMask,
 }
 
 impl MineshaftBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
         mineshaft_type: MineshaftType,
         blocking: BiomeMask,
@@ -117,7 +114,6 @@ impl MineshaftBlocks {
     }
 }
 
-/// Each type's `postProcess` for one column.
 pub fn paint_mineshaft<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     piece: &MineshaftPiece,
@@ -158,8 +154,6 @@ pub fn paint_mineshaft<W: WorldGenVolume>(
     }
 }
 
-/// `isInInvalidLocation`: a blocking biome at the centre of the piece's box
-/// grown by one and clipped, or liquid anywhere on that box's shell.
 fn in_invalid_location<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     region: &W,
@@ -212,7 +206,6 @@ fn sturdy_up<W: WorldGenVolume>(c: &PieceCanvas<'_, W>, pos: BlockPos) -> bool {
     c.volume.holds(&c.volume.world().sturdy_up, pos)
 }
 
-/// `setPlanksBlock`: planks under an interior cell whose block is not sturdy.
 fn set_planks<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     c: &mut PieceCanvas<'_, W>,
@@ -403,7 +396,6 @@ fn corridor<W: WorldGenVolume>(
     }
 }
 
-/// `placeSupport` over the corridor's full width and height.
 fn place_support<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     c: &mut PieceCanvas<'_, W>,
@@ -439,8 +431,6 @@ fn maybe_cobweb<W: WorldGenVolume>(
     }
 }
 
-/// `hasSturdyNeighbours`: `count` of the six neighbours inside the clip with a
-/// sturdy face towards the cell.
 fn sturdy_neighbours<W: WorldGenVolume>(
     c: &PieceCanvas<'_, W>,
     x: i32,
@@ -467,8 +457,6 @@ fn sturdy_neighbours<W: WorldGenVolume>(
         >= count
 }
 
-/// The corridor's `createChest`: a rail and a chest minecart on it, where the
-/// cell is air over something that is not.
 fn create_minecart<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     c: &mut PieceCanvas<'_, W>,
@@ -496,8 +484,6 @@ fn create_minecart<W: WorldGenVolume>(
     ));
 }
 
-/// `placeDoubleLowerOrUpperSupport`: both corridor edges at `z`, where the
-/// floor is planks.
 fn double_support<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut PieceCanvas<'_, W>, z: i32) {
     let planks = c.volume.world().block_of(b.planks.unoriented());
     for x in [0, 2] {
@@ -507,9 +493,6 @@ fn double_support<W: WorldGenVolume>(b: &MineshaftBlocks, c: &mut PieceCanvas<'_
     }
 }
 
-/// `fillPillarDownOrChainUp`: a wood pillar down to the first sturdy block
-/// within twenty, or a fence and a chain up to the first support within fifty,
-/// whichever the alternating walk finds first.
 fn pillar_down_or_chain_up<W: WorldGenVolume>(
     b: &MineshaftBlocks,
     c: &mut PieceCanvas<'_, W>,

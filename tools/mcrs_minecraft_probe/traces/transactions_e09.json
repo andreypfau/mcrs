@@ -1,0 +1,1287 @@
+{
+  "version": {
+    "name": "26.4 Snapshot 7",
+    "protocol": 1073742169
+  },
+  "steps": [
+    {
+      "id": "join",
+      "observed": "joined",
+      "inventory": [
+        {
+          "client": "itxe09probeplyr",
+          "kind": "set_held_slot",
+          "slot": 0
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_content",
+          "container": 0,
+          "state_id": 1,
+          "slots": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "carried": null
+        }
+      ]
+    },
+    {
+      "id": "peaceful",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.difficulty.success",
+              "with": [
+                {
+                  "translate": "options.difficulty.peaceful"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "teleport_to_origin",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.teleport.success.location.single",
+              "with": [
+                {
+                  "text": "itxe09probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell itxe09probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      -665667977,
+                      -745653969,
+                      -2133571702,
+                      -1074472822
+                    ],
+                    "name": "itxe09probeplyr"
+                  },
+                  "insertion": "itxe09probeplyr"
+                },
+                "0.500000",
+                "-60.000000",
+                "0.500000"
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "survival",
+      "observed": {
+        "command": {
+          "replies": [],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "place_chest",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.setblock.success",
+              "with": [
+                1,
+                -60,
+                0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "stone_40_in_chest_0",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.block.replace.success.known_item",
+              "with": [
+                1,
+                1,
+                -60,
+                0,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "stone_40_in_chest_5",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.block.replace.success.known_item",
+              "with": [
+                1,
+                1,
+                -60,
+                0,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "stone_64_in_p0",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "itxe09probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell itxe09probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      -665667977,
+                      -745653969,
+                      -2133571702,
+                      -1074472822
+                    ],
+                    "name": "itxe09probeplyr"
+                  },
+                  "insertion": "itxe09probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 64
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 2,
+          "slot": 36,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "open_chest",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "itxe09probeplyr",
+          "kind": "open_screen",
+          "container": 1,
+          "menu": "minecraft:generic_9x3",
+          "title": {
+            "translate": "container.chest"
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_content",
+          "container": 1,
+          "state_id": 1,
+          "slots": [
+            {
+              "item": "minecraft:stone",
+              "count": 40,
+              "components": {
+                "added": [],
+                "removed": []
+              }
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "item": "minecraft:stone",
+              "count": 40,
+              "components": {
+                "added": [],
+                "removed": []
+              }
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "item": "minecraft:stone",
+              "count": 64,
+              "components": {
+                "added": [],
+                "removed": []
+              }
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "carried": null
+        }
+      ]
+    },
+    {
+      "id": "quick_move_p0_to_chest",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 2,
+          "slot": 0,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 3,
+          "slot": 1,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 16,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 4,
+          "slot": 5,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 5,
+          "slot": 54,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "read_chest",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.block.query",
+              "with": [
+                1,
+                -60,
+                0,
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "64",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "16",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "64",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "5",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "itxe09probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell itxe09probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      -665667977,
+                      -745653969,
+                      -2133571702,
+                      -1074472822
+                    ],
+                    "name": "itxe09probeplyr"
+                  },
+                  "insertion": "itxe09probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "fill_chest_with_dirt",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.block.modified",
+              "with": [
+                1,
+                -60,
+                0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 6,
+          "slot": 0,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 7,
+          "slot": 1,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 8,
+          "slot": 2,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 9,
+          "slot": 3,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 10,
+          "slot": 4,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 11,
+          "slot": 5,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 12,
+          "slot": 6,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 13,
+          "slot": 7,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 14,
+          "slot": 8,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 15,
+          "slot": 9,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 16,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 17,
+          "slot": 11,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 18,
+          "slot": 12,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 19,
+          "slot": 13,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 20,
+          "slot": 14,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 21,
+          "slot": 15,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 22,
+          "slot": 16,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 23,
+          "slot": 17,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 24,
+          "slot": 18,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 25,
+          "slot": 19,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 26,
+          "slot": 20,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 27,
+          "slot": 21,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 28,
+          "slot": 22,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 29,
+          "slot": 23,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 30,
+          "slot": 24,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 31,
+          "slot": 25,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 32,
+          "slot": 26,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "full_chest_stone_64_in_p0",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "itxe09probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell itxe09probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      -665667977,
+                      -745653969,
+                      -2133571702,
+                      -1074472822
+                    ],
+                    "name": "itxe09probeplyr"
+                  },
+                  "insertion": "itxe09probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 64
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "itxe09probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 33,
+          "slot": 54,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "full_chest_quick_move_p0",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "full_chest_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "itxe09probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell itxe09probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      -665667977,
+                      -745653969,
+                      -2133571702,
+                      -1074472822
+                    ],
+                    "name": "itxe09probeplyr"
+                  },
+                  "insertion": "itxe09probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "64",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    }
+  ]
+}

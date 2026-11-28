@@ -5,7 +5,7 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 
 use crate::orient::{Orientation, find_collision, move_below_sea_level, orient_box, orient_box_at};
 use crate::piece::{Piece, SmallDoor, StrongholdKind, StrongholdPiece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 use super::{PieceWeight, TableEntry, WeightTable};
 
@@ -15,7 +15,10 @@ const START_Y: i32 = 64;
 const REACH: i32 = 112;
 const SEA_LEVEL_OFFSET: i32 = 10;
 
-pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    _rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     let chunk = ctx.chunk;
     Some((
         IVec3::new(chunk.min_block_x(), 0, chunk.min_block_z()),
@@ -28,7 +31,6 @@ struct Weight {
     kind: StrongholdKind,
     weight: i32,
     max_place_count: i32,
-    /// The generation depth a piece must exceed to be offered.
     min_depth: i32,
 }
 
@@ -68,10 +70,7 @@ struct Layout {
     start_min: IVec3,
 }
 
-/// `StrongholdStructure.generatePieces`: the whole tree is rebuilt on the
-/// chunk's large-feature stream salted by the try count until a portal room
-/// is part of it.
-pub fn layout(ctx: &mut Context<'_>, _site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, _site: Site) -> Vec<Piece> {
     use StrongholdKind::*;
     let weights = [
         entry(
@@ -151,7 +150,6 @@ impl Layout {
         entry.valid() && depth > entry.weight.min_depth
     }
 
-    /// Each type's `addChildren`.
     fn add_children(&mut self, index: usize, rng: &mut LegacyRandom) {
         use Side::*;
         use StrongholdKind::*;
@@ -224,10 +222,6 @@ impl Layout {
         }
     }
 
-    /// `generateSmallDoorChildForward`, `generateSmallDoorChildLeft` and
-    /// `generateSmallDoorChildRight`: `a` is the forward child's x offset or
-    /// the side child's y offset, `b` the forward child's y offset or the side
-    /// child's z offset.
     fn child(&mut self, parent: usize, rng: &mut LegacyRandom, side: Side, a: i32, b: i32) {
         let Some(piece) = self.pieces.get(parent) else {
             return;
@@ -268,7 +262,6 @@ impl Layout {
         self.generate_and_add(rng, foot, direction, depth);
     }
 
-    /// `generateAndAddPiece`.
     fn generate_and_add(
         &mut self,
         rng: &mut LegacyRandom,
@@ -288,9 +281,6 @@ impl Layout {
         }
     }
 
-    /// `generatePieceFromSmallDoor`: the imposed piece first, then five
-    /// weighted draws each walking the table from the drawn entry on until
-    /// one builds, then a filler corridor up to whatever is in the way.
     fn generate_piece(
         &mut self,
         rng: &mut LegacyRandom,
@@ -326,8 +316,6 @@ impl Layout {
         self.filler_corridor(foot, direction, depth)
     }
 
-    /// `FillerCorridor.findPieceBox`: a corridor shortened until it clears the
-    /// piece a full one would run into, one block longer than that.
     fn filler_corridor(
         &self,
         foot: IVec3,
@@ -363,9 +351,6 @@ impl Layout {
         None
     }
 
-    /// Each type's `createPiece`: the box, its floor above 10, no collision,
-    /// then the constructor's own draws; the library falls back to its short
-    /// box before giving up.
     fn create(
         &self,
         rng: &mut LegacyRandom,
@@ -436,7 +421,6 @@ impl Layout {
     }
 }
 
-/// `randomSmallDoor`.
 fn random_small_door(rng: &mut LegacyRandom) -> SmallDoor {
     match rng.next_i32_bound(5) {
         2 => SmallDoor::WoodDoor,

@@ -25,8 +25,6 @@ use std::hash::Hash;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex, OnceLock};
 
-/// The six climate roots at one quart position, which is where a carver source
-/// takes its biome from.
 pub fn climate_target_at(
     router: &NoiseRouter,
     ws: &mut Workspace,
@@ -46,33 +44,15 @@ pub fn climate_target_at(
     )
 }
 
-/// The climate table of a dimension's biome source, with each entry resolved
-/// to the carvers that biome runs.
-///
-/// Resolving at build time rather than per source means a source's lookup ends
-/// at the carver list itself, with no name to hash on the way.
 pub struct CarverBiomeTable {
     biomes: SourceBiomes,
-    /// Which entry each source chunk resolves to, by tile of `TILE` x `TILE`
-    /// chunks. Every column asks for the 17x17 sources around it, so the
-    /// columns next to it would derive 272 of the same climates again; the
-    /// reference memoises the answer on the source chunk itself.
     tiles: Mutex<SourceTiles>,
-    /// Columns per side of the regions the carvers walk at once.
     width: i32,
-    /// The masks of the regions built so far. Absent when a region is one
-    /// column, which no other column shares, and for a Beta source, which
-    /// carves from each column's own terrain.
     regions: Option<RegionCache>,
 }
 
-/// How a source chunk's biome is found, and the carvers each answer runs.
 enum SourceBiomes {
-    /// The six climate roots at the source, against a climate table.
     Climate(Box<ParameterList<Arc<[CarverConfig]>>>),
-    /// Temperature and humidity at the source through Beta's lookup grid, which
-    /// only ever answers a land biome: one carver list per land biome, in
-    /// discriminant order.
     Beta {
         lookup: Arc<[[BetaLandBiome; 64]; 64]>,
         land: Box<[Arc<[CarverConfig]>]>,
@@ -101,28 +81,12 @@ const TILE: i32 = 16;
 
 type Tile = Arc<[u16; (TILE * TILE) as usize]>;
 
-/// The seed is part of the key so a table reused across routers cannot answer
-/// with the other's climate.
 type TileKey = (u64, i32, i32);
 
-/// The tiles resolved most recently, at most `KEPT` of them.
-///
-/// The working set is the tiles under the columns in flight: a column touches
-/// up to four, and columns arrive in distance order, so the same few answer
-/// column after column while a player stays, and the ones behind a moving
-/// player go stale. Least recently used is that set, and the capacity bounds
-/// the memory rather than the explored area: `KEPT` tiles are 65k source
-/// chunks, some forty view distances of 32, in 128 KB.
-///
-/// A miss costs one strided fill of the tile, which is worth 256 columns of
-/// hits; the capacity only matters once more tiles than that are in flight at
-/// once, and then a column degrades to filling its own tiles rather than to
-/// anything worse.
 type SourceTiles = Lru<TileKey, Tile>;
 
 const KEPT: usize = 256;
 
-/// The values asked for most recently.
 struct Lru<K, V> {
     entries: Vec<(K, u64, V)>,
     clock: u64,
@@ -145,8 +109,6 @@ impl<K: PartialEq, V: Clone> Lru<K, V> {
         Some(value.clone())
     }
 
-    /// The value held for `key`, or `value()`, which once `capacity` are held
-    /// takes the place of the one asked for longest ago.
     fn get_or_insert_with(&mut self, key: K, capacity: usize, value: impl FnOnce() -> V) -> V {
         if let Some(held) = self.get(&key) {
             return held;
@@ -169,21 +131,10 @@ impl<K: PartialEq, V: Clone> Lru<K, V> {
     }
 }
 
-/// Columns per side of a region. A build walks (2 + 16)^2 = 324 sources for
-/// four columns where each column alone walks 289, and one entry holds
-/// 4 x 12,032 = 48,128 bytes of masks in the overworld.
 pub const REGION_WIDTH: i32 = 2;
 
-/// Regions kept, the least recently used leaving first: 256 x 48,128 =
-/// 12,320,768 bytes in the overworld. A miss rebuilds the region in under a
-/// millisecond and changes no block. 256 holds the regions of a view 32
-/// columns in every direction twice over.
 pub const REGION_CAPACITY: usize = 256;
 
-/// What a region's masks depend on besides the carvers of the table that holds
-/// them: the seed the carver draws start from, the seed of the climate that
-/// picks the carvers, the vertical range the carvers and the mask are resolved
-/// against, and where the region is.
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct RegionKey {
     world_seed: i64,
@@ -197,14 +148,6 @@ struct RegionKey {
 
 type RegionCell = OnceLock<Arc<[CarvingMask]>>;
 
-/// The regions built most recently, at most `capacity` of them, each built once
-/// by whichever column asks first.
-///
-/// The list lock covers finding or inserting a cell and nothing else: the
-/// build runs inside the cell, outside the lock, so a second asker of the same
-/// region waits for the first and askers of other regions are not held up. A
-/// region replaced while it is being built is built again by its next asker;
-/// both are the same function of the key.
 struct RegionCache {
     capacity: usize,
     list: Mutex<Lru<RegionKey, Arc<RegionCell>>>,
@@ -242,7 +185,6 @@ impl RegionCache {
     }
 }
 
-/// One column's mask: its slot of the region it was carved in.
 pub struct RegionSlot {
     region: Arc<[CarvingMask]>,
     slot: usize,
@@ -269,15 +211,12 @@ impl CarverBiomeTable {
         self.biomes.lists().count()
     }
 
-    /// Whether any biome of the table runs a carver `kind` accepts.
     pub fn runs(&self, kind: impl Fn(&CarverConfig) -> bool) -> bool {
         self.biomes.lists().any(|carvers| carvers.iter().any(&kind))
     }
 }
 
 impl CarverBiomeTable {
-    /// `lookup` is called once per distinct biome of `climate`, not once per
-    /// entry.
     pub fn from_climate<B: Copy + Eq + Hash>(
         climate: &ParameterList<B>,
         lookup: impl Fn(B) -> Arc<[CarverConfig]>,
@@ -293,7 +232,6 @@ impl CarverBiomeTable {
             .with_region(REGION_WIDTH, REGION_CAPACITY)
     }
 
-    /// A source that lists its biomes rather than naming a preset.
     pub fn from_entries<B: Clone + Eq + Hash>(
         entries: Vec<(ParameterPoint, B)>,
         lookup: impl Fn(&B) -> Arc<[CarverConfig]>,
@@ -318,8 +256,6 @@ impl CarverBiomeTable {
         )
     }
 
-    /// A Beta source, whose biome is a function of temperature and humidity
-    /// alone.
     pub fn beta(
         source: &BiomeSource,
         lookup: impl Fn(Id<Biome>) -> Arc<[CarverConfig]>,
@@ -346,8 +282,6 @@ impl CarverBiomeTable {
         }
     }
 
-    /// The table carving `width` x `width` columns per region, keeping up to
-    /// `capacity` regions.
     pub fn with_region(mut self, width: i32, capacity: usize) -> Self {
         assert!(
             matches!(self.biomes, SourceBiomes::Climate(_)),
@@ -367,17 +301,12 @@ impl CarverBiomeTable {
         self
     }
 
-    /// The most bytes the kept regions can hold for masks of `height`.
     pub fn region_bytes_bound(&self, height: HeightContext) -> usize {
         self.regions.as_ref().map_or(0, |regions| {
             regions.capacity * (self.width * self.width) as usize * column_mask_bytes(height)
         })
     }
 
-    /// The carvers the source chunk at `(source_x, source_z)` runs.
-    ///
-    /// `held` keeps the tiles one column's region has touched, so the lock is
-    /// taken at most four times per column.
     fn carvers_of_source<'a>(
         &'a self,
         router: &NoiseRouter,
@@ -398,8 +327,6 @@ impl CarverBiomeTable {
         self.biomes.carvers(slot)
     }
 
-    /// One tile's sources, evaluated as a single strided fill the first time
-    /// any column needs one of them.
     fn tile(&self, router: &NoiseRouter, ws: &mut Workspace, (tile_x, tile_z): (i32, i32)) -> Tile {
         let key = (router.world_seed, tile_x, tile_z);
         if let Some(tile) = self.tiles.lock().expect("carver tiles").get(&key) {
@@ -416,7 +343,7 @@ impl CarverBiomeTable {
             SourceBiomes::Climate(table) => {
                 let mut values = vec![0.0f32; CLIMATE_ROOTS.len() * points];
                 router.fill_roots(ws, &volume, &CLIMATE_ROOTS, &mut values);
-                let mut last = None;
+                let mut cursor = table.cursor();
                 for dx in 0..TILE {
                     for dz in 0..TILE {
                         let at = volume.index_unchecked(dx, 0, dz);
@@ -428,7 +355,7 @@ impl CarverBiomeTable {
                             values[4 * points + at],
                             values[5 * points + at],
                         );
-                        if let Some(slot) = table.find_slot_from(target, &mut last) {
+                        if let Some(slot) = cursor.find_slot(target) {
                             slots[(dx * TILE + dz) as usize] =
                                 u16::try_from(slot).expect("a climate table fits in u16 slots");
                         }
@@ -449,8 +376,6 @@ impl CarverBiomeTable {
                 }
             }
         }
-        // Another worker may have resolved the tile meanwhile; theirs is kept,
-        // both being computed from the same seed.
         self.tiles
             .lock()
             .expect("carver tiles")
@@ -493,9 +418,7 @@ impl CarverBiomeTable {
     }
 }
 
-/// What the substance pass must leave alone.
 pub struct ModernCarverBlockIds {
-    /// Every state of every block in the `uncarvable` tag.
     uncarvable: Box<[VoxelId]>,
 }
 
@@ -529,11 +452,8 @@ impl ModernCarverBlockIds {
     }
 }
 
-/// The reference protects the top seven blocks of the dimension from carving.
 const PROTECTED_BLOCKS_ON_TOP: i32 = 7;
 
-/// The mask one column's carvers mark, between the floor and the top seven
-/// blocks the reference protects.
 pub(crate) fn carving_mask(height: HeightContext) -> CarvingMask {
     let (bottom, top) = mask_range(height);
     CarvingMask::new(bottom, top)
@@ -546,21 +466,17 @@ fn mask_range(height: HeightContext) -> (i32, i32) {
     )
 }
 
-/// The bits one column's mask holds, one per block of the 16 x 16 column,
-/// without the few words of header.
 fn column_mask_bytes(height: HeightContext) -> usize {
     let (bottom, top) = mask_range(height);
     (16 * 16 * (top - bottom + 1).max(0) as usize).div_ceil(8)
 }
 
-/// Every carver of every biome that reaches this chunk, marked into one mask.
-///
-/// `water` answers Beta's abort. It is built the first time a Beta carver
-/// starts in the column, off the blocks as filled: nothing writes to the column
-/// until the whole mask is marked.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the water mask, the chunk position and world seed, and the router, workspace, biome table and height context that one chunk's carving reads"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one chunk's carving"
+    )
 )]
 pub(crate) fn carve_sources(
     water: impl Fn() -> WaterMask,
@@ -573,7 +489,6 @@ pub(crate) fn carve_sources(
     height: HeightContext,
 ) -> CarvingMask {
     let mut mask = carving_mask(height);
-    // Modern carvers have no water abort; the empty mask answers in one AND.
     let no_water = WaterMask::default();
     let mut beta_water = None;
 
@@ -611,8 +526,6 @@ pub(crate) fn carve_sources(
     mask
 }
 
-/// Every modern carver of every source within reach of any column of the
-/// square at `origin`, walked once into the masks of all its columns.
 fn carve_region(
     origin: (i32, i32),
     width: i32,
@@ -646,9 +559,6 @@ fn carve_region(
     masks
 }
 
-/// The mask of the carvers of every source that reaches this chunk, which is
-/// its slot of the region the chunk falls in: marked before any block of the
-/// column is decided.
 pub fn modern_carving_mask(
     chunk_x: i32,
     chunk_z: i32,
@@ -690,10 +600,6 @@ pub fn modern_carving_mask(
     RegionSlot { region, slot }
 }
 
-/// What the carvers make of the solid terrain of one column: the mask they
-/// marked, and the fluid field the fill used, asked again with zero density,
-/// so a positive barrier alone keeps a carved tunnel through a lake shore
-/// walled.
 pub struct TerrainCarving<'a, 'f> {
     pub mask: &'a CarvingMask,
     pub ids: &'a ModernCarverBlockIds,
@@ -729,10 +635,12 @@ impl<'a, 'f> TerrainCarving<'a, 'f> {
         self.mask.contains(x, y, z)
     }
 
-    /// The air or fluid a solid block becomes in place of `block`, the one the
-    /// material rules chose for it. `None` leaves `block` standing: the
-    /// position is not carved, `block` is uncarvable, or the barrier keeps it
-    /// solid.
+    #[inline]
+    #[must_use]
+    pub fn highest_carved(&self, x: i32, z: i32, bottom: i32, top: i32) -> Option<i32> {
+        self.mask.highest_carved(x, z, bottom, top)
+    }
+
     pub fn substance(&mut self, x: i32, y: i32, z: i32, block: Option<VoxelId>) -> Option<VoxelId> {
         if !self.is_carved(x, y, z) || block.is_some_and(|block| self.ids.is_uncarvable(block)) {
             return None;
@@ -743,12 +651,13 @@ impl<'a, 'f> TerrainCarving<'a, 'f> {
     }
 }
 
-/// Every carver of every biome that reaches this chunk, applied to a column no
-/// material rule decides.
 #[cfg(test)]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the column, its chunk position and the world seed, and the router, workspace, biome table, height context, block ids and fluid that one chunk's carving reads"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one chunk's carving"
+    )
 )]
 pub fn apply_modern_carvers(
     column: &ColumnBlocks,
@@ -769,15 +678,13 @@ pub fn apply_modern_carvers(
     );
 }
 
-/// Each carved solid block of a column no material rule decides, asked as it
-/// stands what it becomes. Air and fluid the fill placed are never carved.
 pub fn carve_unsurfaced(column: &ColumnBlocks, carving: &mut TerrainCarving<'_, '_>) {
     let router = carving.router;
     let open = [
         VoxelId::default(),
         router.default_fluid_state,
         router.water_state,
-        router.lava_state,
+        router.lava_state(),
     ];
     let mask = carving.mask;
     mask.visit(|x, z, bottom_y, top_y| {
@@ -795,7 +702,6 @@ pub fn carve_unsurfaced(column: &ColumnBlocks, carving: &mut TerrainCarving<'_, 
     });
 }
 
-/// A climate point spanning every parameter, for a source with one biome.
 pub fn whole_climate_space() -> ParameterPoint {
     let full = mcrs_minecraft_biome::climate::Parameter::span(-2.0, 2.0);
     ParameterPoint {
@@ -825,7 +731,6 @@ mod source_tiles {
         }
         assert_eq!(tiles.entries.len(), KEPT);
 
-        // Touching the oldest entry makes the one after it the stalest.
         assert!(tiles.get(&(0, 0, 0)).is_some());
         tiles.get_or_insert_with((0, -1, 0), KEPT, || tile(u16::MAX));
 

@@ -46,8 +46,6 @@ impl EquipmentSlot {
         Self::ALL.get(id as usize).copied()
     }
 
-    /// `EquipmentSlot.STREAM_CODEC` numbers the slots differently from the
-    /// equipment packet's ordinal: hands first, then armour, offhand at 5.
     pub const fn equippable_id(self) -> u8 {
         match self {
             Self::MainHand => 0,
@@ -61,7 +59,6 @@ impl EquipmentSlot {
         }
     }
 
-    /// The name of the slot in data files, as its serde form spells it.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
@@ -76,7 +73,6 @@ impl EquipmentSlot {
         }
     }
 
-    /// Out of range reads as the first slot (`ByIdMap` `ZERO`).
     pub const fn from_equippable_id(id: u8) -> Self {
         match id {
             1 => Self::Feet,
@@ -102,7 +98,6 @@ impl std::str::FromStr for EquipmentSlot {
     }
 }
 
-/// A name that no [`EquipmentSlot`] has.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnknownEquipmentSlot;
 

@@ -35,7 +35,6 @@ pub struct PlayerListEntry<'a> {
 #[derive(Clone, PartialEq, Debug, Encode, Decode)]
 pub struct ChatData<'a> {
     pub session_id: Uuid,
-    /// Unix timestamp in milliseconds.
     pub key_expiry_time: i64,
     pub public_key: &'a [u8],
     pub public_key_signature: &'a [u8],

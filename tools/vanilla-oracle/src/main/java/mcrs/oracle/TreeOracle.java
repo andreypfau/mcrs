@@ -37,14 +37,6 @@ import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.feature.Feature;
 import net.minecraft.world.level.levelgen.feature.TreeFeature;
 
-/**
- * Runs every shipped `tree` feature over a flat floor and records the blocks it
- * writes plus the random state it leaves behind.
- *
- * The level is `StubLevel`, whose unimplemented methods throw: a feature that
- * needs one it does not have is skipped and named, which is how the needed
- * subset is discovered.
- */
 public final class TreeOracle {
     private static final byte[] MAGIC = "MCTREEG0".getBytes(StandardCharsets.US_ASCII);
     private static final int FORMAT_VERSION = 1;
@@ -110,14 +102,6 @@ public final class TreeOracle {
         System.out.println("wrote " + file + " (" + Files.size(file) + " bytes, " + cases.size() + " cases)");
     }
 
-    /**
-     * The feature as a data pack carries it, not as `TreeFeatures` builds it.
-     * The two differ: `CherryFoliagePlacer.CODEC` reads `corner_hole_chance`
-     * into the field but writes `wide_bottom_layer_hole_chance` back out, so
-     * the shipped `cherry.json` holds 0.25 where the bootstrap object holds
-     * 0.5. A server — vanilla or ours — loads the JSON, so the JSON is what a
-     * port must reproduce.
-     */
     private static Feature throughDataPack(final DynamicOps<JsonElement> ops, final Feature feature) {
         JsonElement json = Feature.DIRECT_CODEC.encodeStart(ops, feature).getOrThrow();
         return Feature.DIRECT_CODEC.parse(ops, json).getOrThrow();

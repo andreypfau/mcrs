@@ -1,5 +1,3 @@
-//! A headless adapter and the entity pack of the repository for the GPU tests.
-
 use mcrs_minecraft_entity_render::{
     Capacities, DrawTargets, EntityGpu, EntityLibrary, EntityPack, TextureImage,
 };
@@ -11,8 +9,6 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    /// The high-performance adapter with all its limits, and timestamps when it has them;
-    /// `None` with no adapter.
     pub fn new() -> Option<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -30,7 +26,7 @@ impl Gpu {
             futures_lite::future::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
                 label: Some("entity render test"),
                 required_features: adapter.features() & wgpu::Features::TIMESTAMP_QUERY,
-                required_limits: adapter.limits(),
+                required_limits: wgpu::Limits::default(),
                 ..Default::default()
             }))
             .ok()?;
@@ -41,7 +37,6 @@ impl Gpu {
         })
     }
 
-    /// A one-texel depth pyramid for a frame that tests none.
     pub fn no_pyramid(&self) -> wgpu::TextureView {
         self.device
             .create_texture(&wgpu::TextureDescriptor {
@@ -86,7 +81,6 @@ impl Gpu {
         )
     }
 
-    /// The bytes of `buffer`, after the queue has run.
     pub fn read(&self, buffer: &wgpu::Buffer) -> Vec<u8> {
         let staging = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("readback"),
@@ -108,14 +102,12 @@ impl Gpu {
     }
 }
 
-/// The entity pack of the repository, with no diagnostics.
 pub fn pack() -> EntityPack {
     let pack = EntityPack::repository();
     assert!(pack.diagnostics.is_empty(), "{:#?}", pack.diagnostics);
     pack
 }
 
-/// A white texture of 16 by 16 texels.
 pub fn white_texture() -> TextureImage {
     TextureImage {
         identifier: "test:white".into(),

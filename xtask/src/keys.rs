@@ -2,9 +2,6 @@ use crate::checks::Outcome;
 use crate::scope::{self, Head};
 use std::path::Path;
 
-pub(crate) const HEADER: &str =
-    "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.";
-
 pub(crate) const MARKED: [&str; 3] = [
     "crates/*/src/*_keys.rs",
     "crates/mcrs_minecraft_keys/src/**",
@@ -55,7 +52,7 @@ pub(crate) fn regenerates(paths: &[String]) -> bool {
     paths.iter().any(|path| {
         is_marked(path)
             || path.starts_with("assets/mcrs/reports/")
-            || path == "assets/mcrs/registry_definition/game_rule.json"
+            || path.starts_with("assets/mcrs/registry_definition/")
             || path.starts_with("tools/mcrs_minecraft_update/")
             || path == "Cargo.lock"
             || path == "Cargo.toml"
@@ -73,40 +70,25 @@ fn dirty(repo: &Path) -> Result<Vec<String>, String> {
         .collect())
 }
 
-struct Headers {
-    marked: usize,
-    wrong: Vec<String>,
+struct Marked {
+    count: usize,
+    foreign: Vec<String>,
 }
 
-fn headers(repo: &Path, head: &Head) -> Result<Headers, String> {
+fn marked(repo: &Path, head: &Head) -> Result<Marked, String> {
     let marked: Vec<String> = scope::tracked(repo, head)?
         .into_iter()
         .filter(|path| is_marked(path))
         .collect();
-    let specs: Vec<String> = marked
+    let mut foreign: Vec<String> = marked
         .iter()
-        .map(|path| match head {
-            Head::Commit(sha) => format!("{sha}:{path}"),
-            Head::Worktree => format!(":{path}"),
-        })
+        .filter(|path| !path.ends_with(".rs"))
+        .map(|path| format!("{path}: the key generator writes only .rs files here"))
         .collect();
-    let mut wrong = Vec::new();
-    for (path, blob) in marked.iter().zip(scope::blobs(repo, &specs)?) {
-        let bytes = blob.ok_or_else(|| format!("{path} is tracked but could not be read"))?;
-        if !path.ends_with(".rs") {
-            wrong.push(format!(
-                "{path}: the key generator writes only .rs files here"
-            ));
-        } else if bytes.split(|&byte| byte == b'\n').next() != Some(HEADER.as_bytes()) {
-            wrong.push(format!(
-                "{path}: the first line is not the key generator's header"
-            ));
-        }
-    }
-    wrong.sort();
-    Ok(Headers {
-        marked: marked.len(),
-        wrong,
+    foreign.sort();
+    Ok(Marked {
+        count: marked.len(),
+        foreign,
     })
 }
 
@@ -126,11 +108,11 @@ pub(crate) fn check(
     if !regenerates(changed) {
         return Ok("no generator input or output changed; not regenerated".to_owned());
     }
-    let headers = headers(repo, head)?;
-    if !headers.wrong.is_empty() {
+    let marked = marked(repo, head)?;
+    if !marked.foreign.is_empty() {
         return Err(failure(
             "these files sit under the key paths but the generator did not write them:",
-            &headers.wrong,
+            &marked.foreign,
             "only cargo run -p mcrs_minecraft_update -- keys writes crates/*/src/*_keys.rs and under crates/mcrs_minecraft_keys/src and crates/mcrs_minecraft_registry_catalog/src; rename hand-written files or move them out",
         ));
     }
@@ -154,8 +136,8 @@ pub(crate) fn check(
         ));
     }
     Ok(format!(
-        "{} marked files carry the header; regenerating the key sources changed nothing",
-        headers.marked
+        "{} marked files; regenerating the key sources changed nothing",
+        marked.count
     ))
 }
 
@@ -173,6 +155,7 @@ mod tests {
             ("crates/mcrs_minecraft_keys/src/lib.rs", true),
             ("crates/mcrs_minecraft_registry_catalog/src/lib.rs", true),
             ("assets/mcrs/reports/names.json", true),
+            ("assets/mcrs/registry_definition/potion.json", true),
             ("tools/mcrs_minecraft_update/src/owners.rs", true),
             ("Cargo.lock", true),
             ("Cargo.toml", true),
@@ -214,47 +197,26 @@ mod tests {
     }
 
     #[test]
-    fn only_rs_files_that_open_with_the_generator_header_may_sit_under_the_marked_paths() {
-        let repo = Repo::new("keys-header");
+    fn only_rs_files_may_sit_under_the_marked_paths() {
+        let repo = Repo::new("keys-foreign");
         repo.init();
-        let headed = format!("{HEADER}\npub const A: u8 = 1;\n");
-        repo.write("crates/a/src/registry_keys.rs", &headed);
-        repo.write("crates/a/src/plain_keys.rs", "pub const A: u8 = 1;\n");
+        repo.write("crates/a/src/registry_keys.rs", "pub const A: u8 = 1;\n");
+        repo.write("crates/mcrs_minecraft_keys/src/data.json", "{}\n");
         repo.write(
-            "crates/a/src/altered_keys.rs",
-            &headed.replace("do not edit.", "do not change."),
-        );
-        repo.write("crates/a/src/second_keys.rs", &format!("\n{headed}"));
-        repo.write(
-            "crates/mcrs_minecraft_keys/src/data.json",
-            &format!("{HEADER}\n{{}}\n"),
-        );
-        repo.write("crates/a/src/notes.txt", "notes\n");
-        repo.write("crates/a/src/lib.rs", "pub const A: u8 = 1;\n");
-        repo.write("crates/mcrs_minecraft_keys/src/lib.rs", &headed);
-        repo.write(
-            "crates/mcrs_minecraft_registry_catalog/src/extra.rs",
+            "crates/mcrs_minecraft_keys/src/lib.rs",
             "pub const A: u8 = 1;\n",
         );
+        repo.write("crates/a/src/notes.txt", "notes\n");
         repo.commit("base");
 
-        let found = headers(&repo.0, &Head::Commit(repo.sha())).unwrap();
+        let found = marked(&repo.0, &Head::Commit(repo.sha())).unwrap();
         let paths: Vec<&str> = found
-            .wrong
+            .foreign
             .iter()
             .map(|line| line.split(": ").next().unwrap())
             .collect();
-        assert_eq!(found.marked, 7);
-        assert_eq!(
-            paths,
-            [
-                "crates/a/src/altered_keys.rs",
-                "crates/a/src/plain_keys.rs",
-                "crates/a/src/second_keys.rs",
-                "crates/mcrs_minecraft_keys/src/data.json",
-                "crates/mcrs_minecraft_registry_catalog/src/extra.rs",
-            ]
-        );
+        assert_eq!(found.count, 3);
+        assert_eq!(paths, ["crates/mcrs_minecraft_keys/src/data.json"]);
     }
 
     struct Row {
@@ -311,7 +273,7 @@ mod tests {
         for row in rows {
             let repo = Repo::new("keys-tree");
             repo.init();
-            repo.write(GENERATED, &format!("{HEADER}\n"));
+            repo.write(GENERATED, "pub const A: u8 = 1;\n");
             repo.commit("base");
             if let Some(path) = row.untracked_before {
                 repo.write(path, "// draft\n");

@@ -12,22 +12,16 @@ doctest = false
 name = "mob-bench"
 path = "src/main.rs"
 doctest = false
-
-[[bin]]
-name = "mob-drift"
-path = "drift/main.rs"
-doctest = false
+test = false
 
 [lints]
 workspace = true
 
-# std: tokio, process and Mach counters
 [dependencies]
 anyhow.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 libc.workspace = true
 mcrs_minecraft_bench_support.workspace = true
-mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_network.workspace = true
 mcrs_minecraft_protocol.workspace = true

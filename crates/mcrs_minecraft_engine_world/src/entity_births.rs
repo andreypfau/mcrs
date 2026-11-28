@@ -1,16 +1,13 @@
 use bevy_ecs::prelude::With;
 use bevy_ecs::system::{Query, Res, SystemParam};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
-use mcrs_minecraft_entity_key::{BirthSource, EntityKey};
+use mcrs_minecraft_entity_key::{BirthSource, EntityUuid};
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::birth_clock::BirthClock;
 use crate::world::dimension::Dimension;
 use crate::world_seed::WorldSeed;
 
-/// The inputs of the new UUIDs of this world: the world seed, the key of its dimension and the
-/// birth clock. None of them depends on the cells of the dimension. A world without a dimension
-/// entity hashes an empty dimension key.
 #[derive(SystemParam)]
 pub struct EntityBirths<'w, 's> {
     clock: Res<'w, BirthClock>,
@@ -24,13 +21,11 @@ impl EntityBirths<'_, '_> {
         self.clock.0
     }
 
-    /// The UUID of the entity number `sequence` that `source` brings into existence in this
-    /// tick (PHY-CMP-013).
     #[must_use]
-    pub fn born(&self, source: &BirthSource, sequence: u32) -> EntityKey {
+    pub fn born(&self, source: &BirthSource, sequence: u32) -> EntityUuid {
         let dimension = self.dimensions.single().map_or("", |key| key.as_str());
         let seed = self.seed.as_deref().map_or(0, |seed| seed.0);
-        EntityKey::born(seed, dimension, self.clock.0, source, sequence)
+        EntityUuid::born(seed, dimension, self.clock.0, source, sequence)
     }
 }
 
@@ -48,8 +43,6 @@ mod tests {
 
     use super::*;
 
-    /// Two summons of tick 9 in the Overworld: each at its own spawn point, from a source in the
-    /// column of its own cell when the dimension has two cells.
     const SUMMONS: [BirthSource; 2] = [
         BirthSource::Command {
             spawn: BlockPos::new(4, 64, 4),
@@ -61,7 +54,6 @@ mod tests {
         },
     ];
 
-    /// A world of the Overworld at tick 9; `cell` of two cells, or the only cell.
     fn world(cell: Option<u32>) -> World {
         let mut world = World::new();
         world.insert_resource(BirthClock(9));
@@ -77,8 +69,7 @@ mod tests {
         world
     }
 
-    /// The UUIDs that `world` gives to `summons`, in their order.
-    fn summon(world: &mut World, summons: &[BirthSource]) -> Vec<EntityKey> {
+    fn summon(world: &mut World, summons: &[BirthSource]) -> Vec<EntityUuid> {
         let summons = summons.to_vec();
         world
             .run_system_once(move |births: EntityBirths| {
@@ -86,16 +77,16 @@ mod tests {
                 summons
                     .iter()
                     .map(|source| births.born(source, sequences.next(births.tick(), source)))
-                    .collect::<Vec<EntityKey>>()
+                    .collect::<Vec<EntityUuid>>()
             })
             .expect("the system runs")
     }
 
     #[test]
-    fn cmp_013_024_two_summons_of_one_tick_differ_and_keep_their_uuids_across_cell_layouts() {
+    fn cmp_013_024_summons_of_one_tick_keep_uuids_across_layouts() {
         let one_cell = summon(&mut world(None), &SUMMONS);
         assert_ne!(one_cell[0], one_cell[1], "two spawn points give two UUIDs");
-        let two_cells: Vec<EntityKey> = [0, 1]
+        let two_cells: Vec<EntityUuid> = [0, 1]
             .into_iter()
             .zip(&SUMMONS)
             .flat_map(|(cell, source)| {

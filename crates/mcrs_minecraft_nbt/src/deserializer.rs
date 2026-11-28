@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::io::{Read, Seek, SeekFrom};
 use std::marker::PhantomData;
 
+use crate::budget::{self, value_charge};
 use crate::encoding::{BigEndian, NbtEncoding};
 use crate::tag::{self, NbtTag};
 use crate::{
@@ -14,13 +15,8 @@ use serde::{Deserialize, forward_to_deserialize_any};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// A declared length is a claim the input has yet to back: a buffer sized by
-/// one grows this far at a time, so the room set aside stays within about
-/// twice the bytes that have actually arrived.
 pub(crate) const READ_STEP: usize = 64 * 1024;
 
-/// The room to set aside for a declared number of elements before any of them
-/// has been read.
 pub fn cautious_capacity<T>(declared: usize, max_bytes: usize) -> usize {
     declared.min(max_bytes / size_of::<T>().max(1))
 }
@@ -81,6 +77,34 @@ impl<R: Read + Seek, E: NbtEncoding> NbtReadHelper<R, E> {
         Ok(buf[0])
     }
 
+    pub(crate) fn read_root_kind(&mut self) -> Result<u8> {
+        let kind = self.get_u8()?;
+        budget::charge(value_charge(kind), 1)?;
+        Ok(kind)
+    }
+
+    pub(crate) fn read_entry_kind(&mut self) -> Result<u8> {
+        let kind = self.get_u8()?;
+        if kind == END_ID {
+            budget::charge(1, 0)?;
+        } else {
+            budget::charge(1 + value_charge(kind), 1)?;
+        }
+        Ok(kind)
+    }
+
+    pub(crate) fn read_string_length(&mut self) -> Result<usize> {
+        let len = E::read_string_length(&mut self.reader)?;
+        budget::charge(2 * len as u64, 0)?;
+        Ok(len)
+    }
+
+    pub(crate) fn read_array_length(&mut self, width: u64) -> Result<usize> {
+        let len = E::read_collection_length(&mut self.reader)?;
+        budget::charge(width.saturating_mul(len as u64), 0)?;
+        Ok(len)
+    }
+
     #[inline]
     pub fn get_i8(&mut self) -> Result<i8> {
         let mut buf = [0u8; 1];
@@ -88,11 +112,6 @@ impl<R: Read + Seek, E: NbtEncoding> NbtReadHelper<R, E> {
             .read_exact(&mut buf)
             .map_err(Error::Incomplete)?;
         Ok(buf[0] as i8)
-    }
-
-    #[inline]
-    pub fn get_u16(&mut self) -> Result<u16> {
-        E::read_u16(&mut self.reader)
     }
 
     #[inline]
@@ -179,7 +198,7 @@ impl<R: Read + Seek, E: NbtEncoding> Deserializer<R, E> {
     }
 
     fn read_str(&mut self) -> Result<Cow<'_, str>> {
-        let len = E::read_string_length(&mut self.input.reader)?;
+        let len = self.input.read_string_length()?;
         self.input.read_into(&mut self.scratch, len)?;
         E::decode_string(&self.scratch)
     }
@@ -188,7 +207,7 @@ impl<R: Read + Seek, E: NbtEncoding> Deserializer<R, E> {
         if let Some(tag) = self.tag_to_deserialize_stack {
             return Ok(tag);
         }
-        let tag = self.input.get_u8()?;
+        let tag = self.input.read_root_kind()?;
         if tag == END_ID {
             return Err(Error::EndRoot);
         }
@@ -196,7 +215,7 @@ impl<R: Read + Seek, E: NbtEncoding> Deserializer<R, E> {
             if tag != COMPOUND_ID {
                 return Err(Error::NoRootCompound(tag));
             }
-            let length = E::read_string_length(&mut self.input.reader)? as i64;
+            let length = self.input.read_string_length()? as i64;
             self.input.skip_bytes(length)?;
         }
         self.tag_to_deserialize_stack = Some(tag);
@@ -211,23 +230,19 @@ impl<R: Read + Seek, E: NbtEncoding> Deserializer<R, E> {
     }
 }
 
-/// Deserializes struct using Serde Deserializer from normal NBT with standard BigEndian encoding
 pub fn from_bytes<'a, T: Deserialize<'a>>(r: impl Read + Seek) -> Result<T> {
     from_bytes_with::<BigEndian, T>(r)
 }
 
-/// Deserializes struct using Serde Deserializer from normal NBT with specified encoding
 pub fn from_bytes_with<'a, E: NbtEncoding, T: Deserialize<'a>>(r: impl Read + Seek) -> Result<T> {
     let mut deserializer = Deserializer::<_, E>::with_encoding(r, true);
     T::deserialize(&mut deserializer)
 }
 
-/// Deserializes struct using Serde Deserializer from network NBT with standard BigEndian encoding
 pub fn from_bytes_unnamed<'a, T: Deserialize<'a>>(r: impl Read + Seek) -> Result<T> {
     from_bytes_unnamed_with::<BigEndian, T>(r)
 }
 
-/// Deserializes struct using Serde Deserializer from network NBT with specified encoding
 pub fn from_bytes_unnamed_with<'a, E: NbtEncoding, T: Deserialize<'a>>(
     r: impl Read + Seek,
 ) -> Result<T> {
@@ -286,7 +301,7 @@ impl<'de, R: Read + Seek, E: NbtEncoding> de::Deserializer<'de> for &mut Deseria
             Some(LONG_ARRAY_ID) if E::fixed_size(LONG_ID).is_some() => 8,
             _ => return self.deserialize_any(visitor),
         };
-        let count = E::read_collection_length(&mut self.input.reader)?;
+        let count = self.input.read_array_length(width as u64)?;
         let bytes = count.checked_mul(width).ok_or(Error::LargeLength(count))?;
         self.input.read_into(&mut self.scratch, bytes)?;
         visitor.visit_bytes(&self.scratch)
@@ -325,7 +340,7 @@ impl<'de, R: Read + Seek, E: NbtEncoding> de::Deserializer<'de> for &mut Deseria
                         LONG_ARRAY_ID => LONG_ID,
                         _ => BYTE_ID,
                     };
-                    let count = E::read_collection_length(&mut self.input.reader)?;
+                    let count = self.input.read_array_length(value_charge(list_type))?;
                     (list_type, count)
                 };
 
@@ -447,7 +462,7 @@ impl<'de, R: Read + Seek, E: NbtEncoding> MapAccess<'de> for CompoundAccess<'_, 
     type Error = Error;
 
     fn next_key_seed<K: DeserializeSeed<'de>>(&mut self, seed: K) -> Result<Option<K::Value>> {
-        let tag = self.de.input.get_u8()?;
+        let tag = self.de.input.read_entry_kind()?;
         self.de.tag_to_deserialize_stack = Some(tag);
 
         if tag == END_ID {
@@ -551,7 +566,7 @@ impl<'de, R: Read + Seek, E: NbtEncoding> SeqAccess<'de> for ListAccess<'_, R, E
         let result = seed.deserialize(&mut *self.de).map(Some);
         self.de.in_list = false;
         if result.is_ok() && wrapped.is_some() {
-            self.de.input.skip_bytes(1)?;
+            self.de.input.read_entry_kind()?;
         }
 
         result
@@ -562,15 +577,19 @@ fn wrapper_payload<R: Read + Seek, E: NbtEncoding>(
     input: &mut NbtReadHelper<R, E>,
 ) -> Result<Option<u8>> {
     let start = input.position()?;
-    let tag = input.get_u8()?;
-    if tag != END_ID && E::read_string_length(&mut input.reader)? == 0 {
+    let spent_at_start = budget::spent();
+    let tag = input.read_entry_kind()?;
+    if tag != END_ID && input.read_string_length()? == 0 {
         let payload = input.position()?;
+        let spent_at_payload = budget::spent();
         NbtTag::skip_data(input, tag)?;
-        if input.get_u8()? == END_ID {
+        if input.read_entry_kind()? == END_ID {
             input.seek_to(payload)?;
+            budget::rewind(spent_at_payload);
             return Ok(Some(tag));
         }
     }
     input.seek_to(start)?;
+    budget::rewind(spent_at_start);
     Ok(None)
 }

@@ -32,8 +32,6 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registries) {
     let land: Vec<String> = (0..11)
         .map(|i| format!("minecraft:land_biome_{i}"))
         .collect();
-    // The surface stage resolves these three by name off whatever registry
-    // the dimension carries, and panics when one is missing.
     let surface = [
         "minecraft:eroded_badlands",
         "minecraft:frozen_ocean",
@@ -49,26 +47,6 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registries) {
     (biome_source, registry)
 }
 
-/// Oracle test: bedrock band (Y 0-4) for chunk (37,-42) at seed 12345 must match the
-/// verbatim back2beta corpus (beta_surface_corpus.json).
-///
-/// Root-cause context: back2beta's replaceBlocksForBiome reads noise arrays r/s/t at
-/// index `r[kk + ll*16]` where kk=x_local (outer loop), ll=z_local (inner loop).
-/// The arrays are filled in X-major order (fill index x*16+z), so reading at
-/// kk+ll*16 = x+z*16 picks the value stored at fill position (z_local, x_local) —
-/// i.e., the noise sampled at the TRANSPOSED world position (block_x+z, block_z+x).
-/// The current Rust uses idx = x_local*16 + z_local (geographic, non-transposed),
-/// which reads the noise sampled at (block_x+x, block_z+z) — the wrong column.
-///
-/// This divergence in flag/flag1/i1 cascades through sandstone nextInt(4) draws,
-/// shifting the shared per-chunk RNG stream and corrupting the bedrock pattern for
-/// columns that come later in the sweep. In chunk (37,-42), the stream diverges at
-/// x=0, z=13 where corpus says [7,1,7,7,1] but Rust produces [7,7,1,1,1].
-///
-/// Expected values captured verbatim from the back2beta corpus (chunk x=37, z=-42).
-/// 7 = bedrock, 1 = stone.
-///
-/// This test FAILS (RED) until idx is corrected to z_local*16 + x_local.
 #[test]
 fn beta_surface_bedrock_matches_back2beta_oracle() {
     let router = build_beta_router();
@@ -86,7 +64,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         chunk_z,
         &y_sections,
         &router,
-        &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
+        &ColumnBiomes::new(Some(&biome_source), None, None).unwrap(),
         &cancel,
     );
 
@@ -112,8 +90,6 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
     let section0 = sections[0].as_ref().expect("section 0 must be present");
     let blocks = &section0.0;
 
-    // Oracle: expected [Y0,Y1,Y2,Y3,Y4] (7=bedrock, 1=stone) for x_local=0, z_local=0..15.
-    // Captured from the geographic beta_surface_corpus.json at chunk (0,0), seed 12345.
     let oracle: &[(i32, [u8; 5])] = &[
         (0, [7, 1, 7, 7, 1]),
         (1, [7, 7, 1, 7, 1]),
@@ -167,7 +143,6 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         failures.join("\n"),
     );
 
-    // Y=0 (section 0, local y=0): always bedrock for all 256 columns
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be Some").0;
     let y0_all_bedrock = (0..16i32).all(|x| {
         (0..16i32)
@@ -176,34 +151,14 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
     assert!(y0_all_bedrock, "world Y=0 must be all bedrock");
 }
 
-/// Oracle test: terrain-surface Y (density stone top) for the six worst-offender columns
-/// at seed 12345 must match between Rust generate_column and the back2beta corpus.
-///
-/// The corpus `pre_cave` bytes are captured AFTER back2beta's generateTerrain +
-/// replaceBlocksForBiome. The density stone top in the corpus is the topmost
-/// non-air, non-water block — it was originally stone from generateTerrain, then
-/// replaced by sand/grass/etc by the surface pass, so scanning for stone alone
-/// would find the WRONG Y (below the sand/sandstone layer). The correct comparison
-/// is Rust stone-top (from generate_column) vs corpus terrain-top (topmost non-air
-/// non-water byte, which is the highest block of the original stone layer that became
-/// sand/grass at the surface).
-///
-/// For column (24,-16): corpus terrain-top = 83 (sand, originally stone), Rust stone-top
-/// should match. The test is RED until the density function height is calibrated.
-///
-/// Root-cause probe: The test also evaluates the scale/depth noise samplers at three
-/// sampling modes and prints d5/d6/d7 for (24,-16).
 #[test]
 fn beta_terrain_height_matches_back2beta_oracle() {
     let corpus = super::beta_surface_capture::load_corpus();
 
-    // Corpus terrain top: topmost non-air (0) non-water (9) byte.
-    // This is the density stone top — originally stone in generateTerrain, possibly
-    // replaced by sand/grass/etc by replaceBlocksForBiome, but still at the same Y.
     let corpus_terrain_top_y = |pre_cave: &[u8]| -> Option<i32> {
         (0..128i32).rev().find(|&y| {
             let b = pre_cave[y as usize];
-            b != 0 && b != 9 // not air, not stationary-water
+            b != 0 && b != 9
         })
     };
 
@@ -214,7 +169,6 @@ fn beta_terrain_height_matches_back2beta_oracle() {
             .number(),
     );
 
-    // Rust stone top: scan generate_column sections top-down for highest Y with stone.
     let rust_stone_top_y = |sections: &GeneratedSections, lx: i32, lz: i32| -> Option<i32> {
         let y_sections: Vec<i32> = (0..8).collect();
         for sy in (0..8i32).rev() {
@@ -232,7 +186,6 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         None
     };
 
-    // Worst-offender columns from the verification report (seed 12345).
     let worst_offenders: &[(i32, i32)] = &[
         (24, -16),
         (15, -16),
@@ -247,14 +200,12 @@ fn beta_terrain_height_matches_back2beta_oracle() {
     let cancel = CancellationToken::new();
     let y_sections: Vec<i32> = (0..8).collect();
 
-    // Build a lookup: (wx, wz) → pre_cave bytes.
     let corpus_map: std::collections::HashMap<(i32, i32), &[u8]> = corpus
         .columns
         .iter()
         .map(|c| ((c.wx, c.wz), c.pre_cave.as_slice()))
         .collect();
 
-    // Cache generated sections by chunk to avoid re-generating.
     let mut chunk_cache: std::collections::HashMap<(i32, i32), GeneratedSections> =
         std::collections::HashMap::new();
 
@@ -273,7 +224,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
                 cz,
                 &y_sections,
                 &router,
-                &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
+                &ColumnBiomes::new(Some(&biome_source), None, None).unwrap(),
                 &cancel,
             )
         });

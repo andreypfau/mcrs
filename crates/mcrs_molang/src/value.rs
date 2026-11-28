@@ -1,25 +1,19 @@
 use core::fmt;
 
-/// The static type of a Molang value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ValueType {
-    /// An `f32`.
     Number,
-    /// A string, carried as its [`string_hash`].
     String,
-    /// A resource of a render controller, carried as [`Resource::to_bits`].
     Resource,
 }
 
 impl ValueType {
-    /// Whether the value lives in the 64-bit register bank rather than the `f32` bank.
     #[must_use]
     pub const fn is_bits(self) -> bool {
         !matches!(self, Self::Number)
     }
 }
 
-/// The kind of a resource reference.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ResourceKind {
     Geometry,
@@ -27,7 +21,6 @@ pub enum ResourceKind {
     Texture,
 }
 
-/// A resource that a render controller selects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Resource {
     pub kind: ResourceKind,
@@ -60,11 +53,9 @@ impl Resource {
     }
 }
 
-/// The result of a run.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Value {
     Number(f32),
-    /// The [`string_hash`] of the string.
     String(u64),
     Resource(Resource),
 }
@@ -79,7 +70,6 @@ impl Value {
         }
     }
 
-    /// The number, or `0.0` for a value of another type.
     #[must_use]
     pub const fn as_number(self) -> f32 {
         match self {
@@ -100,7 +90,6 @@ impl Value {
         }
     }
 
-    /// The value in the raw form of its register bank.
     #[must_use]
     pub const fn to_raw(self) -> u64 {
         match self {
@@ -111,7 +100,6 @@ impl Value {
     }
 }
 
-/// The 64-bit FNV-1a hash of a string. Two strings are equal when their hashes are equal.
 #[must_use]
 pub fn string_hash(text: &str) -> u64 {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
@@ -122,7 +110,6 @@ pub fn string_hash(text: &str) -> u64 {
     hash
 }
 
-/// How often a value can change, from the slowest to the fastest.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Rate {
     Constant,
@@ -146,8 +133,6 @@ impl fmt::Display for Rate {
     }
 }
 
-/// The implementation milestone that the compiler targets. A construct of a later milestone
-/// parses and gives the load error `unsupported`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Milestone {
     One,

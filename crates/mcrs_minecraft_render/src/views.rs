@@ -5,13 +5,10 @@ use bevy::render::extract_resource::ExtractResource;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct DebugView(usize);
 
-/// Every view shown in place of final shading, in registration order.
 #[derive(Resource, Default)]
 pub struct DebugViews(Vec<&'static str>);
 
 impl DebugViews {
-    /// Views cycle in the order registered, so a crate registers each view where it belongs in
-    /// the list.
     pub fn register(&mut self, name: &'static str) -> DebugView {
         let view = DebugView(self.0.len());
         self.0.push(name);
@@ -22,8 +19,6 @@ impl DebugViews {
         self.0.get(view.0).copied()
     }
 
-    /// The view after `current`, or before it when `back`; final shading (`None`) closes the
-    /// cycle.
     pub fn step(&self, current: Option<DebugView>, back: bool) -> Option<DebugView> {
         let final_shading = self.0.len();
         let len = final_shading + 1;
@@ -37,12 +32,10 @@ impl DebugViews {
     }
 }
 
-/// The view shown in place of final shading, or `None` for final shading.
 #[derive(Resource, Clone, Copy, Default, PartialEq, Eq, Debug, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct SelectedView(pub Option<DebugView>);
 
-/// A fullscreen program the lighting stage can run in place of the lit one.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Variant {
     LightingTerm,
@@ -66,6 +59,10 @@ impl Variant {
         Self::SkyLight,
         Self::Grid,
     ];
+
+    pub const fn is_gbuffer_view(self) -> bool {
+        !matches!(self, Self::LightingTerm)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -76,7 +73,6 @@ pub(crate) enum Lighting {
     Pyramid,
 }
 
-/// What each deferred stage draws for the selected view.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct Display {
     pub lighting: Lighting,
@@ -116,7 +112,6 @@ pub(crate) struct DeferredViews {
 }
 
 impl DeferredViews {
-    /// The pyramid exists only while occlusion is on.
     pub fn register(views: &mut DebugViews, occlusion: bool) -> Self {
         let mut register = |name| views.register(name);
         Self {

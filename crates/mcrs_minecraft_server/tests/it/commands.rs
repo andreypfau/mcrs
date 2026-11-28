@@ -47,6 +47,7 @@ use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 
 use crate::host_app::{self, PlayServer};
+use crate::support::chats;
 
 #[derive(Clone, Copy)]
 struct Echo {
@@ -103,6 +104,10 @@ fn with_limits(limits: Limits) -> PlayServer {
 }
 
 fn start_in(dimensions: &[(&str, &str)], limits: Limits) -> PlayServer {
+    PlayServer::start_in(command_host(limits), dimensions, &[(OPERATOR, 2)], 0)
+}
+
+fn command_host(limits: Limits) -> bevy_app::App {
     let mut app = host_app::make_host_app();
     app.insert_resource(CommandLimits(limits));
     app.add_plugins(WorldClockPlugin);
@@ -113,7 +118,7 @@ fn start_in(dimensions: &[(&str, &str)], limits: Limits) -> PlayServer {
     app.add_plugins(VanillaCommandsPlugin);
     app.add_command(echo_at("echo"), run_echo).unwrap();
     app.add_command(echo_at("shout"), run_echo).unwrap();
-    PlayServer::start_in(app, dimensions, &[(OPERATOR, 2)], 0)
+    app
 }
 
 fn command(server: &mut PlayServer, anchor: Entity, line: &str) -> Vec<PacketPayload> {
@@ -147,8 +152,11 @@ fn transform_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Transfo
     *server.world_in(dim).get::<Transform>(player).unwrap()
 }
 
-/// Loads the column at chunk `0 0` with stone from the bottom up to y 63 and air above.
 pub(crate) fn load_stone_column(server: &mut PlayServer) {
+    load_stone_column_at(server, 0, 0);
+}
+
+pub(crate) fn load_stone_column_at(server: &mut PlayServer, column_x: i32, column_z: i32) {
     use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
     use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
     use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
@@ -179,7 +187,7 @@ pub(crate) fn load_stone_column(server: &mut PlayServer) {
             mcrs_voxel::BlockStateId::AIR
         };
         let section = world.spawn(SectionStage::Loaded).id();
-        let pos = SectionPos::new(0, chunk_y, 0);
+        let pos = SectionPos::new(column_x, chunk_y, column_z);
         let mut index = world.get_mut::<SectionIndex>(dimension).unwrap();
         index.insert(pos, section);
         index.land(
@@ -207,7 +215,7 @@ pub(crate) fn load_stone_column(server: &mut PlayServer) {
         ))
         .id();
     world.get_mut::<ColumnIndex>(dimension).unwrap().insert(
-        ColumnPos::new(0, 0),
+        ColumnPos::new(column_x, column_z),
         ColumnSlot {
             entity: column,
             section_count: config.section_count,
@@ -215,7 +223,6 @@ pub(crate) fn load_stone_column(server: &mut PlayServer) {
     );
 }
 
-/// A block entity in the section of the stone column that holds `pos`.
 fn place_block_entity(server: &mut PlayServer, entry: GeneratedBlockEntity) {
     use mcrs_minecraft_engine_world::world::storage::block_entity::{BlockEntityPos, InSection};
     use mcrs_minecraft_engine_world::world::storage::column::{ColumnSections, SectionLookup};
@@ -236,7 +243,6 @@ fn place_block_entity(server: &mut PlayServer, entry: GeneratedBlockEntity) {
     ));
 }
 
-/// The tree the player receives on joining, decoded from the frame the server encoded once.
 fn sent_tree(packets: &[PacketPayload]) -> ClientboundCommands<'_> {
     let bytes = packets
         .iter()
@@ -262,18 +268,6 @@ fn root_literals(packets: &[PacketPayload]) -> Vec<String> {
         .iter()
         .filter_map(|child| match &tree.nodes[child.0 as usize].kind {
             CommandNodeKind::Literal(name) => Some(name.to_string()),
-            _ => None,
-        })
-        .collect()
-}
-
-pub(crate) fn chats(packets: &[PacketPayload]) -> Vec<Text> {
-    packets
-        .iter()
-        .filter_map(|packet| match packet {
-            PacketPayload::SystemChat(chat) => {
-                Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap())
-            }
             _ => None,
         })
         .collect()
@@ -312,12 +306,24 @@ fn an_operator_sees_completes_and_runs_a_plugin_command_that_a_guest_cannot() {
     assert_eq!(
         literals,
         [
-            "damage", "data", "echo", "execute", "gamemode", "kill", "locate", "shout", "summon",
-            "teleport", "time", "tp"
+            "attribute",
+            "damage",
+            "data",
+            "echo",
+            "execute",
+            "gamemode",
+            "kill",
+            "list",
+            "locate",
+            "shout",
+            "summon",
+            "teleport",
+            "time",
+            "tp"
         ]
     );
     let (guest, packets) = server.join(GUEST, "Guest");
-    assert_eq!(root_literals(&packets), Vec::<String>::new());
+    assert_eq!(root_literals(&packets), ["list"]);
 
     assert_eq!(suggest(&mut server, op, "/ec"), ["echo"]);
     assert!(suggest(&mut server, guest, "/ec").is_empty());
@@ -354,7 +360,6 @@ fn an_operator_sees_completes_and_runs_a_plugin_command_that_a_guest_cannot() {
     assert_eq!(context, error_context("echo ", "0", "echo 0"));
 }
 
-/// The context line of an error at the end of `before`, with `rest` after it.
 fn error_context(before: &str, rest: &str, line: &str) -> Text {
     use mcrs_minecraft_protocol_game::text::Color;
     let mut context = before.to_owned().into_text();
@@ -554,7 +559,7 @@ fn a_tick_answers_only_the_latest_request_of_a_player() {
 }
 
 #[test]
-fn a_request_longer_than_the_chat_screen_gets_a_reply_only_from_a_command_block_editor() {
+fn overlong_request_replies_only_to_a_command_block_editor() {
     let mut server = start();
     let (op, _) = server.join(OPERATOR, "Op");
     let (guest, _) = server.join(GUEST, "Guest");
@@ -926,7 +931,6 @@ fn execute_tests_the_saved_data_of_a_block_entity() {
 
 const THIRD: Uuid = Uuid::from_u128(3);
 
-/// The operator and a guest in the Overworld, and the player `Nether` in the Nether.
 fn two_dimensions(limits: Limits) -> (PlayServer, Entity, Entity) {
     let mut server = start_in(
         &[
@@ -1109,7 +1113,6 @@ fn clock(server: &PlayServer, clock: &str) -> ClockTime {
         .unwrap()
 }
 
-/// The `set_time` of a change to the overworld clock that leaves it at `total_ticks`.
 fn overworld_update(server: &PlayServer, total_ticks: i64) -> ClientboundSetTime {
     ClientboundSetTime {
         game_time: 0,
@@ -1172,7 +1175,6 @@ fn time_changes_and_reads_the_overworld_clock() {
     );
     assert_eq!(clock(&server, OVERWORLD_CLOCK).total_ticks, 20);
 
-    // (command line, the message, the total ticks after it, whether it sends `set_time`)
     let cases: Vec<(&str, Text, i64, bool)> = vec![
         (
             "time set 1000",
@@ -1420,7 +1422,6 @@ fn child_names(tree: &ClientboundCommands<'_>, node: &CommandNode<'_>) -> Vec<St
         .collect()
 }
 
-/// The properties and the suggestion type of an argument node.
 fn argument_wire<'a>(node: &CommandNode<'a>) -> (ParserProperties<'a>, Option<String>) {
     let CommandNodeKind::Argument {
         parser,
@@ -1636,7 +1637,7 @@ fn a_clock_change_in_one_dimension_reaches_every_player() {
 }
 
 #[test]
-fn a_game_mode_set_before_a_change_of_dimension_in_the_same_pass_reaches_the_own_entry() {
+fn game_mode_set_before_dimension_change_reaches_own_entry() {
     let mut server = start_in(
         &[
             ("minecraft:overworld", "minecraft:overworld"),
@@ -1765,7 +1766,7 @@ fn anchor_of(server: &mut PlayServer, uuid: Uuid) -> Entity {
 }
 
 fn mode_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> GameMode {
-    use mcrs_minecraft_engine::ability::PlayerGameMode;
+    use mcrs_minecraft_game_mode::PlayerGameMode;
     let player = server.player_in(dim, anchor).unwrap();
     server
         .world_in(dim)
@@ -1789,7 +1790,7 @@ fn told(
 }
 
 #[test]
-fn gamemode_changes_players_of_every_dimension_unless_the_selector_is_world_limited() {
+fn gamemode_changes_every_dimension_unless_selector_is_world_limited() {
     let (mut server, op, nether_player) = two_dimensions(Limits::default());
     let nether = host_app::label_of(&server.app, "minecraft:the_nether");
     let overworld = server.dim;
@@ -1895,8 +1896,6 @@ fn nearest_compares_coordinates_across_dimensions_and_later_commands_see_the_mov
     );
 
     command(&mut server, op, "tp @p[name=!Op] ~ ~ ~");
-    // The Nether leaves the player in the tick after the order, and the Overworld takes it in
-    // the tick after that.
     server.ticks_all(1);
     assert!(server.player_in(nether, nether_player).is_none());
     assert_eq!(
@@ -2030,7 +2029,6 @@ fn the_effects_of_one_run_apply_in_the_order_of_writing_across_effect_types() {
     );
 }
 
-/// The tree the operator receives, through the wire and into the client tree.
 fn client_tree_of(
     packets: &[PacketPayload],
 ) -> mcrs_minecraft_command_argument_vanilla::ClientGraph {
@@ -2134,8 +2132,6 @@ fn teleport_ids(packets: &[PacketPayload]) -> Vec<i32> {
         .collect()
 }
 
-/// Accepts each of `ids` at the position the player has in `dim`, as a client that computed the
-/// destination of the teleport.
 fn accept_teleports(server: &mut PlayServer, dim: Entity, anchor: Entity, ids: &[i32]) {
     use mcrs_minecraft_protocol_game::serverbound::ServerboundAcceptTeleportation;
     let at = transform_in(server, dim, anchor).translation;
@@ -2413,4 +2409,213 @@ fn locate_reports_what_it_cannot_find_and_values_that_do_not_exist() {
             "{line}"
         );
     }
+}
+
+#[test]
+fn data_get_entity_reads_a_player_through_the_player_file_codec() {
+    let mut server = start();
+    let (op, _) = server.join(OPERATOR, "Op");
+
+    let [whole] = chats(&command(&mut server, op, "data get entity @p"))
+        .try_into()
+        .unwrap();
+    let TextContent::Translate {
+        translate, with, ..
+    } = &whole.content
+    else {
+        panic!("{whole:?}");
+    };
+    assert_eq!(translate, "commands.data.entity.query");
+    let [TranslateArg::Text(_), TranslateArg::Text(data)] = with.as_slice() else {
+        panic!("{with:?}");
+    };
+    let data = plain(std::slice::from_ref(data)).concat();
+    for entry in [
+        "Pos: [8.5d, 64.0d, 8.5d]",
+        "playerGameType: 1",
+        "foodLevel: 20",
+        "Dimension: \"minecraft:overworld\"",
+    ] {
+        assert!(data.contains(entry), "{entry} in {data}");
+    }
+    assert!(!data.contains("DataVersion"), "{data}");
+
+    let cases = [
+        (
+            "data get entity @p Pos",
+            said(
+                "commands.data.entity.query",
+                vec![name("Op"), name("[8.5d, 64.0d, 8.5d]")],
+            ),
+        ),
+        (
+            "data get entity @p foodSaturationLevel -0.004",
+            said(
+                "commands.data.entity.get",
+                vec![
+                    name("foodSaturationLevel"),
+                    name("Op"),
+                    name("-0.00"),
+                    (-1).into(),
+                ],
+            ),
+        ),
+        (
+            "data get entity @p Pos 2",
+            red(said("commands.data.get.invalid", vec![name("Pos")])),
+        ),
+        (
+            "data get entity @p NoSuchKey",
+            red(said(
+                "arguments.nbtpath.nothing_found",
+                vec![name("NoSuchKey")],
+            )),
+        ),
+    ];
+    for (line, message) in cases {
+        assert_eq!(chats(&command(&mut server, op, line)), [message], "{line}");
+    }
+}
+
+#[test]
+fn data_get_block_reads_the_saved_data_of_a_block_entity() {
+    let mut server = start();
+    let (op, _) = server.join(OPERATOR, "Op");
+    load_stone_column(&mut server);
+    place_block_entity(
+        &mut server,
+        GeneratedBlockEntity::chest(
+            mcrs_voxel::BlockPos::new(8, 63, 8),
+            "minecraft:chests/simple_dungeon".to_owned(),
+            5,
+        ),
+    );
+
+    let [whole] = chats(&command(&mut server, op, "data get block 8 63 8"))
+        .try_into()
+        .unwrap();
+    let TextContent::Translate {
+        translate, with, ..
+    } = &whole.content
+    else {
+        panic!("{whole:?}");
+    };
+    assert_eq!(translate, "commands.data.block.query");
+    let [_, _, _, TranslateArg::Text(data)] = with.as_slice() else {
+        panic!("{with:?}");
+    };
+    let data = plain(std::slice::from_ref(data)).concat();
+    for entry in [
+        "id: \"minecraft:chest\"",
+        "x: 8",
+        "y: 63",
+        "components: {}",
+        "LootTableSeed: 5L",
+    ] {
+        assert!(data.contains(entry), "{entry} in {data}");
+    }
+
+    let invalid = red(said("commands.data.block.invalid", vec![]));
+    let cases = [
+        (
+            "data get block 8 63 8 id",
+            said(
+                "commands.data.block.query",
+                vec![8.into(), 63.into(), 8.into(), name("\"minecraft:chest\"")],
+            ),
+        ),
+        (
+            "data get block 8 63 8 x 2",
+            said(
+                "commands.data.block.get",
+                vec![
+                    name("x"),
+                    8.into(),
+                    63.into(),
+                    8.into(),
+                    name("2.00"),
+                    16.into(),
+                ],
+            ),
+        ),
+        ("data get block 8 62 8", invalid.clone()),
+        ("data get block 8 62 8 x", invalid),
+        (
+            "data get block 8 1000 8",
+            red(said("argument.pos.outofworld", vec![])),
+        ),
+        (
+            "data get block 100000 63 100000",
+            red(said("argument.pos.unloaded", vec![])),
+        ),
+    ];
+    for (line, message) in cases {
+        assert_eq!(chats(&command(&mut server, op, line)), [message], "{line}");
+    }
+}
+
+#[test]
+fn list_names_every_player_in_join_order_with_the_configured_limit() {
+    use mcrs_minecraft_engine_server::login::JoinLimits;
+    use mcrs_minecraft_protocol_game::text::{Color, HoverEvent};
+    use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
+    let mut app = command_host(Limits::default());
+    app.insert_resource(JoinLimits {
+        max_players: 7,
+        ..JoinLimits::default()
+    });
+    let mut server = PlayServer::start_in(
+        app,
+        &[
+            ("minecraft:overworld", "minecraft:overworld"),
+            ("minecraft:the_nether", "minecraft:the_nether"),
+        ],
+        &[],
+        0,
+    );
+    let nether = host_app::label_of(&server.app, "minecraft:the_nether");
+    server.join_in(nether, THIRD, "Zoe");
+    let (amy, _) = server.join(GUEST, "Amy");
+    let name = |player: &str, uuid: Uuid| {
+        let mut text = player
+            .to_owned()
+            .into_text()
+            .on_click_suggest_command(format!("/tell {player} "))
+            .insertion(player.to_owned());
+        text.style.hover_event = Some(HoverEvent::ShowEntity {
+            id: ResourceKeyBuf::from_location(
+                ResourceLocationBuf::new("minecraft", "player").unwrap(),
+            ),
+            uuid,
+            name: Some(player.to_owned().into_text()),
+        });
+        text
+    };
+    let id = |player: &str, uuid: &str| translated("commands.list.nameAndId", &[player, uuid]);
+    let players = |list: Text| {
+        Text::translate_args(
+            "commands.list.players",
+            vec![TranslateArg::from(2), TranslateArg::from(7), list.into()],
+        )
+    };
+    let separator = || ", ".into_text().color(Color::GRAY);
+
+    assert_eq!(
+        chats(&command(&mut server, amy, "list")),
+        [players(
+            Text::text("")
+                .add_child(name("Zoe", THIRD))
+                .add_child(separator())
+                .add_child(name("Amy", GUEST))
+        )]
+    );
+    assert_eq!(
+        chats(&command(&mut server, amy, "list uuids")),
+        [players(
+            Text::text("")
+                .add_child(id("Zoe", "00000000-0000-0000-0000-000000000003"))
+                .add_child(separator())
+                .add_child(id("Amy", "00000000-0000-0000-0000-000000000002"))
+        )]
+    );
 }

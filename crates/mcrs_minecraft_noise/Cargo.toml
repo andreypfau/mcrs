@@ -13,7 +13,7 @@ workspace = true
 [dependencies]
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_registries.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_numeric.workspace = true
 mcrs_minecraft_random.workspace = true
@@ -23,12 +23,4 @@ serde_json.workspace = true
 
 [features]
 default = ["fast"]
-# The fast precision profile of `docs/worldgen.md` §15: one rounding instead of
-# two wherever a sampler computes `a * b + c`, and a noise sampler's lattice cell
-# collapsed to a line along Y so its eight corner dots become two ends of a
-# segment. Needs an FMA instruction to be a win: `target-cpu=native`, or `+fma`
-# on x86-64. Off is the strict profile, which stays buildable as the oracle.
-# Workspace members turn `fast` on, so the oracle resolves the selected package
-# alone: `cargo test -p mcrs_minecraft_worldgen_density --no-default-features
-# --config 'resolver.feature-unification="selected"'`.
 fast = []

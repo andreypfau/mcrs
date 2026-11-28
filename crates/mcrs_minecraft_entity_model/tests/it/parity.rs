@@ -1,6 +1,3 @@
-//! Bakes each layer entry of the model artefact and compares the faces with the faces that the
-//! reference computes.
-
 use std::collections::BTreeMap;
 
 use glam::{DVec2, DVec3, Vec2, Vec3};
@@ -14,8 +11,6 @@ use crate::artefact::{self, LayerRecord, ModelArtefact, Part};
 use crate::convert::{self, Frame, ORIGIN_HEIGHT, Rules};
 
 const TOLERANCE: f64 = 1e-4;
-/// The 32-byte record rounds the inflate to a step of 1/8192 on each axis, which moves a
-/// corner by up to 1.06e-4. The bound of the block-entity parity rule is 1e-5 block.
 const RECORD_TOLERANCE: f64 = 1.6e-4;
 
 #[derive(Default)]
@@ -31,7 +26,6 @@ struct Explicit {
     faces: usize,
 }
 
-/// The internal point of a vertex of the part with `frame`.
 fn internal_vertex(frame: Frame, vertex: [f64; 3]) -> DVec3 {
     let [x, y, z] = frame.place(vertex);
     DVec3::new(-x, ORIGIN_HEIGHT - y, z)
@@ -152,8 +146,6 @@ fn compare_face(
     }
 }
 
-/// The faces that the GPU rebuilds from the cuboid records of `baked`, in place of the faces of
-/// the bake. A face with no area keeps the normal of the bake: the records give it none.
 fn rebuild_from_records(baked: &BakedGeometry, explicit: &mut Explicit) -> BakedGeometry {
     let records = CuboidRecords::new(baked).unwrap();
     assert_eq!(
@@ -277,7 +269,7 @@ fn the_pig_and_the_frog_bake_to_the_faces_of_the_artefact() {
 }
 
 #[test]
-fn each_layer_entry_that_converts_bakes_and_rebuilds_from_its_records_to_the_artefact() {
+fn convertible_layer_entries_bake_and_rebuild_to_the_artefact() {
     let artefact = ModelArtefact::parse(&fixture("entity_models").text());
     let mut compared = 0;
     let mut refused = Vec::new();

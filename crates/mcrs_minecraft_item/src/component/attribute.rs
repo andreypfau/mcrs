@@ -4,14 +4,14 @@ use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 use mcrs_minecraft_resource::{ResourceLocation, ResourceLocationBuf, rl};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::component::common::{EquipmentSlotGroup, ordinal_enum};
+use crate::component::common::EquipmentSlotGroup;
 use crate::component::registry_ref::null_as_default;
 use crate::harness::{Sample, entry};
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
-use crate::wire::ordinal_enum_wire;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
 use std::io::Write;
@@ -81,16 +81,28 @@ fn is_any(slot: &EquipmentSlotGroup) -> bool {
     *slot == EquipmentSlotGroup::Any
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode)]
 #[serde(deny_unknown_fields)]
 pub struct AttributeModifierValue {
     pub id: ResourceLocationBuf,
     pub amount: f64,
-    pub operation: AttributeOperation,
+    pub operation: ModifierOperation,
 }
 
-ordinal_enum! {
-    AttributeOperation { AddValue, AddMultipliedBase, AddMultipliedTotal }
+impl Decode<'_> for AttributeModifierValue {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let id = ResourceLocationBuf::decode(r)?;
+        let amount = f64::decode(r)?;
+        let operation = u8::try_from(VarInt::decode(r)?.0)
+            .ok()
+            .and_then(|operation| ModifierOperation::try_from(operation).ok())
+            .unwrap_or(ModifierOperation::AddValue);
+        Ok(Self {
+            id,
+            amount,
+            operation,
+        })
+    }
 }
 
 #[registry_value]
@@ -142,7 +154,7 @@ impl Sample for AttributeModifiers {
                 "attack_damage",
                 rl!("mcrs:base_attack_damage"),
                 7.0,
-                AttributeOperation::AddValue,
+                ModifierOperation::AddValue,
                 EquipmentSlotGroup::Any,
                 AttributeDisplay::Default,
             )]),
@@ -151,7 +163,7 @@ impl Sample for AttributeModifiers {
                     "armor",
                     rl!("mcrs:armor"),
                     -0.5,
-                    AttributeOperation::AddMultipliedTotal,
+                    ModifierOperation::AddMultipliedTotal,
                     EquipmentSlotGroup::Head,
                     AttributeDisplay::Hidden,
                 ),
@@ -159,7 +171,7 @@ impl Sample for AttributeModifiers {
                     "attack_damage",
                     rl!("mcrs:dmg"),
                     1.5,
-                    AttributeOperation::AddMultipliedBase,
+                    ModifierOperation::AddMultipliedBase,
                     EquipmentSlotGroup::Saddle,
                     AttributeDisplay::Override {
                         value: Text::text("shown"),
@@ -169,7 +181,7 @@ impl Sample for AttributeModifiers {
                     "armor",
                     rl!("mcrs:styled"),
                     2.0,
-                    AttributeOperation::AddValue,
+                    ModifierOperation::AddValue,
                     EquipmentSlotGroup::Armor,
                     AttributeDisplay::Override {
                         value: "styled".bold(),
@@ -179,8 +191,6 @@ impl Sample for AttributeModifiers {
         ]
     }
 }
-
-ordinal_enum_wire!(AttributeOperation);
 
 impl Encode for AttributeDisplay<Wire> {
     fn encode(&self, mut w: impl Write) -> Result<()> {
@@ -192,7 +202,6 @@ impl Encode for AttributeDisplay<Wire> {
     }
 }
 
-/// An unknown type id reads as `Default`.
 impl Decode<'_> for AttributeDisplay<Wire> {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         Ok(match VarInt::decode(r)?.0 {

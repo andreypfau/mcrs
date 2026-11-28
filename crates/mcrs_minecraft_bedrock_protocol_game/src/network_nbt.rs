@@ -7,9 +7,6 @@ use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::{COMPOUND_ID, Nbt, NbtEncoding, NetworkLittleEndian};
 
-/// An `nbt` field: one root compound in the network NBT form.
-///
-/// The root name is written empty; a decoded root name is dropped.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NetworkNbt(pub NbtCompound);
 

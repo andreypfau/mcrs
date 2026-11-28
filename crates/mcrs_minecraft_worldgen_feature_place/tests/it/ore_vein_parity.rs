@@ -1,6 +1,3 @@
-//! The modern ore vein against `OreOracle`, which runs the game's own
-//! `OreFeature.place` over a world that is stone everywhere.
-
 use bytes::Buf;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_fixtures::fixture;
@@ -77,8 +74,6 @@ fn read_dump() -> Vec<DumpCase> {
     cases
 }
 
-/// State ids are handed out as the dump names states, so a name the dump never
-/// mentions can never match a mask.
 #[derive(Default)]
 struct Interner {
     ids: HashMap<String, VoxelId>,
@@ -91,7 +86,6 @@ impl Interner {
     }
 }
 
-/// A world whose one air state is `air`, and nothing else.
 fn air_world(air: VoxelId) -> WorldStates {
     WorldStates {
         air,
@@ -100,9 +94,6 @@ fn air_world(air: VoxelId) -> WorldStates {
     }
 }
 
-/// Stone everywhere within the build height around `origin` and air for a
-/// few blocks past it, with `ocean_floor` standing in for
-/// `level.getHeight(OCEAN_FLOOR_WG, …)`.
 pub(crate) fn stone_world(
     origin: [i32; 3],
     stone: VoxelId,
@@ -131,9 +122,6 @@ mod exhaustive {
     #[test]
     fn every_dumped_vein_matches_block_for_block() {
         let cases = read_dump();
-        // One buffer across every case, the way a column's run holds it: the first
-        // vein starts from an empty one and the rest would show any residue the
-        // previous vein left behind.
         let mut scratch = OreScratch::default();
         for case in &cases {
             let mut interner = Interner::default();

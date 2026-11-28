@@ -1,11 +1,8 @@
-//! Integration tests for `bridge_inbound` (per-connection rate limiting,
-//! typed event emission) and `disconnect_clears_pending` (teardown
-//! leak check).
-
 use crate::mock_connection;
 
+use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
@@ -19,10 +16,13 @@ use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,
 };
+use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_network::event::{Received, run_event_loop};
 use mcrs_minecraft_network::inbound_rate::{InboundPacketRate, InboundRateLimit};
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
-use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
+use mcrs_minecraft_network::{
+    ConnectionState, NetworkPlugin, ReceivedPacket, ServerSideConnection,
+};
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol::decode::PacketDecoder;
@@ -32,19 +32,21 @@ use mcrs_minecraft_protocol::packets::table::{
     Row, configuration_serverbound, login_serverbound, row_of,
 };
 use mcrs_minecraft_protocol::packets::{configuration, game};
+use mcrs_minecraft_protocol::{Encode, VarInt};
+use mcrs_minecraft_protocol_game::serverbound::{
+    ServerboundEditBook, ServerboundSetCreativeModeSlot,
+};
 use mcrs_minecraft_protocol_game::table::game_serverbound;
+
+use std::net::{Ipv4Addr, SocketAddrV4};
 
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 fn build_inbound_world() -> World {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<Messages<InboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
+    MessageRegistry::register_message::<InboundPlayerPacket>(&mut world);
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<DimInputs>();
     world.init_resource::<BridgeTelemetry>();
@@ -55,11 +57,6 @@ fn build_inbound_world() -> World {
     world
 }
 
-/// Spawn a connection entity in the game state with InboundPacketRate +
-/// OutboundQueue and a mock RawConnection that we can inject packets into.
-///
-/// Returns `(socket_entity, inbound_tx)`. Send `ReceivedPacket` values into
-/// `inbound_tx` to simulate packets arriving from the client.
 fn spawn_ingame_connection(world: &mut World) -> (Entity, mpsc::Sender<ReceivedPacket>) {
     let (raw, _outgoing_rx, inbound_tx) = mock_connection::make_mock_raw_connection_full();
     let entity = world
@@ -73,8 +70,6 @@ fn spawn_ingame_connection(world: &mut World) -> (Entity, mpsc::Sender<ReceivedP
     (entity, inbound_tx)
 }
 
-/// Log a player in, attached to `dim` or, without an in-dim entity yet, still
-/// joining it. Returns the host anchor carrying the session.
 fn register_player(world: &mut World, dim: Entity, in_dim_entity: Option<Entity>) -> Entity {
     let session = world.resource_mut::<PlayerSessionCounter>().next();
     let place = match in_dim_entity {
@@ -89,7 +84,6 @@ fn register_player(world: &mut World, dim: Entity, in_dim_entity: Option<Entity>
         .id()
 }
 
-/// Attach a `HostAnchorRef` to the given socket entity pointing at `player`.
 fn attach_anchor(world: &mut World, socket: Entity, player: Entity) {
     world.entity_mut(socket).insert(HostAnchorRef(player));
 }
@@ -105,24 +99,10 @@ fn run_inbound(world: &mut World) {
     sys.apply_deferred(world);
 }
 
-// ---------------------------------------------------------------------------
-// Counter resource used to verify typed event triggers
-// ---------------------------------------------------------------------------
-
 #[derive(Resource, Default)]
 struct EventCounter {
     count: usize,
 }
-
-// ---------------------------------------------------------------------------
-// bridge_inbound_emits_received_packet_event
-//
-// Replaces the old routing test: bridge_inbound no longer routes into
-// PendingInboundPartition directly. Instead it raises the typed event
-// for each drained in-game packet so host-side observers (keepalive, movement,
-// chat) fire. This test verifies that exactly one event fires per drained
-// packet across two independent connections.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn bridge_inbound_emits_received_packet_event() {
@@ -147,7 +127,6 @@ fn bridge_inbound_emits_received_packet_event() {
     register_player(&mut world, dim_a, Some(in_dim_a));
     register_player(&mut world, dim_b, Some(in_dim_b));
 
-    // Inject one packet into each connection.
     tx_a.try_send(make_received_packet(1)).unwrap();
     tx_b.try_send(make_received_packet(2)).unwrap();
 
@@ -158,10 +137,6 @@ fn bridge_inbound_emits_received_packet_event() {
         counter.count, 2,
         "bridge_inbound must emit one typed event per drained packet"
     );
-
-    // bridge_inbound no longer routes to PendingInboundPartition;
-    // it only emits the typed event. The count above is the full
-    // verification needed.
 }
 
 fn connected_player(world: &mut World) -> (Entity, mpsc::Sender<ReceivedPacket>) {
@@ -173,7 +148,6 @@ fn connected_player(world: &mut World) -> (Entity, mpsc::Sender<ReceivedPacket>)
     (socket, tx)
 }
 
-/// Sends `count` keep-alives that arrived at `arrival` and reads them.
 fn arrive(world: &mut World, tx: &mpsc::Sender<ReceivedPacket>, arrival: Instant, count: u32) {
     for seq in 0..count {
         let mut packet = make_received_packet(seq);
@@ -237,13 +211,6 @@ fn a_new_connection_has_an_outbound_queue_at_once() {
     assert!(world.get::<OutboundQueue>(socket).is_some());
 }
 
-// ---------------------------------------------------------------------------
-// disconnect_clears_pending
-// ---------------------------------------------------------------------------
-
-/// After `process_disconnect` runs, the session's host anchor is despawned
-/// and `OutboundQueue` is removed from the socket entity. Neither leaks past
-/// the disconnect tick.
 #[test]
 fn disconnect_clears_pending() {
     use mcrs_minecraft_engine::muxer::disconnect::{LeavingSessions, process_disconnect};
@@ -264,19 +231,22 @@ fn disconnect_clears_pending() {
         "session should exist before disconnect"
     );
 
-    // Verify OutboundQueue exists on socket.
     assert!(
         world.get::<OutboundQueue>(socket).is_some(),
         "OutboundQueue should exist before disconnect"
     );
 
-    // Run process_disconnect (simulating the observer path).
     world
         .run_system_once(
             move |mut commands: bevy_ecs::prelude::Commands,
                   mut sessions: LeavingSessions,
                   mut dim_channels: bevy_ecs::system::ResMut<DimInputs>| {
-                process_disconnect(player, &mut sessions, &mut dim_channels, &mut commands);
+                process_disconnect(
+                    player,
+                    sessions.reborrow(),
+                    &mut dim_channels,
+                    commands.reborrow(),
+                );
             },
         )
         .expect("process_disconnect system ran");
@@ -286,16 +256,11 @@ fn disconnect_clears_pending() {
         "the session must be gone after disconnect"
     );
 
-    // OutboundQueue must be removed from the socket entity.
     assert!(
         world.get::<OutboundQueue>(socket).is_none(),
         "OutboundQueue must be removed from socket entity after disconnect"
     );
 }
-
-// ---------------------------------------------------------------------------
-// Decode outcomes of inbound frames
-// ---------------------------------------------------------------------------
 
 fn frame(id: i32, payload: &[u8]) -> ReceivedPacket {
     ReceivedPacket {
@@ -517,7 +482,7 @@ fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
 }
 
 #[test]
-fn frames_behind_a_configuration_acknowledgement_are_read_against_the_configuration_table() {
+fn frames_after_configuration_ack_use_the_configuration_table() {
     let mut world = build_inbound_world();
     world.init_resource::<DeliveredIds>();
     world.add_observer(
@@ -547,4 +512,182 @@ fn frames_behind_a_configuration_acknowledgement_are_read_against_the_configurat
     assert!(world.entity(socket).contains::<ServerSideConnection>());
     assert_eq!(world.resource::<DeliveredIds>().0, [7]);
     assert_eq!(game_counts(&world).failures_total(), 0);
+}
+
+fn var_int(value: usize) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    VarInt(i32::try_from(value).unwrap())
+        .encode(&mut bytes)
+        .unwrap();
+    bytes
+}
+
+fn creative_slot_with_custom_data(length: usize) -> Vec<u8> {
+    let mut nbt = vec![10, 7, 0, 1, b'a'];
+    nbt.extend_from_slice(&i32::try_from(length).unwrap().to_be_bytes());
+    nbt.resize(nbt.len() + length, 0);
+    nbt.push(0);
+    [
+        36i16.to_be_bytes().to_vec(),
+        var_int(1),
+        var_int(1),
+        var_int(1),
+        var_int(0),
+        var_int(0),
+        var_int(nbt.len()),
+        nbt,
+    ]
+    .concat()
+}
+
+fn edit_book_of(pages: usize) -> Vec<u8> {
+    let mut bytes = [var_int(0), var_int(pages)].concat();
+    for _ in 0..pages {
+        bytes.extend_from_slice(&[1, b'x']);
+    }
+    bytes.push(0);
+    bytes
+}
+
+fn plugin_dispatcher(bytes: u64) -> PacketDispatcher {
+    let mut app = App::new();
+    app.add_plugins(NetworkPlugin {
+        address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
+        announce_on_lan: false,
+        nbt_budget: NbtBudget {
+            bytes,
+            tags: 262_144,
+        },
+        ..Default::default()
+    });
+    let mut dispatcher = app
+        .world_mut()
+        .remove_resource::<PacketDispatcher>()
+        .expect("the network plugin inserts the dispatcher");
+    dispatcher.set_play(mcrs_minecraft_engine::muxer::game_packets::GAME_SERVERBOUND);
+    dispatcher
+}
+
+#[test]
+fn a_packet_past_the_nbt_budget_of_the_plugin_disconnects_and_is_not_delivered() {
+    let creative = row_of(game_serverbound::NAMES, "set_creative_mode_slot").unwrap();
+    let edit_book = row_of(game_serverbound::NAMES, "edit_book").unwrap();
+    let decoder = "io.netty.handler.codec.DecoderException";
+    for (budget, id, body, delivered) in [
+        (
+            33_554_432,
+            creative,
+            creative_slot_with_custom_data(2_097_148),
+            true,
+        ),
+        (
+            1_000_000,
+            creative,
+            creative_slot_with_custom_data(2_097_148),
+            false,
+        ),
+        (33_554_432, edit_book, edit_book_of(101), false),
+    ] {
+        let mut world = build_inbound_world();
+        world.insert_resource(plugin_dispatcher(budget));
+        world.init_resource::<DeliveredIds>();
+        world.add_observer(deliver::<ServerboundSetCreativeModeSlot>(creative));
+        world.add_observer(deliver::<ServerboundEditBook<'static>>(edit_book));
+        let (raw, mut outgoing, tx) = mock_connection::make_mock_raw_connection_full();
+        let socket = world
+            .spawn((
+                ServerSideConnection { raw: Box::new(raw) },
+                ConnectionState::Game,
+                InboundPacketRate::default(),
+                OutboundQueue::default(),
+            ))
+            .id();
+        tx.try_send(frame(id, &body)).unwrap();
+
+        run_inbound(&mut world);
+
+        let name = game_serverbound::NAMES[id as usize];
+        let connected = world.entity(socket).contains::<ServerSideConnection>();
+        if delivered {
+            assert_eq!(world.resource::<DeliveredIds>().0, [id], "{name} {budget}");
+            assert!(connected, "{name} {budget} keeps the connection");
+            continue;
+        }
+        assert_eq!(
+            world.resource::<DeliveredIds>().0,
+            [0; 0],
+            "{name} {budget}"
+        );
+        assert!(!connected, "{name} {budget} is still connected");
+        let mut frames = PacketDecoder::new();
+        while let Ok(blob) = outgoing.try_recv() {
+            frames.queue_bytes(BytesMut::from(&blob[..]));
+        }
+        let received: Vec<_> = std::iter::from_fn(|| frames.try_next_packet().unwrap()).collect();
+        let [received] = received.as_slice() else {
+            panic!("{name} {budget}: {received:?}");
+        };
+        assert_eq!(
+            disconnect_reason(ConnectionState::Game, &received.body),
+            serde_json::json!({
+                "translate": "disconnect.genericReason",
+                "with": [format!(
+                    "Internal Exception: {decoder}: Failed to decode packet 'serverbound/minecraft:{name}'"
+                )],
+            }),
+            "{name} {budget}"
+        );
+    }
+}
+
+#[test]
+fn a_packet_carries_the_tick_acknowledged_at_its_arrival_and_no_pong_reaches_the_game() {
+    use mcrs_minecraft_engine::muxer::probes::Probes;
+    use mcrs_minecraft_engine::muxer::session::PendingInbound;
+
+    let mut world = build_inbound_world();
+    let dim = Entity::from_raw_u32(10).expect("nonzero");
+    let (socket, tx) = spawn_ingame_connection(&mut world);
+    let player = register_player(&mut world, dim, None);
+    attach_anchor(&mut world, socket, player);
+    let mut probes = Probes::default();
+    for _ in 0..3 {
+        probes.pings.ping(Duration::ZERO);
+        probes.pings.end_tick(Duration::ZERO);
+    }
+    world.entity_mut(socket).insert(probes);
+
+    let pong_row = row_of(game_serverbound::NAMES, "pong").unwrap();
+    let pong = |id: i32| {
+        let mut packet = frame(pong_row, &id.to_be_bytes());
+        packet.verdict = Some(mcrs_minecraft_move_validate::check_serverbound(
+            pong_row,
+            &id.to_be_bytes(),
+        ));
+        packet
+    };
+    for packet in [
+        make_received_packet(0),
+        pong(1),
+        make_received_packet(1),
+        pong(7),
+        pong(2),
+        make_received_packet(2),
+    ] {
+        tx.try_send(packet).unwrap();
+    }
+    run_inbound(&mut world);
+
+    let delivered: Vec<(i32, u64)> = world
+        .get::<PendingInbound>(player)
+        .unwrap()
+        .0
+        .iter()
+        .map(|packet| (packet.id, packet.acknowledged_tick))
+        .collect();
+    let keep_alive = keep_alive_row();
+    assert_eq!(
+        delivered,
+        [(keep_alive, 0), (keep_alive, 1), (keep_alive, 2)]
+    );
 }

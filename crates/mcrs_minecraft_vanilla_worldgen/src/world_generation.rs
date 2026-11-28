@@ -3,7 +3,7 @@ use std::mem;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::{Local, ResMut};
+use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use mcrs_engine_cell::CellId;
 use mcrs_engine_link::{Link, Placement};
@@ -19,13 +19,6 @@ use rustc_hash::FxHashMap;
 use crate::generation_input::GenerationInput;
 use crate::generation_stage::{GenerationStage, SchedulerConfig, init_chunk_task_pool};
 
-/// The generation of each world, in the host: one stage for each world generates the whole
-/// columns that every cell of the world asks for, for its hot sections and for its data layer
-/// alike. A column and the lower levels around it are thus generated once for the world.
-///
-/// A cell asks in the output of a tick, and the answer goes to each cell that asked in the input
-/// of the next tick after the stage finished the column, as the data layer answers. A world of
-/// several cells thus gets each column in the same tick as a world of one cell.
 #[derive(Resource, Default)]
 pub struct WorldGeneration {
     worlds: BTreeMap<Entity, WorldStage>,
@@ -33,16 +26,12 @@ pub struct WorldGeneration {
 
 struct WorldStage {
     link: Link<GenerationStage>,
-    /// The cells that wait on each column the stage generates.
     askers: FxHashMap<ColumnPos, Vec<CellId>>,
-    /// The view of each player of the world.
     views: ForeignViews,
     views_changed: bool,
 }
 
 impl WorldGeneration {
-    /// Waits until the stage of every world has answered every column asked so far, and hands
-    /// out none of them.
     pub async fn answered(&mut self) {
         for stage in self.worlds.values_mut() {
             stage.link.answered().await;
@@ -70,7 +59,6 @@ impl WorldStage {
     }
 }
 
-/// Starts the stage of the world of `label` from the generation context of its first cell.
 pub(crate) fn build_world_generation(
     host: &mut World,
     label: Entity,
@@ -100,8 +88,18 @@ pub(crate) fn build_world_generation(
         );
 }
 
-/// Hands each stage the columns that the cells of its world asked for in the tick that just
-/// ended, then the views of the players of the world.
+pub(crate) fn generates_worlds(generation: Res<WorldGeneration>) -> bool {
+    !generation.worlds.is_empty()
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the asks allocate only on ticks that ask for columns, and the view list only when the views change, as it moves into the generation link"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
 pub(crate) fn ask_world_columns(
     mut cells: ResMut<DimCells>,
     mut generation: ResMut<WorldGeneration>,
@@ -123,9 +121,6 @@ pub(crate) fn ask_world_columns(
     }
 }
 
-/// Hands what each stage generated or dropped to each cell that asked for it, for the tick that
-/// starts now. The pool finishes columns in an order its threads decide, so a cell gets them by
-/// position.
 pub(crate) fn deliver_world_columns(
     mut cells: ResMut<DimCells>,
     mut generation: ResMut<WorldGeneration>,

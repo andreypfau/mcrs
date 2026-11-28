@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [lib]
+test = false
 doctest = false
 
 [lints]
@@ -19,7 +20,6 @@ mcrs_command.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_command_argument.workspace = true
 mcrs_minecraft_block.workspace = true
-mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_snbt.workspace = true
 

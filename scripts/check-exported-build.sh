@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A tree exported from git, outside any repository, must build the network crate and its
-# identity tests must pass there with the commit hash placeholder.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)

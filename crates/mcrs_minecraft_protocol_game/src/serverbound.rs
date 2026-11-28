@@ -1,12 +1,14 @@
-use crate::item::{ContainerInput, DelimitedStack, HashedStack};
 use crate::player::{CommandArgumentSignature, MessageSignature, PlayerAction};
 use crate::pos::MoveFlags;
 use crate::recipe::RecipeBookType;
 use crate::{Difficulty, Direction, Hand, LpVec3, Position};
 use bitfield_struct::bitfield;
 use derive_more::From;
+use mcrs_minecraft_container_click::Click;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_item_stack::HashedStack;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_protocol::packets::common::serverbound::{
     ClientInformation, CustomClickAction, Payload, Pong, ResourcePack,
 };
@@ -237,9 +239,7 @@ pub const MAX_CHANGED_SLOTS: usize = 128;
 pub struct ServerboundContainerClick {
     pub container_id: VarInt,
     pub state_seqno: VarInt,
-    pub slot_index: i16,
-    pub button: u8,
-    pub container_input: ContainerInput,
+    pub click: Click,
     pub changed_slots: Bounded<Vec<(u16, Option<HashedStack>)>, MAX_CHANGED_SLOTS>,
     pub carried_item: Option<HashedStack>,
 }
@@ -359,7 +359,7 @@ pub struct ServerboundSetCarriedItem {
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ServerboundSetCreativeModeSlot {
     pub slot: i16,
-    pub item: DelimitedStack,
+    pub item: WireStackWithLength,
 }
 
 #[derive(Clone, Debug, Encode, Decode)]

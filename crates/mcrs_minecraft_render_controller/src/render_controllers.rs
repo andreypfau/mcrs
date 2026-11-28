@@ -10,29 +10,23 @@ use crate::layer_choice::{LayerChoice, MAX_PART_PATTERNS, TextureChoice};
 use crate::render_controller_file::RenderControllerLibrary;
 use crate::render_query::RenderQuery;
 
-/// One element of the render controller list of a client entity, compiled.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledLayer {
     pub controller: String,
     pub condition: Expression,
     pub geometry: Expression,
     pub texture: Expression,
-    /// At most [`MAX_PART_PATTERNS`] bone patterns in file order, each with its value.
     pub part_visibility: Vec<(String, Expression)>,
 }
 
-/// The render controllers of one client entity, compiled against its resource maps.
 #[derive(Clone, Debug)]
 pub struct RenderControllers {
     pub layers: Vec<CompiledLayer>,
-    /// The query that each query slot reads.
     slots: Vec<Option<RenderQuery>>,
     layout: VariableLayout,
 }
 
 impl RenderControllers {
-    /// Compiles the render controller list of `entity`. An element with a load error goes to
-    /// `diagnostics` and draws nothing.
     pub fn compile(
         entity: &ClientEntityFile,
         library: &RenderControllerLibrary,
@@ -139,13 +133,10 @@ impl RenderControllers {
         }
     }
 
-    /// The queries that the expressions read; a host gives a value for each one.
     pub fn queries(&self) -> impl Iterator<Item = &RenderQuery> {
         self.slots.iter().flatten()
     }
 
-    /// The layers that the client entity draws with the query values of `source`. A layer
-    /// whose geometry or texture gives no resource draws nothing.
     pub fn evaluate(
         &self,
         vm: &mut ScalarVm,
@@ -235,7 +226,6 @@ mod tests {
         (entity, controllers)
     }
 
-    /// MPIG-VAR-002 and MPIG-LAYER-001 through the render controllers of the entity pack.
     #[test]
     fn the_pig_selects_its_geometry_by_age_and_model_and_draws_the_saddle_on_an_adult() {
         let (entity, controllers) = pig();

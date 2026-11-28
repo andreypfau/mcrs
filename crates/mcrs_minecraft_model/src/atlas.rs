@@ -1,5 +1,6 @@
 use crate::anim;
 use crate::resource_set::ResourceSet;
+use crate::sprite_atlas::SpriteAtlas;
 use crate::sprite_error::SpriteError;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
@@ -8,12 +9,13 @@ use mcrs_minecraft_mesh::block::Pass;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 use mcrs_minecraft_model_file::resource_id;
 use serde::Deserialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::LazyLock;
 
 pub const MISSING_SPRITE: &str = "minecraft:missingno";
 
-/// Metal binds at most this many layers in one texture array.
+const ITEM_ATLAS: &str = "minecraft:items";
+
 pub const ARRAY_LAYERS: usize = 2048;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -28,6 +30,7 @@ pub struct Sprite {
     pub array: u8,
     pub layer: u16,
     pub animation: Option<u16>,
+    pub atlas: SpriteAtlas,
 }
 
 pub struct Animation {
@@ -44,7 +47,6 @@ pub struct SpriteArray {
     pixels: Vec<u8>,
 }
 
-/// The base texture a permuted sprite copies and the palette swap it applies.
 type Permutation = (String, PaletteMapping);
 
 #[derive(Default)]
@@ -54,6 +56,37 @@ pub struct SpriteRegistry {
     table: Vec<Sprite>,
     animations: Vec<Animation>,
     permutations: HashMap<String, Permutation>,
+    item_atlas: ItemAtlasMembers,
+}
+
+#[derive(Default)]
+struct ItemAtlasMembers {
+    directories: Vec<DirectorySource>,
+    sprites: HashSet<String>,
+}
+
+struct DirectorySource {
+    source: String,
+    prefix: String,
+}
+
+impl ItemAtlasMembers {
+    fn atlas_of(&self, pack: &ResourceSet, id: &str) -> SpriteAtlas {
+        let (namespace, path) = resource_id::split_id(id);
+        let listed = self.sprites.contains(id)
+            || self.directories.iter().any(|directory| {
+                path.strip_prefix(directory.prefix.as_str())
+                    .is_some_and(|rest| {
+                        let file = format!("{namespace}/textures/{}/{rest}.png", directory.source);
+                        pack.get(&file).is_some()
+                    })
+            });
+        if listed {
+            SpriteAtlas::Item
+        } else {
+            SpriteAtlas::Block
+        }
+    }
 }
 
 struct Source {
@@ -66,7 +99,7 @@ struct Source {
 impl SpriteRegistry {
     #[expect(
         clippy::len_without_is_empty,
-        reason = "the registry is addressed by sprite index and nothing asks whether it is empty, so an is_empty method would only add public API"
+        reason = "the registry is addressed by sprite index and nothing asks whether it is empty"
     )]
     pub fn len(&self) -> usize {
         self.table.len()
@@ -84,12 +117,15 @@ impl SpriteRegistry {
         &self.table
     }
 
-    /// The sprite `intern` handed out as `id`, or `None` for an id it never handed out.
     pub fn sprite(&self, id: u16) -> Option<Sprite> {
         self.table.get(usize::from(id)).copied()
     }
 
-    /// An id the registry never handed out reads as translucent, which culls nothing.
+    pub fn atlas(&self, id: u16) -> SpriteAtlas {
+        self.sprite(id)
+            .map_or(SpriteAtlas::Block, |sprite| sprite.atlas)
+    }
+
     pub fn opacity(&self, id: u16) -> Opacity {
         self.sprite(id)
             .and_then(|sprite| {
@@ -99,17 +135,31 @@ impl SpriteRegistry {
             .unwrap_or(Opacity::Translucent)
     }
 
-    /// Registers the paletted permutations every `atlases/*.json` declares, so
-    /// an id such as `minecraft:trims/items/chestplate_trim_quartz` interns
-    /// although no such file exists.
     pub fn load_atlases(&mut self, pack: &ResourceSet) -> Result<(), SpriteError> {
+        let mut item_atlas = ItemAtlasMembers::default();
+        let mut loaded = Vec::new();
         for (id, bytes) in pack.entries("atlases", "json") {
             let sources: AtlasSources =
                 serde_json::from_slice(bytes).map_err(|error| SpriteError::Atlas {
                     id: id.clone(),
                     message: error.to_string(),
                 })?;
-            self.permutations.extend(sources.permutations(pack)?);
+            let permutations = sources.permutations(pack)?;
+            if resource_id::full_id(&id) == ITEM_ATLAS {
+                item_atlas
+                    .sprites
+                    .extend(permutations.iter().map(|(sprite, _)| sprite.clone()));
+                item_atlas.directories.extend(sources.directories());
+                item_atlas.sprites.extend(sources.singles());
+            }
+            loaded.extend(permutations);
+        }
+        self.item_atlas = item_atlas;
+        self.permutations.extend(loaded);
+        for (name, &id) in &self.index {
+            if let Some(sprite) = self.table.get_mut(usize::from(id)) {
+                sprite.atlas = self.item_atlas.atlas_of(pack, name);
+            }
         }
         Ok(())
     }
@@ -149,8 +199,6 @@ impl SpriteRegistry {
         Err(SpriteError::NotInPack { path })
     }
 
-    /// The pixels of every frame the sprite holds, level zero, row-major RGBA.
-    /// Empty for an id the registry never handed out.
     pub fn frames(&self, id: u16) -> Vec<&[u8]> {
         let Some(sprite) = self.sprite(id) else {
             return Vec::new();
@@ -180,6 +228,20 @@ impl SpriteRegistry {
             return Ok(index);
         }
         if self.arrays.len() >= MAX_SPRITE_ARRAYS {
+            let coarser = |array: &SpriteArray| {
+                array.size > side
+                    && array.size.is_multiple_of(side)
+                    && (array.size / side).is_power_of_two()
+                    && array.layers.len() + layers <= ARRAY_LAYERS
+            };
+            let finest = self
+                .arrays
+                .iter()
+                .enumerate()
+                .filter(|(_, array)| coarser(array));
+            if let Some((index, _)) = finest.min_by_key(|(_, array)| array.size) {
+                return Ok(index);
+            }
             return Err(SpriteError::TooManyArrays {
                 id: id.to_owned(),
                 needed: self.arrays.len() + 1,
@@ -260,7 +322,13 @@ impl SpriteRegistry {
         array
             .layers
             .extend(std::iter::repeat_n(opacity, frames.len()));
-        array.pixels.extend_from_slice(&pixels);
+        if array.size == side {
+            array.pixels.extend_from_slice(&pixels);
+        } else {
+            array
+                .pixels
+                .extend(scale_up(&pixels, side, array.size / side));
+        }
         let animation = (!sequence.frames.is_empty()).then(|| {
             self.animations.push(Animation {
                 array: index as u8,
@@ -276,6 +344,7 @@ impl SpriteRegistry {
             array: index as u8,
             layer,
             animation,
+            atlas: self.item_atlas.atlas_of(pack, id),
         });
         self.index.insert(id.to_string(), sprite);
         Ok(sprite)
@@ -315,9 +384,6 @@ pub const MISSING_SIZE: u32 = 16;
 const MAGENTA: [u8; 4] = [0xF8, 0x00, 0xF8, 0xFF];
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 
-/// Entity textures such as a skull's or a book's are wider than tall; every layer of an array is
-/// square, so the image goes in the top-left corner and `block_entity_model` divides its UVs by
-/// the side. Block faces' UVs assume the whole layer, so other textures pass through as they are.
 fn entity_square(id: &str, source: Source) -> Source {
     let entity = id
         .split_once(':')
@@ -335,7 +401,6 @@ fn entity_square(id: &str, source: Source) -> Source {
     }
 }
 
-/// `data`, `width` by `height` RGBA, in the top-left of a transparent square.
 fn pad_square(data: &[u8], width: u32, height: u32) -> Vec<u8> {
     let side = width.max(height) as usize;
     let row = width as usize * 4;
@@ -348,7 +413,6 @@ fn pad_square(data: &[u8], width: u32, height: u32) -> Vec<u8> {
     out
 }
 
-/// The pixels of the missing sprite, RGBA, `MISSING_SIZE` on each side.
 pub fn missing_pixels() -> Vec<u8> {
     let half = MISSING_SIZE / 2;
     (0..MISSING_SIZE)
@@ -377,6 +441,13 @@ enum AtlasSource {
         #[serde(default = "underscore")]
         separator: String,
     },
+    #[serde(rename = "minecraft:directory", alias = "directory")]
+    Directory { source: String, prefix: String },
+    #[serde(rename = "minecraft:single", alias = "single")]
+    Single {
+        resource: String,
+        sprite: Option<String>,
+    },
     #[serde(other)]
     Other,
 }
@@ -386,9 +457,29 @@ fn underscore() -> String {
 }
 
 impl AtlasSources {
-    /// Every permuted sprite id with the base texture it copies and the palette swap it applies.
-    /// Only paletted permutations create sprites here; the other sources name files that
-    /// intern on demand.
+    fn directories(&self) -> impl Iterator<Item = DirectorySource> + '_ {
+        self.sources.iter().filter_map(|source| match source {
+            AtlasSource::Directory { source, prefix } => Some(DirectorySource {
+                source: source.clone(),
+                prefix: prefix.clone(),
+            }),
+            AtlasSource::PalettedPermutations { .. }
+            | AtlasSource::Single { .. }
+            | AtlasSource::Other => None,
+        })
+    }
+
+    fn singles(&self) -> impl Iterator<Item = String> + '_ {
+        self.sources.iter().filter_map(|source| match source {
+            AtlasSource::Single { resource, sprite } => {
+                Some(resource_id::full_id(sprite.as_ref().unwrap_or(resource)))
+            }
+            AtlasSource::PalettedPermutations { .. }
+            | AtlasSource::Directory { .. }
+            | AtlasSource::Other => None,
+        })
+    }
+
     fn permutations(&self, pack: &ResourceSet) -> Result<Vec<(String, Permutation)>, SpriteError> {
         let mut out = Vec::new();
         for source in &self.sources {
@@ -488,6 +579,19 @@ fn opacity_of(pixels: &[u8]) -> Opacity {
     }
 }
 
+fn scale_up(pixels: &[u8], side: u32, factor: u32) -> impl Iterator<Item = u8> + '_ {
+    let (side, factor) = (side as usize, factor as usize);
+    pixels.chunks_exact(side * 4).flat_map(move |row| {
+        let wide = row
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .flat_map(move |texel| std::iter::repeat_n(texel, factor))
+            .flatten();
+        std::iter::repeat_n(wide, factor).flatten().copied()
+    })
+}
+
 impl SpriteArray {
     pub fn layers(&self) -> u32 {
         self.layers.len() as u32
@@ -498,7 +602,6 @@ impl SpriteArray {
         self.pixels.get(layer * stride..(layer + 1) * stride)
     }
 
-    /// The mip chain of the layers from `from` on, in the layout the whole chain uses.
     pub fn mips(&self, from: usize) -> Vec<Vec<u8>> {
         let stride = (self.size * self.size * 4) as usize;
         mip_levels(
@@ -509,9 +612,6 @@ impl SpriteArray {
     }
 }
 
-/// Every level of every layer, level zero being the pixels as given. A cutout layer keeps the
-/// share of texels its alpha test passes at every level, so a leaf block does not thin out with
-/// distance.
 fn mip_levels(pixels: &[u8], opacities: &[Opacity], mut size: usize) -> Vec<Vec<u8>> {
     if size == 0 {
         return Vec::new();
@@ -592,8 +692,6 @@ fn match_coverage(pixels: &mut [u8], texels: usize, target: f32) {
     }
 }
 
-/// The texel a 2x2 block at `(x, y)` of a `stride`-wide RGBA layer averages to, its colour
-/// weighted by alpha in linear light. A texel past the layer counts as transparent.
 fn downsample_2x2(src: &[u8], stride: usize, x: usize, y: usize) -> [u8; 4] {
     let mut light = [0f32; 3];
     let mut alpha = 0u32;
@@ -655,6 +753,30 @@ mod tests {
     }
 
     #[test]
+    fn a_sprite_past_a_full_array_goes_into_the_finest_coarser_one() {
+        let mut registry = SpriteRegistry::default();
+        for size in [16, 256, 48, 32] {
+            registry.arrays.push(SpriteArray {
+                size,
+                layers: Vec::new(),
+                pixels: Vec::new(),
+            });
+        }
+        registry.arrays[0].layers = vec![Opacity::Solid; ARRAY_LAYERS];
+        assert_eq!(registry.array_with_room("a", 16, 1).unwrap(), 3);
+        registry.arrays[3].layers = vec![Opacity::Solid; ARRAY_LAYERS];
+        assert_eq!(registry.array_with_room("b", 16, 1).unwrap(), 1);
+        assert!(registry.array_with_room("c", 20, 1).is_err());
+    }
+
+    #[test]
+    fn scaling_up_repeats_every_texel_on_both_axes() {
+        let pixels: Vec<u8> = (0..4u8).flat_map(|texel| [texel; 4]).collect();
+        let scaled: Vec<u8> = scale_up(&pixels, 2, 2).step_by(4).collect();
+        assert_eq!(scaled, [0, 0, 1, 1, 0, 0, 1, 1, 2, 2, 3, 3, 2, 2, 3, 3]);
+    }
+
+    #[test]
     fn downsampling_averages_light_rather_than_encoded_bytes() {
         let src = [0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0];
         let dst = downsample_2x2(&src, 2, 0, 0);
@@ -699,6 +821,7 @@ mod tests {
             a_sprite_is_interned_once();
             every_atlas_parses_and_the_item_trims_permute_into_sprites();
             the_missing_sprite_is_a_generated_checker();
+            sprites_interned_before_the_atlas_lists_load_take_their_atlas();
         }
     }
 
@@ -970,6 +1093,23 @@ mod tests {
                 .intern(pack, "minecraft:trims/items/chestplate_trim_nope")
                 .is_err()
         );
+    }
+
+    fn sprites_interned_before_the_atlas_lists_load_take_their_atlas() {
+        let pack = ResourceSet::corpus();
+        let mut registry = SpriteRegistry::default();
+        let cases = [
+            ("minecraft:item/stick", SpriteAtlas::Item),
+            ("minecraft:block/stone", SpriteAtlas::Block),
+        ];
+        let ids: Vec<u16> = cases
+            .iter()
+            .map(|(id, _)| registry.intern(pack, id).unwrap())
+            .collect();
+        registry.load_atlases(pack).unwrap();
+        for ((name, atlas), id) in cases.iter().zip(ids) {
+            assert_eq!(registry.atlas(id), *atlas, "{name}");
+        }
     }
 
     fn the_missing_sprite_is_a_generated_checker() {

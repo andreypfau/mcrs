@@ -1,7 +1,3 @@
-//! A column that goes cold keeps its last version in the data layer, and a column that a ticket
-//! loads again comes back from there instead of from the generator. A view gets every column
-//! past the hot area from the data layer, which generates and lights it outside the dimension.
-
 use std::time::{Duration, Instant};
 
 use bevy_app::{App, Last};
@@ -41,7 +37,6 @@ use crate::world_server::{
 
 const PATIENCE: Duration = Duration::from_secs(120);
 
-/// A server whose overworld can generate, and its label.
 fn server() -> (App, Entity) {
     let mut app = WorldServer {
         worlds: mcrs_minecraft_engine_server::Placement::Thread,
@@ -53,9 +48,6 @@ fn server() -> (App, Entity) {
     (app, label)
 }
 
-/// Ticks until the muxer has sent the client of `session` what `sent` asks for. Nothing answers
-/// the batches, so the test takes each one as the client would. `check` sees the dimension
-/// after each tick.
 fn tick_until_sent(
     app: &mut App,
     label: Entity,
@@ -78,7 +70,6 @@ fn tick_until_sent(
     }
 }
 
-/// Whether the client of `session` holds every column of the view that the muxer serves it.
 fn holds_whole_view(views: &ColumnViews, session: PlayerSession) -> bool {
     let Some(view) = views.view(session) else {
         return false;
@@ -176,7 +167,6 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_loads_nothing_past_it() {
     let dimension = dimension_of(world);
     let session = PlayerSession(1);
     let player = spawn_viewer(world, session, DVec3::new(8.5, 100.0, 8.5), 5);
-    // The simulation area one ring wider, and the rings that load with each of its columns.
     let loaded_reach = 2 + LOADING_RINGS;
     let loaded_past_the_hot_area = |world: &mut World| {
         world.get::<ColumnIndex>(dimension).is_some_and(|index| {
@@ -234,8 +224,6 @@ fn a_view_wider_than_the_hot_area_is_sent_whole_and_loads_nothing_past_it() {
     );
 }
 
-/// What the dimension handed the muxer for the columns it subscribes to, in the order the
-/// muxer applies it.
 #[derive(Resource, Default)]
 struct Published(Vec<PublishedColumn>);
 
@@ -271,8 +259,6 @@ fn light_rows(light: &ColumnLight) -> impl Iterator<Item = &RowLight> {
     light.sky.iter().chain(&light.block)
 }
 
-/// Plays what the dimension published onto the light rows of every column it sent, as the
-/// clients hold them, and counts the light updates that changed no row.
 fn light_updates_changing_nothing(rows: usize, published: &[PublishedColumn]) -> usize {
     let mut held: FxHashMap<ColumnPos, Vec<[u8; 2048]>> = FxHashMap::default();
     let mut changing_nothing = 0;
@@ -317,9 +303,6 @@ fn light_updates_changing_nothing(rows: usize, published: &[PublishedColumn]) ->
     changing_nothing
 }
 
-/// The light updates of a column that the clients hold while no block within one column of it
-/// changed. The light of such a column is the light it went out with, so each of them is light
-/// the clients draw only until the next one takes it back.
 fn light_updates_without_a_block_change(published: &[PublishedColumn]) -> Vec<ColumnPos> {
     let changed: Vec<ColumnPos> = published
         .iter()
@@ -373,8 +356,6 @@ fn a_column_that_turns_hot_sends_no_light_its_viewers_already_hold() {
         |_| {},
     );
 
-    // Each step moves a ring of columns that the view holds with the light of the data layer
-    // into the area that the dimension lights.
     for step in 1..=4 {
         dimension_world(&mut app, label)
             .get_mut::<Transform>(player)

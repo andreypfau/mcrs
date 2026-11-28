@@ -8,14 +8,15 @@ audience: [observer, contributor, jvm, admin, rust]
 stability: stable
 sources:
   - README.md
+  - Cargo.toml
   - LICENSE-MIT
   - LICENSE-APACHE
   - LICENSE-VALENCE-MIT
   - docs/clean-room.md
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -42,8 +43,12 @@ This page repeats what the repository says about itself. It does not give a lega
 
 ## Behavior is written from specifications (clean-room)
 
-mcrs takes the behavior of the game from written specifications and never from the game's code. This way of working is called clean-room, and it splits the work between two people. A spec author may read the game and writes down only behavior. An implementer reads only specs and artifacts that the game produces, and never reads decompiled or mapped game code.
+New contributions take the behavior of the game from written specifications under the clean-room rule. A specification author may read the game's code and records only behavior. An implementer reads specifications, public player-facing documentation, game artifacts and repository code permitted by the rule, and never reads decompiled or mapped game code.
 
-Names from the game's code stay out of the repository. The rule file lists six community terms as the only exceptions: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`.
+Names from the game's code stay out of the repository. The rule file lists eight community terms as exceptions: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`, `PalettedContainer`, `LootContext` and `NumberProvider`. It also lets a tool that runs inside the game and drives the vanilla client, such as `tools/vanilla-client`, name the client classes it calls.
 
-The rule has one consequence for you as a contributor. If you have read the code of the game for some behavior, you cannot implement that behavior. The full rule is [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md), and [How to contribute](/docs/en/contributing/) explains what to do in that case.
+Existing world-generation code and its design notes have a [documented exception](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md#exception-world-generation). New work there follows the current rule, and a change that touches a name from the game's code removes that name.
+
+If you have read the code of the game for some behavior, you cannot write the implementation of that behavior yourself. You can still deliver it through an AI agent that takes the implementer role, when you check that the specification is correct and the agent has no access to the game's code, in its files, its prompt or its tools. The full rule is [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md), and [How to contribute](/docs/en/contributing/) describes the roles.
+
+The owner can also allow a named third-party open source implementation as a source for specification authors. GrimAC is allowed for lag compensation and reach. The same separation applies: implementers do not read that code, and its names, paths and quotations stay out of the repository. Rules from that source carry the label `design`, because they are choices of mcrs.

@@ -15,28 +15,20 @@ use crate::support::EFFECT_OFFSET;
 use crate::travel;
 use crate::travel::modifier;
 
-/// What the server observed of one tick of a player.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Observation {
-    /// The displacement of the tick.
     pub displacement: DVec3,
-    /// The flags at the end of the tick, from the move packet and the re-application.
     pub end_flags: MoveFlags,
-    /// The supporting block at the end of the tick.
     pub end_support: Option<BlockPos>,
-    /// The flight state after step 6 of the tick.
     pub flight: bool,
     pub jump: bool,
     pub shift: bool,
 }
 
-/// The velocities that the observed tick can end with: three when one horizontal flag hides
-/// which axes clipped.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VelocityCandidates {
     values: [DVec3; 3],
     count: usize,
-    /// False when a ceiling stopped a flying player: then `y` is not known.
     pub vertical_known: bool,
 }
 
@@ -47,7 +39,6 @@ impl VelocityCandidates {
     }
 }
 
-/// The velocity at the end of an observed player tick, before the zero cutoff of the next tick.
 #[must_use]
 pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
     view: View<'_, W, B>,

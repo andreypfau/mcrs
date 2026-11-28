@@ -3,7 +3,6 @@ use core::hash::Hasher;
 
 use crate::float_key;
 
-/// What a player gets when the player eats the stack.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct Food {
@@ -13,8 +12,6 @@ pub struct Food {
 }
 
 impl Food {
-    /// A food that a player eats only when hungry. Gives `None` for a negative nutrition, which
-    /// the saved form does not hold.
     #[must_use]
     pub const fn new(nutrition: i32, saturation: f32) -> Option<Self> {
         if nutrition >= 0 {

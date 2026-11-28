@@ -1,11 +1,3 @@
-//! The profile entries that each viewer has on its client, and which of them its player list
-//! shows.
-//!
-//! A viewer has the entries of its visible set, which are not listed, and at most
-//! [`LISTED_CAP`] listed entries: the nearest players. An entry that nothing needs any
-//! more stays on the client for [`ENTRY_LINGER_TICKS`], so a subject at the edge of the track
-//! radius does not send its profile again on each return.
-
 use crate::list_packets::{
     Profile, latency_packet, listed_packet, profile_entry, remove_packet, unlisted_packet,
 };
@@ -20,37 +12,29 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
 use uuid::Uuid;
 
-/// The most entries that the client shows in its player list, the viewer itself included.
 pub const LISTED_CAP: usize = 80;
 
-/// A viewer checks its listed entries at most this often, in ticks.
 pub const LIST_INTERVAL_TICKS: u64 = 20;
 
-/// The ticks that an entry which nothing needs stays on the client before its removal.
 pub const ENTRY_LINGER_TICKS: u64 = 600;
 
-/// A viewer gets the latency of its listed entries at most this often, in ticks: 60 seconds.
 pub const LATENCY_INTERVAL_TICKS: u64 = 1200;
 
-/// Whether a spawn must carry the profile entry of its subject.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProfileNeed {
     Send,
     Skip,
 }
 
-/// A player that the tracker holds, as the list sees it at one tick.
 #[derive(Clone, Copy, Debug)]
 pub struct Member<'a> {
     pub player: EntityId,
     pub position: DVec3,
     pub profile: Profile<'a>,
     pub game_mode: GameMode,
-    /// The round trip in milliseconds.
     pub latency: i32,
 }
 
-/// A packet for one viewer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[must_use]
 pub struct Dispatch {
@@ -67,25 +51,20 @@ enum Listing {
 #[derive(Debug)]
 struct Entry {
     listing: Listing,
-    /// The tick since which the entry is neither listed nor visible.
     idle_since: Option<u64>,
-    /// The latency that the viewer last received for the entry.
     sent_latency: i32,
 }
 
 #[derive(Debug)]
 struct ViewerEntries {
-    /// Spreads the periodic work of the viewers over the ticks.
     phase: u64,
     entries: BTreeMap<EntityId, Entry>,
-    /// The generation of the last choice of the listed entries.
     chosen_at: Option<u64>,
 }
 
 #[derive(Debug)]
 struct SubjectProfile {
     uuid: Uuid,
-    /// The viewers that have the entry, the subject itself included.
     holders: BTreeSet<EntityId>,
     encoded: Option<EncodedProfile>,
 }
@@ -96,18 +75,14 @@ struct EncodedProfile {
     packet: Bytes,
 }
 
-/// The profile entries of the viewers of a world.
 #[derive(Default, Debug)]
 pub struct PlayerList {
     viewers: BTreeMap<EntityId, ViewerEntries>,
     subjects: BTreeMap<EntityId, SubjectProfile>,
-    /// The entries that each viewer loses at the next update.
     removals: BTreeMap<EntityId, Vec<Uuid>>,
 }
 
 impl PlayerList {
-    /// Adds `player`, whose own listed entry its login or its respawn gave its client. `phase`
-    /// spreads the periodic work of the viewers over the ticks.
     pub fn join(&mut self, player: EntityId, phase: u64, uuid: Uuid) {
         let own = Entry {
             listing: Listing::Listed,
@@ -132,7 +107,6 @@ impl PlayerList {
         );
     }
 
-    /// Records that `viewer` gains `subject` in its visible set.
     pub fn acquire(&mut self, viewer: EntityId, subject: EntityId) -> ProfileNeed {
         let (Some(entries), Some(profile)) = (
             self.viewers.get_mut(&viewer),
@@ -156,7 +130,6 @@ impl PlayerList {
         ProfileNeed::Send
     }
 
-    /// Records that `viewer` loses `subject` from its visible set at `tick`.
     pub fn release(&mut self, viewer: EntityId, subject: EntityId, tick: u64) {
         if let Some(entry) = self
             .viewers
@@ -168,9 +141,6 @@ impl PlayerList {
         }
     }
 
-    /// Removes `player`. Each viewer that has its entry loses it at the next update. Gives the
-    /// packet that removes the entries of `player` from its own client, which keeps them across
-    /// a respawn in another dimension.
     pub fn leave(&mut self, player: EntityId) -> Result<Option<Bytes>> {
         if let Some(profile) = self.subjects.remove(&player) {
             for holder in profile.holders {
@@ -202,7 +172,6 @@ impl PlayerList {
         remove_packet(players).map(Some)
     }
 
-    /// The viewers that have the entry of `subject`. The host sends them the game mode packet.
     pub fn holders(&self, subject: EntityId) -> impl Iterator<Item = EntityId> + '_ {
         self.subjects
             .get(&subject)
@@ -210,7 +179,6 @@ impl PlayerList {
             .flat_map(|profile| profile.holders.iter().copied())
     }
 
-    /// The profile entry of `subject`, encoded once for each game mode that it has.
     pub fn profile_packet(
         &mut self,
         subject: EntityId,
@@ -223,8 +191,6 @@ impl PlayerList {
         cached_profile(record, profile, game_mode)
     }
 
-    /// Whether [`Self::update`] at `tick` reads its roster: a viewer chooses its listed entries
-    /// again, or gets the latency of its listed entries.
     #[must_use]
     pub fn reads_roster(&self, tick: u64, generation: u64) -> bool {
         self.viewers.values().any(|entries| {
@@ -235,11 +201,6 @@ impl PlayerList {
         })
     }
 
-    /// Chooses the listed entries of each viewer, gathers the latency of the listed entries and
-    /// the removal of the entries that nothing needs any more. `tick` is the tracker tick, and
-    /// `generation` changes whenever a player joins, leaves or changes section. `roster` holds
-    /// the tracked players sorted by player. `sees(viewer, subject)` tells whether the visible
-    /// set of the viewer holds the subject. After an error, the dispatches in `out` stay valid.
     pub fn update<F: Fn(EntityId, EntityId) -> bool>(
         &mut self,
         tick: u64,
@@ -317,14 +278,12 @@ fn member<'r, 'a>(roster: &'r [Member<'a>], player: EntityId) -> Option<&'r Memb
     roster.get(index)
 }
 
-/// Whether the work of a viewer that recurs every `interval` ticks falls on `tick`.
 fn due(tick: u64, phase: u64, interval: u64) -> bool {
     tick.wrapping_add(phase)
         .checked_rem(interval)
         .is_some_and(|rest| rest == 0)
 }
 
-/// The choice of the listed entries of one viewer.
 struct Relisting<'a, F> {
     viewer: EntityId,
     tick: u64,
@@ -394,7 +353,6 @@ impl<F: Fn(EntityId, EntityId) -> bool> Relisting<'_, F> {
             entry.idle_since = (!(self.sees)(self.viewer, subject)).then_some(self.tick);
             unlisted.push(record.uuid);
         }
-        // The unlisting goes first, so the client never lists more than the cap.
         if !unlisted.is_empty() {
             out.push(Dispatch {
                 viewer: self.viewer,

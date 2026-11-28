@@ -1,9 +1,6 @@
 # Entity damage: health, damage and death
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
+Version: see `assets/minecraft/version.json`.
 
 This document states the health of a living entity, the damage that it takes, and its death. It
 states one procedure for each hit, the reductions of the damage, the cooldown after a hit, and the
@@ -12,18 +9,25 @@ crowd. Other sources use the same procedure with their own damage type. The proc
 for a player and for a mob. Section 10 states the rules that apply only to a player.
 
 The rules come from the reference implementation. Experiments on a vanilla server confirm the
-numeric rules and the packets (sections 15 and 16).
+numeric rules and the packets (section 15).
 
 ## 0. Conventions
 
 ### 0.1 Terms
 
 - **Server**, **client**, **tick**, **entity**, **living entity**, **server-simulated entity**,
-  **fall distance**, **effect position**, **step action**, **fall action**, **crowd damage**,
-  **base entity tick**, **block effects step**, **shift key state**, **f32**, **f64**,
-  **widen**, **corpus**, **data pack**: as `entity-physics.md`, section 0.1, defines them.
-- **Order key**: as PHY-CMP-013 defines it.
-- **Merge point**, **pass**: as `docs/physics-architecture.md`, sections 3.4 and 3.7, defines them.
+  **fall distance**, **effect position**, **step action**, **fall action**, **crowd damage**:
+  `entity-physics.md`, section 0.1, defines these terms.
+- **Base entity tick**, **block effects step**, **shift key state**, **f32**, **f64**, **widen**,
+  **corpus**, **data pack**: the same section defines these terms.
+- **Order key**: the UUID of an entity, as PHY-CMP-013 defines it.
+- **Writer key**: as PHY-CMP-017 defines it.
+- **Pass**: the order-independent tick of the entities of `entity-physics.md`, section 11.4. Each
+  entity reads the other entities at their state from the start of the tick.
+- **Sorted queue**, **apply step**: `entity-physics.md`, section 0.1, defines these terms. In this
+  document, the entries of the sorted queue are hits.
+- **Packet phase**: `entity-physics.md`, section 0.1, defines this term. In it, the server handles
+  the packets of the clients one after the other, before the pass (PHY-ORD-018).
 - **Health**: an f32 value of a living entity, from 0 to the max health.
 - **Max health**: the value of the attribute `max_health` of the entity, converted to f32.
 - **Damage type**: an entry of the data-pack registry `minecraft:damage_type`.
@@ -46,13 +50,13 @@ numeric rules and the packets (sections 15 and 16).
   `AbsorptionAmount`.
 - **Armor value**: the value of the attribute `armor`, rounded down to an integer.
 - **Armor toughness**: the value of the attribute `armor_toughness`, converted to f32.
-- **Fire-immune**: a property of an entity type. Appendix A lists the living types that have it.
+- **Fire-immune**: a property of an entity type.
 - **Dying state**: the state of a living entity whose health is 0 or that died (section 8).
 - **Death time**: an integer counter of an entity in the dying state. The data name is
   `DeathTime`.
 - **Alive**: a living entity is alive when it is not removed and its health is more than 0.
 - **Idle time**: as `entity-ai-timing.md`, section 0.1, defines it.
-- **Crowd**: a set of living entities that the count of PHY-PSH-007 joins: each entity of the set
+- **Crowd**: a set of living entities that the count of PHY-PSH-007 joins. Each entity of the set
   is a candidate of another entity of the set.
 - **Fall multiplier**: the f32 factor that the fall action of a block gives to the fall damage
   (DMG-FALL-004).
@@ -61,9 +65,10 @@ numeric rules and the packets (sections 15 and 16).
 
 ### 0.2 Provenance
 
-The labels are those of `entity-physics.md`, section 0.2. Section 16 holds the captured results.
+The labels are those of `entity-physics.md`, section 0.2.
 Each rule states its kind and its confidence, for example
 `(black_box_confirmed, semantic, confidence: high)`. The kinds are those of `docs/spec/README.md`.
+A new or revised rule states them on its provenance line, as `docs/spec/README.md` requires.
 
 ### 0.3 ID prefix
 
@@ -105,10 +110,7 @@ Section 12 lists the subjects that are out of scope, with the reason for each.
   `assets/minecraft/tags/entity_type/fall_damage_immune.json`. Section 0.6 lists the members that
   this document uses.
 - `assets/mcrs/reports/packets.json`: the packet ids of section 9.
-- The game rule table of `crates/mcrs_minecraft_game_rule`: `max_entity_cramming` (default 24),
-  `fall_damage`, `fire_damage`.
-- Appendix A: the base values of the attributes and the immunities of each living entity type. A
-  vanilla server gave these values (experiment D8).
+- The game rules `max_entity_cramming` (default 24), `fall_damage` and `fire_damage`.
 
 ### 0.6 Damage tags of the three types
 
@@ -141,14 +143,14 @@ becomes less than the health, the health changes to the max health.
 | `safe_fall_distance` | the fall damage (DMG-FALL-002) |
 | `fall_damage_multiplier` | the fall damage (DMG-FALL-002) |
 
-The base value of each attribute is data of the entity type (Appendix A). The attribute
-definitions in `crates/mcrs_minecraft_entity` give the default when a type has no own value.
-Modifiers of items and effects change the value. This document does not state the modifier
-rules. A mob with no items and no effects has the base value.
+The base value of each attribute is data of the entity type. ATR-BASE-003 of `attributes.md` and
+own that table. ATR-DEF-001 of that document gives the default when a type has no
+own value. Modifiers of items and effects change the value, as ATR-VAL-001 of `attributes.md`
+states. A mob with no modifier has the base value.
 
 **DMG-ATT-003** (`black_box_confirmed`, semantic, confidence: high). Two properties of the entity
-type make it immune to some damage types (DMG-HIT-001): the entity type tag `fall_damage_immune`,
-and the fire-immune property of Appendix A.
+type make it immune to some damage types (DMG-HIT-001). They are the entity type tag
+`fall_damage_immune` and the fire-immune property.
 
 The zombified piglin is fire-immune and is not in `fall_damage_immune`. Thus magma does not hurt
 it, and a fall does.
@@ -181,27 +183,33 @@ change. Section 3 marks the steps that read the causing entity.
 
 ## 3. The hit procedure
 
-**DMG-HIT-001** (`source_suggested_black_box_confirmed`, semantic, confidence: high). A hit on a
-living entity first does these tests, in this order. When a test is true, the hit is rejected and
-the procedure stops.
+**DMG-HIT-001** A hit on a living entity first does these tests, in this order. When a test is
+true, the hit is rejected and the procedure stops.
 
 1. The entity is removed.
-2. The entity is invulnerable and the damage type does not have the tag
-   `bypasses_invulnerability`. Hook: the saved flag `Invulnerable` and the saved counter
-   `invulnerable_time` make an entity invulnerable. In G2 no system sets them, so no mob is
-   invulnerable and the row needs no field for them.
+2. All these conditions are true:
+   - the entity is invulnerable;
+   - the damage type does not have the tag `bypasses_invulnerability`;
+   - the causing entity is not a player in creative mode.
+
+   Hook: the saved flag `Invulnerable` and the saved counter `invulnerable_time` make an entity
+   invulnerable. Thus a player in creative mode can hit an entity with the flag `Invulnerable`.
 3. The damage type has the tag `is_fire` and the entity type is fire-immune.
 4. The damage type has the tag `is_fall` and the entity type is in `fall_damage_immune`.
-5. For a player, a test of DMG-PLR-001 is true.
+5. For a player, a test of DMG-PLR-001 is true. Two of these tests read the causing entity: the
+   game rule `pvp` and the friendly fire of a team (`player-attack.md`, ATK-TGT-004).
 6. The entity is in the dying state (section 8).
 7. The damage type has the tag `is_fire` and the entity has the effect `fire_resistance`.
+
+Provenance: `source_suggested_black_box_confirmed`; step 5 as DMG-PLR-001. Kind: semantic.
+Confidence: high; step 5 as DMG-PLR-001. Experiment for step 2: ATK-E4 of `player-attack.md`;
+`tools/mcrs_minecraft_probe/traces/player_attack.json`.
 
 **DMG-HIT-002** (`source_suggested_black_box_confirmed`, semantic, confidence: high). After the
 tests of DMG-HIT-001, the hit does these steps before the cooldown:
 
 1. Hook: set the idle time of the entity to 0 (AIT-RFX-006). This step occurs before the
-   cooldown, so also a hit that the cooldown rejects sets it. G2 has no idle time; `mob-goals.md`
-   adds it for the stroll (GOAL-STR-001), and `natural-spawning.md` for the despawn.
+   cooldown, so also a hit that the cooldown rejects sets it.
 2. If the amount is less than 0, set it to 0.
 3. If the amount is NaN or infinite, set it to the largest finite f32 value.
 
@@ -233,19 +241,19 @@ client sees the same bits as the server (DMG-NET-002).
 is not rejected does these steps:
 
 1. Hook: record the causing entity for the kill credit and for the anger of mobs. A source with
-   no causing entity records nothing. `player-attack.md` and `mob-goals.md` (section 6.1, a hook)
+   no causing entity records nothing. `player-attack.md` and `mob-goals.md`
    state these records. The damage record that the panic reads is GOAL-PNC-001.
 2. For a full hit:
    - send the damage event (DMG-NET-001);
    - if the damage type does not have the tag `no_impact`, mark the velocity of the entity for
      the next update (DMG-NET-004);
-   - if the damage type does not have the tag `no_knockback`, apply the knockback. The three types
-     of this document have `no_knockback`. `player-attack.md` states the knockback.
+   - if the damage type does not have the tag `no_knockback`, apply the knockback of DMG-KB-001.
+     The three types of this document have `no_knockback`.
 3. If the health is 0, start the death (DMG-DTH-001). For a full hit, play the death sound
    (DMG-NET-007).
 4. Else, for a full hit, play the hurt sound (DMG-NET-007), unless the damage type has the tag
    `no_hurt_sound`.
-5. Hook: record the source as the last damage source of the entity. No system of G2 reads it.
+5. Hook: record the source as the last damage source of the entity.
 
 A partial hit sends no damage event and plays no sound. Its health change reaches the client only
 through the entity data.
@@ -256,6 +264,45 @@ damage cooldown by 1 when it is more than 0. A player does the second decrease i
 part instead (DMG-PLR-002). Thus a full hit in tick `T` lets the next full hit occur in tick
 `T + 10` at the earliest. The save keeps the hurt time. It does not keep the damage cooldown or the
 last amount, so a loaded entity has a damage cooldown of 0.
+
+**DMG-KB-001** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The default
+knockback applies in DMG-HIT-005 step 2. Let `x` and `z` be the horizontal components of the
+direction, and let `power` be `0.4F`, widened to f64. This value is `0.4000000059604645`.
+
+1. If the direct entity is a projectile, the direction is the horizontal velocity of the projectile
+   with both components negated. The entity moves along the velocity of the projectile.
+2. Else, if the damage source has a source position, the direction is the horizontal vector from
+   the entity to the source position. The entity moves away from the source position. The source position of a
+   damage source with no stored position is the position of its direct entity.
+3. Else the direction is zero.
+
+The procedure continues in this way:
+
+1. Multiply `power` by `1 - k`, where `k` is the value of the attribute `knockback_resistance`.
+   If `power` is 0 or less, stop.
+2. While `x * x + z * z < 1.0E-5`, set `x` and `z` to `(u1 - u2) * 0.01`, with new uniform values
+   `u1` and `u2` in [0, 1) for each of them.
+3. Let `n` be the vector `(x, z)` with length 1, and `v` the velocity of the entity. Set the new
+   velocity to `(v.x / 2 - n.x * power, vy, v.z / 2 - n.z * power)`. The new `vy` is
+   `min(0.4, v.y / 2 + power)` when the on-ground flag of the entity is true. Else it is `v.y`,
+   with no change. The limit 0.4 is the f64 value 0.4, not `0.4F`.
+4. Mark the velocity of the entity for the next update (DMG-NET-004).
+
+Step 3 reads the on-ground flag that the entity has at the hit. `entity-physics.md`, PHY-ORD-017,
+states its value after a summon. These examples have `power = 0.4000000059604645` and the
+direction `(0, -1)`:
+
+| Velocity before the hit | On-ground flag | Velocity after the hit |
+|-------------------------|----------------|------------------------|
+| `(0, 0, 0)` | true | `(0, 0.4, 0.4000000059604645)` |
+| `(0, -0.0784000015258789, 0)` | true | `(0, 0.36080000519752503, 0.4000000059604645)` |
+| `(0, 0, 0)` | false | `(0, 0, 0.4000000059604645)` |
+
+The extra knockback of a melee attack and of enchantments has its own rules. The knockback of an
+explosion is in `explosions.md`, EXP-KNB-001. The damage types of explosions have the tag
+`no_knockback`. The experiments ATK-E1, ATK-E3 and ATK-E9 of `player-attack.md` confirm step 3 for
+both values of the on-ground flag. No experiment confirms the direction of a projectile or the
+random direction of step 2.
 
 ## 4. Reductions
 
@@ -291,7 +338,7 @@ enchantments are items, so section 12 lists them. An entity without items has no
 **DMG-RED-004** (`black_box_confirmed`, semantic, confidence: high). Absorption applies after the
 reductions (DMG-HIT-004 step 2). It applies to mobs and to players. The value stays in the range
 from 0 to the value of `max_absorption`. The effect `absorption` raises `max_absorption` and sets
-the absorption. `effects.md` will state the effect.
+the absorption. `status-effects.md` states the effect (EFX-ACT-005, EFX-ACT-006).
 
 ## 5. Fall damage
 
@@ -313,17 +360,18 @@ entity, for `d'`, `m` and a damage type:
 The game rule `fall_damage` applies only to a player (DMG-PLR-001). A mob takes fall damage when
 the game rule is false (experiment D2).
 
-D1 (section 16) gives the values for a zombified piglin. A fall of 78 blocks onto
+D1 gives the values for a zombified piglin. A fall of 78 blocks onto
 `honey_block` gives 15 damage, so the piglin keeps 5 health.
 
-**DMG-FALL-003** (`source_suggested`, semantic, confidence: medium). Hook. The fall action applies
-also to each passenger (PHY-RCH-002), with the same `d'`, `m` and damage type. That hit writes
-another row, so it is a write of PHY-CMP-015 at the merge point, not a hit of DMG-ORD-002. G2 has
-no passengers, so G2 does not implement this rule.
+**DMG-FALL-003** Hook. The fall action applies also to each passenger (PHY-RCH-002), with the
+same `d'`, `m` and damage type. That hit changes another entity. Thus it is a write of PHY-CMP-015,
+and the vehicle is the writer. It is not an own hit of DMG-ORD-002.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
 
 **DMG-FALL-004** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The fall
 action of each block. D1 and D12 confirm each row. The farm needs only the default row and
-`honey_block`; G2 implements these two rows.
+`honey_block`.
 
 | Block | `d'` | `m` | Damage type | Other effect |
 |-------|------|-----|-------------|--------------|
@@ -340,9 +388,7 @@ action of each block. D1 and D12 confirm each row. The farm needs only the defau
 
 The bounce action of a bed and of a slime block is part of `entity-physics.md` (PHY-RST-001). The
 block effects of farmland and of the egg are writes of the block domain (DMG-ORD-002). The block
-flag `STEP_ACTION` does not tell `magma_block` from the other step blocks. The named block data
-of `mcrs_minecraft_collision_table` gets a hot floor flag and the fall multiplier; this document
-allows that change of the kernel crate.
+flag `STEP_ACTION` does not tell `magma_block` from the other step blocks.
 
 **DMG-FALL-005** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). When the
 fall damage `n` is more than 0, the server plays two sounds at the entity before the hit:
@@ -375,38 +421,41 @@ action (PHY-RCH-007) and is out of scope.
 
 **DMG-CRW-001** (`black_box_confirmed`, semantic, confidence: high). The crowd damage of PHY-PSH-007
 is a hit with the source of DMG-SRC-002. The value `n` of PHY-PSH-007 comes from a resource of the
-dimension world, as `RandomTickSpeed` does: the host holds the value of `max_entity_cramming`
-(default 24), and each dimension world copies it. The pass reads it into `PushRules`. A read
+dimension world, as the game rule `random_tick_speed` does. The host holds the value of
+`max_entity_cramming` (default 24). Each dimension world copies it. A read
 from the save and a `gamerule` command are hooks.
 
-**DMG-CRW-002** (`black_box_confirmed`, semantic, confidence: high). A candidate of PHY-PSH-002 must
-be alive (PHY-ORD-012). A death thus removes the entity from the count of each later entity of its
-crowd in the same tick. This rule states that effect without the order of the reference:
+**DMG-CRW-002** A candidate of PHY-PSH-002 must be alive (PHY-ORD-012). A death thus removes the
+entity from the count of each later entity of its crowd in the same tick. This rule states that
+effect without the order of the reference:
 
 1. In one tick, the entities of one crowd do their crowd step in the order of their order keys
    (PHY-CMP-013). The lowest key is first.
 2. The count of PHY-PSH-007 steps 2 and 4 leaves out each candidate with a lower order key that
-   died in this tick. The death can come from its fall action, its step action or its crowd hit.
+   died in this tick. The death can come from each hit of the tick: its fall action, its step
+   action, its crowd hit or a hit from another entity.
 3. A candidate with a higher order key stays in the count, also when it dies later in the tick.
 
 Only the count leaves out these deaths. The pushes use the values at the start of the tick
-(PHY-CMP-012), so a death reaches the flag `pushable` of the push in the next tick.
+(PHY-CMP-012). Thus a death reaches the flag `pushable` of the push in the next tick.
 
-The pass applies the rule in a crowd fix-up. The fix-up runs in `Simulate`, in the system
-`entity_tick`, after the main pass and before `Project`:
+The pass applies the rule through the sorted queue (DMG-ORD-002):
 
-1. The main pass keeps, for each entity, the counts of PHY-PSH-007 steps 2 and 4, its neighbour
-   list and its draw of step 3. It does not apply a crowd hit.
-2. The fix-up takes each entity whose step 2 count is more than `n - 1` and whose draw is 0, in
-   the order of the order keys.
-3. From both counts it subtracts each entity of its neighbour list that died in this tick and has
-   a lower order key. An entity counts only when it was a candidate: `pushes(own, dead)`, and the
-   boxes intersect. The fix-up does no second query of the grid.
-4. When the step 4 count is still more than `n - 1`, it applies the crowd hit. A death from that
-   hit joins the deaths that step 3 subtracts for the later entities.
+1. The tick of each entity keeps the counts of PHY-PSH-007 steps 2 and 4, its neighbour list and
+   its draw of step 3. It does not apply a crowd hit.
+2. When the step 2 count is more than `n - 1` and the draw is 0, the entity adds a crowd hit to
+   the sorted queue. The crowd hit holds both counts and the neighbour list.
+3. The apply step takes the crowd hit at its place in the sorted queue. It finds each entity of
+   the neighbour list that died in this tick and has a lower order key. An entity counts only when
+   it was a candidate: `pushes(own, dead)`, and the boxes intersect. The apply step subtracts each
+   such entity from the step 2 count. It subtracts it from the step 4 count only when that count
+   contains it, thus only when the entity was not a passenger.
+   The apply step does no second query of the entities.
+4. When the step 4 count is still more than `n - 1`, the apply step applies the crowd hit. A death
+   from that hit joins the deaths that step 3 subtracts for the later entities.
 
-The fix-up does no work in a tick in which no entity draws 0 in a crowd. In a layout of many cells,
-a death in the halo of another cell counts one tick late (`docs/physics-architecture.md`, C6).
+A tick in which no entity draws 0 in a crowd adds no crowd hit. In a layout of many cells, a death
+in the halo of another cell counts one tick late (`docs/physics-architecture.md`, C6).
 
 Thus a crowd of `n + 1` loses at most one entity to crowd damage in one tick. When a death leaves
 `n` entities, the crowd damage stops for the others. The experiments D6 and D7 show this:
@@ -421,6 +470,8 @@ Thus a crowd of `n + 1` loses at most one entity to crowd damage in one tick. Wh
 Without this rule, each of the 25 entities with 5 health dies with the chance 1 in 4 in the first
 tick. The crowd then loses about 6 entities, not 1. Section 13 records the difference in the order
 as DMG-DEV-001.
+
+Provenance: `black_box_confirmed`. Kind: deviation (DMG-DEV-001). Confidence: high.
 
 **DMG-CRW-003** (`black_box_confirmed`, semantic, confidence: high). The rate of crowd hits follows
 from PHY-PSH-007 step 3 and from the cooldown. While the count stays more than `n - 1`:
@@ -445,8 +496,8 @@ at 0, the entity dies. The death occurs one time for each entity. It does these 
    one. `player-attack.md` states the credit.
 2. Change to the dying state. From now on, the entity is not alive.
 3. Send the death event (DMG-DTH-002).
-4. Drop the loot and the experience. Loot is out of scope. `experience-orbs.md` states the
-   experience. The drop uses the source of the death and the time since the last hit by a player.
+4. Drop the loot and the experience. Loot is out of scope. `experience.md` states the
+   experience (XP-DRP-001). The drop uses the source of the death and the time since the last hit by a player.
 5. Send the entity event 3 to the tracking players (DMG-NET-003).
 6. Set the pose to `dying` (DMG-NET-002).
 
@@ -455,24 +506,23 @@ other systems can read. It has the entity, its type, its position, the damage so
 and the last player hit (`player-attack.md`). The game event `entity_die` occurs at the position of
 the entity. Game events are out of scope.
 
-**DMG-DTH-003** (`black_box_confirmed`, semantic, confidence: high). In each tick in the dying
-state, the base entity tick increases the death time by 1, after the decreases of DMG-HIT-006.
+**DMG-DTH-003** In each tick in the dying state, the base entity tick increases the death time
+by 1, after the decreases of DMG-HIT-006.
 When the death time reaches 20, the server sends the entity event 60 to the tracking players and
 removes the entity. Thus the entity stays in the world for 20 ticks after the tick of its death.
 It is not in the world in the 20th tick after its death.
 
-The pass removes the row in the same tick, on the path of an item that reached its lifetime: the
-row goes to the expired list of its tile and leaves the tile, and `entity_tick` removes its cold
-state. The removal is not a request of the life cycle and not a claim. The tracker sends
+The removal occurs in the same tick, on the same path as the removal of an item that reached its
+lifetime. The removal is not a request of the life cycle and not a claim. The tracker sends
 `remove_entities` in the same tick (TRK-LIFE-004).
 
-A row whose hurt time or damage cooldown is more than 0, or that is in the dying state, does not
-rest, so these counters run in each tick (PHY-SKIP-004). A death changes no body,
-so it marks its tile dirty. The back buffer of the grid then holds the flag `pushable` false at
-the next freeze.
+An entity whose hurt time or damage cooldown is more than 0, or that is in the dying state, does
+not rest. Thus these counters run in each tick (PHY-SKIP-004). A death changes no body. The pushes
+of the next tick read the flag `pushable` of the dead entity as false (PHY-CMP-012).
 
-**DMG-DTH-004** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). An entity in
-the dying state:
+Provenance: `black_box_confirmed`. Kind: semantic. Confidence: high.
+
+**DMG-DTH-004** An entity in the dying state:
 
 - rejects each hit (DMG-HIT-001 step 6);
 - is not pushable (PHY-ORD-012), so it is not a candidate of a push or of a crowd count;
@@ -481,17 +531,18 @@ the dying state:
 - still does its travel step and its block effects step, so it can fall and move;
 - still pushes the other entities in its push step (PHY-PSH-001);
 - keeps its box, because the pose `dying` has the dimensions of the pose `standing` for a mob;
-- keeps its row and counts in each count that does not test the alive state, for example the
+- stays in the world and counts in each count that does not test the alive state, for example the
   mob cap of `natural-spawning.md`;
-- keeps the death time in the save. Hook: G2 saves no mob.
+- keeps the death time in the save.
 
-**DMG-DTH-005** (`design`, semantic, confidence: medium). The row of the entity is the authority
-for the health and the dying state. The living state of the row (`Living` of
-`mcrs_minecraft_physics`) holds the health, the absorption, the last amount, the damage cooldown,
-the hurt time and the death time. This document allows these fields in the kernel crate. The
-cold state does not keep the entity data entries 6 (pose) and 9 (health): the tracker reads the
-health from the row, and the pose `dying` follows from the dying state. The grid row tests the
-alive state for the flag `pushable`.
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic. Confidence: medium.
+
+**DMG-DTH-005** (`design`, semantic, confidence: medium). The state that the physics step reads
+is the only authority for the health and the dying state. This state holds the health, the
+absorption, the last amount, the damage cooldown, the hurt time and the death time. No second copy
+of the health or of the pose exists. The tracker reads the entity data entries 6 (pose) and 9
+(health) from this state. The pose `dying` follows from the dying state. The grid tests the alive
+state for the flag `pushable`.
 
 ## 9. Packets that a client sees
 
@@ -531,7 +582,7 @@ The server sends `remove_entities` (play clientbound 78) in the update of the ti
 removal, after the entity event 60.
 
 The events `damage_event` and `entity_event` go to the tracker as a subject event of the muxer,
-`EntityEvent::Signal`, with the body of the packet. For one subject in one tick, each viewer gets
+a signal of the entity event, with the body of the packet. For one subject in one tick, each viewer gets
 the packets in this order:
 
 1. the signals and the sounds, in the order of their causes in the tick. For a hit that kills:
@@ -548,9 +599,11 @@ stated, not a channel.
 
 **DMG-NET-004** (`black_box_confirmed`, semantic, confidence: high). A full hit of a damage type
 without the tag `no_impact` marks the velocity. At the end of the next tracker tick, after the
-update packets, the tracker sends `set_entity_motion` (play clientbound 103) to the viewers and to
-the entity itself, and clears the mark (TRK-UPD-007). The mark does not make the tracker tick an
-update. D9 shows the packet after `set_entity_data`.
+update packets, the tracker sends `set_entity_motion` (play clientbound 103). The viewers and the
+entity itself get it. Then the tracker clears the mark (TRK-UPD-007). The mark does not make the tracker tick an
+update. D9 shows the packet after `set_entity_data`. The packet carries the velocity that the
+entity has at the tracker tick. For a hit before the pass, this is the velocity after the tick of
+the entity (`player-attack.md`, ATK-KB-005).
 
 **DMG-NET-005** (`black_box_confirmed`, wire, confidence: high). The server part of a player sends
 `set_health` (play clientbound 106) to that player when one of these values changed since the last
@@ -563,9 +616,13 @@ update. D9 shows the packet after `set_entity_data`.
 The fields are the health (f32), the food level (VarInt) and the saturation (f32). The server also
 sends the health of the player in its entity data (DMG-NET-002).
 
-**DMG-NET-006** (`black_box_confirmed`, wire, confidence: high). The packet `hurt_animation` (play
-clientbound 43) goes only to a player that gets a knockback (DMG-HIT-005 step 2).
-`player-attack.md` states the packet.
+**DMG-NET-006** Let the target be a player. A full hit of a damage type without the tag
+`no_knockback` sends the packet `hurt_animation` (play clientbound 43) to that player only
+(DMG-HIT-005 step 2). The packet also goes when the attribute `knockback_resistance` stops the
+knockback (DMG-KB-001 step 1). A hit of a type with the tag `no_knockback` sends no
+`hurt_animation`. `player-attack.md`, ATK-NET-004, states the fields.
+
+Provenance: `source_suggested_black_box_confirmed`. Kind: wire. Confidence: high.
 
 **DMG-NET-007** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The server
 sends these sounds as `sound` packets (play clientbound 119) at the position of the entity:
@@ -582,8 +639,8 @@ or 16 × the volume when the volume is more than 1. The sound event of a hurt an
 of the entity type: for a zombified piglin, `entity.zombified_piglin.hurt` and
 `entity.zombified_piglin.death`. The default is `entity.generic.hurt` and `entity.generic.death`.
 The pitch and the seed are random, so a test compares only the sound event, the source and the
-position. D13 decoded the packets: the source is 5 (`hostile`) for a zombified piglin and a
-zombie, the volume is 1.0 for a hurt, a death and a fall sound of the entity, and the fall sound of
+position. D13 decoded the packets. The source is 5 (`hostile`) for a zombified piglin and a
+zombie. The volume is 1.0 for a hurt, a death and a fall sound of the entity. The fall sound of
 a block has the volume and the pitch of DMG-FALL-005.
 
 The fall particles go in `level_particles` (play clientbound 48) to each player within 32 blocks.
@@ -592,12 +649,13 @@ the fall power of DMG-FALL-005.
 
 ## 10. Rules for a player only
 
-Section 10 is not in the exit of G2: the fall distance of a player comes from the moves of the
-client, and no farm mechanic hurts the player. G2 implements none of it.
+The fall distance of a player comes from the moves of the client.
 
-**DMG-PLR-001** (`source_suggested_black_box_confirmed`, semantic, confidence: high). A hit on a
-player is rejected in each of these cases:
+**DMG-PLR-001** A hit on a player is rejected in each of these cases:
 
+- the causing entity is a player, and the game rule `pvp` is false;
+- the causing entity is a player on the same team as the target, and that team does not allow
+  friendly fire. A target with no team does not reject the hit by this test. Teams are a hook;
 - the player has the invulnerable ability of creative mode or spectator mode, and the damage type
   does not have the tag `bypasses_invulnerability`;
 - the damage type has the tag `is_fall` and the game rule `fall_damage` is false;
@@ -605,7 +663,29 @@ player is rejected in each of these cases:
 - the damage type has the tag `is_drowning` and the game rule `drowning_damage` is false;
 - the damage type has the tag `is_freezing` and the game rule `freeze_damage` is false.
 
-A mob does not read these game rules.
+A mob does not read these game rules. The tests of the causing entity apply to each damage type,
+not only to an attack. The causing entity can be the target itself, for example the player that
+primed a TNT. ATK-TGT-004 of `player-attack.md` applies these tests to an attack.
+
+Provenance: `source_suggested_black_box_confirmed`; `source_suggested` for the test of the team.
+Kind: semantic. Confidence: high; medium for the test of the team. Experiment for the test of
+`pvp` and the test of creative mode: ATK-E7 of `player-attack.md`;
+`tools/mcrs_minecraft_probe/traces/player_attack.json`.
+
+**DMG-PLR-003** (`source_suggested`, semantic, confidence: high). A hit on a player scales with the
+difficulty when the damage type has the scaling `always`. The damage type has the scaling `always`
+in its data. The scaling `when_caused_by_living_non_player` applies when the causing entity is a
+living entity that is not a player. The test of DMG-PLR-001 and the test for the invulnerable
+ability come first. Then the amount changes in this way:
+
+- on peaceful, the amount is 0;
+- on easy, the amount is `min(amount / 2 + 1, amount)`;
+- on normal, the amount does not change;
+- on hard, the amount is `amount * 3 / 2`.
+
+A hit with the amount 0 after this step is rejected. The three damage types of this document have
+the scaling `when_caused_by_living_non_player`. Their sources have no causing entity, so they do
+not scale. The damage types `explosion` and `player_explosion` have the scaling `always`.
 
 **DMG-PLR-002** (`source_suggested`, semantic, confidence: medium). The damage cooldown of a player
 decreases in the server part of the player (PHY-ORD-010 step 6), not in its base entity tick. The
@@ -613,54 +693,142 @@ server part runs in each server tick, also when the client sends no move.
 
 ## 11. The place of damage in the tick
 
-**DMG-ORD-001** (`source_suggested_black_box_confirmed`, semantic, confidence: high). In the tick of
-a living entity that is not a player (PHY-ORD-002), damage occurs at these steps:
+**DMG-ORD-001** In the tick of a living entity that is not a player (PHY-ORD-002), damage occurs at
+these steps:
 
 1. Step 2, the base entity tick: the decreases of DMG-HIT-006, then the death time of DMG-DTH-003.
-2. Step 8, the block effects step, in the order of PHY-ORD-001 step 14: the hit of the step action
-   (DMG-HOT-001), then the inside actions, then the hit of the fall action (DMG-FALL-001).
+2. Step 8, the block effects step, in the order of PHY-ORD-001 step 14. First comes the hit of the
+   step action (DMG-HOT-001), then the inside actions, then the hit of the fall action
+   (DMG-FALL-001).
 3. Step 9, the push step: the crowd hit, before the pushes (PHY-PSH-007).
 
-A hit from another entity, for example an attack, applies at the merge point at the start of the
-next tick (PHY-CMP-015, AIT-RFX-006).
+A hit that a client packet causes, for example an attack, applies when the server
+handles that packet, in the packet phase (`player-attack.md`, ATK-ORD-002). A later packet of the
+same packet phase sees the hit (PHY-ORD-018). In mcrs, the hits of the client packets of a tick
+apply after the last packet of the tick, so a later packet does not see them (ATK-DEV-006). In
+both, the target then does its own tick with the health after the hit (ATK-ORD-005). DMG-ORD-004
+states the place of a hit of a command.
+
+In the pass, a hit from another entity applies in the apply step of the tick that wrote it
+(PHY-CMP-015, AIT-RFX-006). That apply step comes after the tick of each entity of the pass, and
+before the server sends the changes of the tick. Thus the target does its own tick with the health
+from before such a hit. The update of the same tick sends the new health. A hit from another cell
+can apply in the apply step of the next tick (PHY-CMP-015).
 
 The order is visible. An entity that lands on magma takes the `hot_floor` hit first, as a full
 hit. The fall hit of the same tick is then a partial hit, so the damage event names `hot_floor`.
 
-**DMG-ORD-002** (`design`, semantic, confidence: medium). In the order-independent pass, the hits of
-the step action and of the fall action apply inside the tick of the own entity, at the step of
-DMG-ORD-001. They read the block at the effect position from the block copy of the pass
-(PHY-CMP-009). The pass applies the actions `Step` and `Fall` that `tick_entity` gives for the
-row, in the order of the kernel, before the push of the row. The crowd hit applies in the crowd
-fix-up of DMG-CRW-002, after the other hits of the entity, because it changes no velocity. These
-hits write only the own row (PHY-CMP-012), so they need no merge
-point. This narrows AIT-RFX-006, which puts the hits of other entities at the merge point. The part
-of an action that writes a block stays an effect of `WorldWrite`
-(`docs/physics-architecture.md`, section 3.7). The cooldown makes the order of the hits visible
+Provenance: `source_suggested_black_box_confirmed`. Kind: semantic; deviation
+(`player-attack.md`, ATK-DEV-006). Confidence: high.
+
+**DMG-ORD-002** In the pass, the own hits of an entity are entries of the sorted queue, as the hits
+from other entities are. The own hits are the hits
+that the tick of the entity gives to itself in step 8 and later:
+
+- the hit of the step action (DMG-HOT-001);
+- the hits of the inside actions (`environment-damage.md`, ENV-FIR-010 and section 5);
+- the hit of the fall action (DMG-FALL-001);
+- the freezing hit (`environment-damage.md`, ENV-FRZ-003);
+- the crowd hit (DMG-CRW-002).
+
+The tick of the entity reads the block at the effect position from the block copy of the pass
+(PHY-CMP-009). It adds the own hits to the sorted queue with its own writer key, in the order
+of DMG-ORD-001 and ENV-ORD-001. The apply step applies them in that order (PHY-CMP-015). The hits of
+step 2, the base entity tick, apply at their step in the tick, in the order of PHY-CMP-015. The
+apply step after the pass does not contain them. A death there changes the AI step and the travel
+step of the same tick (DMG-DTH-004).
+
+An own hit does not stop the tick of the entity. Each effect of step 8 runs, also when an earlier
+own hit of the tick kills the entity in the apply step. Thus, in the pass, an own hit never stops
+the sequence of ENV-FIR-010. The tick does not preview its own hits. DMG-DEV-003 records this
+difference.
+
+The apply step applies the hits on one target in the order of the writer key (PHY-CMP-015). The
+own hits have the writer key of the target. Thus a hit from a writer with a lower writer key comes
+before the own hits. A hit from a writer with a higher writer key comes after them. The tick
+order of the entities does not change this order. DMG-DEV-004 records the difference.
+
+With the vanilla data pack, the result of the tick is the same as with each own hit at its step,
+except for the cases of DMG-DEV-003 and DMG-DEV-004. The damage types of the own hits have the tag
+`no_knockback`, so an own hit changes no velocity. A dying entity still does its push step
+(DMG-DTH-004). The tick reads the other entities at their state from the start of the tick
+(PHY-CMP-012). The reason for the sorted queue: a user of the library can change or cancel each hit
+before the apply step. DMG-DEV-002 records the case of a data pack that removes the tag.
+
+The packets of each hit keep the order of DMG-NET-003. The part of an action that writes a block
+stays a write of the block domain (PHY-BLK-001). The cooldown makes the order of the hits visible
 (DMG-ORD-001).
 
+Provenance: `design`. Kind: deviation (DMG-DEV-002, DMG-DEV-003, DMG-DEV-004). Confidence: medium.
+
 **DMG-ORD-003** (`black_box_confirmed`, semantic, confidence: high). Two hits on one entity in one
-tick, with the amounts `a` and `b` and no reduction, change the health by `max(a, b)` in each order.
-The first is a full hit. The second is a partial hit with the difference, or a rejected hit. The
+tick, with the amounts `a` and `b`, no reduction and no damage type of the tag `bypasses_cooldown`,
+change the health by the same value in each order. Let `c` and `L` be the values of DMG-HIT-003
+before the hits. When `c` is 10 or less, the value is `max(a, b)`: the first is a full hit, and the second is a partial hit with the
+difference, or a rejected hit. When `c > 10`, the value is `max(a, b, L) - L`. The
 order changes only the damage type of the damage event and of the death. Armor and `resistance`
 are not linear, so with them the total can differ by a small amount.
 
+A hit with a damage type of the tag `bypasses_cooldown` is always a full hit (DMG-HIT-003), so the
+order then changes the health. Example: the health is 20, a hit of 2 has that tag, and a hit of 5
+does not. The order "2, then 5" gives 15. The order "5, then 2" gives 13. The tag is empty in the
+corpus, so only a data pack makes this case.
+
+**DMG-ORD-004** A hit of a command, for example of `damage` or `kill`, applies when the command
+runs (`command-damage.md`, CMD-DMG-003; `command-kill.md`, CMD-KILL-006). A later command sees the
+hit. The source of the command sets its place in the tick:
+
+| Source of the command | When the command runs | First entity pass that sees the hit |
+|-----------------------|-----------------------|-------------------------------------|
+| a client | in the packet phase, in the order of its packet (PHY-ORD-018) | the pass of the same tick |
+| the server console, the remote console | in the packet phase, before the packets of the clients, in the order of arrival | the pass of the same tick |
+| a function of the tag `#minecraft:tick` | after the packet phase, before the dimensions tick | the pass of the same tick |
+| a function that `schedule` starts | in the time step of the overworld (PHY-ORD-010 step 3) | the pass of the same tick |
+| a command block | in the scheduled block ticks of its dimension (PHY-ORD-010 step 3) | the pass of the same tick |
+
+Thus a mob that a hit of a command knocks back moves in the first entity pass after the command.
+The update after that pass sends the velocity after the travel step of the mob (DMG-NET-004). The
+base entity tick of that pass decreases the hurt time and the damage cooldown (DMG-HIT-006).
+
+The reference runs a command of the server console at the end of a tick, after the server part of
+the players. Between that place and the packet phase of the next tick, no entity ticks and only
+commands run.
+An observer also does not know when a console command arrives relative to the tick. Thus the two
+places give the same result to an observer. In both, the mob moves in the next entity pass after
+the command runs.
+
+A command of a client also sees the hits of the earlier attack packets of the same tick
+(PHY-ORD-018). In mcrs, it reads the state from before these hits (`player-attack.md`,
+ATK-DEV-006).
+
+A user of the library can change or cancel each hit of a command before it applies. The user gets
+the hits of a command together with the other hits of the same apply step, not one command at a
+time.
+
+Provenance: `source_suggested`; `design` for the change of a hit by a user of the library and for
+the order of a command of a client (PHY-DEV-015). Kind: semantic; deviation (ATK-DEV-006).
+Confidence: medium.
+
 ## 12. Out of scope
 
-| Subject | Reason | Hook |
-|---------|--------|------|
-| items: shields, helmets with `damages_helmet` (the amount × 0.75), the wear of armor, the protection of enchantments, the immunity of enchantments, the totem of undying | the farm uses no items (`gold-farm.md`) | DMG-HIT-002, DMG-RED-003, DMG-DTH-001 |
-| the attack of a player, the knockback, the kill credit, the sweep | `player-attack.md` (G6) | DMG-SRC-002, DMG-HIT-005 |
-| the experience of a death | `experience-orbs.md` (G7) | DMG-DTH-001 step 4 |
-| loot and the drop of equipment | item entities are out of scope | DMG-DTH-001 step 4 |
-| effects as a system: `resistance`, `absorption`, `fire_resistance`, and the effects that act on a hit | no farm mechanic gives an effect to a mob | DMG-RED-002, DMG-RED-004 |
-| freeze damage (× 5 for `freeze_hurts_extra_types`), drowning, suffocation, the void, fire, lava, the world border, starvation | the farm does not use them | DMG-HIT-001 |
-| the inside actions that damage: cactus, campfire, sweet berry bush, fire, lava cauldron | the farm does not use them | PHY-RCH-007 |
-| entity types with an own hit procedure: `armor_stand`, `ender_dragon`, `squid`, `glow_squid`, and others | their behaviour is type data of a later document | Appendix A |
-| the difficulty scale of a hit on a player (the field `scaling`) | the sources of this document have no causing entity, so they never scale | DMG-SRC-002 |
+| Subject | Where it is stated, or the reason | Hook |
+|---------|-----------------------------------|------|
+| items: shields, helmets with `damages_helmet` (the amount × 0.75), the wear of armor, the protection of enchantments, the immunity of enchantments, the totem of undying | Out of scope. | DMG-HIT-002, DMG-RED-003, DMG-DTH-001 |
+| the attack of a player, the knockback of an attack, the kill credit, the sweep | `player-attack.md` (ATK-DMG-001 to ATK-DMG-005, ATK-KB-001 to ATK-KB-005, ATK-SWP-001, ATK-SWP-002, ATK-CRD-001 to ATK-CRD-004) | DMG-SRC-002, DMG-HIT-005 |
+| the experience of a death | `experience.md` (XP-DRP-001 to XP-DRP-003) | DMG-DTH-001 step 4 |
+| loot and the drop of equipment | item entities are out of scope; `player-death.md` states the drop of a player (PLD-DRP-001 to PLD-DRP-006) | DMG-DTH-001 step 4 |
+| effects as a system: `resistance`, `absorption`, `fire_resistance`, and the effects that act on a hit | `status-effects.md` (EFX-ACT-001 to EFX-ACT-011) | DMG-RED-002, DMG-RED-004 |
+| fire, lava, drowning, freezing, suffocation, the void and the world border | `environment-damage.md` (ENV-FIR-001 to ENV-BRD-002) | DMG-HIT-001, DMG-PLR-001 |
+| the inside actions that damage: cactus, campfire, sweet berry bush, fire, lava cauldron | `environment-damage.md` (ENV-CTC-001 to ENV-CTC-004) | PHY-RCH-007 |
+| starvation | `hunger.md` (HNG-STV-001, HNG-STV-002) | DMG-HIT-001 |
+| explosion damage and explosion knockback | `explosions.md` (EXP-DMG-001 to EXP-DMG-003, EXP-KNB-001) | DMG-SRC-002, DMG-PLR-003 |
+| the damage of an arrow and of a snowball | `projectiles.md` (PRJ-ENT-001 to PRJ-ENT-007, PRJ-SNW-001 to PRJ-SNW-003) | DMG-SRC-002 |
+| entity types with an own hit procedure: `armor_stand`, `ender_dragon`, `squid`, `glow_squid`, and others | their behaviour is type data of a later document | the entity type data |
+| the difficulty scale of a hit on a mob | DMG-PLR-003 states the rule for a player only | DMG-PLR-003 |
 | impulses, for example a wind charge, that cancel the fall damage of the launch | the farm has no impulse | DMG-FALL-001 |
-| the death of a player: respawn, the death screen, `player_combat_kill` | the farm player does not die | DMG-DTH-001 |
-| the natural regeneration of a player, food and exhaustion | `food.md` does not exist yet | DMG-NET-005 |
+| the death of a player: respawn, the death screen, `player_combat_kill`, the drop of the inventory | `player-death.md` (PLD-DTH-001 to PLD-RST-004) | DMG-DTH-001 |
+| the natural regeneration of a player, food and exhaustion | `hunger.md` (HNG-REG-001 to HNG-REG-005, HNG-EXH-001 to HNG-EXH-007) | DMG-NET-005 |
+| the save of the health and of the dying state of a player | `persistence.md` (SAVE-PLAYER-001); no document saves a mob | DMG-DTH-004 |
 | game events (`entity_damage`, `entity_die`) | no farm block hears them | DMG-DTH-002 |
 | the scoreboard criteria of damage and death | no farm mechanic uses them | DMG-DTH-001 step 1 |
 
@@ -671,27 +839,99 @@ are not linear, so with them the total can differ by a small amount.
 - **Rule:** DMG-CRW-002.
 - **Reference:** the reference ticks the entities in the order of its tick list. A death removes
   the entity from the count of each entity that ticks later in the same tick.
-- **Visible to the client:** yes, as the choice of the entity that dies. The number of deaths of
-  a crowd in one tick is the same. The tick of a death can differ, as PHY-DEV-004 states.
-- **Test:** a differential test compares the number of crowd deaths and the distribution of the
-  ticks of the deaths. It does not compare which entity dies.
+- **Reason:** the apply step applies the hits of the sorted queue in the order of the order key of
+  the target (PHY-CMP-015). Thus the deaths of a crowd do not depend on the thread count or on the
+  order of the births. In a layout of many cells, a death in the halo of another cell counts one
+  tick late (DMG-CRW-002). Then the cell layout can change the crowd hits of that tick.
+- **Visible to the client:** yes, as the choice of the entity that dies. When the crowd is in one
+  cell and no other hit kills an entity of the crowd in the tick, the number of deaths of the crowd
+  in that tick is the same. Across cells, each cell can apply a lethal crowd hit in one tick.
+  The tick of a death can differ, as PHY-DEV-004 states.
+- **Bug reference:** none.
+- **Test:** for a crowd in one cell that no other hit kills, a differential test compares the
+  number of crowd deaths and the distribution of the ticks of the deaths. It does not compare
+  which entity dies.
+
+### DMG-DEV-002: Own hits after the tick of the entity
+
+- **Rule:** DMG-ORD-002.
+- **Reference:** the reference applies each own hit at its step in the tick of the entity. The hits
+  of the block effects step apply at step 8, and the freezing hit applies after them. The crowd hit
+  applies at step 9, before the pushes.
+- **Reason:** each hit goes through the sorted queue, so a user of the library can change or
+  cancel it. The velocity is the same while the damage types of these hits have the tag
+  `no_knockback`. DMG-DEV-003 records the inside effects after a death. DMG-DEV-004 records the
+  order of the own hits and the hits of other entities.
+- **Visible to the client:** the velocity, only with a data pack that removes the tag
+  `no_knockback` from the damage type of an own hit, for example `fall` or `cramming`. Then the
+  knockback of such a hit applies after the push of the tick, not before it. The velocity after
+  the tick can differ.
+- **Bug reference:** none.
+- **Test:** a differential test with such a data pack compares the health. It does not compare the
+  velocity, the position or the packets that carry them, for example `set_entity_motion`.
+
+### DMG-DEV-003: Inside effects after a death by an own hit
+
+- **Rule:** DMG-ORD-002.
+- **Reference:** the reference applies each own hit at its step. A death in step 8 stops the inside
+  effects that follow in that step (ENV-FIR-010). The death can come from the hit of the step
+  action or from an inside hit.
+- **Reason:** an own hit applies after the tick of the entity, in the apply step (PHY-CMP-015). The
+  tick does not know of the death. Thus the inside effects that follow the hit in the same tick
+  still run on the entity that then dies. Examples are an ignition, an extinguish and the freeze of
+  powder snow. mcrs does not preview the own hits, and it does not stop the tick early. A preview
+  cannot know which hit a user of the library cancels before the apply step.
+- **Visible to the client:** yes. In the death tick, the burning flag, the fire ticks and the frozen
+  ticks of the dying entity can differ. In the next tick, the dying entity does its block effects
+  step again (DMG-DTH-004), and it gets the effects that the reference gives. The fire ticks and the
+  frozen ticks carry over from tick to tick (ENV-FIR-002, ENV-FRZ-002). Thus their difference can
+  stay after the death tick, until the counters reach the same limit.
+- **Bug reference:** none.
+- **Test:** a differential test that compares the flags of a dying entity uses this entry. From the
+  death tick on, it accepts a difference of the burning flag, the fire ticks and the frozen ticks.
+
+### DMG-DEV-004: Hits of other entities in the order of the writer key
+
+- **Rule:** DMG-ORD-002.
+- **Reference:** the reference applies the hits on one target in the order of its tick list. An
+  entity that ticks before the target hits it before the own hits of the target. An entity that
+  ticks after the target hits it after them. Example: an entity B ticks after the target X, and B
+  attacks X in that tick. X lands on magma in the same tick. The `hot_floor` hit of X is the full
+  hit. The attack of B is then a partial hit or a rejected hit.
+- **Reason:** in mcrs, the apply step orders the hits by the writer key (PHY-CMP-015). Let B have a
+  lower UUID than X. Then the attack of B applies first and is the full hit. The `hot_floor` hit and
+  the fall hit of X are then partial hits or rejected hits. The tick list of the reference depends
+  on the order of the births, the loads and the cell layout. The writer key is total and fixed.
+  Thus, for the writes that reach the same apply step, the result does not depend on the thread
+  count or on the cell layout. A write from another cell can apply one tick late (PHY-CMP-015).
+  In the reference, a hit from an entity that ticks before the target sees the damage cooldown
+  before the decrease of DMG-HIT-006. In mcrs, it sees the cooldown after that decrease. Example:
+  the cooldown is 11 and the last amount is 10. In the reference, an external hit of 5 is rejected,
+  and the own hit of 2 is then full: the health changes by 2. In mcrs, both hits see the cooldown
+  10: the health changes by 5.
+- **Visible to the client:** yes, when two writers hit one target in one tick. The damage type of
+  `damage_event` and of the death can differ. Only a full hit gives knockback, `hurt_animation` and
+  a hurt sound (DMG-HIT-005), so these can differ too. Without reductions, without the tag
+  `bypasses_cooldown`, and with a cooldown other than 11 at the start of the tick, the health after
+  the tick is the same (DMG-ORD-003).
+- **Bug reference:** none.
+- **Test:** when two writers hit one target in one tick without a reduction of armor or
+  `resistance`, no damage type has the tag `bypasses_cooldown`, and the cooldown of the target is
+  not 11 at the start of the tick, a differential test compares
+  the health after the tick. Else it does not compare the health (DMG-ORD-003). It does not compare the damage type of `damage_event`, the knockback, the
+  `hurt_animation` packet or the hurt sound of that tick.
 
 ## 14. Unresolved
 
 - **U1.** No artefact gives the hurt sound, the death sound or the fall sounds of each entity type.
   DMG-NET-007 gives the values of the farm. A later document must give the table.
-- **U2.** No artefact gives the fire-immune property. Appendix A gives the values that a vanilla
-  server showed (D8). The corpus gives `fall_damage_immune` as a tag.
+- **U2.** No artefact gives the fire-immune property. The corpus gives `fall_damage_immune` as a tag.
 - **U3.** Some types have an own hit procedure (section 12). D8 shows `armor_stand`, `squid`,
-  `glow_squid` and `ender_dragon` as immune to each type, because their procedures differ. Appendix A
-  marks them.
+  `glow_squid` and `ender_dragon` as immune to each type, because their procedures differ.
 
 ## 15. Experiments
 
-Each experiment ran on a vanilla dedicated server of `26.4-snapshot-7`, through its console. The
-world was flat, with `difficulty hard`, `spawn_mobs false` and `pause-when-empty-seconds=-1`.
-`tick freeze` and `tick step 1` gave single ticks. `data get entity <uuid> <path>` read the
-values; a UUID selector also reads an entity in the dying state.
+The experiments ran on a vanilla dedicated server through its console. The rules cite them as D1 to D13.
 
 | Id | Steps | Rules |
 |----|-------|-------|
@@ -702,309 +942,9 @@ values; a UUID selector also reads an entity in the dying state.
 | D5 | Put a pig, a zombie and a zombified piglin in cells of 1 × 1 blocks on `magma_block`. Step 130 ticks. Read `Health` and `HurtTime` after each tick. | DMG-HOT-001, DMG-HIT-006 |
 | D6 | Put 25 or 30 zombified piglins in a cell of 1 × 1 blocks on `honey_block`. Step 200 ticks. Read the `Health` of each entity after each tick. Repeat with `max_entity_cramming` 26 and 0, and with `NoAI`. | DMG-CRW-001, DMG-CRW-002, DMG-CRW-003 |
 | D7 | Repeat D6 with `Health:5f` for 40 ticks, and with `max_health` 1000 and `Health:1000f` for 400 ticks. | DMG-CRW-002, DMG-CRW-003 |
-| D8 | For each entity type, summon it with `NoAI` and `NoGravity`. Read the base value of each attribute of DMG-ATT-002 with `/attribute … base get`, and `Health`. Do a `/damage` of `fall`, `hot_floor`, `cramming` and `player_attack` with the amounts 0.001, 0.002, 0.003 and 0.004, so that the cooldown accepts each one. Record each reply "invulnerable". | DMG-ATT-001, DMG-ATT-003, Appendix A |
+| D8 | For each entity type, summon it with `NoAI` and `NoGravity`. Read the base value of each attribute of DMG-ATT-002 with `/attribute … base get`, and `Health`. Do a `/damage` of `fall`, `hot_floor`, `cramming` and `player_attack` with the amounts 0.001, 0.002, 0.003 and 0.004, so that the cooldown accepts each one. Record each reply "invulnerable". | DMG-ATT-001, DMG-ATT-003 |
 | D9 | Join the server with an offline client that answers only the keep-alive, the teleport and the chunk batches. Run D1 (13 blocks onto honey), D5 for a pig, the kills and the hits of D3 near the player, and hits on the player. Record the clientbound packets 1, 25, 34, 43, 48, 69, 78, 101, 103, 106 and 119. | section 9 |
-
 | D10 | With the client of D9, drop a zombie 10 blocks onto magma. Record the packets and read `Health`. | DMG-ORD-001 |
 | D11 | Hit the player of D9 with `/damage Probe 1 minecraft:mob_attack by <piglin>`. Record the packets. | DMG-NET-001, DMG-NET-006 |
 | D12 | Drop a zombified piglin 10 and 24 blocks onto a bed, `slime_block`, `powder_snow`, `pointed_dripstone` and `icicle` with the tip up, and `shelf_mushroom`. Read `Health` after 6 seconds. | DMG-FALL-004, DMG-FALL-005 |
 | D13 | With the client of D9, hit a zombified piglin with `cramming` 6, then kill it with `cramming` 100. Decode each `sound` packet by the registry `minecraft:sound_event`. | DMG-NET-003, DMG-NET-007 |
-
-This check is still open:
-
-| Id | Steps | Rules |
-|----|-------|-------|
-| D14 | With `tools/vanilla-client`, watch a zombified piglin fall onto honey, take crowd hits and die, with the server of this project. The client must show the hurt, the death and the removal, with no disconnect. | section 9 |
-
-D14 tests this server, so it waits for the implementation of G2.
-
-The raw capture is outside the repository. A test that needs it adds only the part that it checks, as a fixture of `mcrs_minecraft_fixtures`. The capture of D6 and D7 holds, for each trial, the tick of
-each crowd hit and of each death, from tick 1 after the summon. The packet captures hold the body of
-each recorded packet as hex, after the packet id.
-
-## 16. Captured results
-
-**D1.** Health after the fall:
-
-| `d` | `honey_block` | `stone` | `hay_block` |
-|-----|---------------|---------|-------------|
-| 3 | 20 | 20 | 20 |
-| 4 | 20 | 19 | 20 |
-| 24 | 16 | dead | 16 |
-| 50 | 11 | dead | 11 |
-| 78 | 5 | dead | 5 |
-| 78.0625 | 5 | dead | 5 |
-
-**D2.** The piglin had 13 health after a fall of 10 blocks with `fall_damage` false.
-
-**D3.** Values after each hit, read in the same frozen tick. The tick count starts at the first hit.
-
-| Tick | Hit | Zombified piglin, armor 2 | Pig |
-|------|-----|---------------------------|-----|
-| 0 | `cactus` 5 / 2 | 15.08, hurt time 10 | 8.0 |
-| 2 | `cactus` 3 / 1 | rejected | rejected |
-| 3 | `cactus` 8 / 3 | 12.139999, hurt time 7 | 7.0 |
-| 9 | `cactus` 8 / 3 | rejected | rejected |
-| 10 | `cactus` 8 / 3 | 4.267999, hurt time 10 | 4.0 |
-| 20 | `cramming` 1 / 1 | 3.2679992 | 3.0 |
-
-The zombie lost 5.904 to `cactus` 6. The pig with `absorption` 0 (4 absorption) had 9.0 health and
-0 absorption after `cactus` 5. The pig with `resistance` 0 had 6.0 health after `cactus` 5.
-
-**D4.** `DeathTime` was `k` after `k` ticks, for `k` from 0 to 19. After 20 ticks the UUID found no
-entity. `@e` did not select the entity in any of these ticks.
-
-**D5.** The pig lost 1.0 in ticks 2, 12, 22 and so on, and was gone after its tenth hit. The zombie
-lost 0.94 at the same ticks: 19.06, 18.119999, 17.179998. The zombified piglin kept 20.0.
-
-**D6, D7.** The rows of DMG-CRW-002, and:
-
-- every crowd hit was 6.0;
-- with `max_entity_cramming` 26 and 0, a crowd of 25 had no hit in 120 ticks;
-- with `NoAI`, 4 trials gave one death each, at ticks 31 to 33;
-- with 1000 health, 2328 hits gave a mean gap of 12.96 ticks. The gaps 10, 11, 12, 13 and 14 had
-  566, 424, 322, 220 and 175 hits, a ratio near 3/4. The mean tick of the first hit was 4.27.
-
-**D8.** Appendix A.
-
-**D9.** Hex of the packet bodies after the packet id. The piglin was entity 2, the pig entity 3.
-
-| Event | Packet | Body |
-|-------|--------|------|
-| a fall of 13 blocks onto honey | `entity_event` | `00000002 36` |
-| | `damage_event` | `02 0a 00 00 00` |
-| | `set_entity_data` | `02 09 03 41900000 ff` (18.0) |
-| | `set_entity_motion` | `02 …` |
-| a hit of magma on the pig | `damage_event` | `03 14 00 00 00`, each 10 ticks |
-| a crowd hit | `damage_event` | `02 04 00 00 00` |
-| a partial hit of 8 after 6 | `set_entity_data` only | `02 09 03 40800000 ff` (4.0) |
-| the death of the pig | `entity_event` | `00000003 03` |
-| | `set_entity_data` | `03 06 14 07 09 03 00000000 ff` |
-| 20 ticks later | `entity_event`, `remove_entities` | `00000003 3c`, `01 03` |
-| a crowd hit of 3 on the player | `damage_event`, `set_health` | `01 04 00 00 00`, `41880000 14 40a00000` |
-
-No `hurt_animation` arrived for `cramming`, `cactus` and `magic`. Each of them has
-`no_knockback`.
-
-**D10.** The zombie burned in daylight before it landed, so it had 19.0 health. In the tick of the
-landing, the server sent `damage_event` with the type 20 (`hot_floor`) and no other
-`damage_event`. The health became 12.06: the `hot_floor` hit of 1 gave 0.94 through the armor, and
-the fall hit of 7 was a partial hit of 6. A fall hit first gives 12.0 and the type 10. Thus the
-step action comes before the fall action (DMG-ORD-001).
-
-**D11.** `damage_event` `01 1c 13 13 00`: the type 28 (`mob_attack`), and the piglin with the
-network id 18 as the causing entity and as the direct entity (18 + 1 = `0x13`). Then
-`hurt_animation` `01 00000000` in the same tick, and in the next update the velocity of the player
-to the player itself and `set_health`.
-
-**D12.** Health after the fall:
-
-| Floor | 10 blocks | 24 blocks |
-|-------|-----------|-----------|
-| red bed, foot | 19 | 12 |
-| `shelf_mushroom` | 19 | 12 |
-| `slime_block` | 20 | 20 |
-| `powder_snow` | 20 | 20 |
-| `pointed_dripstone`, tip up | 3 | dead, "impaled on a stalagmite" |
-| `icicle`, tip up | 3 | dead, "impaled on a stalagmite" |
-
-The top of a bed is at 0.5625, so `d` is 9.4375 and 23.4375: `floor(4.71875 - 2.999999) = 1` and
-`floor(11.71875 - 2.999999) = 8`. For the tip, `floor((9.31 + 2.5 - 3) × 2) = 17`. A fall onto a
-bed sent `entity.hostile.small_fall`, then `block.wood.fall` with the volume 0.5, then
-`damage_event`, then the hurt sound. A piglin in powder snow later took `freeze` damage; that is
-out of scope.
-
-**D13.** A crowd hit: `damage_event` type 4, then `entity.zombified_piglin.hurt`, source 5, at the
-position of the piglin. The kill by a full hit: `damage_event` type 4,
-`entity.zombified_piglin.death`, `add_entity` of the drop, `entity_event` 3, then in the update
-`set_entity_data` with the pose `dying` and the health 0. After 20 ticks: `entity_event` 60 and
-`remove_entities`. The fall onto honey of D9 sent, in one tick: `block.honey_block.slide`,
-`entity_event` 54, `entity.hostile.small_fall`, `block.honey_block.fall`, `damage_event`,
-`entity.zombified_piglin.hurt`, and `block.honey_block.fall` again. The second block fall sound is
-the one of the honey row of DMG-FALL-004. The magma hit on a pig sent `entity.pig.hurt`.
-
-## 17. Implementation
-
-### 17.1 What the engine does now
-
-- `crates/mcrs_minecraft_engine_physics/src/entity_pass.rs`, `tick_tile`: the pass calls
-  `actions.clear()` after `tick_entity`. Thus it drops each `BlockAction::Step` and
-  `BlockAction::Fall` that the kernel gives.
-- The same function ignores `PushOutcome::crowd_damage` of `push_entity`. It uses the count only
-  to wake the entity.
-- The pass uses `PushRules::default()`, so `max_entity_cramming` is always 24.
-- No row has a health, a damage cooldown, a hurt time or a death time. The grid flag `PUSHABLE`
-  does not test the alive state.
-- `max_entity_cramming` has no runtime value: `mcrs_minecraft_game_rule` holds only definitions,
-  and the save reads only `advance_time`.
-- The muxer `EntityEvent` has no event for `damage_event` or `entity_event`.
-
-### 17.2 Order of work
-
-1. The state of DMG-DTH-005 in `Living`. A new row has the max health. No save names: G2 saves no
-   mob.
-2. The hit procedure of section 3 and the reductions of section 4, as a function of
-   `mcrs_minecraft_physics` with no Bevy. Its input is the row state, the type data and the damage
-   type with its tags.
-3. The fall action and the step action: apply them in the pass (DMG-ORD-002) with the rows of
-   DMG-FALL-004 that G2 needs and DMG-HOT-001. The pass still drops the other actions, and the
-   block parts of these actions, with `actions.clear()`, until a consumer in `WorldWrite` exists.
-4. The crowd hit: the resource of DMG-CRW-001, and the fix-up of DMG-CRW-002.
-5. Death: the dying state, the death time, the in-pass removal of DMG-DTH-003, the rest rule and
-   the dirty tile, and the alive test of the flag `PUSHABLE`.
-6. Packets: `EntityEvent::Signal` with `damage_event` and the entity events 3, 54 and 60, the
-   entity data of the health and the pose from the row, and the velocity mark.
-7. Sounds and particles (DMG-NET-007), after the rest.
-
-Not in G2: section 10 and `set_health`; DMG-FALL-003; the hooks of DMG-HIT-002 step 1, DMG-HIT-005
-steps 1 and 5, and DMG-DTH-002; the alive test of entity selectors (no selector reaches mobs yet).
-
-### 17.3 Exit test
-
-From `gold-farm.md`, section 4, step G2:
-
-1. A zombified piglin that falls 78 blocks onto `honey_block` has 5 health. Use the shaft of D1,
-   or the farm save with a piglin summoned at `-317.5 253 -609.5` over the honey at `y` 174.
-2. Crowds of 25 die at the vanilla rate. `summon` of G1 takes no `Health` and no attribute, so the
-   test builds each crowd as rows of the engine harness (`test_scene.rs`) in a cell of 1 × 1 blocks
-   on `honey_block`. Each trial starts the birth clock at another value, so the keyed draws differ.
-   Tick 1 is the first `Simulate` after the rows exist. Run at least 16 trials of each crowd. The
-   test passes when all these conditions are true:
-   - a crowd of 25 with 20 health loses exactly one entity in each trial, in tick 31 to 40. The
-     vanilla range was 31 to 35; tick 36 or later has a chance of about 1% for one trial, and
-     tick 41 or later is near 0;
-   - a crowd of 30 with 20 health loses exactly 6 entities;
-   - a crowd of 25 with 5 health loses exactly one entity, in tick 1; a crowd of 30 loses 6;
-   - over at least 2000 hits with 1000 health, the mean gap is 13 ± 0.3 ticks, and the gap is
-     never less than 10.
-
-### 17.4 Data tables
-
-| Table | Source |
-|-------|--------|
-| damage types and their network ids | the corpus `damage_type/`, the registry (REG-ENTRY-004, REG-NET-006) |
-| the damage tags of 0.6 and of DMG-HIT-001 | the corpus `tags/damage_type/` |
-| `fall_damage_immune` | the corpus `tags/entity_type/` |
-| the base attributes, fire-immune, the own hit procedures | the type table of `entity-tracking.md` (TRK-TYPE-001), with the values of Appendix A. That table gains the fields `armor`, fire-immune and the hit kind (normal or own) |
-| the fall action of each block | DMG-FALL-004 of this document |
-| the magma step action and the fall multiplier | the named block data of `mcrs_minecraft_collision_table` (DMG-FALL-004) |
-| `max_entity_cramming` | the resource of DMG-CRW-001 |
-| the hurt and death sounds | DMG-NET-007; U1 for the other types |
-
-### 17.5 Tests
-
-- The hit procedure, as a kernel test with the values of D3: the f32 bits of 15.08, 12.139999,
-  4.267999 and 3.2679992, the zombie value 14.096, absorption and `resistance`. These values catch
-  a wrong order of the reductions and a cooldown with `≥ 10` instead of `> 10`.
-- The fall damage of the table of DMG-FALL-002, with the values of D1.
-- The crowd order of DMG-CRW-002 with crowds of 5 health: 25 give one death and 30 give six. A
-  crowd hit that ignores the deaths of the tick gives about six deaths for 25.
-- A wire test for `damage_event`, the entity events and the entity data of the death against the
-  hex of D9. It does not compare `sound` packets.
-- The exit test of 17.3 in the engine.
-
-## Appendix A: base attributes and immunities of the living types
-
-The values come from D8. The columns `fall` and `fire` state the immunity to the damage types `fall`
-and `hot_floor`: `yes` for immune. Only the `own` types are immune to `cramming`. `own` marks a type whose own hit
-procedure rejected each type in D8 (U3). The attribute `armor_toughness` and `max_absorption` are 0
-for each type. A type that is not in the table uses the defaults of DMG-ATT-002 and no immunity.
-
-| Type | `max_health` | `armor` | `safe_fall_distance` | `fall_damage_multiplier` | `fall` | `fire` |
-|------|-------------|---------|----------------------|--------------------------|--------|--------|
-| `allay` | 20 | 0 | 3 | 1 | yes | — |
-| `armadillo` | 12 | 0 | 3 | 1 | — | — |
-| `armor_stand` | 20 | 0 | 3 | 1 | own | own |
-| `axolotl` | 14 | 0 | 3 | 1 | — | — |
-| `bat` | 6 | 0 | 3 | 1 | yes | — |
-| `bee` | 10 | 0 | 3 | 1 | yes | — |
-| `blaze` | 20 | 0 | 3 | 1 | yes | yes |
-| `bogged` | 16 | 0 | 3 | 1 | — | — |
-| `breeze` | 30 | 0 | 3 | 1 | yes | — |
-| `camel` | 32 | 0 | 6 | 0.5 | — | — |
-| `camel_husk` | 32 | 0 | 6 | 0.5 | — | — |
-| `cat` | 10 | 0 | 3 | 1 | yes | — |
-| `cave_spider` | 12 | 0 | 3 | 1 | — | — |
-| `chicken` | 4 | 0 | 3 | 1 | yes | — |
-| `cod` | 3 | 0 | 3 | 1 | — | — |
-| `copper_golem` | 12 | 0 | 3 | 1 | yes | — |
-| `cow` | 10 | 0 | 3 | 1 | — | — |
-| `creaking` | 1 | 0 | 3 | 1 | — | — |
-| `creeper` | 20 | 0 | 3 | 1 | — | — |
-| `dolphin` | 10 | 0 | 3 | 1 | — | — |
-| `donkey` | 53 | 0 | 6 | 0.5 | — | — |
-| `drowned` | 20 | 2 | 3 | 1 | — | — |
-| `elder_guardian` | 80 | 0 | 3 | 1 | — | — |
-| `enderman` | 40 | 0 | 3 | 1 | — | — |
-| `endermite` | 8 | 0 | 3 | 1 | — | — |
-| `ender_dragon` | 200 | 0 | 3 | 1 | own | own |
-| `evoker` | 24 | 0 | 3 | 1 | — | — |
-| `fox` | 10 | 0 | 5 | 1 | — | — |
-| `frog` | 10 | 0 | 3 | 1 | — | — |
-| `frostbite` | 24 | 2 | 3 | 1 | — | — |
-| `ghast` | 10 | 0 | 3 | 1 | yes | yes |
-| `giant` | 100 | 0 | 3 | 1 | — | — |
-| `glow_squid` | 10 | 0 | 3 | 1 | own | own |
-| `goat` | 10 | 0 | 3 | 1 | — | — |
-| `guardian` | 30 | 0 | 3 | 1 | — | — |
-| `happy_ghast` | 20 | 0 | 3 | 1 | yes | — |
-| `hoglin` | 40 | 0 | 3 | 1 | — | — |
-| `horse` | 53 | 0 | 6 | 0.5 | — | — |
-| `husk` | 20 | 2 | 3 | 1 | — | — |
-| `illusioner` | 32 | 0 | 3 | 1 | — | — |
-| `iron_golem` | 100 | 0 | 3 | 1 | yes | — |
-| `llama` | 53 | 0 | 6 | 0.5 | — | — |
-| `magma_cube` | 1 | 3 | 3 | 1 | yes | yes |
-| `mannequin` | 20 | 0 | 3 | 1 | — | — |
-| `mooshroom` | 10 | 0 | 3 | 1 | — | — |
-| `mule` | 53 | 0 | 6 | 0.5 | — | — |
-| `nautilus` | 15 | 0 | 3 | 1 | — | — |
-| `ocelot` | 10 | 0 | 3 | 1 | yes | — |
-| `panda` | 20 | 0 | 3 | 1 | — | — |
-| `parched` | 16 | 0 | 3 | 1 | — | — |
-| `parrot` | 6 | 0 | 3 | 1 | yes | — |
-| `phantom` | 20 | 0 | 3 | 1 | yes | — |
-| `pig` | 10 | 0 | 3 | 1 | — | — |
-| `piglin` | 16 | 0 | 3 | 1 | — | — |
-| `piglin_brute` | 50 | 0 | 3 | 1 | — | — |
-| `pillager` | 24 | 0 | 3 | 1 | — | — |
-| `polar_bear` | 30 | 0 | 3 | 1 | — | — |
-| `pufferfish` | 3 | 0 | 3 | 1 | — | — |
-| `rabbit` | 3 | 0 | 3 | 1 | — | — |
-| `ravager` | 100 | 0 | 3 | 1 | — | — |
-| `salmon` | 3 | 0 | 3 | 1 | — | — |
-| `sheep` | 8 | 0 | 3 | 1 | — | — |
-| `shulker` | 30 | 0 | 3 | 1 | yes | yes |
-| `silverfish` | 8 | 0 | 3 | 1 | — | — |
-| `skeleton` | 20 | 0 | 3 | 1 | — | — |
-| `skeleton_horse` | 15 | 0 | 6 | 0.5 | — | — |
-| `slime` | 1 | 0 | 3 | 1 | — | — |
-| `sniffer` | 14 | 0 | 3 | 1 | — | — |
-| `snow_golem` | 4 | 0 | 3 | 1 | yes | — |
-| `spider` | 16 | 0 | 3 | 1 | — | — |
-| `squid` | 10 | 0 | 3 | 1 | own | own |
-| `stray` | 20 | 0 | 3 | 1 | — | — |
-| `strider` | 20 | 0 | 3 | 1 | — | yes |
-| `sulfur_cube` | 4 | 0 | 3 | 1 | — | — |
-| `tadpole` | 6 | 0 | 3 | 1 | — | — |
-| `trader_llama` | 53 | 0 | 6 | 0.5 | — | — |
-| `tropical_fish` | 3 | 0 | 3 | 1 | — | — |
-| `turtle` | 30 | 0 | 3 | 1 | — | — |
-| `vex` | 14 | 0 | 3 | 1 | — | yes |
-| `villager` | 20 | 0 | 3 | 1 | — | — |
-| `vindicator` | 24 | 0 | 3 | 1 | — | — |
-| `wandering_trader` | 20 | 0 | 3 | 1 | — | — |
-| `warden` | 500 | 0 | 3 | 1 | — | yes |
-| `witch` | 26 | 0 | 3 | 1 | — | — |
-| `wither` | 300 | 4 | 3 | 1 | yes | yes |
-| `wither_skeleton` | 20 | 0 | 3 | 1 | — | yes |
-| `wolf` | 8 | 0 | 3 | 1 | — | — |
-| `zoglin` | 40 | 0 | 3 | 1 | — | yes |
-| `zombie` | 20 | 2 | 3 | 1 | — | — |
-| `zombie_horse` | 25 | 0 | 6 | 0.5 | — | — |
-| `zombie_nautilus` | 15 | 0 | 3 | 1 | — | — |
-| `zombie_villager` | 20 | 2 | 3 | 1 | — | — |
-| `zombified_piglin` | 20 | 2 | 3 | 1 | — | yes |
-
-The `player` type is not in D8. A player has `max_health` 20, `armor` 0 and the defaults of
-DMG-ATT-002.

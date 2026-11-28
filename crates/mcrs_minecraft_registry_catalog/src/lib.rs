@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::ResourceLocation;
 
 pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
@@ -16,10 +14,10 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_block::registry_keys::BLOCK_ENTITY_TYPE.location(), mcrs_minecraft_block::block_entity_type_keys::BlockEntityType::ENTRIES),
     (mcrs_minecraft_predicate::registry_keys::CUSTOM_STAT.location(), mcrs_minecraft_predicate::custom_stat_keys::CustomStat::ENTRIES),
     (mcrs_minecraft_chunk::registry_keys::CHUNK_STATUS.location(), mcrs_minecraft_chunk::chunk_status_keys::ChunkStatus::ENTRIES),
-    (mcrs_minecraft_menu::registry_keys::MENU.location(), mcrs_minecraft_menu::menu_keys::MenuType::ENTRIES),
+    (mcrs_minecraft_menu_key::registry_keys::MENU.location(), mcrs_minecraft_menu_key::menu_keys::MenuType::ENTRIES),
     (mcrs_minecraft_keys::RECIPE_TYPE, mcrs_minecraft_keys::recipe_type::ENTRIES),
     (mcrs_minecraft_recipe::registry_keys::RECIPE_SERIALIZER.location(), mcrs_minecraft_recipe::recipe_serializer_keys::RecipeSerializer::ENTRIES),
-    (mcrs_minecraft_entity::registry_keys::ATTRIBUTE.location(), mcrs_minecraft_entity::attribute_keys::Attribute::ENTRIES),
+    (mcrs_minecraft_entity_attribute::registry_keys::ATTRIBUTE.location(), mcrs_minecraft_entity_attribute::attribute_keys::Attribute::ENTRIES),
     (mcrs_minecraft_particle::registry_keys::POSITION_SOURCE_TYPE.location(), mcrs_minecraft_particle::position_source_type_keys::PositionSourceType::ENTRIES),
     (mcrs_minecraft_keys::COMMAND_ARGUMENT_TYPE, mcrs_minecraft_keys::command_argument_type::ENTRIES),
     (mcrs_minecraft_predicate::registry_keys::STAT_TYPE.location(), mcrs_minecraft_predicate::stat_type_keys::StatType::ENTRIES),
@@ -46,7 +44,7 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_keys::CREATIVE_MODE_TAB, mcrs_minecraft_keys::creative_mode_tab::ENTRIES),
     (mcrs_minecraft_keys::TRIGGER_TYPE, mcrs_minecraft_keys::trigger_type::ENTRIES),
     (mcrs_minecraft_keys::NUMBER_FORMAT_TYPE, mcrs_minecraft_keys::number_format_type::ENTRIES),
-    (mcrs_minecraft_item::registry_keys::DATA_COMPONENT_TYPE.location(), mcrs_minecraft_item::data_component_type_keys::DataComponentType::ENTRIES),
+    (mcrs_minecraft_item_stack::registry_keys::DATA_COMPONENT_TYPE.location(), mcrs_minecraft_item_stack::data_component_type_keys::DataComponentType::ENTRIES),
     (mcrs_minecraft_game_rule::registry_keys::GAME_RULE.location(), mcrs_minecraft_game_rule::game_rule_keys::GameRule::ENTRIES),
     (mcrs_minecraft_predicate::registry_keys::ENTITY_SUB_PREDICATE_TYPE.location(), mcrs_minecraft_predicate::entity_sub_predicate_type_keys::EntitySubPredicateType::ENTRIES),
     (mcrs_minecraft_item::registry_keys::DATA_COMPONENT_PREDICATE_TYPE.location(), mcrs_minecraft_item::data_component_predicate_type_keys::DataComponentPredicateType::ENTRIES),

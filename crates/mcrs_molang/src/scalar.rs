@@ -5,8 +5,6 @@ use crate::math;
 use crate::subject::Subject;
 use crate::value::{Value, ValueType};
 
-/// Runs a program for one subject. The VM keeps its registers between runs, so a run does not
-/// allocate.
 #[derive(Clone, Debug, Default)]
 pub struct ScalarVm {
     numbers: Vec<f32>,
@@ -19,7 +17,6 @@ impl ScalarVm {
         Self::default()
     }
 
-    /// Runs `program` once. Writes to `variable.` go to the store of the subject.
     pub fn run(&mut self, program: &Program, subject: &mut Subject<'_>) -> Value {
         if self.numbers.len() < program.number_registers {
             self.numbers.resize(program.number_registers, 0.0);

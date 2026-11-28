@@ -5,7 +5,7 @@ use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::SavedError;
 
-pub(crate) const REMOVAL_MARKER: char = '!';
+pub(crate) const REMOVAL_MARKER: &str = "!";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum KeyKind {
@@ -13,7 +13,6 @@ pub(crate) enum KeyKind {
     Removal,
 }
 
-/// A key of the saved patch: a value key `<type>` or a removal key `!<type>`.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SavedKey<'key> {
     pub(crate) kind: KeyKind,
@@ -30,7 +29,6 @@ impl<'key> SavedKey<'key> {
         Ok(Self { kind, name })
     }
 
-    /// True when one of the `earlier` keys has the same kind and names the same component type.
     pub(crate) fn is_repeated(self, earlier: &[(String, NbtTag)]) -> bool {
         earlier
             .iter()

@@ -1,62 +1,50 @@
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use bevy_app::{App, Plugin};
 use mcrs_minecraft_engine::banlist::BanList;
 use mcrs_minecraft_engine::client_info::ClientInfoPlugin;
 use mcrs_minecraft_engine::whitelist::Whitelist;
+use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_network::inbound_rate::InboundRateLimit;
-use mcrs_minecraft_network::{NetworkPlugin, default_favicon};
+use mcrs_minecraft_network::{ForwardingSecret, NetworkPlugin, default_favicon};
 
 use crate::configuration::{ConfigurationStatePlugin, KnownPackOffer};
 use crate::dimension_worlds_plugin::DimensionWorldsPlugin;
 use crate::keep_alive::KeepAlivePlugin;
-use crate::login::{LoginPlugin, NetworkCompressionThreshold, SingleplayerProfile};
-use crate::loopback_ops::LoopbackOps;
+use crate::login::{
+    JoinLimits, LoginPlugin, NetworkCompressionThreshold, ProxyForwarding, SingleplayerProfile,
+};
+use crate::loopback_ops::ServerProfile;
 use crate::require::require;
 use crate::status::StatusPlugin;
 
-/// The listener, login, configuration and keep-alive of every connection.
 pub struct ServerNetworkPlugin {
-    /// Port 0 asks the OS for a free port; read the result back from
-    /// [`BoundAddress`](mcrs_minecraft_network::BoundAddress).
     pub bind_address: SocketAddr,
-    /// A server that listens beyond loopback announces itself on the local network.
     pub announce_on_lan: bool,
-    /// Turned off, the server offers no known pack, so a client receives every registry entry's
-    /// data instead of only the entries that are not in the vanilla pack.
     pub offer_known_packs: bool,
     pub compression_threshold: NetworkCompressionThreshold,
     pub singleplayer_profile: Option<SingleplayerProfile>,
-    pub max_players: u32,
+    pub join_limits: JoinLimits,
     pub motd: String,
     pub favicon: Option<String>,
-    /// Turned on, a client that a transfer packet sends here logs in; turned off, it gets
-    /// `multiplayer.disconnect.transfers_disabled`.
     pub accepts_transfers: bool,
-    /// Turned on, the status response keeps the online and maximum counts but carries no sample
-    /// of player names.
     pub hide_online_players: bool,
-    /// Turned off, a status connection closes after the handshake without a packet; a login is
-    /// not affected.
     pub enable_status: bool,
-    /// The kernel send buffer of each connection, in bytes.
     pub send_buffer_bytes: usize,
-    /// The length of the kernel queue of connections that wait for the accept loop.
     pub accept_backlog: u32,
-    /// The largest average of packets per second of one connection; 0 turns the limit off.
     pub rate_limit: InboundRateLimit,
+    pub nbt_budget: NbtBudget,
     pub whitelist: Whitelist,
     pub banlist: BanList,
-    pub loopback_ops: LoopbackOps,
+    pub profile: ServerProfile,
+    pub forwarding: Option<ForwardingSecret>,
+    pub proxy_upstreams: Vec<IpAddr>,
 }
 
 impl ServerNetworkPlugin {
-    /// A listener on loopback only, on an OS-assigned port and without compression, for a
-    /// server that shares a process with its client.
     pub fn embedded() -> Self {
         Self {
             bind_address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
-            // Both ends share one process, so compression only spends CPU on each side.
             compression_threshold: NetworkCompressionThreshold(-1),
             ..Default::default()
         }
@@ -71,7 +59,7 @@ impl Default for ServerNetworkPlugin {
             offer_known_packs: true,
             compression_threshold: NetworkCompressionThreshold::default(),
             singleplayer_profile: None,
-            max_players: 20,
+            join_limits: JoinLimits::default(),
             motd: "mcrs Server".to_owned(),
             favicon: Some(default_favicon()),
             accepts_transfers: false,
@@ -80,9 +68,12 @@ impl Default for ServerNetworkPlugin {
             send_buffer_bytes: NetworkPlugin::default().send_buffer_bytes,
             accept_backlog: NetworkPlugin::default().accept_backlog,
             rate_limit: InboundRateLimit::default(),
+            nbt_budget: NbtBudget::default(),
             whitelist: Whitelist::default(),
             banlist: BanList::default(),
-            loopback_ops: LoopbackOps::default(),
+            profile: ServerProfile::default(),
+            forwarding: None,
+            proxy_upstreams: Vec::new(),
         }
     }
 }
@@ -97,7 +88,7 @@ impl Plugin for ServerNetworkPlugin {
         app.add_plugins(NetworkPlugin {
             address: self.bind_address,
             announce_on_lan: self.announce_on_lan,
-            max_players: self.max_players,
+            max_players: self.join_limits.max_players,
             motd: self.motd.clone(),
             favicon: self.favicon.clone(),
             accepts_transfers: self.accepts_transfers,
@@ -106,9 +97,13 @@ impl Plugin for ServerNetworkPlugin {
             send_buffer_bytes: self.send_buffer_bytes,
             accept_backlog: self.accept_backlog,
             rate_limit: self.rate_limit,
+            nbt_budget: self.nbt_budget,
+            per_ip_accept_limit: self.forwarding.is_none(),
+            proxy_upstreams: self.proxy_upstreams.clone(),
         });
         app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);
+        app.insert_resource(self.join_limits);
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
         if !app.is_plugin_added::<ClientInfoPlugin>() {
@@ -118,6 +113,9 @@ impl Plugin for ServerNetworkPlugin {
         app.add_plugins(crate::shutdown::ShutdownPlugin);
         app.insert_resource(self.whitelist.clone());
         app.insert_resource(self.banlist.clone());
-        app.insert_resource(self.loopback_ops);
+        app.insert_resource(self.profile);
+        if let Some(secret) = &self.forwarding {
+            app.insert_resource(ProxyForwarding(secret.clone()));
+        }
     }
 }

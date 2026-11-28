@@ -1,5 +1,5 @@
 use crate::SECTION_SIZE;
-use crate::block::{BlockInfo, face_hidden};
+use crate::block::{BlockInfo, Pass, face_hidden};
 use crate::pack::{
     FACE_NONE, MODEL_BLOCK_LIGHT, MODEL_OVERHANG, MODEL_SHADE, MODEL_SKY_LIGHT, MODEL_SPRITE,
     MODEL_STEPS, MODEL_TINT, MODEL_TINT_HIGH, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
@@ -55,10 +55,10 @@ pub(super) fn push(out: &mut Vec<u32>, quad: &Quad) {
 
 #[expect(
     clippy::excessive_nesting,
-    reason = "culls, shades and lights each quad of each block in one pass over the section, with the face, ambient and fluid decisions inline"
+    reason = "one pass keeps the face, ambient and fluid decisions inline"
 )]
 pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
-    for group in scratch.complex_by_pass.iter_mut().flatten() {
+    for group in scratch.models_by_pass.iter_mut().flatten() {
         group.clear();
     }
 
@@ -106,10 +106,7 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
                         .map(|occlusion| smooth_light::shade_byte(occlusion, face_shade));
                     let light = values.light.map(|light| light.with_emission(quad.emission));
                     let group = quad.face.map_or(UNGROUPED, |group| group as usize);
-                    let Some(out) = quad
-                        .pass
-                        .of_mut(&mut scratch.complex_by_pass)
-                        .get_mut(group)
+                    let Some(out) = quad.pass.of_mut(&mut scratch.models_by_pass).get_mut(group)
                     else {
                         continue;
                     };
@@ -134,14 +131,14 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
 }
 
 pub(super) fn emit(scratch: &mut Scratch, sink: &mut Sink) {
-    for (pass, groups) in scratch.complex_by_pass.iter().enumerate() {
+    for (pass, groups) in Pass::ALL.into_iter().zip(&scratch.models_by_pass) {
         for (group, verts) in groups.iter().enumerate() {
             let face = if group == UNGROUPED {
                 FACE_NONE as u64
             } else {
                 group as u64
             };
-            sink.complex(pass, face, verts);
+            sink.model(pass, face, verts);
         }
     }
 }
@@ -240,7 +237,7 @@ mod tests {
 
         let batch = mesh_world(&world, &catalog, &[[0, 0, 0]], &mut Scratch::new());
         assert_eq!(batch.model_quads(), 1);
-        std::array::from_fn(|corner| MODEL_SHADE.read(&batch.complex[corner * 3..corner * 3 + 3]))
+        std::array::from_fn(|corner| MODEL_SHADE.read(&batch.models[corner * 3..corner * 3 + 3]))
     }
 
     #[test]

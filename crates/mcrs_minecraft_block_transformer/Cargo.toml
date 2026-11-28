@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 
 [lib]
+test = false
 doctest = false
 
 [lints]
@@ -15,7 +16,7 @@ mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
 mcrs_minecraft_core.workspace = true
-mcrs_minecraft_sound.workspace = true
+mcrs_minecraft_sound = { workspace = true, features = ["registry"] }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

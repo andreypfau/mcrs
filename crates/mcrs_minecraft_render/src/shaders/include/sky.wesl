@@ -9,4 +9,6 @@ struct Sky {
     sky_light: vec4<f32>,
     block_light: vec4<f32>,
     ambient: vec4<f32>,
+    occluder: vec4<f32>,
 }
+

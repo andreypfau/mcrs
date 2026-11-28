@@ -43,16 +43,10 @@ use crate::play::name_of;
 
 const POLL: Duration = Duration::from_millis(1);
 
-/// What the proxy saw, in the order the client applied or sent it, with the time of
-/// [`mcrs_minecraft_client_ticks::Recording::times`].
 pub(crate) enum Observed {
-    /// A clientbound event; the client applied it before its next tick.
     Applied(u64, Event),
-    /// A serverbound event.
     Sent(u64, Event),
-    /// The client has loaded the world.
     Loaded,
-    /// The cheat module changed what the server receives.
     Rewritten,
 }
 
@@ -65,51 +59,38 @@ enum State {
     Play,
 }
 
-/// One peer: the bytes from it, cut into frames, and the frames for it.
 struct Inbound {
     stream: TcpStream,
     buffer: BytesMut,
     outgoing: Vec<u8>,
-    /// The compression of the frames from this peer.
     threshold: CompressionThreshold,
     inflater: Option<Decompress>,
     state: State,
 }
 
-/// A `ping` that the proxy sent after the events it brackets.
 struct Probe {
     id: i32,
     events: Vec<(u64, Event)>,
 }
 
-/// One client connection, forwarded to the server frame by frame.
-///
-/// After each clientbound packet that the recording keeps, the proxy sends its own `ping`. The
-/// client answers a `ping` between two client ticks, after it applied the packets before it, so
-/// the answer gives the tick that applied them. The proxy drops these answers.
 pub(crate) struct Connection {
     client: Inbound,
     server: Inbound,
-    /// The threshold of `setup_compression`. Each direction switches compression on after its
-    /// frame of `login_finished` or `login_acknowledged`.
     stored: CompressionThreshold,
     deflate: Option<Deflate>,
     in_bundle: bool,
     unprobed: Vec<(u64, Event)>,
     probes: VecDeque<Probe>,
     next_probe: i32,
-    /// The network id of the player, from `login`.
     player: Option<i32>,
     start: Instant,
     from_client: Delay<Bytes>,
     to_client: Delay<Vec<u8>>,
     cheat: Option<Cheat>,
-    /// The last frame from the client with a move packet, and its events.
     last_move: Option<(Bytes, Vec<Event>)>,
 }
 
 impl Connection {
-    /// `trace` holds the round trip samples of the delay between the client and the proxy.
     pub(crate) fn new(
         client: TcpStream,
         server: TcpStream,
@@ -146,7 +127,6 @@ impl Connection {
         })
     }
 
-    /// Forwards what both peers sent since the last call. Returns false once a peer closed.
     pub(crate) fn poll(&mut self, names: &Names, out: &mut Vec<Observed>) -> anyhow::Result<bool> {
         if !receive(&mut self.client)? {
             return Ok(false);
@@ -176,12 +156,11 @@ impl Connection {
         Ok(true)
     }
 
-    /// The time since the connection opened, in microseconds.
     fn time(&self) -> u64 {
         u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX)
     }
 
-    fn client_frame(&mut self, mut frame: Bytes, out: &mut Vec<Observed>) -> anyhow::Result<()> {
+    fn client_frame(&mut self, frame: Bytes, out: &mut Vec<Observed>) -> anyhow::Result<()> {
         let packet = decompress(
             frame.clone(),
             self.client.threshold,
@@ -213,19 +192,41 @@ impl Connection {
                 self.client.state = State::Configuration;
             }
             State::Play => {
+                if self.cheat.is_some()
+                    && let Play::Ping(probe) = decode_serverbound(id, body)?
+                    && self.probes.front().is_some_and(|front| front.id == probe)
+                {
+                    return self.play_frame(id, body, frame, out);
+                }
                 let mut rewritten = None;
                 if let Some(cheat) = &mut self.cheat {
                     let name = name_of(game_serverbound::NAMES, id);
                     if name == "accept_teleportation" {
                         cheat.teleported();
                     }
-                    if let Some(changed) = cheat.rewrite(name, body) {
-                        out.push(Observed::Rewritten);
-                        frame = reframe(id, &changed, self.client.threshold, &mut self.deflate)?;
-                        rewritten = Some(changed);
-                    }
+                    rewritten = cheat.rewrite(id, name, body, self.player)?;
                 }
-                return self.play_frame(id, rewritten.as_deref().unwrap_or(body), frame, out);
+                let Some(packets) = rewritten else {
+                    return self.play_frame(id, body, frame, out);
+                };
+                out.push(Observed::Rewritten);
+                if packets.is_empty()
+                    && let Play::Events(events) = decode_serverbound(id, body)?
+                {
+                    let time = self.time();
+                    out.extend(
+                        events
+                            .into_iter()
+                            .map(|event| Observed::Sent(time, Event::Removed(Box::new(event)))),
+                    );
+                }
+                for packet in packets {
+                    let mut body = &packet[..];
+                    let id = VarInt::decode(&mut body)?.0;
+                    let frame = reframe(&packet, self.client.threshold, &mut self.deflate)?;
+                    self.play_frame(id, body, frame, out)?;
+                }
+                return Ok(());
             }
             State::Status | State::Login | State::Configuration => {}
         }
@@ -345,8 +346,6 @@ impl Connection {
     }
 }
 
-/// Reads what the peer sent, until a read does not fill the chunk. Returns false once the peer
-/// closed.
 fn receive(inbound: &mut Inbound) -> anyhow::Result<bool> {
     let mut chunk = [0; 64 * 1024];
     loop {
@@ -387,16 +386,12 @@ fn next_frame(inbound: &mut Inbound) -> anyhow::Result<Option<Bytes>> {
     }
 }
 
-/// The frame of the packet `id` with `body`, without its length prefix.
 fn reframe(
-    id: i32,
-    body: &[u8],
+    packet: &[u8],
     threshold: CompressionThreshold,
     deflate: &mut Option<Deflate>,
 ) -> anyhow::Result<Bytes> {
-    let mut packet = BytesMut::new();
-    VarInt(id).encode((&mut packet).writer())?;
-    packet.extend_from_slice(body);
+    let mut packet = BytesMut::from(packet);
     encode_frame(&mut packet, 0, threshold, deflate)?;
     Ok(split_frame(&mut packet)?)
 }

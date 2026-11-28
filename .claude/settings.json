@@ -8,6 +8,21 @@
             "type": "command",
             "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/cargo-guard.sh\"",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/gh-guard.sh\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-guard.sh\"",
+            "timeout": 5
           }
         ]
       }

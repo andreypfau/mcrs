@@ -1,10 +1,14 @@
+use crate::configuration::AwaitingConfigurationAck;
 use bevy_app::{App, Plugin};
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, Query, Res};
 use bevy_ecs::query::Changed;
+use bevy_ecs::query::Has;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::system::Populated;
 use bevy_time::{Real, Time};
 use mcrs_minecraft_engine::muxer::latency::Latency;
 use mcrs_minecraft_network::event::Received;
@@ -17,8 +21,6 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive as
 use std::time::Duration;
 use tracing::{debug, warn};
 
-/// The reference's `KEEPALIVE_LIMIT`: how long after the last challenge the next one is due,
-/// and how long a challenge may go unanswered.
 const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 
 pub struct KeepAlivePlugin;
@@ -35,20 +37,25 @@ impl Plugin for KeepAlivePlugin {
     }
 }
 
-/// Times are the real-time clock's elapsed time: a keep-alive measures the wire, not the tick.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeepAlive {
     Idle { since: Duration },
     Awaiting { challenge: i64, sent: Duration },
 }
 
-/// Each phase starts its own keep-alive, as the reference's packet listener for each phase does.
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::time_clock_mismatch,
+        reason = "keepalive deadlines measure wall-clock network delay, and the response observers stamp arrivals on the same real clock"
+    )
+)]
 pub fn new_connection(
-    query: Query<(Entity, &ConnectionState), Changed<ConnectionState>>,
+    query: Populated<(Entity, &ConnectionState), Changed<ConnectionState>>,
     time: Res<Time<Real>>,
     mut commands: Commands,
 ) {
-    for (entity, state) in query {
+    for (entity, state) in query.iter() {
         if *state == ConnectionState::Login {
             commands.entity(entity).remove::<KeepAlive>();
             continue;
@@ -59,22 +66,39 @@ pub fn new_connection(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::time_clock_mismatch,
+        reason = "keepalive deadlines measure wall-clock network delay, and the response observers stamp arrivals on the same real clock"
+    )
+)]
 pub fn handle_keepalive(
-    mut query: Query<(
+    mut query: Populated<(
         Entity,
         &mut ServerSideConnection,
         &ConnectionState,
         &mut KeepAlive,
+        Has<AwaitingConfigurationAck>,
     )>,
     time: Res<Time<Real>>,
     mut commands: Commands,
 ) {
     let now = time.elapsed();
-    for (entity, mut con, conn_state, mut state) in query.iter_mut() {
+    for (entity, mut con, conn_state, mut state, awaiting_ack) in query.iter_mut() {
         match *state {
             KeepAlive::Awaiting { sent, .. } if now.saturating_sub(sent) >= KEEPALIVE_INTERVAL => {
                 warn!("Keepalive timeout for {}", con.remote_addr());
                 commands.entity(entity).remove::<ServerSideConnection>();
+            }
+            KeepAlive::Idle { since } if awaiting_ack => {
+                if now.saturating_sub(since) >= 2 * KEEPALIVE_INTERVAL {
+                    warn!(
+                        "{} did not acknowledge the finish of the configuration",
+                        con.remote_addr()
+                    );
+                    commands.entity(entity).remove::<ServerSideConnection>();
+                }
             }
             KeepAlive::Idle { since } if now.saturating_sub(since) >= KEEPALIVE_INTERVAL => {
                 let challenge = rand::random();
@@ -97,10 +121,10 @@ pub fn handle_keepalive(
                         continue;
                     }
                 }
-                *state = KeepAlive::Awaiting {
+                state.set_if_neq(KeepAlive::Awaiting {
                     challenge,
                     sent: now,
-                };
+                });
             }
             _ => {}
         }
@@ -131,8 +155,6 @@ fn on_game_response(
     }
 }
 
-/// A response read in a later frame than it arrived still counts from its arrival, so the
-/// latency does not grow by the wait for the frame.
 fn arrival(arrival: Option<Instant>, time: &Time<Real>) -> Duration {
     arrival.map_or(time.elapsed(), |at| {
         at.saturating_duration_since(time.startup())
@@ -152,7 +174,7 @@ fn handle_keepalive_response(
     debug!("Keepalive response: {:?}", keep_alive);
     match *state {
         KeepAlive::Awaiting { challenge, sent } if keep_alive.payload == challenge => {
-            *state = KeepAlive::Idle { since: sent };
+            state.set_if_neq(KeepAlive::Idle { since: sent });
             let round_trip =
                 i32::try_from(now.saturating_sub(sent).as_millis()).unwrap_or(i32::MAX);
             let sampled = latency.map_or(Latency(round_trip), |latency| latency.sample(round_trip));
@@ -175,6 +197,7 @@ fn handle_keepalive_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
     use bytes::Bytes;
     use mcrs_minecraft_network::RawConnection;
@@ -228,5 +251,58 @@ mod tests {
             measured,
             "a repeated round trip keeps the latency, so viewers get no update"
         );
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Outcome {
+        Challenged,
+        Waits,
+        Dropped,
+    }
+
+    #[test]
+    fn no_configuration_challenge_follows_the_finish_of_the_configuration() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let _guard = runtime.enter();
+        let rows = [
+            (false, KEEPALIVE_INTERVAL, Outcome::Challenged),
+            (true, KEEPALIVE_INTERVAL, Outcome::Waits),
+            (true, 2 * KEEPALIVE_INTERVAL, Outcome::Dropped),
+        ];
+        for (awaiting_ack, idle, expected) in rows {
+            let startup = Instant::now();
+            let mut world = World::new();
+            let mut time = Time::<Real>::new(startup);
+            time.update_with_instant(startup);
+            time.update_with_instant(startup + idle);
+            world.insert_resource(time);
+            let (raw, _outgoing, _inbound) = RawConnection::new_for_test_full(1);
+            let connection = world
+                .spawn((
+                    ServerSideConnection { raw: Box::new(raw) },
+                    ConnectionState::Configuration,
+                    KeepAlive::Idle {
+                        since: Duration::ZERO,
+                    },
+                ))
+                .id();
+            if awaiting_ack {
+                world
+                    .entity_mut(connection)
+                    .insert(AwaitingConfigurationAck);
+            }
+            world.run_system_once(handle_keepalive).unwrap();
+            let outcome = match world.get::<KeepAlive>(connection) {
+                _ if world.get::<ServerSideConnection>(connection).is_none() => Outcome::Dropped,
+                Some(KeepAlive::Awaiting { .. }) => Outcome::Challenged,
+                _ => Outcome::Waits,
+            };
+            assert_eq!(
+                outcome, expected,
+                "a client that was sent the finish of the configuration reads play packets, so no \
+                 challenge goes to it, but it must acknowledge in time: awaiting the \
+                 acknowledgement {awaiting_ack}, idle for {idle:?}"
+            );
+        }
     }
 }

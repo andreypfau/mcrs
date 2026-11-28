@@ -11,10 +11,12 @@ doctest = false
 workspace = true
 
 [dependencies]
-mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_anvil.workspace = true
 mcrs_minecraft_core.workspace = true
+icu_properties = { version = "2.1.2", default-features = false, features = ["compiled_data"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
@@ -23,7 +25,10 @@ serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc.workspace = true
+
 [dev-dependencies]
 mcrs_minecraft_fixtures.workspace = true
-mcrs_minecraft_item.workspace = true
+serde_json.workspace = true
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }

@@ -6,8 +6,6 @@ use crate::perlin::{LegacyPerlin2dNoise, PerlinNoise};
 use crate::sample_grid::SampleGrid;
 use crate::simplex::SimplexNoise;
 
-/// One octave's contribution: a lattice, the frequency its coordinates are
-/// scaled by, and the weight its sample carries.
 #[derive(Clone, Debug, PartialEq)]
 struct Layer<N> {
     noise: N,
@@ -15,22 +13,15 @@ struct Layer<N> {
     amplitude: f32,
 }
 
-/// A flat sum of scaled octaves. Vanilla's `NoiseStack`: no nesting, no octave
-/// index arithmetic at sample time, just a list walked in order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NoiseStack<N> {
     layers: Box<[Layer<N>]>,
     range: Interval,
 }
 
-/// Which sampler a layer of a mixed stack carries. Vanilla holds its layers
-/// behind the `Noise` interface; the enum is the same choice made once per
-/// layer instead of once per virtual call.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Octave {
     Perlin(PerlinNoise),
-    /// Beta's `ySize == 1` branch, which is a different noise over the same
-    /// lattice rather than the 3D one evaluated at y = 0.
     Perlin2d(LegacyPerlin2dNoise),
     Simplex(SimplexNoise),
 }
@@ -79,8 +70,6 @@ impl Noise for Octave {
 }
 
 impl NoiseStack<PerlinNoise> {
-    /// [`PerlinNoise::legacy_fill`] summed over the layers, which is how Beta
-    /// reads its beach and surface octaves.
     pub fn fill_legacy_grid(
         &self,
         out: &mut [f32],
@@ -102,10 +91,6 @@ impl NoiseStack<PerlinNoise> {
     }
 }
 
-/// Beta's fbm: the octaves are walked from the first drawn to the last, the
-/// frequency halves each step and the contribution is divided by that frequency
-/// rather than normalised. As a stack that is a layer per octave weighing
-/// `1 / frequency`, summed in Beta's own order.
 pub fn beta_fbm<N: Noise>(
     lattices: Vec<Option<GradientNoise>>,
     layer: impl Fn(GradientNoise) -> N,
@@ -121,7 +106,6 @@ pub fn beta_fbm<N: Noise>(
     stack.build()
 }
 
-/// Reused across the layers of one column fill.
 #[derive(Default)]
 pub struct ColumnScratch {
     scaled: Vec<f64>,
@@ -141,11 +125,6 @@ impl<N: Noise> NoiseStack<N> {
         self.layers.len()
     }
 
-    /// Forms each layer's coordinate as `coordinate * frequency`. The volume
-    /// paths below fold the scale into the frequency instead, and at the
-    /// `1.0181268882175227` ratio of every second sub-noise the two products
-    /// differ by an f64 ulp — vanilla ships that difference, so the two
-    /// associations must not be unified.
     pub fn get(&self, x: f64, y: f64, z: f64) -> f32 {
         let mut value = 0.0f32;
         for layer in &self.layers {
@@ -155,8 +134,6 @@ impl<N: Noise> NoiseStack<N> {
         value
     }
 
-    /// [`Self::get`] over a run of positions sharing `x` and `z`, which lets each
-    /// layer hoist its lattice hashes across the run. Same association as `get`.
     pub fn fill_column(
         &self,
         out: &mut [f32],
@@ -181,11 +158,12 @@ impl<N: Noise> NoiseStack<N> {
         }
     }
 
-    /// One column of `volume`, in the volume association: each layer receives
-    /// `scale * frequency` *before* the block multiply.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the output, the column position, the sample grid, the two scales and the scratch of one stack evaluation"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one stack evaluation"
+        )
     )]
     pub fn fill_column_at(
         &self,
@@ -197,14 +175,57 @@ impl<N: Noise> NoiseStack<N> {
         y_scale: f64,
         scratch: &mut ColumnScratch,
     ) {
+        let heights = (0..out.len() as i32).map(|i| volume.block_y(i));
+        self.fill_at(out, block_x, block_z, heights, xz_scale, y_scale, scratch);
+    }
+
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one stack evaluation"
+        )
+    )]
+    pub(crate) fn fill_heights_at(
+        &self,
+        out: &mut [f32],
+        block_x: i32,
+        block_z: i32,
+        heights: &[i32],
+        xz_scale: f64,
+        y_scale: f64,
+        scratch: &mut ColumnScratch,
+    ) {
+        let heights = heights.iter().copied();
+        self.fill_at(out, block_x, block_z, heights, xz_scale, y_scale, scratch);
+    }
+
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one stack evaluation"
+        )
+    )]
+    #[inline]
+    fn fill_at(
+        &self,
+        out: &mut [f32],
+        block_x: i32,
+        block_z: i32,
+        heights: impl Iterator<Item = i32> + Clone,
+        xz_scale: f64,
+        y_scale: f64,
+        scratch: &mut ColumnScratch,
+    ) {
         out.fill(0.0);
         scratch.resize(out.len());
         for layer in &self.layers {
             let f = layer.frequency;
             let layer_xz = xz_scale * f;
             let layer_y = y_scale * f;
-            for (i, slot) in scratch.scaled.iter_mut().enumerate() {
-                *slot = volume.block_y(i as i32) as f64 * layer_y;
+            for (slot, height) in scratch.scaled.iter_mut().zip(heights.clone()) {
+                *slot = height as f64 * layer_y;
             }
             layer.noise.get_column(
                 block_x as f64 * layer_xz,
@@ -218,7 +239,6 @@ impl<N: Noise> NoiseStack<N> {
         }
     }
 
-    /// Accumulates `amplitude * get(...)` over `volume`, in the volume association.
     pub fn add_to_volume(
         &self,
         out: &mut [f32],
@@ -271,9 +291,6 @@ impl<N: Noise> Builder<N> {
         }
     }
 
-    /// Overrides the range the layers imply. `NormalNoise` declares a six-sigma
-    /// statistical bound on the summed octaves rather than their analytic hull,
-    /// and branch elimination consumes the declared one.
     pub fn build_with_range(self, range: Interval) -> NoiseStack<N> {
         NoiseStack {
             layers: self.0.into_boxed_slice(),
@@ -283,8 +300,6 @@ impl<N: Noise> Builder<N> {
 }
 
 impl<N> NoiseStack<N> {
-    /// The per-layer weights, in build order. A drift guard for the
-    /// normalization modes rather than something generation reads.
     #[cfg(test)]
     pub(crate) fn amplitudes(&self) -> Vec<f32> {
         self.layers.iter().map(|l| l.amplitude).collect()

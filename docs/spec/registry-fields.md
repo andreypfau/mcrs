@@ -1,14 +1,5 @@
 # Registry fields: references and write forms
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-| World version (`DataVersion`) | `5124` |
-| Data pack format | `124.0` |
-
-Source of these values: `assets/minecraft/version.json`.
-
 This document extends `registry.md`. For each synced registry of REG-NET-004, and for
 each value type that a synced entry can contain, it lists two things:
 
@@ -26,7 +17,7 @@ needs them.
 - The terms of `registry.md` §0.1 apply. "Key", "tag", "inline value" and "entry set" have the meaning of REG-REF-001.
 - The provenance labels and confidence levels of `registry.md` §0.3 apply.
 - The names rule of `registry.md` §0.7 applies. This document names data, never code.
-- The rule prefix is `REG-FLD`. Rules 001 to 099 are general. Rules 101 to 133 are the synced registries, in the order of REG-NET-004. Rules from 200 are value types.
+- The rule prefix is `REG-FLD`. The prefix `REG-FLD-DEV` names an intentional deviation (section 11). Rules 001 to 099 are general. Rules 101 to 133 are the synced registries, in the order of REG-NET-004. Rules from 200 are value types.
 
 ### 0.2 How to read a rule
 
@@ -129,6 +120,143 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Edge cases:** fields that hold raw NBT, for example the `custom_data` item component, are copied as they are. A loot table id or another id in raw NBT is not a reference. The game reads it only at use time.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+
+### REG-FLD-006: Unknown fields and unknown names in predicates
+
+- **Inputs:** one of these values, or a value that it contains, for example number bounds (REG-FLD-646):
+  - an entity predicate (REG-FLD-624), or a value of one of its sub-predicates (REG-FLD-625 to REG-FLD-645);
+  - an item predicate (REG-FLD-613), with the values of its data component predicates (REG-FLD-597 to REG-FLD-611);
+  - a block predicate (REG-FLD-614).
+- **Behavior:**
+  - A field of an object that no rule of this document lists is ignored, as REG-ENTRY-003 states. The decode does not fail. For example, `flags` with `"zzz": 1` decodes as `flags` without that field. This applies also to the objects `food` and `input` of REG-FLD-642, and to the object form of number bounds.
+  - The decode ignores the unknown field in each place of the table below. In no place of the table does the field fail the decode. The ignored field does not change the result of a test.
+
+| Place | Value at the place | Decoded value |
+|-------|--------------------|---------------|
+| loot condition `match_block` (REG-FLD-709). The fields of the block predicate are in the condition object. | `{"type": "minecraft:match_block", "blocks": "minecraft:stone", "foo": 1}` | a block predicate with `blocks` `minecraft:stone` |
+| field `predicate` of the loot condition `match_tool` (REG-FLD-710) | `{"items": "minecraft:stone", "foo": 1}` | an item predicate with `items` `minecraft:stone` |
+| field `block` of the location predicate (REG-FLD-618) in the loot condition `location_check` | `{"blocks": "minecraft:stone", "foo": 1}` | a block predicate with `blocks` `minecraft:stone` |
+| persistent form of the item components `can_break` and `can_place_on` (REG-FLD-517), in the object form and in each element of the list form | `{"blocks": "minecraft:stone", "foo": 1}` | one block predicate with `blocks` `minecraft:stone` |
+| the same place | `{"foo": 1}` | one block predicate with no field, the same value as `{}` |
+| data component predicate `damage` (REG-FLD-598), in `predicates` of an item predicate | `{"durability": {"min": 1}, "foo": 1}` | `durability` `{"min": 1}` |
+| element of the data component predicate `enchantments` (REG-FLD-599) | `{"enchantments": "minecraft:sharpness", "foo": 1}` | `enchantments` `minecraft:sharpness` |
+| sub-predicate `flags` of an entity predicate | `{"is_baby": true, "foo": 1}` | `is_baby` `true` |
+
+  - The persistent form of a component is the same in a data pack file and in a saved item stack. Thus the two rows of `can_break` and `can_place_on` also apply in a data component patch, for example `{"minecraft:can_break": {"foo": 1}}`.
+  - The keys of the maps of the next table are names, not fields. A key that is not a name of the list fails the decode of the entry (REG-ERR-001).
+
+| Map | Names that the decode accepts |
+|-----|-------------------------------|
+| entity predicate (REG-FLD-624) | the sub-predicate type ids of REG-FLD-624 |
+| `slots` (REG-FLD-636) | the slot range names of REG-FLD-636 |
+| `predicates` (REG-FLD-597, REG-FLD-638) | the ids of `data_component_predicate_type` and of `data_component_type` (PRED-ITM-006 of `predicates.md`) |
+| `components` (REG-FLD-595, REG-FLD-637) | the ids of `data_component_type` that have a persistent form (REG-FLD-595) |
+| mob effects predicate (REG-FLD-622) | the keys of `mob_effect` |
+
+- **Edge cases:**
+  - Each kind of `type_specific` is its own key of the entity predicate, for example `type_specific/player`. The key `type_specific`, and a key `type_specific/<x>` whose kind is not in REG-FLD-624, fail the decode.
+  - The keys of `recipes` and of `advancements` (REG-FLD-642) are not in the table. REG-FLD-642 states them.
+  - The block predicate of this version has no field `block`. Thus `match_block` with `"block": "minecraft:stone"` decodes as a block predicate with no `blocks`. The decode does not fail, and the predicate passes for each block that PRED-GEN-005 of `predicates.md` lets pass.
+  - A value of `can_break` or `can_place_on` with only unknown fields, for example `{"foo": 1}`, is a valid component value. It is not a fault of the decode.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment (unknown fields in the places of the table): decode each value of the table with the decoder of the game, through `tools/vanilla-oracle`, with no server. Decode a loot condition for the first three rows, the component value and a data component patch for the rows of `can_break` and `can_place_on`, an item predicate for the rows of `damage` and `enchantments`, and an entity predicate for the row of `flags`. Record the decoded value or the error. Expected: each value decodes, as the table states. The decode runs through `tools/vanilla-oracle`. No capture of the run is committed yet. Experiment (names): make one pack for each of these entity predicates, with one predicate file: `flags` with `"zzz": 1`; a top-level key `zzz`; `type_specific` with `{"type": "player"}`; `type_specific/zzz`; `slots` with the key `foo.0`; `predicates` with the key `minecraft:zzz`. Start the server one time with each pack. Expected: the pack with `flags` loads. Each other pack is a fault of the load (REG-ERR-001), and the server does not start.
+
+### REG-FLD-007: Numbers in an int place
+
+- **Inputs:** a JSON value in a data pack file, at a place where the field takes an integer type. The bare number form of a context int provider is such a place (REG-FLD-722). The field `value` of the object form `constant` of a context int provider is also such a place (REG-FLD-724). The rule applies to each int place of the registry decode.
+- **Scope:** this rule covers JSON only. An integer that arrives as an NBT tag or as SNBT, for example in a command argument or in a saved file, has a typed tag. The rules of that form decide. Section 10 lists this as unresolved.
+- **Value of the number:** the decode computes the value of the JSON number from its text:
+  - A number written as an integer literal, with no fraction part and no exponent, has its exact value. Thus `9007199254740993` has the value 9007199254740993.
+  - A number written with a fraction part or an exponent has the value of the nearest 64-bit float. Thus `1.00000000000000001` has the value 1, and `1e400` has the value +infinity.
+  - `-0` and `-0.0` have the value 0.
+- **Range of the place:**
+
+| Integer type | Range |
+|--------------|-------|
+| byte | −128 to 127 |
+| unsigned byte | 0 to 255 |
+| short | −32768 to 32767 |
+| int | −2147483648 to 2147483647 |
+| long | −9223372036854775808 to 9223372036854775807 |
+
+- A long place reads a number with a fraction part or an exponent through a 64-bit float. That float is exact only for an integer with a magnitude of at most 2^53.
+- **Behavior:**
+  - A value that is an integer inside the range of the place decodes to that integer.
+  - A value that is not an integer fails the decode, for example `1.5` and `-0.5`. An infinity also fails.
+  - A value outside the range of the place fails the decode. Thus `2147483648`, `9007199254740993` and `1e30` fail in an int place.
+  - When the rule of a field states a narrower range, that range applies after the decode. A value outside it fails, as the rule of the field states.
+  - The fault is a fault of the load (REG-ERR-001).
+  - The server writes the decoded integer as an integer literal (REG-FLD-002).
+- **Examples:**
+
+| Place | JSON | Result |
+|-------|------|--------|
+| int field, for example `generation` of `set_book_cover` | `1`, `1.0`, `1e0`, `1.00000000000000001` | 1 |
+| int field | `-0`, `-0.0` | 0 |
+| int field | `3e2` | 300 |
+| int field | `1.5`, `-1.5` | fault of the load |
+| int field with the range 0 to 3 | `3.9` | fault of the load |
+| int field | `2147483648`, `4294967297`, `9007199254740993`, `1e30`, `1e400` | fault of the load |
+| bare context int provider | `2.0` | the constant 2 |
+| bare context int provider | `1.5` | fault of the load |
+| object form `constant` of an int provider | `{"type": "minecraft:constant", "value": 1.5}` | fault of the load |
+
+Reason: a fraction or an overflow in an int place is a fault of the data pack. A silent change of the value hides that fault from the author of the pack. This project checks data at the load. REG-FLD-DEV-001 records the difference from the vanilla server. Provenance: `design`. Kind: semantic.
+
+### REG-FLD-008: Numbers in a float place and values that are not numbers
+
+- **Inputs:** a JSON value in a data pack file, at a place where the field takes a float (32 bits) or a double (64 bits), or at an int place of REG-FLD-007. The bare number form of a context float provider is a float place (REG-FLD-723). The field `value` of the object form `constant` of a context float provider is also a float place (REG-FLD-724).
+- **Behavior:**
+  - A float place accepts a JSON number in each JSON form: an integer, a number with a fraction, or a number with an exponent.
+  - A float place takes the f32 nearest to the number. A double place takes the nearest f64. A float number outside the f32 range gives an infinity with the sign of the number.
+  - A JSON string, a boolean, a null, an object and a list fail the decode of an int place and of a float place. Thus `"1"`, `true` and `false` fail. A boolean does not decode as 1 or 0. A place that also accepts another form, for example a key of a provider, decodes that form as its rule states.
+  - The server writes the decoded value as a float (REG-FLD-002).
+- **Examples:**
+
+| Place | JSON | Result |
+|-------|------|--------|
+| bare context float provider | `2` | the constant 2.0 |
+| bare context float provider | `1e40` | the constant +infinity |
+| bare context float provider | `-1e40` | the constant −infinity |
+| any number place | `"1"`, `true`, `false` | fault of the load |
+| object form `constant` | `{"type": "minecraft:constant", "value": true}` | fault of the load |
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: decode each JSON value of this table with the decoder of the game for a context float provider and for a context int provider. `tools/vanilla-oracle` can call these decoders with no server. Record the decoded value or the error. The decode runs through `tools/vanilla-oracle`. No capture of the run is committed yet.
+
+### REG-FLD-010: Nesting depth of a data pack file
+
+- **Inputs:** the JSON text of one file of a data pack.
+- **Behavior:**
+  - The nesting depth of a JSON value is 0 for a string, a number, a boolean and `null`. It is 1 more than the largest depth of its members for an object and for a list. Thus `[]` and `{}` have the depth 1, and `[[1]]` has the depth 2.
+  - A file whose top value has a depth of more than 128 fails the decode. The fault is a fault of the load (REG-ERR-001) for the entry of that file.
+  - The check applies before the decode of the entry. Thus it bounds each nesting inside the file, also the nesting of inline conditions, for example `inverted` inside `inverted`.
+- **Vanilla data:** the deepest vanilla file has the depth 17.
+
+Reason: a decode and an evaluation must not exhaust the stack of the thread. The reference chain of LOOT-CTX-017 does not count an inline condition, so this bound covers it. REG-FLD-DEV-002 records the difference from the vanilla server. Provenance: `design`. Kind: semantic.
+
+### REG-FLD-011: `null` in a field of a data pack file
+
+- **Inputs:** a JSON object of a data pack file with a field whose value is `null`.
+- **Behavior:**
+  - In an optional field, `null` has the same result as an absent field. The field takes its default, or no value when it has no default. The server does not write the field (REG-FLD-003).
+  - In a required field, `null` fails the decode, as an absent field does. The fault is a fault of the load (REG-ERR-001).
+  - At the top level of an entity predicate (REG-FLD-624), each key with the value `null` fails the decode. REG-FLD-006 states the top-level keys. Inside the value of such a key, the first two statements apply.
+- **Examples:**
+
+| JSON | Result |
+|------|--------|
+| damage predicate `{"blocked": null}` | decodes as `{}` |
+| damage source predicate `{"is_direct": null}`, `{"direct_entity": null}`, `{"tags": null}` | decodes as `{}` |
+| loot table `{"pools": null}`, `{"random_sequence": null}` | decodes as `{}` |
+| `item` entry with `"weight": null` or `"quality": null` | the default 1 or 0 |
+| `set_count` with `"add": null` | the default `false` |
+| `location_check` with `"offsetX": null` | the default 0 |
+| entity predicate `{"distance": {"x": null}}`, `{"flags": {"is_baby": null}}` | decodes; the inner field is absent |
+| entity predicate `{"flags": null}`, `{"location": null}`, `{"team": null}`, `{"nbt": null}`, `{"type": null}` | fault of the load |
+| `set_count` with `"count": null` | fault of the load: `count` is required |
+| `random_chance` with `"chance": null` | fault of the load: `chance` is required |
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: decode each JSON value of the table with the decoders of the game. The decode runs through `tools/vanilla-oracle`. No capture of the run is committed yet.
 
 ### REG-FLD-009: Experiments
 
@@ -2866,6 +2994,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none.
 - **Write form notes:**
   - `value` is a required level-based value (REG-FLD-386). `min` and `max` are required numbers.
+  - `max` must be larger than `min`. A value with `max ≤ min` fails the load.
 - **Nested types:** level-based value (REG-FLD-386).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -3660,7 +3789,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - `"!lore": true`, a removal value that is not an object.
 - **Experiment:** make a pack with a dialog whose title has the hover event of the example, but with `"count": 64` and `"max_stack_size": 1` in `components`. Start the server. Expected: the server starts. Show the dialog to a vanilla client and move the mouse over the title. Record the tooltip lines and the client log.
 
-Provenance: `source_suggested` (`HoverEvent.ShowItem`, `ItemStackTemplate.MAP_CODEC`, `Item.CODEC`, `DataComponentPatch.CODEC`, `DataComponentPatch.PatchKey`, `ItemStackTemplate.create`, `ItemStack.validateStrict`). Kind: semantic. Confidence: medium.
+Provenance: `source_suggested`: the decode of the hover event, of the item, of the component patch and of its keys, and the stack checks of the client. Kind: semantic. Confidence: medium.
 
 ## 8. Item stack, item components and predicates
 
@@ -4530,7 +4659,8 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none.
 - **Write form notes:**
   - The value is one object. Each key is a free string. Each value is one decoration entry.
-  - `x`, `z` and `rotation` are required.
+  - `type`, `x`, `z` and `rotation` are required. `x` and `z` are doubles. `rotation` is a float.
+  - `item-stack.md`, STK-SHP-022, states the shape.
 - **Nested types:** none.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -4624,6 +4754,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
 - **Write form notes:**
   - `pages` is always a list of filterable strings. The list has at most 100 elements.
+  - Each page has at most 1024 UTF-16 code units in `raw`, and at most 1024 in `filtered`. A longer page fails the decode. A character outside the Basic Multilingual Plane counts as 2 code units. REG-FLD-786 gives examples.
   - The encoder always writes a filterable value as an object `{"raw": ..., "filtered": ...}`. `filtered` is optional. A reader also accepts a bare value.
 - **Nested types:** none.
 
@@ -4642,12 +4773,26 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 | `resolved` | `false` | no |
 
 - **Write form notes:**
-  - `pages[].raw` and `pages[].filtered` are text component (REG-FLD-429) values. Each value has at most 32767 characters in its string form.
-  - `title` is a filterable string with at most 32 characters. `author` is required.
+  - `pages[].raw` and `pages[].filtered` are text component (REG-FLD-429) values.
+  - **Page bound:** the decode writes each page value again as JSON text, with the encoder of REG-FLD-429, in the compact form with no spaces. The decode counts the UTF-16 code units of that text, with the quotes and the escapes. The maximum is 32767. A larger value fails the decode. The bound applies to `raw` and to `filtered`.
+  - Thus the count depends on the decoded value, not on the JSON in the file. For example, `{"text": "abc"}` with no style counts as the bare string `"abc"`, which is 5 code units. The order of the keys has no effect on the count.
+  - **Escapes in a string:** the text has these escapes, and no other escape:
+
+| Character | Written as | Code units |
+|-----------|-----------|------------|
+| `"` | `\"` | 2 |
+| `\` | `\\` | 2 |
+| U+0008, U+0009, U+000A, U+000C, U+000D | `\b`, `\t`, `\n`, `\f`, `\r` | 2 |
+| each other character from U+0000 to U+001F | `\u` and 4 lowercase hex digits, for example `\u001f` | 6 |
+| U+2028, U+2029 | `\u2028`, `\u2029` | 6 |
+
+  - Each other character is written as itself: `/`, `<`, `>`, `&`, `=`, `'`, U+007F, each character above ASCII, and a lone surrogate. A character outside the Basic Multilingual Plane counts as 2 code units.
+  - **Numbers:** an int field of a text component, for example `shadow_color`, `count` of `show_item` and `page` of `change_page`, is written in decimal, with `-` for a negative value and with no fraction. A boolean is written as `true` or `false`. The number form of an element of `with` is unresolved (section 10).
+  - `title` is a filterable string. `title.raw` and `title.filtered` each have at most 32 UTF-16 code units. A longer string fails the decode. `author` is required.
   - The encoder always writes a filterable value as an object. This rule is the same as in item component `writable_book_content` (REG-FLD-560).
 - **Nested types:** text component (REG-FLD-429).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009. Experiment for the page bound: decode text components with each character of the escape table, with `/`, `<`, `>`, `&`, `=`, `'`, U+007F and a lone surrogate, and with each int field of the list. Write each decoded value again as compact JSON text, and record the text and its length in UTF-16 code units. The decode runs through `tools/vanilla-oracle`. No capture of the run is committed yet.
 
 ### REG-FLD-562: item component `trim`
 
@@ -4874,12 +5019,13 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
 | Field | Default | Lenient |
 |-------|---------|---------|
-| `properties` (partial profile form) | `[]` (empty property map) | no |
+| `properties` (full profile and partial profile) | `[]` (empty list of properties) | no |
 
 - **Write form notes:**
   - The value holds a player name, a UUID and properties.
   - A reader accepts a bare player name string. The encoder never writes the bare string. It always writes the object form.
-  - `texture`, `cape` and `elytra` are identifiers of textures. They are not references. `model` is a model string.
+  - `texture`, `cape` and `elytra` are identifiers of textures. They are not references. `model` is `wide` or `slim`.
+  - `item-stack.md`, STK-SHP-023 to STK-SHP-027, states the shape.
 - **Nested types:** none.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5202,6 +5348,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - A key that is a predicate type id selects that predicate type. The value has the form of the rule "data component predicate `<id>`".
   - A key that is only a data component id means "the item has this component". The value is `{}`. The encoder writes the component id as the key and `{}` as the value.
   - A component id that is also a predicate type id always selects the predicate type. Examples are `damage`, `enchantments`, `potion_contents` and `trim`.
+  - In the value of a predicate type, a field that no rule lists is ignored (REG-FLD-006).
 - **Nested types:** data component predicate `damage` (REG-FLD-598), data component predicate `enchantments`, `stored_enchantments` (REG-FLD-599), data component predicate `potion_contents` (REG-FLD-601), data component predicate `custom_data` (REG-FLD-602), data component predicate `container`, `bundle_contents` (REG-FLD-603), data component predicate `firework_explosion` (REG-FLD-604), data component predicate `fireworks` (REG-FLD-605), data component predicate `writable_book_content` (REG-FLD-606), data component predicate `written_book_content` (REG-FLD-607), data component predicate `attribute_modifiers` (REG-FLD-608), data component predicate `trim` (REG-FLD-609), data component predicate `jukebox_playable` (REG-FLD-610), data component predicate `villager/variant` (REG-FLD-611).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5451,6 +5598,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Write form notes:**
   - `count` is a number bounds (REG-FLD-646) of integers.
   - `components` and `predicates` come from data component matchers (REG-FLD-596). They are written in this object.
+  - A field that no rule lists is ignored, in each place where an item predicate is decoded (REG-FLD-006).
 - **Nested types:** number bounds (REG-FLD-646), data component matchers (REG-FLD-596).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5475,6 +5623,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - `components` and `predicates` come from data component matchers (REG-FLD-596). They are written in this object.
   - `state` is optional and has no default. It is a state properties predicate (REG-FLD-615).
   - `nbt` is optional and has no default. It is an nbt predicate (REG-FLD-623).
+  - A field that no rule lists is ignored, in each place where a block predicate is decoded (REG-FLD-006). This includes `can_break` and `can_place_on`.
 - **Nested types:** data component matchers (REG-FLD-596), state properties predicate (REG-FLD-615), nbt predicate (REG-FLD-623).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5569,9 +5718,21 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - `tags[].expected` is required.
   - `direct_entity` and `source_entity` are optional entity predicate (REG-FLD-624) values. They have no default.
   - `is_direct` is optional and has no default.
+- **Forms of `tags[].id`:** the value is an entry set of `damage_type` (REG-FLD-001). These forms decode:
+  - a tag key with `#`, for example `"#minecraft:is_fire"` or `"#is_fire"`. A tag key with no namespace takes the namespace `minecraft`.
+  - one damage type key, for example `"minecraft:arrow"` or `"arrow"`. The set holds that one type.
+  - a list of damage type keys, for example `["minecraft:arrow", "minecraft:trident"]`. The empty list `[]` decodes, and its set holds no type.
+- **Forms that fail the load:**
+  - a tag key with no `#`, for example `"minecraft:is_projectile"`. The decode reads it as a damage type key. No damage type has that key, so the load fails.
+  - a `#` tag key of a tag that the pack does not define.
+  - a tag key inside a list, for example `["#minecraft:is_fire"]`.
+  - an object.
+- **Write form of `tags[].id`:** a tag is written as `#` and the tag key. A list with one key is written as the bare key. Each other list is written as a list.
+- **Vanilla use:** each vanilla `tags[].id` is a `#` tag key. The vanilla tags in this place are `is_projectile`, `bypasses_invulnerability`, `is_fire`, `is_fall`, `is_explosion`, `is_lightning`, `mace_smash` and `burn_from_stepping`.
+- **Other fields of this shape:** no other field of this chapter is an object with an entry set `id` and a boolean `expected`.
 - **Nested types:** entity predicate (REG-FLD-624).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009. Experiment for the forms: make one pack for each value of `tags[].id` in the two lists above, in a predicate `damage_source_properties`. Start the server one time with each pack. Expected: each form of the first list loads, and each form of the second list is a fault of the load (REG-ERR-001). Then damage a player with an arrow, and test each loaded predicate with `expected` `true` (PRED-DMG-002).
 
 ### REG-FLD-620: damage predicate
 
@@ -5587,6 +5748,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Write form notes:**
   - `dealt` and `taken` are number bounds (REG-FLD-646) of doubles.
   - `source_entity` is an optional entity predicate (REG-FLD-624). `type` is an optional damage source predicate (REG-FLD-619). They have no default.
+  - `blocked` is an optional boolean and has no default. For example, the advancement `story/deflect_arrow` has `blocked` true.
 - **Nested types:** number bounds (REG-FLD-646), entity predicate (REG-FLD-624), damage source predicate (REG-FLD-619).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5760,7 +5922,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **References:** none at this level.
 - **Fields left out on write:** none.
 - **Write form notes:**
-  - `head`, `chest`, `legs`, `feet`, `body`, `mainhand` and `offhand` are optional item predicate (REG-FLD-613) values. They have no default.
+  - `head`, `chest`, `legs`, `feet`, `body`, `saddle`, `mainhand` and `offhand` are optional item predicate (REG-FLD-613) values. They have no default.
 - **Nested types:** item predicate (REG-FLD-613).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5805,6 +5967,8 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none.
 - **Write form notes:**
   - The value is one object. Each key is a slot range name string. It is not a reference. Each value is an item predicate (REG-FLD-613).
+  - A slot range name is one of these: `contents`; `container.<i>` for `i` in `0..53`; `hotbar.<i>` for `i` in `0..8`; `inventory.<i>` and `enderchest.<i>` for `i` in `0..26`; `mob.inventory.<i>` for `i` in `0..7`; `horse.<i>` for `i` in `0..14`; `player.crafting.<i>` for `i` in `0..3`; `weapon`, `weapon.mainhand`, `weapon.offhand`, `weapon.*`; `armor.head`, `armor.chest`, `armor.legs`, `armor.feet`, `armor.body`, `armor.*`; `saddle`, `horse.chest` and `player.cursor`. Each name with `<i>` also has a form with `*` in place of the index, for example `container.*`. PRED-ENT-020 of `predicates.md` gives the slot numbers of each name.
+  - A key that is not a slot range name fails the load.
 - **Nested types:** item predicate (REG-FLD-613).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5897,13 +6061,15 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Write form notes:**
   - `level` and `stats[].value` are number bounds (REG-FLD-646) of integers.
   - `food` has the fields `level` and `saturation`. Each is a number bounds (REG-FLD-646) with the default `{}`. Each is left out when it equals the default.
+  - `food.level` is a number bounds of integers. Each bound is a 32-bit signed integer, and the test compares it with the food level, a 32-bit integer.
+  - `food.saturation` is a number bounds of doubles. Each bound is a 64-bit float. The test converts the saturation, a 32-bit float, to a 64-bit float with no change of the value (PRED-NUM-002 of `predicates.md`).
   - `gamemode` is left out only when the list holds these four strings in this order.
   - `advancements` map keys are advancement identifiers. They are not references.
   - `looking_at` is an optional entity predicate (REG-FLD-624). It has no default.
   - `input` is optional and has no default. Its fields `forward`, `backward`, `left`, `right`, `jump`, `sneak` and `sprint` are optional booleans.
 - **Nested types:** number bounds (REG-FLD-646), entity predicate (REG-FLD-624).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: REG-FLD-009, and E16 of `predicates.md` for the number kinds of `food`.
 
 ### REG-FLD-643: entity predicate `type_specific/cube_mob`
 
@@ -5956,6 +6122,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - The value is a range of integers, of doubles, or of float degrees. The parent rule gives the number kind.
   - The encoder writes a bare number when `min` equals `max`. Else it writes an object `{"min": ..., "max": ...}`.
   - `min` and `max` are optional. The range "any" has no bound and is written as `{}`.
+  - For a range of integers or of doubles, a `min` larger than `max` fails the load. A `min` equal to `max` loads. A range of float degrees accepts a `min` larger than `max`.
 - **Nested types:** none.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -6179,9 +6346,10 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none.
 - **Write form notes:**
   - `period` is an optional long and has no default.
+  - A `period` of 0 fails the decode of the entry (REG-ERR-001, the row of an entry that fails to decode). It is not a loot validation problem. The vanilla server decodes it, and LOOT-CDV-001 of `loot-conditions.md` records the difference.
 - **Nested types:** int range predicate (REG-FLD-720) (`value`).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`, except the rejection of `period` 0, which is `design`: mcrs refuses a condition that the evaluation cannot calculate (LOOT-CND-015 of `loot-conditions.md`). Confidence: medium. Experiment: REG-FLD-009.
 
 ### REG-FLD-716: loot condition `int_value_check`
 
@@ -6287,12 +6455,17 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
 - **Fields left out on write:** none.
 - **Write form notes:**
-  - An inline value is a bare int or an object with a `type` field.
+  - An inline value is a bare int or an object with a `type` field. The bare int follows REG-FLD-007: `2.0` gives the constant 2, and `1.5` fails the load.
   - A `constant` provider is always written as a bare int. The encoder never writes `{"type":"constant","value":N}`.
-  - The list form is used where a field takes several providers.
+  - The list form is used where a field takes several providers, for example `inputs` (REG-FLD-729).
+- **Forms of the list form:** the whole value of a field of this kind is one of these forms:
+  - a `#` tag key of the registry `context_int_provider`. A tag that the pack does not define fails the load.
+  - one element in bare form.
+  - a list of elements. Each element is a key of a named provider, a bare number, or an object with `type`. One list can hold each of these forms.
+- **Elements that fail the load:** a `#` tag key inside a list, and a list inside a list.
 - **Nested types:** context int provider `constant` and context float provider `constant` (REG-FLD-724), context int provider unary types and context float provider unary types (REG-FLD-725), context int provider binary types and context float provider binary types (REG-FLD-726), context int provider `pow` and context float provider `pow` (REG-FLD-727), context int provider `uniform` and context float provider `uniform` (REG-FLD-728), context int provider aggregate types and context float provider aggregate types (REG-FLD-729), context int provider `conditional` and context float provider `conditional` (REG-FLD-730), context int provider `number_dispatcher` and context float provider `number_dispatcher` (REG-FLD-731), context int provider `weighted_list` and context float provider `weighted_list` (REG-FLD-732), context int provider `environment_attribute` and context float provider `environment_attribute` (REG-FLD-733), context int provider `storage` and context float provider `storage` (REG-FLD-734), context int provider `binomial` (REG-FLD-735), context int provider `score` (REG-FLD-736).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009. Experiment for the list forms: in a context int provider `add`, set `inputs` to each form of the two lists above, one form for each decode. `tools/vanilla-oracle` can call the decoder with no server. Record the decoded value or the error. Expected: each form of "Forms of the list form" decodes, and each element of "Elements that fail the load" fails. The decode runs through `tools/vanilla-oracle`. No capture of the run is committed yet.
 
 ### REG-FLD-723: context float provider
 
@@ -6307,11 +6480,12 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
 - **Fields left out on write:** none.
 - **Write form notes:**
-  - An inline value is a bare float or an object with a `type` field.
+  - An inline value is a bare float or an object with a `type` field. The bare float follows REG-FLD-008: `2` gives the constant 2.0.
   - A `constant` provider is always written as a bare float. The encoder never writes the object form for it.
+- **Forms of the list form:** the forms and the failures of REG-FLD-722 apply, with the registry `context_float_provider`.
 - **Nested types:** context int provider `constant` and context float provider `constant` (REG-FLD-724), context int provider unary types and context float provider unary types (REG-FLD-725), context int provider binary types and context float provider binary types (REG-FLD-726), context int provider `pow` and context float provider `pow` (REG-FLD-727), context int provider `uniform` and context float provider `uniform` (REG-FLD-728), context int provider aggregate types and context float provider aggregate types (REG-FLD-729), context int provider `conditional` and context float provider `conditional` (REG-FLD-730), context int provider `number_dispatcher` and context float provider `number_dispatcher` (REG-FLD-731), context int provider `weighted_list` and context float provider `weighted_list` (REG-FLD-732), context int provider `environment_attribute` and context float provider `environment_attribute` (REG-FLD-733), context int provider `storage` and context float provider `storage` (REG-FLD-734), context float provider `enchantment_level` (REG-FLD-737).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009. Experiment for the list forms: the experiment of REG-FLD-722, with a context float provider `add`.
 
 ### REG-FLD-724: context int provider `constant` and context float provider `constant`
 
@@ -6469,6 +6643,8 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none.
 - **Write form notes:**
   - `distribution` is a non-empty list of `{data, weight}` objects. It is always a list.
+  - `weight` is required. It is an int from 0 to `2^31 − 1`. A negative `weight` fails the decode.
+  - The sum of the weights must be at least 1 and at most `2^31 − 1`. A list whose weights are all 0, or whose sum is larger, fails the decode.
 - **Nested types:** context int provider (REG-FLD-722), context float provider (REG-FLD-723).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -7060,8 +7236,9 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none of its own.
 - **Write form notes:**
   - `entity` is the optional entity target enum string.
-  - `lore` is a list of at most 256 elements. It is always a list.
-  - The list operation fields are written in the parent object, with a maximum size of 256.
+  - `lore` is a list of at most 256 elements. It is always a list. A list of 257 elements fails the decode.
+  - The list operation fields are written in the parent object, with a maximum size of 256 (REG-FLD-769).
+  - The maximum is the same as the maximum number of lines of the item component `lore`.
 - **Nested types:** text component (REG-FLD-429) (`lore[]`), list operation (REG-FLD-769).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -7081,8 +7258,14 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - These fields are written in the parent object.
   - `mode` is an enum string: `replace_all`, `replace_section`, `insert` or `append`. It is not a reference.
   - `size` (mode `replace_section`) is optional and has no default.
+- **Maximum size:** the owner rule gives the maximum M, or no maximum. M bounds these values:
+  - the number of elements of the value list of the owner. A longer list fails the decode.
+  - `size` of the mode `replace_section`. A larger `size` fails the decode.
+- **Values with no maximum:** `offset` has no upper bound at decode. An `offset` of 500 decodes with each maximum.
+- **Evaluation:** LOOT-MOD-030 of `loot-functions.md` states the result of each mode and the effect of M.
+- **Examples:** a `set_lore` with a value list of 257 lines fails the decode. A `set_writable_book_pages` with a `size` of 101 fails the decode.
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009. Experiment for the maximum: decode the item modifiers of the examples with `tools/vanilla-oracle`, and apply each one to a stack with the given list. Record the decode error, or the length of the list after the item modifier. The decode runs through `tools/vanilla-oracle`. No capture of the run is committed yet.
 
 ### REG-FLD-770: standalone list operation
 
@@ -7284,12 +7467,14 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **References:** none.
 - **Fields left out on write:** none of its own.
 - **Write form notes:**
-  - `title` is a filterable string of at most 32 characters.
+  - `title` is a filterable string. `title.raw` and `title.filtered` each have at most 32 UTF-16 code units. A longer string fails the decode of the item modifier.
+  - A character outside the Basic Multilingual Plane counts as 2 code units. Thus 32 `a` and 32 `é` decode, and 33 `a` fail. 16 such characters decode, and 17 fail.
+  - The item component `written_book_content` has the same bound (REG-FLD-561).
   - `author` is a string. `generation` is an int from 0 to 3.
   - All three fields are optional and have no default.
 - **Nested types:** item component `written_book_content` (REG-FLD-561) (the filterable form of `title`).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009. Experiment for the title: decode `set_book_cover` with each title of the examples with `tools/vanilla-oracle`. Record the decode error. The decode runs through `tools/vanilla-oracle`. No capture of the run is committed yet.
 
 ### REG-FLD-785: item modifier `set_written_book_pages`
 
@@ -7297,10 +7482,24 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **References:** none of its own.
 - **Fields left out on write:** none of its own.
 - **Write form notes:**
-  - The list operation fields are written in the parent object, with no maximum size.
+  - The list operation fields are written in the parent object, with no maximum size. Thus `size` of 100000 decodes.
+  - The decode of this item modifier checks the page bound of REG-FLD-561: at most 32767 UTF-16 code units of compact JSON text for each page value, `raw` and `filtered`. A larger page fails the decode of the item modifier.
+- **Examples of the page bound:**
+
+| Page in the file | Count | Result |
+|------------------|-------|--------|
+| a bare string of 32765 `a` | 32767 | decodes |
+| a bare string of 32766 `a` | 32768 | fails |
+| `{"text": ...}` of 32765 `a`, with no style | 32767, because the text is written again as a bare string | decodes |
+| a bare string of 32763 `a` and one `"` | 32767, because the `"` is written as `\"` | decodes |
+| a bare string of 32764 `a` and one `"` | 32768 | fails |
+| a bare string of 16382 characters outside the Basic Multilingual Plane and one `a` | 32767 | decodes |
+| a bare string of 16383 characters outside the Basic Multilingual Plane | 32768 | fails |
+
+- **Escapes:** the JSON text escapes `"` and `\`. It does not escape `é` or `<`.
 - **Nested types:** item component `written_book_content` (REG-FLD-561) (the page form of `pages`, which contains text components), list operation (REG-FLD-769).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009. Experiment for the page bound: decode `set_written_book_pages` with each page of the table with `tools/vanilla-oracle`. Record the decode error. The decode runs through `tools/vanilla-oracle`. No capture of the run is committed yet.
 
 ### REG-FLD-786: item modifier `set_writable_book_pages`
 
@@ -7308,10 +7507,12 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **References:** none of its own.
 - **Fields left out on write:** none of its own.
 - **Write form notes:**
-  - The list operation fields are written in the parent object, with a maximum size of 100.
+  - The list operation fields are written in the parent object, with a maximum size of 100 (REG-FLD-769). Thus `pages` holds at most 100 elements, and 101 fail the decode.
+  - Each page is a filterable string. `raw` and `filtered` each have at most 1024 UTF-16 code units. A longer page fails the decode of the item modifier. The item component `writable_book_content` has the same bound (REG-FLD-560).
+  - A character outside the Basic Multilingual Plane counts as 2 code units. Thus 1024 `a` decode, and 1025 fail. 512 such characters decode, and 513 fail.
 - **Nested types:** item component `writable_book_content` (REG-FLD-560) (the page form of `pages`), list operation (REG-FLD-769).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009. Experiment for the page bound: decode `set_writable_book_pages` with each page and each list of the examples with `tools/vanilla-oracle`. Record the decode error. The decode runs through `tools/vanilla-oracle`. No capture of the run is committed yet.
 
 ### REG-FLD-787: item modifier `toggle_tooltips`
 
@@ -7629,48 +7830,63 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
-## 10. Open points
+## 10. Unresolved
 
-Each point lists the affected rules and an experiment that decides it.
+- REG-FLD-228: the game has a float provider kind that multiplies several float providers. The `float_provider_type` registry has no entry for it, so the file form and the network form cannot carry it.
+- REG-FLD-105, REG-FLD-107, REG-FLD-109, REG-FLD-110, REG-FLD-112, REG-FLD-114, REG-FLD-116, REG-FLD-200, REG-FLD-202: `asset_id`, `baby_asset_id`, `wild`, `tame` and `angry` are identifiers of a texture, not references. The server does not check them.
+- REG-FLD-118, REG-FLD-214, REG-FLD-215: a tag in an entry set requires the `#` prefix, and the encoder writes a set with one element as a bare key. The analysis did not inspect the encoder for these two points.
+- REG-FLD-201, REG-FLD-113, REG-FLD-203, REG-FLD-204, REG-FLD-205, REG-FLD-210: the encoder writes a registered sound event as its key and an unregistered sound event as an inline value. The analysis did not inspect the encode path.
+- REG-FLD-215: `worldgen/structure` is not a synced registry. The `structure` spawn condition does not affect the network, because the network form has no `spawn_conditions`.
+- REG-FLD-263: the analysis derives from the source that `power` of particle options `dragon_breath` is always written, also when the value is `1.0`.
+- REG-FLD-129: the keys of `time_markers` use the key namespace `clock_time_marker`, which is not a registry. The keys are kept unchecked.
+- REG-FLD-253: a reader accepts an entry `{ "modifier": "override", "argument": <value> }` and gives the same value as the bare form. This is not tested.
+- REG-FLD-300: the default of `style` is the empty style. The analysis did not confirm that a loaded `{}` compares equal to the empty style.
+- REG-FLD-303: the full form of a block state uses `id` and `properties`, not `Name` and `Properties`. Clients and tools that expect `Name` fail.
+- REG-FLD-303: the full form writes every property in `properties`, and a parent that accepts both forms writes the default state in the short form.
+- REG-FLD-304: the load fails when an inline object is valid both as a typed provider and as a block state. The analysis did not test an object with both `id` and `type`.
+- REG-FLD-304: the write writes a `simple` provider in the block state form, never with `type`.
+- REG-FLD-317: the world generation block predicate is a different type from the block predicate (REG-FLD-614). A type list that merges the two is wrong.
+- REG-FLD-320: `state` is a state properties predicate (REG-FLD-615). The analysis recorded only its default `{}` and that it holds no references.
+- REG-FLD-331: the analysis did not expand the vertical anchor. It assumes that the anchor forms `absolute`, `above_bottom` and `below_top` hold no references.
+- REG-FLD-377, REG-FLD-378: `block_state` can be a key of `worldgen/block_state_provider`. It is not verified that the client has this registry.
+- REG-FLD-354: the set of strings that `enchanted` accepts is not confirmed.
+- REG-FLD-377, REG-FLD-378: world generation block predicate (REG-FLD-317) contains a vertical anchor in the type `height_range`. The anchor forms (`absolute`, `above_bottom`, `below_top`) are assumed to hold no reference.
+- REG-FLD-122: an explicit `exclusive_set` value `[]` is expected to be left out on write, and a tag value is expected to be always written.
+- REG-FLD-379, REG-FLD-385: `run_function.function` and the attribute effect `id` are treated as plain identifiers, not references.
+- REG-FLD-122: the registry `enchantment_provider` is not synced and no enchantment field refers to it.
+- REG-FLD-426: The `function` field of a test instance is a key that the load does not check. It is not known whether the client receives the `test_function` registry.
+- REG-FLD-401: The default `action` of a `notice` dialog is left out only when the button equals the default button exactly. A label with any style is written.
+- REG-FLD-429, REG-FLD-436, REG-FLD-438: The keys `type`, `source` and `object` are left out for the JSON form and the NBT form. It is not verified that every registry encoder on the sync path leaves them out.
+- REG-FLD-413, REG-FLD-438, REG-FLD-441: The internal defaults of item stack (REG-FLD-500) and item component `profile` (REG-FLD-576) are not listed in this chapter.
+- REG-FLD-423: Each game rule value is a primitive, and no references were found. The value forms of each game rule are not listed.
+- REG-FLD-442: the tooltip that the vanilla client shows for a `show_item` stack that fails the stack checks is not observed. The source suggests the tooltip of an empty stack.
+- REG-FLD-500, REG-FLD-501: the analysis found item stack (REG-FLD-500) in the dialog body `item`, the particle options `item` and the hover event `show_item`. It found saved item stack (REG-FLD-501) only in entity NBT, block entity NBT and other data that is not synced. Item modifiers and enchantment effects were not traced for item stack fields.
+- REG-FLD-540: `asset_id` is classified as key only and unchecked, because the server loads no `equipment_asset` registry.
+- REG-FLD-513, REG-FLD-543, REG-FLD-534, REG-FLD-540, REG-FLD-576, REG-FLD-577: `item_model`, `tooltip_style`, `use_cooldown.cooldown_group`, `equippable.camera_overlay`, the skin texture fields of `profile` and `note_block_sound` are treated as plain identifiers, not references. `note_block_sound` names a sound event, but no load step checks it.
+- REG-FLD-597: a key that is both a data component id and a predicate type id always selects the predicate type. The full list of such ids is not known.
+- REG-FLD-500 to REG-FLD-646: the rule "left out when equal to the default" depends on value equality. The analysis checked records, enum values, singleton values, the empty patch and the empty exact predicate. Other default values are assumed to compare by content.
+- REG-FLD-549, REG-FLD-562, REG-FLD-567, REG-FLD-568, REG-FLD-578, REG-FLD-587, REG-FLD-588, REG-FLD-589: the element form of `block_transformer`, the inline forms of `trim_material`, `trim_pattern`, `instrument` and `banner_pattern`, and the context int and float providers are not expanded in this chapter. Other rules own them.
+- REG-FLD-700, REG-FLD-722, REG-FLD-723, REG-FLD-741, REG-FLD-801: a key in a `reference or inline` field of a stage 3 registry inside a synced entry probably fails the load. The exact lookup set during the synced load and during the client read is not confirmed.
+- REG-FLD-739, REG-FLD-740: the unchecked key of a resolvable int or a resolvable float is expected to load in a synced entry.
+- REG-FLD-730, REG-FLD-731, REG-FLD-734, REG-FLD-736, REG-FLD-800: a read value of `-0.0` probably does not equal the default `0.0`, so the field is written. An inline `{"type":"constant","value":0}` probably equals the default, so the field is left out.
+- REG-FLD-705, REG-FLD-711, REG-FLD-715, REG-FLD-747, REG-FLD-751, REG-FLD-765: the classification of the `enchantment` and `clock` fields as `key only`, checked, is not confirmed.
+- REG-FLD-784, REG-FLD-785, REG-FLD-786: the default omissions inside the filterable title form and the book page forms belong to the item component rules.
+- REG-FLD-709: the fields of the block predicate are written in the `match_block` object. The block predicate rule must list them as fields of the parent object.
+- REG-FLD-007: the decode of a registry value from an NBT tag or from SNBT, for example in a command argument or in a saved file. No rule states which tag types an int place accepts, for example a byte tag, a long tag or a double tag with an integer value. `snbt.md` states the tag type of each SNBT form (SNBT-VAL-001), but not the conversion of a tag to a registry value.
+- REG-FLD-561: the text form of a number in an element of `with` of a translatable text component. The encoder writes the decoded value again. Observed: `1e2` gives `100`, `1.0` gives `1`, `-0.0` gives `0`, `3` gives `3`, `0.1` gives `0.1`, `1.5e-7` gives `1.5E-7`, and `100000000000000000000` gives `1.0E20`. The general rule is not stated.
 
-- REG-FLD-228: the game has a float provider kind that multiplies several float providers. The `float_provider_type` registry has no entry for it, so the file form and the network form cannot carry it. Experiment: put `{"type": "minecraft:multiplied", ...}` in a sulfur cube `contact_damage.amount` in a pack. Check the log for an unknown type error.
-- REG-FLD-105, REG-FLD-107, REG-FLD-109, REG-FLD-110, REG-FLD-112, REG-FLD-114, REG-FLD-116, REG-FLD-200, REG-FLD-202: `asset_id`, `baby_asset_id`, `wild`, `tame` and `angry` are identifiers of a texture, not references. The server does not check them. Experiment: give a variant in a pack an `asset_id` that names no texture. Check that the server loads the pack without error. Capture the registry data packet and confirm the identifier is sent unchanged.
-- REG-FLD-118, REG-FLD-214, REG-FLD-215: a tag in an entry set requires the `#` prefix, and the encoder writes a set with one element as a bare key. The analysis did not inspect the encoder for these two points. Experiment: put `"items": ["minecraft:stone"]` and then `"items": "#minecraft:logs"` in a `sulfur_cube_archetype` entry in a pack. Capture the registry data packet. Check that the first value comes back as the bare string `"minecraft:stone"` and that the second keeps `#`.
-- REG-FLD-201, REG-FLD-113, REG-FLD-203, REG-FLD-204, REG-FLD-205, REG-FLD-210: the encoder writes a registered sound event as its key and an unregistered sound event as an inline value. The analysis did not inspect the encode path. Experiment: give `ambient_sound` in a `cat_sound_variant` of a pack an inline value `{"sound_id": "minecraft:custom.meow"}` and give `hurt_sound` a registered key. Capture the registry data packet and compare the two forms.
-- REG-FLD-215: `worldgen/structure` is not a synced registry. The `structure` spawn condition does not affect the network, because the network form has no `spawn_conditions`. Experiment: add a `structure` spawn condition to a `wolf_variant` in a pack. Capture the registry data packet and confirm that the entry has no `spawn_conditions`.
-- REG-FLD-263: the analysis derives from the source that `power` of particle options `dragon_breath` is always written, also when the value is `1.0`. Experiment: make a pack with a biome whose `visual/default_dripstone_particle` is `{ "type": "dragon_breath", "power": 1.0 }`. Capture the registry data on the wire and check that `power` is present.
-- REG-FLD-129: the keys of `time_markers` use the key namespace `clock_time_marker`, which is not a registry. The keys are kept unchecked. Experiment: make a pack with a timeline whose `time_markers` has an unknown key, for example `test:no_such_marker`. Check the server log for a load error, and capture the timeline on the wire.
-- REG-FLD-253: a reader accepts an entry `{ "modifier": "override", "argument": <value> }` and gives the same value as the bare form. This is not tested. Experiment: make a pack with a biome attribute in this form. Check that the load succeeds, and capture the wire form. The expected wire form is the bare value.
-- REG-FLD-300: the default of `style` is the empty style. The analysis did not confirm that a loaded `{}` compares equal to the empty style. Experiment: put `"style": {}` in a `chat_type` decoration in a pack. Capture the registry data packet and check that `style` is absent.
-- REG-FLD-303: the full form of a block state uses `id` and `properties`, not `Name` and `Properties`. Clients and tools that expect `Name` fail. Experiment: put `{"Name": "minecraft:oak_log"}` as a block state in a `worldgen/block_state_provider` entry in a pack. Check the log for a load error. Then put `{"id": "minecraft:oak_log"}` and check that the pack loads.
-- REG-FLD-303: the full form writes every property in `properties`, and a parent that accepts both forms writes the default state in the short form. Experiment: put `{"id": "minecraft:oak_log", "properties": {}}` and `{"id": "minecraft:oak_log", "properties": {"axis": "x"}}` as two `worldgen/block_state_provider` entries in a pack. Capture the registry data packet. Expected: the provider value accepts only the full form, so both entries are written in the full form, each with all properties of the block. Then repeat with a parent that accepts both forms, for example `would_survive` `state`. Expected: the default state is written as the bare key.
-- REG-FLD-304: the load fails when an inline object is valid both as a typed provider and as a block state. The analysis did not test an object with both `id` and `type`. Experiment: put `{"type": "minecraft:simple", "state": "minecraft:stone", "id": "minecraft:stone"}` as a `worldgen/block_state_provider` entry in a pack. Check the log for a load error.
-- REG-FLD-304: the write writes a `simple` provider in the block state form, never with `type`. Experiment: put `{"type": "minecraft:simple", "state": "minecraft:stone"}` as a `worldgen/block_state_provider` entry in a pack. Capture the registry data packet and check that the entry is `{"id": "minecraft:stone"}`.
-- REG-FLD-317: the world generation block predicate is a different type from the block predicate (REG-FLD-614). A type list that merges the two is wrong. Experiment: put `{"type": "minecraft:matching_blocks", "blocks": "minecraft:stone"}` in a rule `if_true` of a `rule_based` provider in a pack. Check that the pack loads without error.
-- REG-FLD-320: `state` is a state properties predicate (REG-FLD-615). The analysis recorded only its default `{}` and that it holds no references. Experiment: put `"state": {}` in a `matching_fluids` predicate in a pack. Capture the registry data packet and check that `state` is absent.
-- REG-FLD-331: the analysis did not expand the vertical anchor. It assumes that the anchor forms `absolute`, `above_bottom` and `below_top` hold no references. Experiment: load a pack with one `height_range` predicate for each anchor form. Capture the registry data packet and compare each anchor with the pack value.
-- REG-FLD-377, REG-FLD-378: `block_state` can be a key of `worldgen/block_state_provider`. It is not verified that the client has this registry. Experiment: make a pack with an enchantment whose `replace_block.block_state` is a key, not an inline value. Join with a vanilla client and check the client log for a registry load error.
-- REG-FLD-354: the set of strings that `enchanted` accepts is not confirmed. Experiment: make a pack with `equipment_drops.enchanted` set to each enchantment target string. Check the server log for the strings that fail to load.
-- REG-FLD-377, REG-FLD-378: world generation block predicate (REG-FLD-317) contains a vertical anchor in the type `height_range`. The anchor forms (`absolute`, `above_bottom`, `below_top`) are assumed to hold no reference. Experiment: load a pack with each anchor form and capture the synced enchantment bytes.
-- REG-FLD-122: an explicit `exclusive_set` value `[]` is expected to be left out on write, and a tag value is expected to be always written. Experiment: make two enchantments, one with `"exclusive_set": []` and one with `"exclusive_set": "#minecraft:exclusive_set/armor"`. Capture the registry data packet and compare the written fields.
-- REG-FLD-379, REG-FLD-385: `run_function.function` and the attribute effect `id` are treated as plain identifiers, not references. Experiment: load a pack with a function id that does not exist and a new modifier id. Check the server log for the absence of a load error.
-- REG-FLD-122: the registry `enchantment_provider` is not synced and no enchantment field refers to it. Experiment: capture the registry data packets at login and check that no packet carries `enchantment_provider`.
-- REG-FLD-426: The `function` field of a test instance is a key that the load does not check. It is not known whether the client receives the `test_function` registry. Experiment: join a client to a server with a pack that defines a test instance with an unknown `function` key. Capture the registry data packets and the client log.
-- REG-FLD-401: The default `action` of a `notice` dialog is left out only when the button equals the default button exactly. A label with any style is written. Experiment: load a pack with two `notice` dialogs, one with `{"label":{"translate":"gui.ok"}}` and one with an extra `color`. Capture the registry data packet and compare the written `action` fields.
-- REG-FLD-429, REG-FLD-436, REG-FLD-438: The keys `type`, `source` and `object` are left out for the JSON form and the NBT form. It is not verified that every registry encoder on the sync path leaves them out. Experiment: load a pack with a dialog title of each contents type. Capture the registry data packet and check each component for these keys.
-- REG-FLD-413, REG-FLD-438, REG-FLD-441: The internal defaults of item stack (REG-FLD-500) and item component `profile` (REG-FLD-576) are not listed in this chapter. Experiment: none here. Check the rules of those types for the dialog body `item`, the hover event `show_item` and the object `player`.
-- REG-FLD-423: Each game rule value is a primitive, and no references were found. The value forms of each game rule are not listed. Experiment: load a pack with a `game_rules` test environment that sets each game rule. Check the log for load errors and capture the written values.
-- REG-FLD-442: the tooltip that the vanilla client shows for a `show_item` stack that fails the stack checks is not observed. The source suggests the tooltip of an empty stack. Experiment: run the experiment of REG-FLD-442. Record whether the client shows no tooltip, the name of `minecraft:air`, or the stick.
-- REG-FLD-500, REG-FLD-501: the analysis found item stack (REG-FLD-500) in the dialog body `item`, the particle options `item` and the hover event `show_item`. It found saved item stack (REG-FLD-501) only in entity NBT, block entity NBT and other data that is not synced. Item modifiers and enchantment effects were not traced for item stack fields. Experiment: make a pack with an item modifier and an enchantment effect that hold an item. Capture the synced registry data and check whether `count` `1` is left out (form of REG-FLD-500) or written (form of REG-FLD-501).
-- REG-FLD-540: `asset_id` is classified as key only and unchecked, because the server loads no `equipment_asset` registry. Experiment: make a pack with an item that has an `equippable` component with an `asset_id` that does not exist. Check the server log for the absence of a load error.
-- REG-FLD-513, REG-FLD-543, REG-FLD-534, REG-FLD-540, REG-FLD-576, REG-FLD-577: `item_model`, `tooltip_style`, `use_cooldown.cooldown_group`, `equippable.camera_overlay`, the skin texture fields of `profile` and `note_block_sound` are treated as plain identifiers, not references. `note_block_sound` names a sound event, but no load step checks it. Experiment: load a pack that sets each field to an identifier that does not exist. Check the server log for the absence of a load error.
-- REG-FLD-597: a key that is both a data component id and a predicate type id always selects the predicate type. The full list of such ids is not known. Experiment: list the ids of `data_component_predicate_type` and `data_component_type` from a vanilla data report. Compare the two lists and record each common id.
-- REG-FLD-576: the default of `properties` in the partial profile form is assumed to compare equal to an empty property map. Experiment: make a pack with a `profile` component that has `"properties": []`. Capture the written component and check that `properties` is left out.
-- REG-FLD-500 to REG-FLD-646: the rule "left out when equal to the default" depends on value equality. The analysis checked records, enum values, singleton values, the empty patch and the empty exact predicate. Other default values are assumed to compare by content. Experiment: for each default in this chapter, write the default value explicitly in a pack. Capture the written form and check that the field is left out.
-- REG-FLD-549, REG-FLD-562, REG-FLD-567, REG-FLD-568, REG-FLD-578, REG-FLD-587, REG-FLD-588, REG-FLD-589: the element form of `block_transformer`, the inline forms of `trim_material`, `trim_pattern`, `instrument` and `banner_pattern`, and the context int and float providers are not expanded in this chapter. Other rules own them. Experiment: none here. Check the rules of those types.
-- REG-FLD-700, REG-FLD-722, REG-FLD-723, REG-FLD-741, REG-FLD-801: a key in a `reference or inline` field of a stage 3 registry inside a synced entry probably fails the load. The exact lookup set during the synced load and during the client read is not confirmed. Experiment: make a pack with an enchantment whose effect `requirements` is a key string of a `predicate` entry. Load the pack on a server and check the log for a "registry does not exist" error. Then connect a client and capture the registry data packet for `enchantment`.
-- REG-FLD-739, REG-FLD-740: the unchecked key of a resolvable int or a resolvable float is expected to load in a synced entry. Experiment: make a pack with an item component `cooking_fuel` whose `burn_time` is a key string of a `context_int_provider` entry. Load the pack and check the log for no error.
-- REG-FLD-730, REG-FLD-731, REG-FLD-734, REG-FLD-736, REG-FLD-800: a read value of `-0.0` probably does not equal the default `0.0`, so the field is written. An inline `{"type":"constant","value":0}` probably equals the default, so the field is left out. Experiment: make a pack with a loot pool with `bonus_rolls: -0.0` and a second pool with `bonus_rolls: {"type":"constant","value":0}`. Re-encode the loaded loot table with a data dump and check which pools contain `bonus_rolls`.
-- REG-FLD-705, REG-FLD-711, REG-FLD-715, REG-FLD-747, REG-FLD-751, REG-FLD-765: the classification of the `enchantment` and `clock` fields as `key only`, checked, is not confirmed. Experiment: make a pack with a `table_bonus` condition that names an absent enchantment key, and a `time_check` condition that names an absent world clock key. Load the pack and check the log for a load error for each file.
-- REG-FLD-784, REG-FLD-785, REG-FLD-786: the default omissions inside the filterable title form and the book page forms belong to the item component rules. Experiment: make a pack with `set_book_cover` and `set_written_book_pages` modifiers that set only the raw text. Re-encode the loaded modifiers with a data dump and compare the written page objects with the item component rules.
-- REG-FLD-709: the fields of the block predicate are written in the `match_block` object. The block predicate rule must list them as fields of the parent object. Experiment: make a pack with a `match_block` condition with `blocks` at the top level of the condition. Load the pack and check the log for no error.
+## 11. Intentional deviations
+
+**REG-FLD-DEV-001.**
+
+- **Rule**: REG-FLD-007.
+- **Reference**: the vanilla server accepts each JSON number in an int place. It removes the fraction toward zero with no error: `1.5` and `1.9` give 1, `-1.5` gives −1, and `3.9` passes the range 0 to 3 as 3. A value outside the int range keeps the low 32 bits of its integer part: `2147483648` gives −2147483648, `4294967297` gives 1, `9007199254740993` gives 1, and `1e30` gives 1073741824. `1e400` gives 0. A boolean fails, as in mcrs. The same applies to the bare number of a context int provider and to `value` of `constant`.
+- **Visible to the client**: no. The author of a data pack sees the difference: a pack with such a number loads on the vanilla server and fails the load on mcrs.
+- **Test**: a differential test does not use a number with a fraction or outside the range in an int place.
+
+**REG-FLD-DEV-002.**
+
+- **Rule**: REG-FLD-010.
+- **Reference**: the JSON reader of the vanilla server accepts a nesting depth of at most 255. A file with the depth 256 fails to parse, and its entry fails the load. A file with a depth from 129 to 255 loads. The decode of 254 nested `inverted` conditions succeeds.
+- **Visible to the client**: no. The author of a data pack sees the difference: a file with a depth from 129 to 255 loads on the vanilla server and fails the load on mcrs. No vanilla file has a depth of more than 17.
+- **Test**: a differential test does not use a file with a depth of more than 128.

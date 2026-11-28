@@ -1,6 +1,3 @@
-//! The cost of layer 2 for 10,000 scripted players that walk and sprint-jump on a floor, one
-//! client tick each per server tick, on one core.
-
 use std::hint::black_box;
 use std::time::Duration;
 use std::time::Instant;
@@ -35,7 +32,6 @@ fn keys(tick: usize) -> Keys {
     }
 }
 
-/// The start state and the client ticks of each player, as an honest client reports them.
 fn script(fixture: &TestFixture) -> Vec<(PlayerState, Vec<ClientTick>)> {
     let mut actions = Vec::new();
     let mut scratch = Scratch::new();
@@ -144,7 +140,6 @@ criterion_group! {
     targets = predict
 }
 
-/// `--ticks <n>` runs the first n server ticks once, for an instruction count under callgrind.
 fn main() {
     let ticks = std::env::args()
         .skip_while(|argument| argument != "--ticks")

@@ -3,20 +3,16 @@ use mcrs_minecraft_numeric as numeric;
 use crate::Rotations;
 use crate::angles;
 
-/// The body rotation of a mob after its travel step (GOAL-CTL-006): the stable head yaw and the
-/// count of ticks for which the head stayed within 15 degrees of it.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BodyRotation {
     stable_head_yaw: f32,
     stable_count: u32,
 }
 
-/// `2.5000003E-7F`, widened: a horizontal move of this squared length or less is no move.
 const MOVED: f64 = 2.500_000_3e-7_f32 as f64;
 const STABLE_TURN: f32 = 15.0;
 const STABLE_TICKS: u32 = 10;
 
-/// Whether the first passenger of the mob is a mob.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MobPassenger {
     Yes,
@@ -24,9 +20,6 @@ pub enum MobPassenger {
 }
 
 impl BodyRotation {
-    /// One step with the horizontal move `(dx, dz)` of the travel step of this tick; changes the
-    /// body yaw and the head yaw of `rotations`. The comparison with the stable head yaw wraps the
-    /// difference (GOAL-DEV-003).
     pub fn step(
         &mut self,
         dx: f64,

@@ -24,13 +24,8 @@ use mcrs_voxel::BlockPos;
 use crate::{place_positional, state};
 use mcrs_minecraft_block::block_keys::Block;
 
-/// The integrities `OceanRuinPieces.addPieces` hands its pieces: the large
-/// and small base ruins, then the cracked and mossy overlays.
 const INTEGRITIES: [f32; 4] = [0.9, 0.8, 0.7, 0.5];
 
-/// `OceanRuinPieces.makeSettings` for one temperature: the rot at each
-/// integrity, structure blocks and air ignored, and five archaeology blocks
-/// capped per piece.
 #[derive(Clone, Debug)]
 pub struct OceanRuinBlocks {
     chains: Vec<(f32, CompiledChain)>,
@@ -40,7 +35,7 @@ pub struct OceanRuinBlocks {
 
 impl OceanRuinBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         temp: OceanTemperature,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
@@ -97,7 +92,6 @@ impl OceanRuinBlocks {
         })
     }
 
-    /// `None` for an integrity the layout never hands out, which a save can hold.
     fn chain(&self, integrity: f32) -> Option<&CompiledChain> {
         self.chains
             .iter()
@@ -106,11 +100,12 @@ impl OceanRuinBlocks {
     }
 }
 
-/// `OceanRuinPiece.postProcess` for one column: the template at its fixed
-/// floor, then the chest and drowned markers the column holds.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the ruin's blocks, configuration, structure and piece, the frozen structures, the column's reference and clip, the region, the two lists the placement fills and the random source"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's placement"
+    )
 )]
 pub fn place_ocean_ruin<W: WorldGenVolume>(
     blocks: &OceanRuinBlocks,

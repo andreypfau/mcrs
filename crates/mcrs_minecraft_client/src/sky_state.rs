@@ -6,10 +6,10 @@ use mcrs_minecraft_dimension_environment::environment::{
 };
 use mcrs_minecraft_environment::AttributeValue;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_fog::{FogInputs, FogParameters};
 
 use mcrs_minecraft_render::sky::SkyEffects;
 
-/// A visual attribute the renderer carries as GPU state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SkyField {
     SkyColor,
@@ -34,10 +34,11 @@ pub enum SkyField {
     SkyFogEndDistance,
     WaterFogEndDistance,
     WaterFogStartDistance,
+    HasSkyOccluder,
 }
 
 impl SkyField {
-    pub const ALL: [SkyField; 22] = [
+    pub const ALL: [SkyField; 23] = [
         SkyField::SkyColor,
         SkyField::FogColor,
         SkyField::CloudColor,
@@ -60,6 +61,7 @@ impl SkyField {
         SkyField::SkyFogEndDistance,
         SkyField::WaterFogEndDistance,
         SkyField::WaterFogStartDistance,
+        SkyField::HasSkyOccluder,
     ];
 
     pub fn attribute(self) -> EnvironmentAttribute {
@@ -87,22 +89,22 @@ impl SkyField {
             SkyField::SkyFogEndDistance => A::VisualSkyFogEndDistance,
             SkyField::WaterFogEndDistance => A::VisualWaterFogEndDistance,
             SkyField::WaterFogStartDistance => A::VisualWaterFogStartDistance,
+            SkyField::HasSkyOccluder => A::VisualHasSkyOccluder,
         }
     }
 }
 
-/// One field's value: a scalar, or a packed `0xAARRGGBB` colour.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SkyValue {
     Scalar(f32),
-    Color(u32),
+    Color([f32; 4]),
 }
 
 impl SkyValue {
-    pub fn color(self) -> u32 {
+    pub fn color(self) -> [f32; 4] {
         match self {
-            SkyValue::Color(packed) => packed,
-            SkyValue::Scalar(value) => value as u32,
+            SkyValue::Color(channels) => channels,
+            SkyValue::Scalar(_) => [0.0; 4],
         }
     }
 }
@@ -120,27 +122,23 @@ fn stack_value(
 }
 
 fn sky_value(value: &AttributeValue) -> SkyValue {
-    if let Some(packed) = value.packed_argb() {
-        return SkyValue::Color(packed);
-    }
     match value {
+        AttributeValue::Rgb([red, green, blue]) => SkyValue::Color([*red, *green, *blue, 1.0]),
+        AttributeValue::Argb(channels) => SkyValue::Color(*channels),
         AttributeValue::Float(v) => SkyValue::Scalar(*v),
         AttributeValue::Integer(v) => SkyValue::Scalar(*v as f32),
         AttributeValue::MoonPhase(phase) => SkyValue::Scalar(phase.index() as f32),
+        AttributeValue::Boolean(v) => SkyValue::Scalar(if *v { 1.0 } else { 0.0 }),
         _ => SkyValue::Scalar(0.0),
     }
 }
 
-/// The clock ticks of the previous and the current client tick, and how far the frame lies
-/// into the current tick.
 pub struct SkyTime<'a> {
     pub previous: EnvironmentContext<'a>,
     pub current: EnvironmentContext<'a>,
     pub partial: f32,
 }
 
-/// The pipeline specialization key: everything that decides which shaders get
-/// compiled for this dimension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SkyKey {
     pub skybox: Skybox,
@@ -153,10 +151,6 @@ impl SkyKey {
     }
 }
 
-/// Where each GPU-facing visual attribute lives, and which stack produces it.
-///
-/// Built once per dimension. The stack indices are what keep a frame from
-/// looking an attribute up by id.
 #[derive(Debug, Clone)]
 pub struct SkyLayout {
     frame: Vec<SkyField>,
@@ -174,8 +168,6 @@ impl SkyLayout {
         SkyLayout { frame, constant }
     }
 
-    /// The meaning of each slot of [`SkyFrame::values`], in order. Only the
-    /// split between the two blocks is asserted on; a frame reads by index.
     #[cfg(test)]
     pub fn frame_fields(&self) -> impl Iterator<Item = SkyField> + '_ {
         self.frame.iter().copied()
@@ -186,7 +178,6 @@ impl SkyLayout {
         self.constant.iter().copied()
     }
 
-    /// The one evaluation pass a frame runs. Nothing it produces is kept.
     pub fn evaluate(
         &self,
         attributes: &DimensionAttributes,
@@ -208,7 +199,6 @@ impl SkyLayout {
         }));
     }
 
-    /// The dimension-constant block, rebuilt only when the dimension changes.
     pub fn constants(
         &self,
         attributes: &DimensionAttributes,
@@ -231,40 +221,54 @@ impl SkyLayout {
     }
 }
 
-/// A draw exists when this dimension can make it visible at all.
-///
-/// The sun, the moon, its twilight and the stars belong to the overworld
-/// skybox; clouds need a cloud colour that is not fully transparent, which is
-/// what leaves the Nether and the End without them.
 fn effects(
     skybox: Skybox,
     attributes: &DimensionAttributes,
     ctx: &EnvironmentContext,
 ) -> SkyEffects {
-    let mut effects = SkyEffects::DISC;
-    if skybox == Skybox::Overworld {
-        effects |= SkyEffects::TWILIGHT | SkyEffects::CELESTIAL | SkyEffects::STARS;
-        // A tracked colour can be transparent at this tick and opaque at the next, so only a
-        // constant one can rule the clouds out.
-        let clouds = attributes
-            .stack(SkyField::CloudColor.attribute())
-            .is_some_and(|stack| {
-                stack.is_dynamic() || sky_value(&stack.evaluate(ctx)).color() >> 24 != 0
-            });
-        if clouds {
-            effects |= SkyEffects::CLOUDS;
-        }
+    if skybox != Skybox::Overworld {
+        return SkyEffects::empty();
+    }
+    let mut effects =
+        SkyEffects::DISC | SkyEffects::TWILIGHT | SkyEffects::CELESTIAL | SkyEffects::STARS;
+    let clouds = attributes
+        .stack(SkyField::CloudColor.attribute())
+        .is_some_and(|stack| {
+            stack.is_dynamic() || sky_value(&stack.evaluate(ctx)).color()[3] > 0.0
+        });
+    if clouds {
+        effects |= SkyEffects::CLOUDS;
+    }
+    let occluder = attributes
+        .stack(EnvironmentAttribute::VisualHasSkyOccluder)
+        .is_some_and(|stack| {
+            stack.is_dynamic() || matches!(stack.evaluate(ctx), AttributeValue::Boolean(true))
+        });
+    if occluder {
+        effects |= SkyEffects::OCCLUDER;
     }
     effects
 }
 
-/// The per-frame uniform: one write, no allocation, no memoized value.
-#[derive(Resource, Debug, Clone, Default, PartialEq)]
+#[derive(Resource, Debug, Clone, PartialEq)]
 pub struct SkyFrame {
     pub camera: [f32; 3],
     pub rain: f32,
     pub thunder: f32,
     pub values: Vec<SkyValue>,
+    pub fog: FogParameters,
+}
+
+impl Default for SkyFrame {
+    fn default() -> Self {
+        Self {
+            camera: [0.0; 3],
+            rain: 0.0,
+            thunder: 0.0,
+            values: Vec::new(),
+            fog: FogParameters::from_inputs(&FogInputs::default()),
+        }
+    }
 }
 
 impl SkyFrame {
@@ -277,7 +281,6 @@ impl SkyFrame {
     }
 }
 
-/// Everything constant for as long as the player stays in one dimension.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SkyStatic {
     pub key: SkyKey,
@@ -327,7 +330,6 @@ mod tests {
 
     const NOON: i64 = 6000;
 
-    /// The dimension fields an environment needs, read straight from the asset.
     #[derive(serde::Deserialize)]
     struct Dimension {
         has_skylight: bool,
@@ -358,8 +360,6 @@ mod tests {
         test_resolved(serde_json::from_slice::<Timeline<Named>>(&bytes).unwrap())
     }
 
-    /// The timelines a tag names, read from the shipped tag files and flattened
-    /// through `#` references, in the order the tag file lists them.
     fn tagged_timelines(tag: &str) -> Vec<Timeline> {
         fn collect(tag: &str, out: &mut Vec<String>) {
             let path = mcrs_minecraft_fixtures::vanilla_dir()
@@ -402,7 +402,6 @@ mod tests {
         (build("overworld.json", &timelines), timelines)
     }
 
-    /// The total ticks each clock stands at.
     fn ticks_at(attributes: &DimensionAttributes, total_ticks: i64) -> Vec<i64> {
         let mut clocks = WorldClocks::default();
         for clock in attributes.clocks() {
@@ -456,8 +455,8 @@ mod tests {
         assert_eq!(frame.len(), 11, "{frame:?}");
         assert_eq!(
             constant.len(),
-            11,
-            "the 13 constants less the two particle payloads"
+            12,
+            "the 14 constants less the two particle payloads"
         );
 
         for field in [
@@ -536,8 +535,6 @@ mod tests {
             Some(SkyValue::Scalar(0.0))
         );
 
-        // a second pass over the same context reuses the buffer and lands on the
-        // same values: nothing is carried between frames
         let before = frame.values.clone();
         layout.evaluate(&attributes, &time, camera, weather, &mut frame);
         assert_eq!(frame.values, before);
@@ -552,7 +549,7 @@ mod tests {
         let constants = layout.constants(&attributes, &context(&ticks));
         assert_eq!(constants.key.skybox, Skybox::Overworld);
         assert_eq!(constants.key.effects, SkyEffects::all());
-        assert_eq!(constants.key.draws(), 5);
+        assert_eq!(constants.key.draws(), 6);
         assert_eq!(
             constants.get(SkyField::CloudHeight),
             Some(SkyValue::Scalar(192.33))
@@ -560,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn the_nether_has_no_sun_moon_stars_or_clouds() {
+    fn the_nether_draws_no_sky() {
         let nether_timelines = [timeline("villager_schedule.json")];
         let borrowed: Vec<&Timeline> = nether_timelines.iter().collect();
         let proto = dimension_type("the_nether.json");
@@ -573,8 +570,8 @@ mod tests {
         let constants = layout.constants(&attributes, &ctx);
 
         assert_eq!(constants.key.skybox, Skybox::None);
-        assert_eq!(constants.key.effects, SkyEffects::DISC);
-        assert_eq!(constants.key.draws(), 1);
+        assert_eq!(constants.key.effects, SkyEffects::empty());
+        assert_eq!(constants.key.draws(), 0);
 
         let overworld_draws = {
             let (overworld, _timelines) = overworld();
@@ -583,7 +580,7 @@ mod tests {
                 .key
                 .draws()
         };
-        assert_eq!(overworld_draws - constants.key.draws(), 4);
+        assert_eq!(overworld_draws - constants.key.draws(), 6);
 
         for id in [
             EnvironmentAttribute::VisualSunAngle,

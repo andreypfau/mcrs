@@ -1,7 +1,3 @@
-//! A command tree, a parser, suggestions and an executor that agree with Brigadier. A parse,
-//! a suggestion pass and a run borrow the command line and reuse the buffers of the caller, so
-//! they allocate nothing in the steady state.
-
 #![no_std]
 
 extern crate alloc;

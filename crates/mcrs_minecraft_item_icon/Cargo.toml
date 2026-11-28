@@ -1,0 +1,34 @@
+[package]
+name = "mcrs_minecraft_item_icon"
+description = "The icon of an item stack as a value, and the GUI-posed shaded meshes of the item models it draws"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_ecs = { workspace = true, optional = true }
+bytemuck = { workspace = true, features = ["derive"] }
+glam = { workspace = true, features = ["std"] }
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_model.workspace = true
+mcrs_minecraft_model_file.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_creative_content.workspace = true
+mcrs_minecraft_creative_report.workspace = true
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_model = { workspace = true, features = ["test-support"] }
+mcrs_test_alloc.workspace = true
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]

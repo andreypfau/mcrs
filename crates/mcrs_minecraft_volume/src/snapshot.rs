@@ -10,13 +10,8 @@ use crate::bounds::{ColumnLayout, SectionBox};
 use crate::paletted::PalettedSection;
 use crate::visit::{SectionVolume, VisitOrder};
 
-/// One section's block states, shared between a store and every snapshot taken of it.
 pub type SharedSection = Arc<VoxelPalette<BlockStateId, { SectionPos::SIZE }>>;
 
-/// The sections of a box as they were when it was taken. Each held section shares its
-/// storage with the store it came from, so a snapshot costs a reference count per
-/// section and the store's later writes leave it as it was. Every section is
-/// [`Access::Read`] or keeps the reason the store could not give it.
 #[derive(Clone, Debug)]
 pub struct Snapshot {
     area: SectionBox,
@@ -25,7 +20,6 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    /// Asks `section` for every section of `area`, `y` then `z` then `x`, `x` fastest.
     pub fn take<F>(area: SectionBox, layout: Option<ColumnLayout>, section: F) -> Self
     where
         F: FnMut(SectionPos) -> Result<SharedSection, Unavailable>,

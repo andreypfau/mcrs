@@ -36,11 +36,6 @@ import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.material.FluidState;
 import org.joml.Vector3f;
 
-/**
- * Golden values for the smooth and the flat lighting of block faces, from synthetic
- * neighbourhoods, and the list of block states whose occlusion shade does not follow the
- * collision rule.
- */
 public final class BlockLightOracle {
     private static final Gson LINE = new GsonBuilder().disableHtmlEscaping().create();
     private static final int FORMAT = 1;
@@ -109,8 +104,6 @@ public final class BlockLightOracle {
         return property.getName(state.getValue(property));
     }
 
-    // ---- occlusion shade ----------------------------------------------------------------------
-
     private static void occlusionShade(final Path path) throws Exception {
         List<String> rows = new ArrayList<>();
         for (Block block : BuiltInRegistries.BLOCK) {
@@ -140,8 +133,6 @@ public final class BlockLightOracle {
         Files.writeString(path, text.toString(), StandardCharsets.UTF_8);
         System.out.println("wrote " + path + " (" + rows.size() + " exceptions)");
     }
-
-    // ---- smooth light -------------------------------------------------------------------------
 
     private record Shape(String name, String own, float[] from, float[] to) {
     }

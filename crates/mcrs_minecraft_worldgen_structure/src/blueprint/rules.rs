@@ -1,7 +1,3 @@
-//! What a block's neighbours decide about it: stair shapes, fence, pane and
-//! wall connections, the facing of a block hung on a wall, the grass over
-//! soil, and the second half of a door, a bed or a tall plant.
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use mcrs_minecraft_core::Direction;
@@ -104,9 +100,6 @@ pub fn is_double_plant(name: &str) -> bool {
     )
 }
 
-// Name lists stand in for the collision shapes, because
-// `BlockDefinitions` is only built through the asset server. Reading the full
-// cube and sturdy face flags from the block definitions lifts it.
 fn is_cube(state: &PaletteState) -> bool {
     const PARTIAL_SUFFIX: [&str; 17] = [
         "_door",
@@ -173,10 +166,6 @@ fn is_cube(state: &PaletteState) -> bool {
     !(PARTIAL.contains(&name) || PARTIAL_SUFFIX.iter().any(|suffix| name.ends_with(suffix)))
 }
 
-// Block names stand in for the collision shape until block definitions
-// load without the asset server. A full layer of snow collides one layer short
-// of a cube, and a block with a dynamic shape is not told apart; no built
-// template holds one.
 pub(super) fn is_full_block(state: &PaletteState) -> bool {
     is_cube(state) && name(state) != "snow"
 }
@@ -204,7 +193,6 @@ fn counter_clockwise(side: Direction) -> Direction {
     side.clockwise().opposite()
 }
 
-/// `None` for a stair that faces no side, which the neighbours leave as it is.
 fn stair_state(grid: &World, pos: Pos) -> Option<PaletteState> {
     let state = grid.get(&pos)?;
     let facing = facing(state)?;
@@ -238,7 +226,6 @@ fn stair_state(grid: &World, pos: Pos) -> Option<PaletteState> {
     Some(with(state, "shape", shape))
 }
 
-/// Completes stripped states from their neighbours in `grid`.
 pub struct Settle<'a> {
     grid: &'a World,
     size: Pos,
@@ -254,7 +241,6 @@ impl<'a> Settle<'a> {
         }
     }
 
-    /// `None` where there is no block or the neighbours leave it undecided.
     pub fn full(&mut self, pos: Pos) -> Option<PaletteState> {
         if let Some(done) = self.memo.get(&pos) {
             return done.clone();
@@ -411,7 +397,6 @@ impl<'a> Settle<'a> {
     }
 }
 
-/// The state without the properties its neighbours decide.
 pub fn strip(state: &PaletteState) -> PaletteState {
     let bare = name(state);
     if is_stairs(state) {
@@ -429,8 +414,6 @@ pub fn strip(state: &PaletteState) -> PaletteState {
     }
 }
 
-/// The half a lower door, a bed foot or a lower tall plant implies: the order
-/// to visit it in, where the partner goes and what it is.
 pub fn partner(state: &PaletteState, pos: Pos) -> Option<(i32, Pos, PaletteState)> {
     let bare = name(state);
     if (bare.ends_with("_door") || is_double_plant(bare))
@@ -470,8 +453,6 @@ pub fn thin_snow() -> PaletteState {
     with(&block(rl!("minecraft:snow")), "layers", "1")
 }
 
-/// Every air or thin snow cell open to the sky, with the kind of block it
-/// stands on.
 pub fn snow_supports(world: &World) -> Vec<(Pos, String)> {
     let mut out = Vec::new();
     for (&pos, state) in world {

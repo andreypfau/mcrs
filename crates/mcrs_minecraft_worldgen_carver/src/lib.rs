@@ -14,32 +14,23 @@ pub mod water;
 use crate::mask::CarvingMask;
 use crate::water::{WaterMask, water_abort_scan};
 
-/// Which cells of the bounding box a carver's cross-section leaves out.
-///
-/// Java hands the rasteriser a `CarveSkipChecker` lambda per ellipsoid. Naming
-/// the two shapes instead keeps the test out of a closure call: the rasteriser
-/// matches once per ellipsoid and runs a loop that has no indirection in it.
 #[derive(Clone, Copy)]
 pub enum CarveShape<'a> {
-    /// An ellipsoid cut off below `floor_level`. Both cave carvers.
-    Cave { floor_level: f64 },
-    /// A cross-section modulated by the canyon's per-height width table, with
-    /// the vertical stretched by the `yd * yd / 6` term.
+    Cave {
+        floor_level: f64,
+    },
     Canyon {
         width_factors: &'a [f32],
         min_y: i32,
     },
 }
 
-/// Mark the ellipsoid at (x, y, z), horizontal radius `horizontal_radius` and
-/// vertical radius `vertical_radius`, as carved in `mask`.
-///
-/// Returns false if nothing was rasterised: either the ellipsoid misses the
-/// target chunk entirely, or water touches the shell of its bounds and Beta's
-/// abort applies. Modern carvers pass an empty water mask and never abort.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the chunk, the ellipsoid's centre and two radii, its shape, and the water and carving masks it writes"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one ellipsoid carve"
+    )
 )]
 pub fn carve_ellipsoid(
     chunk_x: i32,

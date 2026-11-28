@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-// Warns (never fails) about doc pages whose frontmatter `sources` changed.
-// Usage: node check-sources.mjs [changed files...] warns by PR diff against CHECK_SOURCES_BASE.
-//        node check-sources.mjs --stale prints a Markdown report of stale pages, lagging translations and missing sources.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';

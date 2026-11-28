@@ -1,7 +1,5 @@
 use crate::conversion::truncate_to_i32;
 
-/// The packed `0xRRGGBB` colour of a hue, a saturation and a value. A hue of `-1/6` or less is
-/// outside the domain and gives `0`.
 #[must_use]
 pub fn hsv_to_rgb(hue: f32, saturation: f32, value: f32) -> i32 {
     let sextant_position = hue * 6.0;

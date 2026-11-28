@@ -1,30 +1,31 @@
 use bevy_ecs::resource::Resource;
+use bevy_ecs::system::Res;
 
-/// The number of the last ticks whose tick time the host keeps.
 pub const TICK_SAMPLES: usize = 100;
 
-/// The pace of the server tick: the tick times of the last [`TICK_SAMPLES`] ticks and the
-/// sprint that runs ticks with no wait. The server loop of the host owns it; each dimension
-/// world reads a copy.
 #[derive(Resource, Clone, Debug, PartialEq)]
 pub struct TickPace {
-    target_nanos: u64,
+    rate: f32,
     samples: [u64; TICK_SAMPLES],
     ticks: u64,
     sprint: Option<Sprint>,
     sprint_tick: bool,
     report: Option<SprintReport>,
+    frozen: bool,
+    steps: u64,
+    runs_normally: bool,
+    state_changed: bool,
+    announced_steps: Option<u64>,
 }
 
-/// A run of ticks with no wait between them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Sprint {
     remaining: u64,
     ran: u64,
     nanos: u64,
+    frozen_after: bool,
 }
 
-/// The ticks that a sprint ran and their wall time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SprintReport {
     pub ticks: u64,
@@ -32,14 +33,12 @@ pub struct SprintReport {
 }
 
 impl SprintReport {
-    /// The ticks in one second, rounded toward 0.
     #[must_use]
     pub fn ticks_per_second(self) -> i32 {
         let millis = self.millis();
         i32::try_from((1000.0 * self.ticks as f64 / millis) as i64).unwrap_or(i32::MAX)
     }
 
-    /// The milliseconds per tick, or `target_millis` when the sprint ran no tick.
     #[must_use]
     pub fn millis_per_tick(self, target_millis: f64) -> f64 {
         if self.ticks == 0 {
@@ -54,33 +53,49 @@ impl SprintReport {
     }
 }
 
+#[must_use]
+pub fn tick_runs_normally(pace: Option<Res<TickPace>>) -> bool {
+    pace.is_none_or(|pace| pace.runs_normally())
+}
+
 impl TickPace {
     #[must_use]
     pub fn new(tick_rate: u32) -> Self {
         Self {
-            target_nanos: 1_000_000_000 / u64::from(tick_rate.max(1)),
+            rate: tick_rate.max(1) as f32,
             samples: [0; TICK_SAMPLES],
             ticks: 0,
             sprint: None,
             sprint_tick: false,
             report: None,
+            frozen: false,
+            steps: 0,
+            runs_normally: true,
+            state_changed: false,
+            announced_steps: None,
         }
     }
 
-    /// The target tick time, in nanoseconds.
     #[must_use]
-    pub fn target_nanos(&self) -> u64 {
-        self.target_nanos
+    pub fn rate(&self) -> f32 {
+        self.rate
     }
 
-    /// The tick time of each of the last [`TICK_SAMPLES`] ticks, in nanoseconds; a slot that no
-    /// tick wrote yet holds 0.
+    #[must_use]
+    pub fn target_nanos(&self) -> u64 {
+        (1.0e9 / f64::from(self.rate)) as u64
+    }
+
+    pub fn set_rate(&mut self, rate: f32) {
+        self.rate = rate;
+        self.state_changed = true;
+    }
+
     #[must_use]
     pub fn samples(&self) -> &[u64; TICK_SAMPLES] {
         &self.samples
     }
 
-    /// The sum of the samples divided by the number of ticks that wrote one, at least 1.
     #[must_use]
     pub fn average_nanos(&self) -> u64 {
         let written = self.ticks.clamp(1, TICK_SAMPLES as u64);
@@ -96,37 +111,89 @@ impl TickPace {
         self.sprint.is_some()
     }
 
-    /// Starts a sprint of `ticks` ticks. A sprint that runs ends with no report, and the
-    /// return says whether one ran.
-    pub fn start_sprint(&mut self, ticks: u64) -> bool {
-        self.sprint
-            .replace(Sprint {
-                remaining: ticks,
-                ran: 0,
-                nanos: 0,
-            })
-            .is_some()
+    #[must_use]
+    pub fn is_frozen(&self) -> bool {
+        self.frozen
     }
 
-    /// Ends the sprint that runs with its report. Returns `false` when no sprint runs.
-    pub fn stop_sprint(&mut self) -> bool {
+    #[must_use]
+    pub fn steps(&self) -> u64 {
+        self.steps
+    }
+
+    #[must_use]
+    pub fn runs_normally(&self) -> bool {
+        self.runs_normally
+    }
+
+    pub fn start_sprint(&mut self, ticks: u64) {
+        let frozen_after = self.frozen;
+        self.frozen = false;
+        self.state_changed = true;
+        self.sprint = Some(Sprint {
+            remaining: ticks,
+            ran: 0,
+            nanos: 0,
+            frozen_after,
+        });
+    }
+
+    pub fn stop_sprint(&mut self) {
         let Some(sprint) = self.sprint.take() else {
-            return false;
+            return;
         };
         self.report = Some(SprintReport {
             ticks: sprint.ran,
             nanos: sprint.nanos,
         });
-        true
+        self.frozen = sprint.frozen_after;
+        self.state_changed = true;
     }
 
-    /// The report of a sprint that ended since the last call.
+    pub fn freeze(&mut self) {
+        self.stop_sprint();
+        self.stop_step();
+        self.frozen = true;
+        self.state_changed = true;
+    }
+
+    pub fn unfreeze(&mut self) {
+        self.frozen = false;
+        if let Some(sprint) = &mut self.sprint {
+            sprint.frozen_after = false;
+        }
+        self.state_changed = true;
+    }
+
+    pub fn step(&mut self, ticks: u64) {
+        self.steps = ticks;
+        self.announced_steps = Some(ticks);
+    }
+
+    pub fn stop_step(&mut self) {
+        if self.steps > 0 {
+            self.steps = 0;
+            self.announced_steps = Some(0);
+        }
+    }
+
+    #[must_use]
+    pub fn has_report(&self) -> bool {
+        self.report.is_some()
+    }
+
     pub fn take_report(&mut self) -> Option<SprintReport> {
         self.report.take()
     }
 
-    /// At the start of a tick: a sprint with no remaining tick ends here, and a sprint with one
-    /// counts this tick.
+    pub fn take_state_change(&mut self) -> bool {
+        core::mem::take(&mut self.state_changed)
+    }
+
+    pub fn take_steps_change(&mut self) -> Option<u64> {
+        self.announced_steps.take()
+    }
+
     pub fn begin_tick(&mut self) {
         self.sprint_tick = false;
         match &mut self.sprint {
@@ -139,10 +206,10 @@ impl TickPace {
             }
             None => {}
         }
+        self.runs_normally = !self.frozen || self.steps > 0;
+        self.steps = self.steps.saturating_sub(1);
     }
 
-    /// At the end of the work of a tick that took `nanos`. Returns whether the next tick starts
-    /// at once, with no wait.
     pub fn end_tick(&mut self, nanos: u64) -> bool {
         let slot = (self.ticks % TICK_SAMPLES as u64) as usize;
         if let Some(sample) = self.samples.get_mut(slot) {
@@ -164,7 +231,7 @@ mod tests {
     #[test]
     fn a_sprint_of_n_ticks_runs_n_ticks_and_ends_at_the_start_of_the_next() {
         let mut pace = TickPace::new(20);
-        assert!(!pace.start_sprint(3), "no sprint ran before");
+        pace.start_sprint(3);
         let mut waits = Vec::new();
         for _ in 0..5 {
             pace.begin_tick();
@@ -196,5 +263,21 @@ mod tests {
         pace.end_tick(4);
         pace.end_tick(8);
         assert_eq!(pace.average_nanos(), 6, "two ticks wrote a sample");
+    }
+
+    #[test]
+    fn a_sprint_restores_the_frozen_state_unless_unfreeze_ran_during_it() {
+        for (unfreeze, frozen_after) in [(false, true), (true, false)] {
+            let mut pace = TickPace::new(20);
+            pace.freeze();
+            pace.start_sprint(1);
+            assert!(!pace.is_frozen(), "a sprint unfreezes the game");
+            if unfreeze {
+                pace.unfreeze();
+            }
+            pace.begin_tick();
+            pace.begin_tick();
+            assert_eq!(pace.is_frozen(), frozen_after, "unfreeze {unfreeze}");
+        }
     }
 }

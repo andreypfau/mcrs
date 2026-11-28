@@ -1,7 +1,3 @@
-//! The step count of a `VecDelta` travels in the enclosing packet's properties
-//! field rather than in front of the steps, so these two packets carry
-//! hand-written codecs that the derive cannot express.
-
 use glam::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
@@ -31,7 +27,6 @@ fn movement_packets_round_trip_with_the_step_count_in_the_properties() {
         let decoded = round_trip(&packet, &mut buf);
         assert_eq!(decoded.delta, VecDelta::Linear([1, -2, 3]));
         assert!(decoded.on_ground);
-        // entity id, properties(on_ground | 0 << 1), then three big-endian shorts.
         assert_eq!(buf, [0xAC, 0x02, 0x01, 0, 1, 0xFF, 0xFE, 0, 3]);
     }
     {
@@ -169,7 +164,6 @@ fn a_stepped_sync_path_with_no_step_is_rejected() {
     assert!(PositionPath::decode(&mut r).is_err());
 }
 
-/// TRK-WIRE-002: TRK-E2 captured the body `01 5B 00` after the id: ground 1, yaw 91, pitch 0.
 #[test]
 fn trk_wire_002_a_rotation_writes_the_ground_flag_before_the_angles() {
     let packet = ClientboundMoveEntityRot {
@@ -183,7 +177,6 @@ fn trk_wire_002_a_rotation_writes_the_ground_flag_before_the_angles() {
     assert_eq!(buf, [65, 0x01, 0x5B, 0x00]);
 }
 
-/// TRK-WIRE-004: an angle packs to the floor of its step, not to the nearest step.
 #[test]
 fn trk_wire_004_an_angle_packs_to_the_floor_of_its_step() {
     for (degrees, byte) in [(0.0, 0), (1.0, 0), (1.4, 0), (359.9, 255), (-1.0, 255)] {
@@ -192,5 +185,18 @@ fn trk_wire_004_an_angle_packs_to_the_floor_of_its_step() {
             ByteAngle(byte),
             "{degrees}"
         );
+    }
+}
+
+#[test]
+fn an_angle_decodes_to_the_signed_range() {
+    for (byte, degrees) in [
+        (0, 0.0),
+        (64, 90.0),
+        (127, 178.59375),
+        (128, -180.0),
+        (234, -30.9375),
+    ] {
+        assert_eq!(ByteAngle(byte).to_degrees(), degrees, "{byte}");
     }
 }

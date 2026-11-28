@@ -1,24 +1,30 @@
-/// The features present in canonical Java text components that Bedrock Edition does not
-/// support and were dropped during conversion.
+use mcrs_minecraft_text::DeclaredStyle;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct BedrockDrops {
-    /// Number of `click_event` properties dropped.
     pub click_events: usize,
-    /// Number of `hover_event` properties dropped.
     pub hover_events: usize,
-    /// Number of custom font specifications dropped.
     pub fonts: usize,
-    /// Number of strikethrough styles or formatting codes dropped.
     pub strikethrough: usize,
-    /// Number of underlined styles or formatting codes dropped.
     pub underlined: usize,
-    /// Whether the output stopped at the size bound and lost the rest of the text.
     pub truncated: bool,
 }
 
 impl BedrockDrops {
-    /// Returns true if no features were dropped.
+    pub(crate) fn count(&mut self, declared: DeclaredStyle) {
+        let tally = |count: &mut usize, present: bool| {
+            if present {
+                *count = count.saturating_add(1);
+            }
+        };
+        tally(&mut self.click_events, declared.click_event);
+        tally(&mut self.hover_events, declared.hover_event);
+        tally(&mut self.fonts, declared.font);
+        tally(&mut self.strikethrough, declared.strikethrough_enabled);
+        tally(&mut self.underlined, declared.underlined_enabled);
+    }
+
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.click_events == 0

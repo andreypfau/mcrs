@@ -26,10 +26,6 @@ import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
 import net.minecraft.world.level.biome.TheEndBiomeSource;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 
-/**
- * Dumps the per-step placed-feature order that `ChunkGenerator` derives from a
- * biome source, plus which of those features each biome contributes.
- */
 public final class FeatureStepOracle {
     private static final byte[] MAGIC = "MCFSTEP0".getBytes(StandardCharsets.US_ASCII);
     private static final int FORMAT_VERSION = 1;

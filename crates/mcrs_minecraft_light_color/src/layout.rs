@@ -3,15 +3,11 @@ use mcrs_voxel::SectionPos;
 use crate::colors::{LightColors, LightType};
 use crate::region::{REACH, SectionBricks, section_output};
 
-/// A job's region: its section plus `REACH + 1` cells on every side.
 pub const REGION_SIDE: u32 = SectionPos::SIZE as u32 + 2 * (REACH as u32 + 1);
 pub const REGION_CELLS: usize = (REGION_SIDE * REGION_SIDE * REGION_SIDE) as usize;
-/// Emission is at most 15 and every step costs at least 1, so no level rises after this.
 pub const WAVES: usize = 15;
 pub const MAX_LANES: usize = 64;
-/// Unloaded: entry 15, so light neither enters nor leaves.
 pub const SLOT_UNLOADED: u32 = u32::MAX;
-/// Above the world: entry 1. Below it the top layer holds up-face vetoes, so it needs a brick.
 pub const SLOT_ABOVE: u32 = u32::MAX - 1;
 
 const LANE_WORDS: usize = 0;
@@ -23,15 +19,11 @@ const COLOURS: usize = LANE_TABLE + 256 / 4;
 pub const JOB_WORDS: usize = COLOURS + MAX_LANES;
 const _: () = assert!(JOB_WORDS.is_multiple_of(4));
 
-/// A section's cells, x fastest then z then y: entry cost in bits 0-3, the
-/// east, up and south vetoes in 4-6, emission in 8-11, light type in 16-23.
 pub struct PackedBrick {
     pub words: Box<[u32]>,
     pub emitters: Vec<Emitter>,
 }
 
-/// The bounding box, in section-local `[x, y, z]`, of the section's emitters
-/// of one light type and level.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Emitter {
     pub light_type: LightType,
@@ -80,7 +72,6 @@ pub fn pack(bricks: &SectionBricks) -> PackedBrick {
     PackedBrick { words, emitters }
 }
 
-/// The 27 sections around `section`, x fastest then z then y.
 pub fn neighbours(section: SectionPos) -> impl Iterator<Item = SectionPos> {
     (-1..=1).flat_map(move |dy| {
         (-1..=1).flat_map(move |dz| {
@@ -89,8 +80,6 @@ pub fn neighbours(section: SectionPos) -> impl Iterator<Item = SectionPos> {
     })
 }
 
-/// Light arrives at most `level - distance`, so a box further than `level - 1`
-/// from the section's output lights none of it. Sorted, without repeats.
 pub fn reaching_types<'a>(
     section: SectionPos,
     emitters: impl Fn(SectionPos) -> Option<&'a [Emitter]>,
@@ -132,7 +121,6 @@ pub fn reaching_types<'a>(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Lane {
     pub light_type: LightType,
-    /// `None` for a type without a colour of its own, whose weight goes to A.
     pub colour: Option<[u8; 3]>,
 }
 
@@ -151,15 +139,10 @@ pub fn lanes(types: &[LightType], colours: &LightColors) -> Vec<Lane> {
         .collect()
 }
 
-/// Lanes are bytes, four to a word.
 pub fn lane_words(lanes: usize) -> u32 {
     lanes.div_ceil(4) as u32
 }
 
-/// The shader's job record: the lane word count, the job's first word in the
-/// lane buffers, the atlas slot's texel origin, the 27 neighbour slots, a byte
-/// per light type naming its lane (`0xff` for none), and per lane its colour
-/// as `r | g << 8 | b << 16 | known << 24`.
 pub fn job_words(
     lanes: &[Lane],
     slots: [u32; 27],

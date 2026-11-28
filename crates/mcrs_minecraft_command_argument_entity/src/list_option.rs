@@ -4,7 +4,6 @@ use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_resource::ResourceLocation;
 
-/// An option that holds one of several values, as the search tests it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ListOption<'a> {
     Name {

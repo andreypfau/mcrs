@@ -22,12 +22,10 @@ impl<S> Argument<S> for ResourceLocationArgument {
     }
 }
 
-/// `minecraft:dimension`. Whether the dimension exists is the command's test.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DimensionArgument;
 
 impl DimensionArgument {
-    /// Suggests the dimensions that the source knows.
     pub fn suggest<'t, L: Lookup, T>(
         source: &'t Source<'_, L>,
         builder: &mut SuggestionBuilder<'t, '_, T>,
@@ -49,12 +47,9 @@ impl<S> Argument<S> for DimensionArgument {
     }
 }
 
-/// An entry of a registry, or a tag of it written with a leading `#`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResourceOrTag<'a> {
-    /// One entry of the registry.
     Entry(ResourceLocation<'a>),
-    /// A tag of the registry.
     Tag(ResourceLocation<'a>),
 }
 
@@ -67,9 +62,6 @@ impl fmt::Display for ResourceOrTag<'_> {
     }
 }
 
-/// `minecraft:resource_or_tag` when `must_exist`, else
-/// `minecraft:resource_or_tag_key`, whose read does not test that the entry or
-/// the tag exists.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResourceOrTagArgument {
     pub registry: ResourceLocation<'static>,
@@ -77,7 +69,6 @@ pub struct ResourceOrTagArgument {
 }
 
 impl ResourceOrTagArgument {
-    /// Suggests the tags of the registry, then its entries.
     pub fn suggest<'t, L: Lookup, T: Copy>(
         &self,
         source: &'t Source<'_, L>,
@@ -130,14 +121,12 @@ impl<L: Lookup> Argument<Source<'_, L>> for ResourceOrTagArgument {
     }
 }
 
-/// `minecraft:resource`: an entry of the registry, which must exist.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResourceArgument {
     pub registry: ResourceLocation<'static>,
 }
 
 impl ResourceArgument {
-    /// Suggests the entries of the registry.
     pub fn suggest<'t, L: Lookup, T>(
         &self,
         source: &'t Source<'_, L>,

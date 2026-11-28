@@ -54,8 +54,6 @@ pub struct JukeboxSong<M: Refs = Resolved> {
     pub comparator_output: codec::Bounded<0, 15>,
 }
 
-/// The persistent form is the registry id alone; the wire form carries the
-/// song inline.
 #[registry_value]
 #[derive(
     mcrs_minecraft_registries::FromWire,

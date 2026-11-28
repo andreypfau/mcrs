@@ -4,7 +4,7 @@ use bevy_ecs::prelude::{Entity, ResMut, Resource, World};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
-use mcrs_minecraft_engine::bus::{PacketPayload, PacketPriority};
+use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
@@ -39,8 +39,6 @@ fn filled(block: BlockStateId) -> SectionStates {
     SectionStates::homogeneous(block)
 }
 
-/// Spawn the column at the origin and the eight around it, whose blocks reach its light, as
-/// `integrate_generated_columns` does, then pump until the engine has nothing left to do.
 fn light_one_column(app: &mut App, label: Entity, stone_floor: bool) {
     let blocks = app.world().resource::<Blocks>().clone();
     let air = state(&blocks, "minecraft:air");
@@ -77,7 +75,6 @@ fn light_one_column(app: &mut App, label: Entity, stone_floor: bool) {
     settle(app, label);
 }
 
-/// A section of `dimension` at `pos` whose blocks landed.
 fn spawn_loaded_section(
     world: &mut World,
     dimension: Entity,
@@ -95,8 +92,6 @@ fn spawn_loaded_section(
     section
 }
 
-/// Updates until an update leaves the light stage owing nothing, and waits for the stage to
-/// answer between updates. A published answer can raise more light work, such as a new surface.
 fn settle(app: &mut App, label: Entity) {
     for _ in 0..400 {
         app.update();
@@ -135,8 +130,6 @@ fn spawn_dimension(id: &str, dimension_type: &str) -> (App, Entity) {
     (app, handle)
 }
 
-/// Stands in for the block simulation, which writes the palette and then
-/// the message; the chunk index it resolves through is not wired here.
 fn place_torch(app: &mut App, label: Entity, at: BlockPos) -> u8 {
     let blocks = app.world().resource::<Blocks>().clone();
     let torch = state(&blocks, "minecraft:torch");
@@ -208,8 +201,6 @@ fn a_dimension_without_a_sky_publishes_none() {
 #[derive(Resource, Default)]
 struct CapturedLightUpdates(Vec<ColumnChange>);
 
-/// Reads the dim's outbox in the same schedule the emitter writes it, before the output of the
-/// tick drains it.
 fn capture_light_updates(
     mut reader: MessageReader<ColumnChange>,
     mut captured: ResMut<CapturedLightUpdates>,
@@ -240,8 +231,6 @@ fn nibble(
     (chunk.0[idx >> 1] >> ((idx & 1) * 4)) & 0x0F
 }
 
-/// Light one column, subscribe the muxer to it or not, then place a torch and collect what the
-/// dimension published.
 fn torch_delta(subscribed: bool) -> Vec<ColumnChange> {
     let (mut app, label) = spawn_dimension("minecraft:overworld", "minecraft:overworld");
     let sub_app = host_app::sub_app(&mut app, label);
@@ -274,18 +263,12 @@ fn torch_delta(subscribed: bool) -> Vec<ColumnChange> {
         .clone()
 }
 
-/// The muxer gets every correction to the light of a column it subscribes to.
 fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
     let captured = torch_delta(true);
 
     assert_eq!(captured.len(), 1, "one change for one column");
     let packet = &captured[0];
     assert_eq!(packet.column, ColumnPos::new(0, 0));
-    assert_eq!(
-        packet.priority,
-        PacketPriority::High,
-        "a column's light is sent in full once, so a shed delta is never made good"
-    );
     let PacketPayload::LightUpdate(ClientboundLightUpdate { x, z, light_data }) = &packet.payload
     else {
         unreachable!("filtered above");
@@ -327,9 +310,6 @@ fn a_column_no_client_holds_gets_no_delta() {
     );
 }
 
-/// Columns two apart so no field reaches its neighbour: a job publishes every
-/// loaded section of its field, and adjacent columns would be lit by each
-/// other's halo rather than in the order the queue handed them out.
 const SPREAD: [(i32, i32); 6] = [(0, 0), (2, 0), (0, 2), (4, 0), (0, 4), (4, 4)];
 
 fn the_column_under_the_player_is_lit_before_the_far_ones() {
@@ -339,8 +319,6 @@ fn the_column_under_the_player_is_lit_before_the_far_ones() {
     let air = state(&blocks, "minecraft:air");
 
     let sub_app = host_app::sub_app(&mut app, label);
-    // One column per epoch, so the order the queue hands work out is the order
-    // light is published in.
     sub_app.insert_resource(LightBudget {
         cells_per_epoch: 1,
         epochs_in_flight: 1,

@@ -1,241 +1,38 @@
 use std::sync::atomic::Ordering;
 
+use bevy::camera::ClearColorConfig;
+use bevy::color::{LinearRgba, Srgba};
 use bevy::core_pipeline::core_3d::{AlphaMask3d, Opaque3d};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use bevy::render::camera::ExtractedCamera;
 use bevy::render::diagnostic::RecordDiagnostics;
 use bevy::render::render_phase::{TrackedRenderPass, ViewBinnedRenderPhases};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget, ViewUniformOffset};
 
-use mcrs_minecraft_mesh::{STREAM_NAMES, STREAMS};
-use wgpu::ComputePassTimestampWrites;
+use mcrs_minecraft_mesh::{DrawKind, GROUP_QUADS, Group};
 
 use super::draws::PARAMS_STRIDE;
 use super::gbuffer::DeferredFrame;
 use super::layer::LayerGroup;
-use super::pipeline::{DeferredPipelines, stream_slot};
+use super::pipeline::{DeferredPipelines, TransparencyPipelines, terrain_slot};
+use super::shared_types::DrawArgRow;
 use super::show::{DepthDisplay, DepthSource};
 use super::sky::SkyDraws;
-use super::stats::{DISPATCH_BYTES, DISPATCHES, DRAW_ARGS_SIZE, FrameCounts};
+use super::stats::{FrameCounts, VERTICES_PER_QUAD};
 use super::terrain::Terrain;
+use super::transparency_targets::TransparencyTargets;
 use super::upload::{UploadParams, apply_uploads};
 use super::views::{DeferredViews, Display, Lighting, SelectedView};
-use super::{DrawMask, LightTint, Occlusion, PassSlot, PassTimestamps};
+use super::{DrawMask, LightTint, Occlusion, PassTimestamps, WorldFog};
 
-fn cull_terrain(
-    terrain: &Terrain,
-    pipeline_cache: &PipelineCache,
-    timestamps: &PassTimestamps,
-    mask: &DrawMask,
-    encoder: &mut CommandEncoder,
-) {
-    let pipelines = &terrain.pipelines;
-    let (Some(sections), Some(groups), Some(quads), Some(count), Some(scan), Some(scatter)) = (
-        pipeline_cache.get_compute_pipeline(pipelines.cull_sections),
-        pipeline_cache.get_compute_pipeline(pipelines.cull_groups),
-        pipeline_cache.get_compute_pipeline(pipelines.cull_quads),
-        pipeline_cache.get_compute_pipeline(pipelines.cull_count),
-        pipeline_cache.get_compute_pipeline(pipelines.cull_scan),
-        pipeline_cache.get_compute_pipeline(pipelines.cull_scatter),
-    ) else {
-        return;
-    };
-
-    let reset = terrain.frame.args_reset.size();
-    encoder.copy_buffer_to_buffer(&terrain.frame.args_reset, 0, &terrain.frame.args, 0, reset);
-
-    {
-        let mut pass = timed_compute(
-            encoder,
-            "terrain cull sections",
-            timestamps.compute(PassSlot::CullSections),
-        );
-        pass.set_pipeline(sections);
-        pass.set_bind_group(0, &terrain.binds.view, &[0]);
-        pass.set_bind_group(1, &terrain.binds.quad_cull, &[]);
-        pass.dispatch_workgroups(
-            (terrain.budget.sections as u32)
-                .div_ceil(CULL_THREADS)
-                .min(terrain.cull_grid),
-            1,
-            1,
-        );
-    }
-    // Blending is not commutative, so translucent draws have to reach the rasteriser in the order
-    // the list holds them; opaque ones may be compacted.
-    {
-        let mut pass = timed_compute(
-            encoder,
-            "terrain cull blended",
-            timestamps.compute(PassSlot::CullBlended),
-        );
-        pass.set_bind_group(1, &terrain.binds.cull, &[]);
-        let blended = LayerGroup::Translucent;
-        cull_group(
-            &mut pass,
-            terrain,
-            blended,
-            count,
-            mask,
-            CULL_THREADS,
-            terrain.cull_grid,
-        );
-        pass.set_pipeline(scan);
-        for (index, _) in terrain.list.drawn(blended, mask) {
-            pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
-            pass.dispatch_workgroups(1, 1, 1);
-        }
-        cull_group(
-            &mut pass,
-            terrain,
-            blended,
-            scatter,
-            mask,
-            CULL_THREADS,
-            terrain.cull_grid,
-        );
-    }
-    {
-        let mut pass = timed_compute(encoder, "terrain cull", timestamps.compute(PassSlot::Cull));
-        pass.set_bind_group(1, &terrain.binds.quad_cull, &[]);
-        let opaque = LayerGroup::Opaque;
-        cull_group(
-            &mut pass,
-            terrain,
-            opaque,
-            groups,
-            mask,
-            GROUP_THREADS,
-            terrain.group_grid,
-        );
-    }
-    copy_dispatches(terrain, encoder);
-    {
-        let mut pass = timed_compute(
-            encoder,
-            "terrain cull quads",
-            timestamps.compute(PassSlot::CullQuads),
-        );
-        pass.set_bind_group(1, &terrain.binds.quad_cull, &[]);
-        cull_indirect(
-            &mut pass,
-            terrain,
-            LayerGroup::Opaque,
-            quads,
-            mask,
-            QUADS_FIRST,
-        );
-    }
-}
-
-/// Where each kernel reading a list finds its dispatch size in the copied table.
-const QUADS_FIRST: u64 = 0;
-const QUADS_SECOND: u64 = STREAMS as u64;
-const GROUPS_SECOND: u64 = 2 * STREAMS as u64;
-
-fn copy_dispatches(terrain: &Terrain, encoder: &mut CommandEncoder) {
-    encoder.copy_buffer_to_buffer(
-        &terrain.frame.args,
-        DISPATCHES,
-        &terrain.frame.dispatch,
-        0,
-        DISPATCH_BYTES,
-    );
-}
-
-fn stream_name(stream: u32) -> &'static str {
-    STREAM_NAMES
-        .get(stream as usize)
-        .copied()
-        .unwrap_or("terrain")
-}
-
-/// Dispatches `pipeline` once a draw of `group`, as many workgroups as the cull counted into the
-/// draw's row of `table`.
-fn cull_indirect<'pass>(
-    pass: &mut ComputePass<'pass>,
-    terrain: &'pass Terrain,
-    group: LayerGroup,
-    pipeline: &'pass ComputePipeline,
-    mask: &DrawMask,
-    table: u64,
-) {
-    pass.set_pipeline(pipeline);
-    for (index, draw) in terrain.list.drawn(group, mask) {
-        pass.push_debug_group(stream_name(draw.stream));
-        pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
-        pass.dispatch_workgroups_indirect(
-            &terrain.frame.dispatch,
-            (table + index as u64) * DRAW_ARGS_SIZE,
-        );
-        pass.pop_debug_group();
-    }
-}
-
-fn timed_compute<'e>(
-    encoder: &'e mut CommandEncoder,
-    label: &'static str,
-    timestamp_writes: Option<ComputePassTimestampWrites<'_>>,
-) -> ComputePass<'e> {
-    encoder.begin_compute_pass(&ComputePassDescriptor {
-        label: Some(label),
-        timestamp_writes,
-    })
-}
-
-pub(super) const CULL_THREADS: u32 = 32;
-pub(super) const GROUP_THREADS: u32 = 256;
-/// Groups a quad-cull workgroup tests at once.
-pub(super) const GROUPS_PER_STEP: u32 = 2;
-
-// The quad cull gives each quad of a group a lane, and each quad a pass leaves a bit of one word.
-const _: () =
-    assert!(mcrs_minecraft_mesh::GROUP_QUADS <= CULL_THREADS as usize && CULL_THREADS <= 32);
-
-/// `cull.wesl` strides over the group arena, so the dispatch is capped by the device instead of
-/// sized by the world and a bigger render distance can no longer walk it into wgpu's 65535
-/// workgroups per dimension. wgpu reports no core count, so the cap is stated in invocations and
-/// clamped by the limits it does report; a workgroup left with no group exits at once, but not
-/// for free, so a draw holding fewer groups than the cap still dispatches only what it needs.
-pub(super) fn cull_grid(limits: &WgpuLimits, threads: u32) -> u32 {
-    const RESIDENT_INVOCATIONS: u32 = 1 << 19;
-    let threads = threads
-        .min(limits.max_compute_invocations_per_workgroup)
-        .max(1);
-    (RESIDENT_INVOCATIONS / threads)
-        .min(limits.max_compute_workgroups_per_dimension)
-        .max(1)
-}
-
-/// Dispatches `pipeline` once a draw of `group`, a workgroup to every `per_workgroup` groups up to
-/// `grid` workgroups.
-fn cull_group<'pass>(
-    pass: &mut ComputePass<'pass>,
-    terrain: &'pass Terrain,
-    group: LayerGroup,
-    pipeline: &'pass ComputePipeline,
-    mask: &DrawMask,
-    per_workgroup: u32,
-    grid: u32,
-) {
-    pass.set_pipeline(pipeline);
-    let mut open = None;
-    for (index, draw) in terrain.list.drawn(group, mask) {
-        if open != Some(draw.stream) {
-            if open.is_some() {
-                pass.pop_debug_group();
-            }
-            pass.push_debug_group(stream_name(draw.stream));
-            open = Some(draw.stream);
-        }
-        pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
-        pass.dispatch_workgroups(draw.group_count.div_ceil(per_workgroup).min(grid), 1, 1);
-    }
-    if open.is_some() {
-        pass.pop_debug_group();
-    }
+pub(super) fn has_unused_bins(
+    opaque: Res<ViewBinnedRenderPhases<Opaque3d>>,
+    alpha_mask: Res<ViewBinnedRenderPhases<AlphaMask3d>>,
+) -> bool {
+    !opaque.is_empty() || !alpha_mask.is_empty()
 }
 
 pub(super) fn drop_unused_bins(
@@ -272,15 +69,10 @@ pub(super) fn upload_frame(
     let (_, depth, _, _) = view.into_inner();
     apply_uploads(&mut uploads, ctx.command_encoder());
     if let Some(terrain) = uploads.terrain.as_deref_mut()
-        && terrain.hiz.fit(depth, &frame.device, &frame.pipeline_cache)
+        && let Some(cull) = &mut terrain.cull
+        && cull.hiz.fit(depth, &frame.device, &frame.pipeline_cache)
     {
-        terrain.binds.rebuild_cull(
-            &terrain.arenas,
-            &terrain.frame,
-            &terrain.hiz.view,
-            &frame.device,
-            &frame.pipeline_cache,
-        );
+        cull.rebind(&terrain.arenas, &frame.device, &frame.pipeline_cache);
     }
     frame.counts.terrain_draws.store(0, Ordering::Relaxed);
 }
@@ -294,8 +86,13 @@ pub(super) fn cull_frame(
     let Some(terrain) = terrain.as_deref() else {
         return;
     };
-    cull_terrain(
-        terrain,
+    let Some(cull) = &terrain.cull else {
+        return;
+    };
+    cull.cull(
+        &terrain.binds,
+        &terrain.list,
+        terrain.budget.sections,
         &frame.pipeline_cache,
         &frame.timestamps,
         &frame.mask,
@@ -309,89 +106,63 @@ pub(super) fn build_occlusion(
     frame: FrameParams,
     mut ctx: RenderContext,
 ) {
-    let Some(terrain) = terrain
-        .as_deref()
-        .filter(|terrain| frame.occlusion.0 && terrain.list.visible_entries != 0)
+    let Some(terrain) = terrain.as_deref() else {
+        return;
+    };
+    let Some(cull) = terrain
+        .cull
+        .as_ref()
+        .filter(|_| frame.occlusion.0 && terrain.list.visible_entries != 0)
     else {
         return;
     };
-    terrain.hiz.build(
+    cull.cull_second(
+        &terrain.binds,
+        &terrain.list,
         &frame.pipeline_cache,
-        frame.timestamps.compute(PassSlot::Hiz),
+        &frame.timestamps,
+        &frame.mask,
         ctx.command_encoder(),
     );
-    let (Some(groups), Some(quads)) = (
-        frame
-            .pipeline_cache
-            .get_compute_pipeline(terrain.pipelines.cull_groups_second),
-        frame
-            .pipeline_cache
-            .get_compute_pipeline(terrain.pipelines.cull_quads_second),
-    ) else {
-        return;
-    };
-    let encoder = ctx.command_encoder();
-    copy_dispatches(terrain, encoder);
-    {
-        let mut pass = timed_compute(
-            encoder,
-            "terrain cull second",
-            frame.timestamps.compute(PassSlot::CullSecond),
-        );
-        pass.set_bind_group(1, &terrain.binds.quad_cull, &[]);
-        for group in LayerGroup::ALL {
-            cull_indirect(
-                &mut pass,
-                terrain,
-                group,
-                groups,
-                &frame.mask,
-                GROUPS_SECOND,
-            );
-        }
-    }
-    copy_dispatches(terrain, encoder);
-    let mut pass = timed_compute(
-        encoder,
-        "terrain cull quads second",
-        frame.timestamps.compute(PassSlot::CullQuadsSecond),
-    );
-    pass.set_bind_group(1, &terrain.binds.quad_cull, &[]);
-    for group in LayerGroup::ALL {
-        cull_indirect(&mut pass, terrain, group, quads, &frame.mask, QUADS_SECOND);
-    }
 }
 
-/// `phase` picks the first pass's args or the second's, which follow them. A stream `pipeline_of`
-/// has no pipeline for is skipped.
+const GROUP_VERTICES: u32 = GROUP_QUADS as u32 * VERTICES_PER_QUAD;
+const GROUP_BYTES: u64 = size_of::<Group>() as u64;
+
 pub fn draw_layer_group<'pass>(
     pass: &mut TrackedRenderPass<'pass>,
     terrain: &'pass Terrain,
     group: LayerGroup,
-    phase: u64,
+    row: DrawArgRow,
     mask: &DrawMask,
-    pipeline_of: impl Fn(u32) -> Option<&'pass RenderPipeline>,
+    pipeline_of: impl Fn(DrawKind) -> Option<&'pass RenderPipeline>,
 ) -> u32 {
     pass.set_bind_group(1, &terrain.binds.draw, &[]);
     let mut open = None;
     let mut draws = 0;
     for (index, draw) in terrain.list.drawn(group, mask) {
-        let Some(pipeline) = pipeline_of(draw.stream) else {
+        let Some(pipeline) = pipeline_of(draw.kind) else {
             continue;
         };
-        if open != Some(draw.stream) {
+        if open != Some(draw.kind) {
             if open.is_some() {
                 pass.pop_debug_group();
             }
-            pass.push_debug_group(stream_name(draw.stream));
-            open = Some(draw.stream);
+            pass.push_debug_group(draw.kind.label());
+            open = Some(draw.kind);
         }
         pass.set_render_pipeline(pipeline);
         pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
-        pass.draw_indirect(
-            &terrain.frame.args,
-            (phase * STREAMS as u64 + index as u64) * DRAW_ARGS_SIZE,
-        );
+        match (&terrain.cull, terrain.arenas.groups.words.buffer()) {
+            (Some(cull), _) => pass.draw_indirect(cull.args(), row.offset_bytes(draw.kind)),
+            (None, Some(groups)) => {
+                let first = u64::from(draw.first_group) * GROUP_BYTES;
+                let end = first + u64::from(draw.group_count) * GROUP_BYTES;
+                pass.set_vertex_buffer(0, groups.slice(first..end));
+                pass.draw(0..GROUP_VERTICES, 0..draw.group_count);
+            }
+            (None, None) => continue,
+        }
         draws += 1;
     }
     if open.is_some() {
@@ -411,10 +182,24 @@ pub(crate) struct DeferredParams<'w> {
     counts: Res<'w, FrameCounts>,
     views: Res<'w, DeferredViews>,
     selected: Res<'w, SelectedView>,
+    sky: SkyDraws<'w>,
+}
+
+struct Transparency<'a> {
+    targets: &'a TransparencyTargets,
+    pipelines: &'a TransparencyPipelines,
 }
 
 impl DeferredParams<'_> {
-    /// A view whose program is still compiling shows final shading.
+    fn transparency(&self) -> Option<Transparency<'_>> {
+        let targets = self.frame.as_deref()?.transparency.as_ref()?;
+        let pipelines = self.pipelines.transparency.as_ref()?;
+        (self.display().lighting == Lighting::Lit
+            && pipelines.ready(&self.cache)
+            && self.sky.cloud_image_ready(&self.cache))
+        .then_some(Transparency { targets, pipelines })
+    }
+
     fn display(&self) -> Display {
         let display = self.views.display(*self.selected);
         match display.lighting {
@@ -431,20 +216,13 @@ impl DeferredParams<'_> {
         &'pass self,
         pass: &mut TrackedRenderPass<'pass>,
         terrain: &'pass Terrain,
-        phase: u64,
+        row: DrawArgRow,
     ) {
         let wireframe = self.display().wireframe;
-        let draws = draw_layer_group(
-            pass,
-            terrain,
-            LayerGroup::Opaque,
-            phase,
-            &self.mask,
-            |stream| {
-                self.pipelines
-                    .terrain(stream_slot(stream, wireframe), &self.cache)
-            },
-        );
+        let draws = draw_layer_group(pass, terrain, LayerGroup::Opaque, row, &self.mask, |kind| {
+            self.pipelines
+                .terrain(terrain_slot(kind, wireframe), &self.cache)
+        });
         self.counts
             .terrain_draws
             .fetch_add(draws, Ordering::Relaxed);
@@ -490,19 +268,61 @@ fn gbuffer_pass<'a>(
     })
 }
 
-/// The sky is drawn into the view target first, in a pass of its own: its pipelines draw finite
-/// geometry with no depth test, so it cannot go behind the lit terrain later.
+fn color_attachment(
+    view: &TextureView,
+    load: LoadOp<wgpu::Color>,
+) -> RenderPassColorAttachment<'_> {
+    RenderPassColorAttachment {
+        view,
+        depth_slice: None,
+        resolve_target: None,
+        ops: Operations {
+            load,
+            store: StoreOp::Store,
+        },
+    }
+}
+
+pub(crate) fn loaded(view: &TextureView) -> RenderPassColorAttachment<'_> {
+    color_attachment(view, LoadOp::Load)
+}
+
+type SkyView = (
+    &'static ViewDepthStencilTexture,
+    &'static ViewUniformOffset,
+    &'static ExtractedCamera,
+);
+
 pub(crate) fn draw_gbuffer(
-    view: ViewQuery<WorldView>,
+    view: ViewQuery<SkyView>,
     params: DeferredParams,
-    sky: SkyDraws,
+    fog: Option<Res<WorldFog>>,
+    clear_color: Res<ClearColor>,
     mut ctx: RenderContext,
 ) {
     let Some(frame) = params.frame.as_deref() else {
         return;
     };
-    let (target, depth, _, view_offset) = view.into_inner();
-    let color_attachments = [Some(target.get_color_attachment())];
+    let (depth, view_offset, camera) = view.into_inner();
+    let transparency = params.transparency();
+    let color_attachments = [Some(match &transparency {
+        Some(transparency) => {
+            let [red, green, blue] = fog.map_or([0.0; 3], |fog| fog.color);
+            let clear = Srgba::rgb(red, green, blue);
+            color_attachment(&transparency.targets.sky, LoadOp::Clear(clear.into()))
+        }
+        None => {
+            let clear = match camera.clear_color {
+                ClearColorConfig::Custom(color) => Some(color),
+                ClearColorConfig::None => None,
+                _ => Some(clear_color.0),
+            };
+            let load = clear.map_or(LoadOp::Load, |color| {
+                LoadOp::Clear(Srgba::from(color).into())
+            });
+            color_attachment(&frame.world, load)
+        }
+    })];
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("sky"),
         color_attachments: &color_attachments,
@@ -511,12 +331,39 @@ pub(crate) fn draw_gbuffer(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    sky.draw_sky(&mut pass, view_offset.offset, &params.cache);
+    params
+        .sky
+        .draw_sky(&mut pass, view_offset.offset, &params.cache);
     drop(pass);
+
+    if let Some(transparency) = &transparency {
+        let color_attachments = [Some(color_attachment(
+            &transparency.targets.clouds,
+            LoadOp::Clear(LinearRgba::NONE.into()),
+        ))];
+        let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
+            label: Some("cloud image"),
+            color_attachments: &color_attachments,
+            depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                view: &transparency.targets.cloud_depth,
+                depth_ops: Some(Operations {
+                    load: LoadOp::Clear(0.0),
+                    store: StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        params
+            .sky
+            .draw_cloud_image(&mut pass, view_offset.offset, &params.cache);
+    }
 
     let mut pass = gbuffer_pass(&mut ctx, "gbuffer", frame, depth, true);
     if let Some(terrain) = params.terrain.as_deref() {
-        params.draw_opaque(&mut pass, terrain, 0);
+        params.draw_opaque(&mut pass, terrain, DrawArgRow::FirstPassDraws);
     }
 }
 
@@ -533,16 +380,13 @@ pub(crate) fn draw_gbuffer_second(
     }
     let (_, depth, _, _) = view.into_inner();
     let mut pass = gbuffer_pass(&mut ctx, "gbuffer second", frame, depth, false);
-    params.draw_opaque(&mut pass, terrain, 1);
+    params.draw_opaque(&mut pass, terrain, DrawArgRow::SecondPassDraws);
     drop(pass);
-    // The next frame's first pass tests against this: built from the whole frame's depth,
-    // what this pass revived is not hidden again there only to be revived once more.
-    terrain
-        .hiz
-        .build(&params.cache, None, ctx.command_encoder());
+    if let Some(cull) = &terrain.cull {
+        cull.hiz.build(&params.cache, None, ctx.command_encoder());
+    }
 }
 
-/// The fragment leaves every pixel at depth 0 alone, which is the sky.
 pub(crate) fn draw_lighting(
     view: ViewQuery<WorldView>,
     params: DeferredParams,
@@ -562,7 +406,9 @@ pub(crate) fn draw_lighting(
     if tinted && tint.is_none() {
         return;
     }
-    let (target, depth, _, _) = view.into_inner();
+    let (_, depth, _, _) = view.into_inner();
+    let transparency = params.transparency();
+    let target = &frame.world;
     let pipeline = match params.display().lighting {
         Lighting::Depth => {
             let source = DepthSource::Depth(depth);
@@ -573,15 +419,20 @@ pub(crate) fn draw_lighting(
             return display.draw(&mut ctx, target, source, &params.cache, &device);
         }
         Lighting::Variant(variant) => params.pipelines.variant(variant, &params.cache),
-        Lighting::Lit => params
-            .pipelines
-            .lighting
-            .and_then(|id| params.cache.get_render_pipeline(id)),
+        Lighting::Lit => match &transparency {
+            Some(transparency) => params
+                .cache
+                .get_render_pipeline(transparency.pipelines.lighting),
+            None => params
+                .pipelines
+                .lighting
+                .and_then(|id| params.cache.get_render_pipeline(id)),
+        },
     };
     let Some(pipeline) = pipeline else {
         return;
     };
-    let color_attachments = [Some(target.get_color_attachment())];
+    let color_attachments = [Some(loaded(target))];
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("lighting"),
         color_attachments: &color_attachments,
@@ -590,12 +441,25 @@ pub(crate) fn draw_lighting(
         occlusion_query_set: None,
         multiview_mask: None,
     });
+    let is_gbuffer_view = matches!(
+        params.display().lighting,
+        Lighting::Variant(variant) if variant.is_gbuffer_view()
+    );
     pass.set_render_pipeline(pipeline);
     pass.set_bind_group(0, terrain.view_bind_group(), &[0]);
-    pass.set_bind_group(1, terrain.draw_bind_group(), &[]);
-    pass.set_bind_group(2, &frame.bind_group, &[]);
-    if let Some(tint) = tint {
-        pass.set_bind_group(3, tint, &[]);
+    if is_gbuffer_view {
+        pass.set_bind_group(1, &frame.bind_group, &[]);
+    } else {
+        pass.set_bind_group(1, terrain.draw_bind_group(), &[]);
+        let gbuffer = transparency
+            .as_ref()
+            .map_or(&frame.bind_group, |transparency| {
+                &transparency.targets.lighting
+            });
+        pass.set_bind_group(2, gbuffer, &[]);
+        if let Some(tint) = tint {
+            pass.set_bind_group(3, tint, &[]);
+        }
     }
     pass.draw(0..3, 0..1);
 }
@@ -604,47 +468,56 @@ pub(crate) fn draws_forward(params: DeferredParams) -> bool {
     params.display().forward
 }
 
-/// Drawn over the lit frame the way the classic path draws it, with the lighting pass's shading.
 pub(crate) fn draw_forward_deferred(
     view: ViewQuery<WorldView>,
     params: DeferredParams,
-    sky: SkyDraws,
     mut ctx: RenderContext,
 ) {
-    let Some(terrain) = params.terrain.as_deref() else {
+    let (Some(terrain), Some(frame)) = (params.terrain.as_deref(), params.frame.as_deref()) else {
         return;
     };
-    let phases: &[u64] = if terrain.second_pass(&params.occlusion, &params.cache) {
-        &[0, 1]
+    let rows: &[DrawArgRow] = if terrain.second_pass(&params.occlusion, &params.cache) {
+        &[DrawArgRow::FirstPassDraws, DrawArgRow::SecondPassDraws]
     } else {
-        &[0]
+        &[DrawArgRow::FirstPassDraws]
     };
-    let (target, depth, _, view_offset) = view.into_inner();
+    let (_, depth, _, view_offset) = view.into_inner();
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
-    let color_attachments = [Some(target.get_color_attachment())];
+    let color_attachments = [Some(loaded(&frame.world))];
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("forward"),
         color_attachments: &color_attachments,
-        // The last reader of this frame's depth: the GUI pass clears it next.
         depth_stencil_attachment: Some(depth.get_attachment(StoreOp::Discard)),
         timestamp_writes: None,
         occlusion_query_set: None,
         multiview_mask: None,
     });
     let span = diagnostics.pass_span(&mut pass, "forward");
-    let mut draws = sky.draw_clouds(&mut pass, view_offset.offset, &params.cache);
-    for &phase in phases {
+    let transparency = params.transparency();
+    let mut draws = match &transparency {
+        Some(transparency) => {
+            pass.set_bind_group(2, &transparency.targets.forward, &[]);
+            0
+        }
+        None => params
+            .sky
+            .draw_clouds(&mut pass, view_offset.offset, &params.cache),
+    };
+    for &row in rows {
         draws += draw_layer_group(
             &mut pass,
             terrain,
             LayerGroup::Translucent,
-            phase,
+            row,
             &params.mask,
-            |stream| {
-                params
+            |kind| match &transparency {
+                Some(transparency) => transparency
                     .pipelines
-                    .terrain(stream_slot(stream, false), &params.cache)
+                    .translucent(kind.format, &params.cache),
+                None => params
+                    .pipelines
+                    .terrain(terrain_slot(kind, false), &params.cache),
             },
         );
     }
@@ -653,28 +526,4 @@ pub(crate) fn draw_forward_deferred(
         .terrain_draws
         .fetch_add(draws, Ordering::Relaxed);
     span.end(&mut pass);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_cull_grid_fits_a_dispatch_whatever_the_device_reports() {
-        for limits in [
-            WgpuLimits::downlevel_webgl2_defaults(),
-            WgpuLimits::downlevel_defaults(),
-            WgpuLimits::default(),
-            WgpuLimits {
-                max_compute_workgroups_per_dimension: 1,
-                ..WgpuLimits::default()
-            },
-        ] {
-            for threads in [CULL_THREADS, GROUP_THREADS] {
-                let grid = cull_grid(&limits, threads);
-                assert!(grid >= 1);
-                assert!(grid <= limits.max_compute_workgroups_per_dimension.max(1));
-            }
-        }
-    }
 }

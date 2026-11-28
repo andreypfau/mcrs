@@ -5,7 +5,6 @@ use mcrs_voxel::BlockPos;
 
 use crate::piece::{FortressPiece, MineshaftKind, MineshaftPiece, Piece, StrongholdPiece};
 
-/// `Rotation.getRandom`.
 pub fn random_rotation<R: Random>(rng: &mut R) -> Rotation {
     match rng.next_i32_bound(4) {
         0 => Rotation::None,
@@ -15,10 +14,8 @@ pub fn random_rotation<R: Random>(rng: &mut R) -> Rotation {
     }
 }
 
-/// A laid out piece's box, which the piece builders test and move.
 pub trait Boxed {
     fn bounds(&self) -> BoundingBox;
-    /// `StructurePiece.move`.
     fn move_by(&mut self, delta: IVec3);
 }
 
@@ -67,7 +64,6 @@ impl Boxed for MineshaftPiece {
     }
 }
 
-/// A grid piece's facing, numbered by `Direction.get2DDataValue`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Orientation {
@@ -85,7 +81,6 @@ impl Orientation {
         Orientation::East,
     ];
 
-    /// `Direction.Plane.HORIZONTAL`, in the array order `getRandomDirection` indexes.
     pub const HORIZONTAL: [Orientation; 4] = [
         Orientation::North,
         Orientation::East,
@@ -93,7 +88,6 @@ impl Orientation {
         Orientation::West,
     ];
 
-    /// `StructurePiece.getRandomHorizontalDirection`.
     pub fn random<R: Random>(rng: &mut R) -> Self {
         match rng.next_i32_bound(4) {
             0 => Orientation::North,
@@ -111,8 +105,6 @@ impl Orientation {
         self as i32
     }
 
-    /// `StructurePiece.setOrientation`: how a block state is transformed
-    /// before it is placed.
     pub const fn mirror_rotation(self) -> (Mirror, Rotation) {
         match self {
             Orientation::South => (Mirror::LeftRight, Rotation::None),
@@ -123,9 +115,6 @@ impl Orientation {
     }
 }
 
-/// `StructurePiece.makeBoundingBox`: the box of a `width × height × depth`
-/// piece whose minimum corner is `origin`, its width along z when it faces
-/// east or west.
 pub fn orient_box(
     orientation: Orientation,
     origin: IVec3,
@@ -143,9 +132,6 @@ pub fn orient_box(
     }
 }
 
-/// `BoundingBox.orientBox`: the box of a `width × height × depth` piece whose
-/// foot stands at `foot` and extends away along `orientation`, shifted by the
-/// piece-local `offset` before it is turned.
 pub fn orient_box_at(
     orientation: Orientation,
     foot: IVec3,
@@ -172,8 +158,6 @@ pub fn orient_box_at(
     }
 }
 
-/// `StructurePiece.getWorldPos`: a piece-local position in the world, or the
-/// position itself for a piece with no orientation.
 pub fn world_pos(orientation: Option<Orientation>, bounds: BoundingBox, local: IVec3) -> BlockPos {
     let Some(orientation) = orientation else {
         return local.into();
@@ -189,20 +173,16 @@ pub fn world_pos(orientation: Option<Orientation>, bounds: BoundingBox, local: I
     BlockPos::new(world_x, y + min.y, world_z)
 }
 
-/// The box around every piece; `None` for no pieces.
 pub(crate) fn union_of<P: Boxed>(pieces: &[P]) -> Option<BoundingBox> {
     pieces.iter().map(Boxed::bounds).reduce(BoundingBox::union)
 }
 
-/// `StructurePiecesBuilder.offsetPiecesVertically`.
 pub fn offset_vertically<P: Boxed>(pieces: &mut [P], dy: i32) {
     for piece in pieces {
         piece.move_by(IVec3::new(0, dy, 0));
     }
 }
 
-/// `StructurePiecesBuilder.moveBelowSeaLevel`: the moved distance, zero for
-/// no pieces.
 pub fn move_below_sea_level<P: Boxed, R: Random>(
     pieces: &mut [P],
     sea_level: i32,
@@ -223,7 +203,6 @@ pub fn move_below_sea_level<P: Boxed, R: Random>(
     dy
 }
 
-/// `StructurePiecesBuilder.moveInsideHeights`.
 pub fn move_inside_heights<P: Boxed, R: Random>(
     pieces: &mut [P],
     rng: &mut R,
@@ -242,7 +221,6 @@ pub fn move_inside_heights<P: Boxed, R: Random>(
     offset_vertically(pieces, bottom - bounds.min.y);
 }
 
-/// `StructurePiece.findCollisionPiece`: the first piece whose box meets `probe`.
 pub fn find_collision<P: Boxed>(pieces: &[P], probe: BoundingBox) -> Option<&P> {
     pieces.iter().find(|piece| piece.bounds().intersects(probe))
 }

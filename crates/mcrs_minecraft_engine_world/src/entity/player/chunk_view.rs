@@ -16,12 +16,8 @@ impl Default for PlayerViewDistance {
     }
 }
 
-/// The ring of columns that a view holds past the view distance of the client. The client draws a
-/// column only with its neighbours, so the edge of its view distance needs one more ring. The
-/// login and the cache radius both tell the client the view distance, without the ring.
 pub const VIEW_MARGIN: u8 = 1;
 
-/// The view the client was last told about.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SentChunkView(pub Option<ChunkTrackingView>);
 
@@ -30,10 +26,7 @@ pub struct ChunkTrackingView {
     pub center: SectionPos,
     pub distance: u8,
     pub vert_distance: u8,
-    /// Inclusive lower bound on section_y; iteration and `contains` will
-    /// reject positions below this. `i32::MIN` disables the floor.
     pub min_section_y: i32,
-    /// Inclusive upper bound on section_y; `i32::MAX` disables the ceiling.
     pub max_section_y: i32,
 }
 
@@ -83,7 +76,6 @@ impl ChunkTrackingView {
         self.center.z + (self.distance as i32 + 1)
     }
 
-    /// Whether the view holds `column`, or would with `slack` more rings.
     #[must_use]
     pub fn reaches(&self, column: ColumnPos, slack: i32) -> bool {
         let reach = i64::from(self.distance) + i64::from(slack);
@@ -92,8 +84,6 @@ impl ChunkTrackingView {
     }
 
     pub fn contains(&self, pos: &SectionPos) -> bool {
-        // Saturating ops keep an extreme self.center.y from panicking in
-        // debug builds.
         let dy = pos.y.saturating_sub(self.center.y).unsigned_abs();
         let dx = pos.x.saturating_sub(self.center.x).unsigned_abs();
         let dz = pos.z.saturating_sub(self.center.z).unsigned_abs();
@@ -104,8 +94,6 @@ impl ChunkTrackingView {
             && dz <= self.distance as u32
     }
 
-    /// Every column the view holds. The vertical extent is not part of it: a column is sent
-    /// whole, so what the player is owed is decided in XZ alone.
     pub fn each_column(&self, mut f: impl FnMut(ColumnPos)) {
         let d = self.distance as i32;
         for x in self.center.x.saturating_sub(d)..=self.center.x.saturating_add(d) {
@@ -115,9 +103,6 @@ impl ChunkTrackingView {
         }
     }
 
-    /// The columns the move added and dropped. A step that only changes the player's height
-    /// moves no column either way, which is what keeps a vertical step from tearing down and
-    /// re-sending the whole view.
     pub fn diff_columns(
         old: &ChunkTrackingView,
         new: &ChunkTrackingView,
@@ -156,12 +141,10 @@ mod contains_column_tests {
         let view = ChunkTrackingView::new(SectionPos::new(0, 4, 0), 12, 8);
         let stepped = ChunkTrackingView::new(SectionPos::new(0, 5, 0), 12, 8);
 
-        // The section that drops out of the bottom of the vertical window.
         let evicted = SectionPos::new(3, -4, 7);
         assert!(view.contains(&evicted));
         assert!(!stepped.contains(&evicted));
 
-        // Its column is still tracked, so the column must not be torn down.
         assert!(stepped.reaches(ColumnPos::new(evicted.x, evicted.z), 0));
     }
 

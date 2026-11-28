@@ -15,12 +15,21 @@ use crate::column_store::ColumnStoreLink;
 use crate::column_streams::ColumnStreams;
 use crate::foreign_views::ForeignViews;
 
-/// Moves each column that a view waits on along: fetches its content and the blocks of the
-/// eight around it, asks for its light, and hands the final column to the views.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "drains the column store answers, which arrive from another thread without a change in the world"
+    )
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the halo changes move out of the production state each run, and the loaded section data moves on to the column store and the light engine"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 pub(crate) fn advance_production(
     mut production: ResMut<ColumnProduction>,
     mut store: ResMut<ColumnStoreLink>,
@@ -43,22 +52,17 @@ pub(crate) fn advance_production(
         None => Lights::No,
     };
     let store = &mut *store;
-    // A dimension world holds one dimension.
     let dim = dims.iter().next();
     let dim_row = dim.map(|(loading, index, rows, _)| (loading, index, rows));
     let loading = dim.map(|(loading, ..)| loading);
     views.extend(sent_views.iter().filter_map(|view| view.0));
     views.extend(foreign_views.iter().flat_map(|foreign| foreign.views()));
     production.screen(&mut views, dim.map(|(_, _, rows, _)| rows));
-    // Views hold such a column with the light of the data layer: the muxer subscribes to it
-    // and waits on no version of it, and the dimension does not light it.
     let lit_by_data_layer = |column: ColumnPos| {
         dim.is_some_and(|(loading, _, _, streams)| {
             streams.is_some_and(|streams| streams.holds(column)) && !loading.lights(column)
         })
     };
-    // A halo change that the dimension applied comes again as a placed block, and a block set
-    // to the state it holds changes nothing.
     let halo_changes = production.take_halo_changes();
     let changes = placed
         .read()

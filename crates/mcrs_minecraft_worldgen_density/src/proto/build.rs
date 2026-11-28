@@ -48,8 +48,6 @@ impl From<ProtoSpline> for Df {
     }
 }
 
-/// Each operator builds the node of the same name, operands in the order
-/// written: `a - b` is `sub`, never `add` of a negated constant.
 macro_rules! operators {
     ($($op:ident $method:ident => $variant:ident,)*) => {$(
         impl<R: Into<Df>> $op<R> for Df {
@@ -165,8 +163,6 @@ impl DensityFunctionHolder {
         })
     }
 
-    /// The factor and offset are folded in `f32`, which is why the game ships
-    /// `-0.34999996` where the mapping reads `-0.35`.
     pub fn remap(self, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> Self {
         let factor = (to_max - to_min) / (from_max - from_min);
         let offset = to_min - from_min * factor;
@@ -183,22 +179,15 @@ impl DensityFunctionHolder {
             .remap(from_min, from_max, to_min, to_max)
     }
 
-    /// This function where terrain is new, `blending_target` where it meets
-    /// chunks of an older generator.
     pub fn blended(self, blending_target: impl Into<Self>) -> Self {
         Self::lerp(Self::blend_alpha(), blending_target, self).cache()
     }
 
-    /// This function inside `y_range`, `out_of_range` everywhere else.
     pub fn y_limited(self, y: &Self, y_range: RangeInclusive<i32>, out_of_range: f32) -> Self {
         let range = *y_range.start() as f32..(*y_range.end() + 1) as f32;
         Self::range_choice(y, range, self, out_of_range)
     }
 
-    /// Fades this function into a fixed target near the top and the bottom of
-    /// `bounds`. Each edge is `(start, end, target)`, the two offsets measured
-    /// inwards from that edge: the function is untouched at `start` and is the
-    /// target at `end`.
     pub fn slide(
         self,
         bounds: NoiseSettings,
@@ -274,7 +263,6 @@ impl DensityFunctionHolder {
         })
     }
 
-    /// A noise whose `[-1, 1]` is stretched onto `[min_target, max_target]`.
     pub fn mapped_noise(
         noise: ResourceLocation<'static>,
         xz_scale: f64,
@@ -312,7 +300,6 @@ impl DensityFunctionHolder {
         }))
     }
 
-    /// The block height itself, over twice the height any dimension can have.
     pub fn y() -> Self {
         let (bottom, top) = (MIN_SURFACE_LOWER_BOUND, MAX_SURFACE_LOWER_BOUND);
         Self::y_gradient(bottom, top, bottom as f32, top as f32)
@@ -326,7 +313,6 @@ impl DensityFunctionHolder {
         })
     }
 
-    /// An open end of `range` is the bound no noise value reaches.
     pub fn range_choice(
         input: impl Into<Self>,
         range: impl RangeBounds<f32>,
@@ -358,8 +344,6 @@ impl DensityFunctionHolder {
         }))
     }
 
-    /// One noise sampled at a frequency `input` picks: each interval samples
-    /// it `1 / rarity` as often and scales the result back up by `rarity`.
     pub fn rarity_select(
         input: impl Into<Self>,
         noise: ResourceLocation<'static>,
@@ -391,8 +375,6 @@ impl DensityFunctionHolder {
     }
 }
 
-/// A density function registry being filled: defining an entry hands back the
-/// reference the entries after it name it by.
 #[derive(Debug, Default)]
 pub struct Functions(pub BTreeMap<ResourceLocationBuf, Df>);
 

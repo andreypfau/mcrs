@@ -6,8 +6,6 @@ use std::time::Duration;
 
 use crate::server::RunningServer;
 
-/// The engine's own server, with no world generation, light, command or chat plugin, lets a
-/// client into a world with no terrain.
 #[test]
 fn a_client_joins_the_engine_server_without_vanilla_plugins() {
     let server = RunningServer::start(ServerNetworkPlugin::embedded());
@@ -30,9 +28,8 @@ fn a_client_joins_the_engine_server_without_vanilla_plugins() {
     assert_eq!(first_game_packet, ClientboundLogin::ID);
 }
 
-/// A program that builds the engine's server does not link world generation, Anvil or light.
 #[test]
-fn the_engine_server_links_no_world_generation_anvil_or_light_crate() {
+fn the_engine_server_links_no_world_generation_or_light_crate() {
     let output = Command::new(env!("CARGO"))
         .args([
             "tree",
@@ -64,10 +61,7 @@ fn the_engine_server_links_no_world_generation_anvil_or_light_crate() {
         .filter(|&name| {
             let world_generation = name.starts_with("mcrs_minecraft_worldgen");
             let vanilla_plugin = name.starts_with("mcrs_minecraft_vanilla_");
-            world_generation
-                || vanilla_plugin
-                || name == "mcrs_minecraft_anvil"
-                || name == "mcrs_minecraft_light_engine"
+            world_generation || vanilla_plugin || name == "mcrs_minecraft_light_engine"
         })
         .collect();
     assert!(

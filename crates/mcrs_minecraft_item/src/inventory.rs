@@ -1,6 +1,3 @@
-use bevy_ecs::prelude::Component;
-
-/// Slots of a player: the vanilla inventory menu order plus the cursor.
 pub mod slots {
     use std::ops::Range;
 
@@ -27,8 +24,6 @@ pub mod slots {
         HOTBAR.start + selected as u16
     }
 
-    /// The vanilla `Inventory` index of a menu slot: hotbar 0..9, main 9..36,
-    /// armour feet to head 36..40, offhand 40.
     pub const fn inventory_index(menu: u16) -> Option<u8> {
         match menu {
             ARMOR_HEAD => Some(INVENTORY_HEAD),
@@ -56,8 +51,7 @@ pub mod slots {
     }
 }
 
-#[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SelectedHotbarSlot(pub u8);
+pub const LAST_HOTBAR_SLOT: u8 = (slots::HOTBAR.end - slots::HOTBAR.start - 1) as u8;
 
 #[cfg(test)]
 mod tests {

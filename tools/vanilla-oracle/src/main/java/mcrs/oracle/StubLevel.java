@@ -55,12 +55,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.ticks.LevelTickAccess;
 
-/**
- * A `WorldGenLevel` over a flat floor. Every method throws until something a
- * feature actually calls forces it to be implemented, and each implemented one
- * is a delegation to the block map, the floor height or the bootstrapped
- * registries.
- */
 public final class StubLevel implements WorldGenLevel {
     public static final long WORLD_SEED = 0x5EEDL;
 
@@ -102,13 +96,6 @@ public final class StubLevel implements WorldGenLevel {
         this(registries, dimensionType, base, seaLevel, levelRandom, WORLD_SEED, null, false, null);
     }
 
-    /**
-     * The level a whole structure start is placed into: the biome is fixed,
-     * the heightmaps answer the base alone (the reference primes its `_WG`
-     * maps at the terrain step and never updates them), `getRandom()` is the
-     * placement stream, difficulty is Normal at clock time zero, and with a
-     * `server` entities are built for real and recorded instead of failing.
-     */
     public StubLevel(
         final RegistryAccess registries,
         final DimensionType dimensionType,
@@ -147,12 +134,10 @@ public final class StubLevel implements WorldGenLevel {
         return this.blockEntities;
     }
 
-    /** Every entity `addFreshEntity` received, in arrival order, saved as it arrived. */
     public List<RecordedEntity> entities() {
         return this.entities;
     }
 
-    /** Every `setBlock` in call order, rewrites included. */
     public List<Write> writes() {
         return this.writes;
     }
@@ -161,12 +146,10 @@ public final class StubLevel implements WorldGenLevel {
         return this.structureManager;
     }
 
-    /** The start whose pieces are being placed: what the structure manager answers with. */
     public void placing(final StructureStart start) {
         this.placing = start;
     }
 
-    /** The placement stream of the chunk about to be placed, reseeded per chunk as the reference does. */
     public void random(final RandomSource random) {
         this.levelRandom = random;
         if (this.serverLevel instanceof StubServerLevel stub) {
@@ -174,12 +157,6 @@ public final class StubLevel implements WorldGenLevel {
         }
     }
 
-    /**
-     * Every position ever written, in the order it was first written, with the
-     * state it ended up holding. First-write order is the trunk, foliage and
-     * decorator order; the leaf relaxation only rewrites positions already in
-     * the list, so it cannot reorder it.
-     */
     public Map<BlockPos, BlockState> written() {
         Map<BlockPos, BlockState> out = new java.util.LinkedHashMap<>();
         for (BlockPos pos : this.writeOrder) {
@@ -304,11 +281,6 @@ public final class StubLevel implements WorldGenLevel {
         return false;
     }
 
-    /**
-     * What `ServerLevel.getCurrentDifficultyAt` answers while the chunk is not
-     * yet full: the server difficulty at overworld clock time zero, no
-     * inhabited time and no moon.
-     */
     @Override
     public DifficultyInstance getCurrentDifficultyAt(final BlockPos pos) {
         return new DifficultyInstance(Difficulty.NORMAL, 0L, 0L, 0.0F);
@@ -344,7 +316,6 @@ public final class StubLevel implements WorldGenLevel {
         throw new UnsupportedOperationException("getChunkSource");
     }
 
-    /** Particles, sounds and events are swallowed exactly as `WorldGenRegion` swallows them. */
     @Override
     public void playSound(
         final Entity except,
@@ -386,11 +357,6 @@ public final class StubLevel implements WorldGenLevel {
         return this.getUncachedBiome(x, y, z);
     }
 
-    /**
-     * A piece asks for the chunk only to mark a fence, bar or wall for the
-     * post-processing pass, which the reference resolves once the chunk is
-     * full and no dump reproduces; an empty proto chunk takes the mark.
-     */
     @Override
     public ChunkAccess getChunk(final int x, final int z, final ChunkStatus status, final boolean nonnull) {
         if (this.biome == null) {
@@ -426,7 +392,6 @@ public final class StubLevel implements WorldGenLevel {
         return this.biome;
     }
 
-    /** What `WorldGenRegion` builds: the dimension's and the biome's static layers, no timeline. */
     @Override
     public EnvironmentAttributeReader environmentAttributes() {
         if (this.biome == null) {
@@ -482,7 +447,6 @@ public final class StubLevel implements WorldGenLevel {
         return new NoTicks<>();
     }
 
-    /** Nothing on a dry flat floor schedules a tick; one that did would be a silent divergence. */
     private final class NoTicks<T> implements LevelTickAccess<T> {
         @Override
         public boolean willTickThisTick(final BlockPos pos, final T type) {
@@ -525,13 +489,6 @@ public final class StubLevel implements WorldGenLevel {
         }
     }
 
-    /**
-     * A `MinecraftServer` for the entities a structure spawns: a dedicated
-     * server allocated without a constructor, holding only what a mob reaches
-     * through `level().getServer()` while it is built (the debug subscriber
-     * table its path finder consults) and the registries and templates a
-     * later query would ask for.
-     */
     public static MinecraftServer server(
         final net.minecraft.core.LayeredRegistryAccess<net.minecraft.server.RegistryLayer> registries,
         final net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templates
@@ -543,13 +500,6 @@ public final class StubLevel implements WorldGenLevel {
         return server;
     }
 
-    /**
-     * The only thing template placement asks of `getLevel()` is the world seed
-     * (`CappedProcessor.finalizeProcessing`); template entities reach it through
-     * `createEntityIgnoreException`, whose `catch (Exception)` swallows the throws
-     * below, so no entity is ever built. Allocated without running a constructor:
-     * `ServerLevel` has no constructible shape without a server.
-     */
     public static final class SeedOnlyServerLevel extends ServerLevel {
         private SeedOnlyServerLevel(
             final MinecraftServer server,
@@ -583,13 +533,6 @@ public final class StubLevel implements WorldGenLevel {
         }
     }
 
-    /**
-     * A `ServerLevel` for the entities a structure spawns: allocated without a
-     * constructor like the seed-only one, then every method an entity reaches
-     * through `level()` while it is built, finalized and saved is answered from
-     * the stub that owns it. `Level.random` is a final field the constructor
-     * would have set, so it is written by reflection to the placement stream.
-     */
     public static final class StubServerLevel extends ServerLevel {
         private StubLevel owner;
         private MinecraftServer server;
@@ -719,7 +662,6 @@ public final class StubLevel implements WorldGenLevel {
             return this.owner.addFreshEntity(entity);
         }
 
-        /** Sounds and events go to players; there are none, and the sound seed is a random of its own. */
         @Override
         public void playSeededSound(
             final Entity except,
@@ -755,11 +697,6 @@ public final class StubLevel implements WorldGenLevel {
         }
     }
 
-    /**
-     * The structure manager placement sees: every start query is answered with
-     * the start being placed, so a spawn condition asking which structure
-     * stands here (the cat's) reads the placing start and nothing else.
-     */
     private static final class PlacingStartManager extends StructureManager {
         private final StubLevel owner;
 

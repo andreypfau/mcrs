@@ -1,18 +1,10 @@
-//! Tracy shows a frame preview only for frames the client sent an image for, so
-//! the profiler has nothing to draw until the window is read back and handed to
-//! it explicitly.
-
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 
-/// Tracy wants both dimensions divisible by four.
 const WIDTH: u32 = 320;
 
 const HEIGHT: u32 = 180;
 
-/// A readback per frame at window resolution would dominate the very timings
-/// being profiled, so the next capture waits for the one in flight and the
-/// rate settles wherever the readback keeps up.
 #[derive(Resource, Default)]
 pub(super) struct Preview {
     frame: u32,
@@ -51,8 +43,6 @@ fn send(captured: On<ScreenshotCaptured>, mut preview: ResMut<Preview>) {
             scaled.extend_from_slice(&[pixel[0], pixel[1], pixel[2], u8::MAX]);
         }
     }
-    // Tracy pins the image back onto the frame that produced it, which is as
-    // many frames ago as the readback took to land here.
     let delay = captured_at
         .map(|at| preview.frame.wrapping_sub(at))
         .unwrap_or(0);
@@ -65,8 +55,6 @@ fn send(captured: On<ScreenshotCaptured>, mut preview: ResMut<Preview>) {
     );
 }
 
-/// The largest box within `WIDTH` by `HEIGHT` that keeps the window's aspect
-/// ratio, rounded down to what Tracy accepts.
 fn fit(width: u32, height: u32) -> (u32, u32) {
     let (mut out_width, mut out_height) = (width, height);
     if out_width > WIDTH {

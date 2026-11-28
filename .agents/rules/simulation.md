@@ -11,12 +11,9 @@ paths:
 
 ## Dimension sub-apps
 
-Each dimension runs as a Bevy `SubApp` with its own `World`. Immutable registries are cloned in
-once at spawn; mutable per-tick state is pushed every tick through `sub_app.set_extract(...)`.
-That is how `Time<…>` and `WorldClocks` reach dimension systems.
-
-Global mutable state has **one writer in the main app** and reaches sub-worlds as a read-only
-snapshot. A sub-app that advances its own copy diverges silently and per dimension.
+Each dimension runs as a Bevy `SubApp` with its own `World`, held by `SubAppWorld<DimInput, DimOutput>`.
+Data from the main app to a sub-app is a field of `DimInput`. Data from a sub-app to the main app
+is a field of `DimOutput`. Nothing else crosses. That is how `WorldClocks` reaches dimension systems.
 
 ## Determinism
 
@@ -28,16 +25,6 @@ snapshot. A sub-app that advances its own copy diverges silently and per dimensi
   priority, insertion sequence), and the order inside a shard is decided in one replaceable
   ordering policy per domain, so moving to tick-for-tick parity changes that policy, not the
   design. Tick-for-tick fixtures from the game are still recorded as its target.
-- **Shards, not regions.** A simulation partition is a shard: one domain's ownership unit
-  (block updates, redstone, fluids, entities), formed from causally connected work, merged and
-  split dynamically, never a thread. Sections index space; cross-shard effects are messages
-  applied in a stable order. "Region" means only the Anvil region file.
-- **A shard step is a library call, not a Bevy system.** Each domain is a kernel without Bevy:
-  shard state, a world view through a trait the host implements, and inbound messages in; writes
-  and outbound messages out, into caller-owned buffers. The Bevy driver runs every shard of a
-  domain in parallel; a loop, a test or a mod over the game's own chunks drives the same kernel.
-  One shard over the whole world with the reference ordering policy is the exact-parity mode, on
-  the same code path as the sharded one.
 - **Independent of the scheduler:** everything else. The same inputs give the same tick
   regardless of which thread ran first; a conflict between entities is decided by a stable key
   such as arrival order or entity id. Matching the reference's random sequence is not required,
@@ -49,8 +36,9 @@ snapshot. A sub-app that advances its own copy diverges silently and per dimensi
 
 Simulation schedules are tested with ambiguity detection set to error.
 
-## Time
+## Ticks and budgets
 
-- The tick never waits: no `thread::sleep`, no blocking receive, no lock held across a stage.
-- A kernel does not read the wall clock. A deadline that depends on `Instant` makes the result
-  depend on the machine; budget work in items, not in time.
+- **Generation and light results apply at the start of a tick, never between ticks.** Applying
+  them at a wall-clock moment makes the starting world depend on thread timing.
+- **Syncing an unchanged inventory costs at most 3 us per player.** The sync compares slots in
+  place and builds a stack value only to send it.

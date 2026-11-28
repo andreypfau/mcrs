@@ -10,13 +10,12 @@ doctest = false
 [lints]
 workspace = true
 
-# std: mcrs_minecraft_protocol, for the packet ids of the play state
 [dependencies]
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_protocol.workspace = true
 
 [dev-dependencies]
-criterion = { version = "0.7", default-features = false }
+criterion = { workspace = true }
 proptest = "1.11.0"
 
 [[bench]]

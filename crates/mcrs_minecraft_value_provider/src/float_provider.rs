@@ -21,7 +21,6 @@ impl<'de> Deserialize<'de> for FloatProvider {
                 Ok(Self::Constant(value))
             }
             ConstantOrDispatch::Dispatched(dispatched) => {
-                // `UniformFloat` alone refuses an empty span.
                 if let DispatchedFloatProvider::Uniform {
                     min_inclusive,
                     max_exclusive,

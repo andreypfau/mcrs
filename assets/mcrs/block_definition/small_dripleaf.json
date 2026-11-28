@@ -67,6 +67,24 @@
         "components": {
           "minecraft:light_dampening": 0
         }
+      },
+      {
+        "condition": "q.block_state(\u0027half\u0027) \u003d\u003d \u0027lower\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:placement_filter": {
+            "conditions": [
+              {
+                "allowed_faces": [
+                  "up"
+                ],
+                "block_filter": [
+                  "#minecraft:supports_small_dripleaf"
+                ]
+              }
+            ],
+            "tested_directions": "all"
+          }
+        }
       }
     ]
   }

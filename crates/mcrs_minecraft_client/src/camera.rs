@@ -4,14 +4,16 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
-use mcrs_minecraft_client_world::local_player::{Flying, LocalPlayerTick, Sprint};
+use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT};
+use mcrs_minecraft_client_world::local_motion::{self, LocalMotion};
+use mcrs_minecraft_client_world::local_player::{LocalPlayerTick, Sprint};
 use mcrs_minecraft_client_world::player::{Player, look_direction};
-use mcrs_minecraft_engine_world::entity::physics::{
-    OldTransform, Rotation, Transform as PhysicsTransform,
-};
-use mcrs_minecraft_render::CameraOrigin;
+use mcrs_minecraft_client_world::player_view::{ChunkCacheRadius, RequestedViewDistance};
+use mcrs_minecraft_client_world::previous_position::PreviousPosition;
+use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
+use mcrs_minecraft_game_mode::Abilities;
+use mcrs_minecraft_render::{CameraOrigin, RenderDistance};
 
-const STANDING_EYE_HEIGHT: f32 = 1.62;
 const DEFAULT_WALKING_SPEED: f32 = 0.1;
 const BASE_MOVEMENT_SPEED: f32 = 0.1;
 const SPRINT_SPEED_MODIFIER: f32 = 0.3;
@@ -22,52 +24,50 @@ const MIN_ZOOM: f32 = 0.1;
 const MAX_ZOOM: f32 = 1.5;
 const NEAR_PLANE: f32 = 0.05;
 const BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE: f32 = 64.0;
+const CLOUD_RANGE: u8 = 128;
+const BLOCKS_PER_CHUNK_OF_CLOUD_RANGE: f32 = 16.0;
 
-/// Places the first-person camera of the local player in each frame and filters its eye height
-/// and zoom in each tick.
-pub struct CameraPlugin {
-    /// The render distance in chunks; the far plane of the view frustum follows it.
-    pub render_distance: u8,
-    pub fov: FovOptions,
-}
+pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        let far = f32::from(self.render_distance) * BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE;
-        app.insert_resource(self.fov)
+        app.init_resource::<FovOptions>()
+            .insert_resource(RenderDistance(VIEW_DISTANCE_DEFAULT))
             .register_required_components::<Player, Transform>()
-            .add_systems(Startup, move |commands: Commands| {
-                spawn_camera(commands, far)
-            })
+            .add_systems(Startup, spawn_camera)
             .add_systems(FixedUpdate, tick_camera.before(LocalPlayerTick))
             .add_systems(
                 PostUpdate,
-                place_camera
+                (
+                    place_camera,
+                    project_render_distance.run_if(
+                        resource_exists_and_changed::<RequestedViewDistance>
+                            .or_else(any_match_filter::<Changed<ChunkCacheRadius>>),
+                    ),
+                    follow_render_distance.run_if(resource_changed::<RenderDistance>),
+                )
+                    .chain()
                     .before(TransformSystems::Propagate)
                     .before(CameraUpdateSystems),
             );
     }
 }
 
-/// The world camera, at the eye of the local player.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PlayerCamera;
 
-/// The field of view that the user selects, and the scale of the changes that the state of the
-/// player makes to it.
 #[derive(Resource, Debug, Clone, Copy, PartialEq)]
 pub struct FovOptions {
-    /// Degrees, in `[30, 110]`.
     pub fov: u8,
-    /// In `[0, 1]`.
     pub effect_scale: f32,
 }
 
 impl Default for FovOptions {
     fn default() -> Self {
+        let options = ClientOptions::default();
         Self {
-            fov: 70,
-            effect_scale: 1.0,
+            fov: options.fov,
+            effect_scale: options.fov_effect_scale,
         }
     }
 }
@@ -111,8 +111,6 @@ impl ViewFilters {
     }
 }
 
-/// Empty until the first tick or frame that sees a local player, which starts both filters
-/// settled so the first frame of a world is already at the eye and at the target zoom.
 #[derive(Component, Debug, Default)]
 struct CameraFilters(Option<ViewFilters>);
 
@@ -152,7 +150,6 @@ fn target_zoom(motion: Motion, walking_speed: f32, effect_scale: f32) -> f32 {
     1.0 + (modifier - 1.0) * effect_scale
 }
 
-/// Vertical, in degrees.
 #[must_use]
 fn field_of_view(options: FovOptions, zoom: Smoothed, partial_tick: f32) -> f32 {
     f32::from(options.fov) * zoom.at(partial_tick)
@@ -168,56 +165,90 @@ fn orientation(yaw: f32, pitch: f32) -> Quat {
         .rotation
 }
 
-/// The stored yaws are wrapped, so the turn between them is taken the short way round.
 #[must_use]
-fn frame_rotation(previous: Rotation, current: Rotation, partial_tick: f32) -> Quat {
-    let turn = (current.yaw() - previous.yaw() + 180.0).rem_euclid(360.0) - 180.0;
-    let yaw = previous.yaw() + turn * partial_tick;
-    let pitch = previous.pitch() + (current.pitch() - previous.pitch()) * partial_tick;
-    orientation(yaw, pitch)
+fn render_distance(requested: u8, server_radius: i32) -> u8 {
+    match u8::try_from(server_radius) {
+        Ok(radius) if radius > 0 => requested.min(radius),
+        _ => requested,
+    }
 }
 
-fn spawn_camera(mut commands: Commands, far: f32) {
+#[must_use]
+fn far_plane(render_distance: u8) -> f32 {
+    (f32::from(render_distance) * BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE)
+        .max(f32::from(CLOUD_RANGE) * BLOCKS_PER_CHUNK_OF_CLOUD_RANGE)
+}
+
+fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         PlayerCamera,
         CameraFilters::default(),
         Camera3d {
-            // The cull reads the last frame's depth back as a pyramid.
             depth_texture_usages: (TextureUsages::RENDER_ATTACHMENT
                 | TextureUsages::TEXTURE_BINDING)
                 .into(),
             ..default()
         },
-        // The sky pipelines are built for a single sample; multisampling the view would leave
-        // them unable to render into it.
         Msaa::Off,
-        // The default tonemapper needs the `tonemapping_luts` feature, which nothing else here
-        // requires.
         Tonemapping::None,
         Projection::Perspective(PerspectiveProjection {
             fov: f32::from(FovOptions::default().fov).to_radians(),
             near: NEAR_PLANE,
             near_clip_plane: Vec4::new(0.0, 0.0, -1.0, -NEAR_PLANE),
-            far,
+            far: far_plane(VIEW_DISTANCE_DEFAULT),
             ..default()
         }),
     ));
 }
 
+fn project_render_distance(
+    requested: Option<Res<RequestedViewDistance>>,
+    server: Option<Single<&ChunkCacheRadius>>,
+    mut distance: ResMut<RenderDistance>,
+) {
+    let Some(requested) = requested else {
+        return;
+    };
+    distance.set_if_neq(RenderDistance(render_distance(
+        requested.0,
+        server.map_or(0, |radius| radius.0),
+    )));
+}
+
+fn follow_render_distance(
+    distance: Res<RenderDistance>,
+    mut projection: Single<&mut Projection, With<PlayerCamera>>,
+) {
+    let far = far_plane(distance.0);
+    if let Projection::Perspective(perspective) = projection.as_ref()
+        && perspective.far != far
+        && let Projection::Perspective(perspective) = projection.as_mut()
+    {
+        perspective.far = far;
+    }
+}
+
+fn flies(motion: Option<&LocalMotion>) -> bool {
+    motion.is_some_and(|motion| motion.0.flight0)
+}
+
+fn walking_speed(abilities: Option<&Abilities>) -> f32 {
+    abilities.map_or(DEFAULT_WALKING_SPEED, |abilities| abilities.walking_speed)
+}
+
 fn tick_camera(
     options: Res<FovOptions>,
-    player: Single<(Has<Flying>, &Sprint), With<Player>>,
+    player: Single<(Option<&LocalMotion>, Option<&Abilities>, &Sprint), With<Player>>,
     mut filters: Single<&mut CameraFilters, With<PlayerCamera>>,
 ) {
-    let (flying, sprint) = *player;
-    let motion = Motion {
-        flying,
+    let (motion, abilities, sprint) = *player;
+    let eye = local_motion::eye_height(motion);
+    let flight = Motion {
+        flying: flies(motion),
         sprinting: sprint.active,
     };
-    let zoom = target_zoom(motion, DEFAULT_WALKING_SPEED, options.effect_scale);
-    filters
-        .get_or_settle(STANDING_EYE_HEIGHT, zoom)
-        .tick(STANDING_EYE_HEIGHT, zoom);
+    let zoom = target_zoom(flight, walking_speed(abilities), options.effect_scale);
+    filters.get_or_settle(eye, zoom).tick(eye, zoom);
 }
 
 fn place_camera(
@@ -226,8 +257,9 @@ fn place_camera(
     player: Single<
         (
             &PhysicsTransform,
-            &OldTransform,
-            Has<Flying>,
+            &PreviousPosition,
+            Option<&LocalMotion>,
+            Option<&Abilities>,
             &Sprint,
             &mut Transform,
         ),
@@ -239,25 +271,23 @@ fn place_camera(
     >,
     origin: Option<ResMut<CameraOrigin>>,
 ) {
-    let (current, previous, flying, sprint, mut body) = player.into_inner();
+    let (current, previous, motion, abilities, sprint, mut body) = player.into_inner();
     let (mut filters, mut camera, mut projection) = camera.into_inner();
-    let motion = Motion {
-        flying,
+    let flight = Motion {
+        flying: flies(motion),
         sprinting: sprint.active,
     };
     let filters = *filters.get_or_settle(
-        STANDING_EYE_HEIGHT,
-        target_zoom(motion, DEFAULT_WALKING_SPEED, options.effect_scale),
+        local_motion::eye_height(motion),
+        target_zoom(flight, walking_speed(abilities), options.effect_scale),
     );
     let partial_tick = time.overstep_fraction();
 
-    let frame_position = previous
-        .translation
-        .lerp(current.translation, time.overstep_fraction_f64());
+    let frame_position = previous.lerp(current.translation, time.overstep_fraction_f64());
     let eye = frame_position + DVec3::Y * f64::from(filters.eye.at(partial_tick));
     let placed = Transform {
         translation: eye.as_vec3(),
-        rotation: frame_rotation(previous.rotation, current.rotation, partial_tick),
+        rotation: orientation(current.rotation.yaw(), current.rotation.pitch()),
         ..Transform::IDENTITY
     };
     camera.set_if_neq(placed);
@@ -278,9 +308,93 @@ fn place_camera(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::options::ClientOptionsPlugin;
+    use mcrs_minecraft_engine_world::entity::physics::Rotation;
+    use mcrs_minecraft_physics::PlayerState;
+    use mcrs_minecraft_pose::Pose;
+
+    fn camera_far(app: &mut App) -> f32 {
+        let mut cameras = app
+            .world_mut()
+            .query_filtered::<&Projection, With<PlayerCamera>>();
+        match cameras.single(app.world()).unwrap() {
+            Projection::Perspective(perspective) => perspective.far,
+            other => panic!("the player camera has a perspective projection, not {other:?}"),
+        }
+    }
+
+    fn render_distance_of(app: &App) -> u8 {
+        app.world().resource::<RenderDistance>().0
+    }
 
     #[test]
-    fn the_zoom_of_a_player_that_starts_to_sprint_while_flying_halves_its_way_to_the_target() {
+    fn render_distance_and_far_plane_follow_option_capped_by_server() {
+        enum Change {
+            Requested(u8),
+            ServerRadius(i32),
+        }
+        let mut options = ClientOptions::default();
+        options.view_distance = Some(12);
+        let mut app = App::new();
+        app.init_resource::<Time<Fixed>>().add_plugins((
+            ClientOptionsPlugin {
+                options,
+                file: None,
+                gui_scale: None,
+            },
+            CameraPlugin,
+        ));
+        let connection = app.world_mut().spawn(ChunkCacheRadius(10)).id();
+        app.update();
+        assert_eq!(render_distance_of(&app), 10, "o = 12 with v = 10");
+        assert_eq!(
+            camera_far(&mut app),
+            2048.0,
+            "r = 10 is inside the cloud range"
+        );
+
+        for (change, distance, far) in [
+            (Change::Requested(96), 10, 2048.0),
+            (Change::ServerRadius(0), 96, 6144.0),
+            (Change::Requested(40), 40, 2560.0),
+            (Change::ServerRadius(36), 36, 2304.0),
+            (Change::Requested(2), 2, 2048.0),
+        ] {
+            match change {
+                Change::Requested(columns) => {
+                    app.world_mut()
+                        .resource_mut::<ClientOptions>()
+                        .map_unchanged(|options| &mut options.view_distance)
+                        .set_if_neq(Some(columns));
+                }
+                Change::ServerRadius(radius) => {
+                    app.world_mut()
+                        .entity_mut(connection)
+                        .insert(ChunkCacheRadius(radius));
+                }
+            }
+            app.update();
+            assert_eq!(render_distance_of(&app), distance);
+            assert_eq!(camera_far(&mut app), far);
+        }
+    }
+
+    #[test]
+    fn without_client_options_the_render_distance_and_the_far_plane_keep_the_default() {
+        let mut app = App::new();
+        app.init_resource::<Time<Fixed>>().add_plugins(CameraPlugin);
+        app.world_mut().spawn(ChunkCacheRadius(4));
+        app.update();
+        assert_eq!(render_distance_of(&app), VIEW_DISTANCE_DEFAULT);
+        assert_eq!(
+            camera_far(&mut app),
+            6144.0,
+            "the default render distance is 96"
+        );
+    }
+
+    #[test]
+    fn zoom_halves_its_way_to_target_when_sprint_starts_while_flying() {
         let options = FovOptions::default();
         let flying = Motion {
             flying: true,
@@ -295,11 +409,11 @@ mod tests {
         assert!((start - 1.1).abs() < 1e-6, "flying alone is {start}");
         let target = target_zoom(sprinting, walking_speed, options.effect_scale);
         let mut filters = ViewFilters {
-            eye: Smoothed::settled(STANDING_EYE_HEIGHT),
+            eye: Smoothed::settled(local_motion::eye_height(None)),
             zoom: Smoothed::settled(start),
         };
         for expected in [82.775, 85.6625, 87.10625, 87.828125, 88.18906] {
-            filters.tick(STANDING_EYE_HEIGHT, target);
+            filters.tick(local_motion::eye_height(None), target);
             let fov = f32::from(options.fov) * filters.zoom.current;
             assert!((fov - expected).abs() < 1e-4, "{fov} != {expected}");
         }
@@ -308,6 +422,22 @@ mod tests {
             (between - 87.918_36).abs() < 1e-3,
             "a quarter of the way from 87.828125 to 88.18906 is {between}"
         );
+    }
+
+    #[test]
+    fn the_eye_filter_moves_half_of_the_way_to_the_eye_height_of_a_crouch() {
+        let mut state = PlayerState::default();
+        let standing = local_motion::eye_height(Some(&LocalMotion(state)));
+        state.pose = Pose::Crouching;
+        let crouching = local_motion::eye_height(Some(&LocalMotion(state)));
+        let mut eye = Smoothed::settled(standing);
+        for expected in [0.175, 0.0875, 0.04375] {
+            eye.approach(crouching);
+            let step = eye.previous - eye.current;
+            assert!((step - expected).abs() < 1e-5, "{step} != {expected}");
+        }
+        state.attributes.scale = 2.0;
+        assert_eq!(local_motion::eye_height(Some(&LocalMotion(state))), 2.54);
     }
 
     #[test]
@@ -321,7 +451,7 @@ mod tests {
             (45.0, -90.0),
         ] {
             let rotation = Rotation::new(yaw, pitch);
-            let view = frame_rotation(rotation, rotation, 0.5) * Vec3::NEG_Z;
+            let view = orientation(rotation.yaw(), rotation.pitch()) * Vec3::NEG_Z;
             let facing = look_direction(yaw, pitch);
             assert!(
                 view.abs_diff_eq(facing, 1e-5),

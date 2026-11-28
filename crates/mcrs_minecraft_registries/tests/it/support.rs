@@ -51,7 +51,6 @@ impl RegistryValue for Damage {
     type Registry = DamageType;
 }
 
-/// A registry whose values the tests never look into.
 macro_rules! opaque_registries {
     ($($name:ident = $key:literal),+ $(,)?) => {$(
         #[derive(Debug, Clone, PartialEq)]
@@ -102,7 +101,6 @@ impl RegistryValue for Enchant {
     type Registry = Enchantment;
 }
 
-// `preferred` drops a name it cannot resolve, so a miss the value recovers from can be observed.
 impl Resolve for Enchant {
     type Named = NamedEnchant;
 

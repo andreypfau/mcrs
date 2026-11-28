@@ -2,16 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
+| Version | see `assets/minecraft/version.json` |
 | Format reference | Bedrock resource pack, `Mojang/bedrock-samples` `1.26.60.5` |
-
-Source of the game values: `assets/minecraft/version.json`.
 
 This document states how the client reads a client entity file and a render controller file.
 It states how the client selects the client entity of an entity, runs its scripts, and selects
 the geometry, the materials, the textures and the visible bones for a draw. The file formats
-are those of the Bedrock resource pack. The document does not prescribe an architecture.
+are those of the Bedrock resource pack.
 
 ## 0. Conventions
 
@@ -33,7 +30,7 @@ are added:
 
 The labels of `registry.md`, section 0.3, and the label `design` of `entity-geometry.md`,
 section 0.2, apply. The kinds of rule are those of `README.md`, section "Semantics, not
-accidents". The milestones are those of `entity-geometry.md`, section 0.2.
+accidents".
 
 ### 0.3 ID prefixes
 
@@ -45,19 +42,6 @@ accidents". The milestones are those of `entity-geometry.md`, section 0.2.
 | `CENT-SCR` | scripts |
 | `CENT-RC` | render controllers |
 | `CENT-DEV` | intentional deviations |
-
-### 0.4 Scope
-
-In scope: the client entity file, the render controller file, the order of the scripts in a
-frame, and the selection of the parts of a draw.
-
-Out of scope: the geometry (`entity-geometry.md`), the clips and the controllers
-(`entity-animation.md`), the Molang language (`molang.md`), the queries
-(`molang-queries.md`), the hurt colour and the light of a draw (`client-entity-render.md`), and
-the values of a specified mob (for example `mob-pig.md`). Attachables, held items, armour,
-spawn eggs and particle emitters are out of scope.
-
----
 
 ## 1. The client entity file
 
@@ -86,8 +70,7 @@ spawn eggs and particle emitters are out of scope.
      client removes the short name from its map.
 - **Postconditions:** each map of the client entity contains only references that resolve.
 
-Provenance: `documentation`; `design` for 4. Kind: semantic. Confidence: high. Milestone: 1;
-2 for `animations` entries that name a controller.
+Provenance: `documentation`; `design` for 4. Kind: semantic. Confidence: high.
 
 ### CENT-FILE-002: Several definitions of one entity type
 
@@ -104,7 +87,6 @@ Provenance: `documentation`; `design` for 4. Kind: semantic. Confidence: high. M
 - **Postconditions:** each entity type has at most one client entity.
 
 Provenance: `documentation` for 1; `design` for 2 to 4. Kind: semantic. Confidence: medium.
-Milestone: 1.
 
 ### CENT-FILE-003: Texture paths
 
@@ -119,7 +101,7 @@ Milestone: 1.
 - **Postconditions:** each texture short name has an image.
 
 Provenance: `design` for 1 and 3; `documentation` for the form of 2. Kind: semantic.
-Confidence: high. Milestone: 1.
+Confidence: high.
 
 ### CENT-FILE-004: Legacy controllers
 
@@ -132,7 +114,7 @@ Confidence: high. Milestone: 1.
 - **Postconditions:** the legacy form and the current form give the same play list.
 
 Provenance: `documentation` for 1; `unresolved` for the order of 2. Kind: semantic.
-Confidence: low. Milestone: later.
+Confidence: low.
 
 ---
 
@@ -149,7 +131,6 @@ Confidence: low. Milestone: later.
 - **Postconditions:** none.
 
 Provenance: `design`. Kind: unspecified for 2; semantic for 1 and 3. Confidence: high.
-Milestone: 1.
 
 ### CENT-SEL-002: Variants
 
@@ -165,7 +146,7 @@ Milestone: 1.
      `query.variant` is a number, as in Bedrock.
 - **Postconditions:** a new variant needs no change to the client code. It needs only data.
 
-Provenance: `design`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -187,8 +168,7 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Milestone: 1.
 - **Postconditions:** each material has one render type.
 
 Provenance: `design` (the vanilla Bedrock resource pack contains no material definitions; the
-names are engine names). Kind: semantic. Confidence: medium. Milestone: 1 for cutout; later for
-the others.
+names are engine names). Kind: semantic. Confidence: medium.
 
 ### CENT-MAT-002: Render types
 
@@ -204,8 +184,7 @@ the others.
 - **Postconditions:** none.
 
 Provenance: `design`; the constants of the row cutout are stated in `client-entity-render.md`
-with their provenance. Kind: semantic. Confidence: medium. Milestone: 1 for cutout; later for
-the others.
+with their provenance. Kind: semantic. Confidence: medium.
 
 ---
 
@@ -229,7 +208,7 @@ the others.
 
 - **Postconditions:** none.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### CENT-SCR-002: Script arrays are one program
 
@@ -242,7 +221,7 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** a block can start in one string and end in a later string.
 
 Provenance: `documentation` (vanilla Bedrock zombie: a block opens in one entry of
-`pre_animation` and closes in a later entry). Kind: semantic. Confidence: high. Milestone: 1.
+`pre_animation` and closes in a later entry). Kind: semantic. Confidence: high.
 
 ### CENT-SCR-003: Order of a frame
 
@@ -261,8 +240,7 @@ Provenance: `documentation` (vanilla Bedrock zombie: a block opens in one entry 
 - **Postconditions:** a render controller sees the variables that `pre_animation` set in the
   same frame.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1; 2 for controllers
-in `animate`.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### CENT-SCR-004: Scale
 
@@ -278,7 +256,7 @@ in `animate`.
 - **Postconditions:** none.
 
 Provenance: `documentation`; `design` for the product in 1. Kind: semantic. Confidence:
-medium. Milestone: 1.
+medium.
 
 ### CENT-SCR-005: Entities that are not visible
 
@@ -295,7 +273,7 @@ medium. Milestone: 1.
 - **Postconditions:** an entity that comes into the view has the pose of the current frame.
 
 Provenance: `documentation` for 1 and 3; `design` for 2 and 4. Kind: semantic. Confidence:
-medium. Milestone: 1.
+medium.
 
 ### CENT-SCR-006: Evaluation only when the inputs change
 
@@ -320,7 +298,7 @@ medium. Milestone: 1.
   resources are the same as with an evaluation in each frame.
 
 Provenance: `design`. Kind: semantic for the result; unspecified for the frames of the
-evaluation. Confidence: medium. Milestone: 1.
+evaluation. Confidence: medium.
 
 ---
 
@@ -361,7 +339,7 @@ evaluation. Confidence: medium. Milestone: 1.
 
 Provenance: `documentation`; `design` for 5 to 7 (a shared change from rest keeps a saddle on
 the body when the two geometries have different rest rotations). Kind: semantic. Confidence:
-high. Milestone: 1.
+high.
 
 ### CENT-RC-002: Resource expressions and arrays
 
@@ -387,7 +365,7 @@ high. Milestone: 1.
 - **Postconditions:** each resource expression gives one resource in each frame. A texture can also come from a string expression (CENT-RC-007).
 
 Provenance: `documentation`; `design` for the value that is not finite and for 6 to 8. Kind:
-semantic. Confidence: high. Milestone: 1.
+semantic. Confidence: high.
 
 ### CENT-RC-003: Textures of a layer
 
@@ -399,7 +377,6 @@ semantic. Confidence: high. Milestone: 1.
 - **Postconditions:** none.
 
 Provenance: `documentation` for 1; `design` for 2. Kind: semantic. Confidence: high.
-Milestone: 1.
 
 ### CENT-RC-007: Textures from registry data
 
@@ -429,7 +406,7 @@ Milestone: 1.
 - **Postconditions:** a variant entry or an equippable item that a data pack adds gets its
   texture with no change to the client entity files and no change to the client code.
 
-Provenance: `design`. Kind: semantic. Confidence: medium. Milestone: 1.
+Provenance: `design`. Kind: semantic. Confidence: medium.
 
 ### CENT-RC-004: Materials of a layer
 
@@ -445,7 +422,7 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Milestone: 1.
 - **Postconditions:** each bone has at most one material in a layer.
 
 Provenance: `documentation` for 1 and 2; `design` for the letter case (CENT-DEV-002) and for 3.
-Kind: semantic. Confidence: medium. Milestone: 1.
+Kind: semantic. Confidence: medium.
 
 ### CENT-RC-005: Visible bones
 
@@ -459,7 +436,7 @@ Kind: semantic. Confidence: medium. Milestone: 1.
   4. A hidden bone is `entity-geometry.md`, EGEO-POSE-002.
 - **Postconditions:** none.
 
-Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
+Provenance: `documentation`. Kind: semantic. Confidence: high.
 
 ### CENT-RC-006: Colours of a layer
 
@@ -482,8 +459,8 @@ Provenance: `documentation`. Kind: semantic. Confidence: high. Milestone: 1.
 
 Provenance: `documentation`; item 6: `documentation` (the keyword `this`: "the current value
 that this expression will ultimately write to"); bedrock-samples uses `this` in these
-channels. Kind: semantic. Confidence: medium. Milestone: later. In
-milestone 1, the colours of `client-entity-render.md` apply to all layers.
+channels. Kind: semantic. Confidence: medium. The colours of
+`client-entity-render.md` apply to all layers.
 
 ---
 

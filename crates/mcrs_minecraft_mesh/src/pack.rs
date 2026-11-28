@@ -62,14 +62,10 @@ pub const FACE_SPRITE: Field = Field::new(0, 15, 16);
 pub const FACE_BLOCK_LIGHT: Field = Field::new(1, 0, 4 * FACE_LIGHT_CORNER_BITS);
 pub const FACE_SKY_LIGHT: Field = Field::new(2, 0, 4 * FACE_LIGHT_CORNER_BITS);
 pub const FACE_TINT: Field = Field::new(1, 24, 6);
-/// The bits of the cube face's `UvOrientation`.
 pub const FACE_UV: Field = Field::new(2, 24, 3);
 
-/// A full cube face's occlusion is one of five vanilla bytes, `255 - 51 * code`.
 pub const FACE_AO_CORNER_BITS: u32 = 3;
 
-/// A full cube face's smooth light is the mean of four whole levels, so a quarter level is its
-/// finest step and a corner stores it in quarter levels.
 pub const FACE_LIGHT_CORNER_BITS: u32 = 6;
 
 pub const FACE_WORDS: usize = 3;
@@ -80,8 +76,6 @@ pub const MODEL_Z: Field = Field::new(0, 20, 10);
 pub const MODEL_U: Field = Field::new(1, 0, 10);
 pub const MODEL_V: Field = Field::new(1, 10, 10);
 pub const MODEL_BLOCK_LIGHT: Field = Field::new(1, 20, 8);
-/// A model vertex has no six free bits in one word, so its tint is split: the low four bits
-/// here and the high two in `MODEL_TINT_HIGH`.
 pub const MODEL_TINT: Field = Field::new(1, 28, 4);
 pub const MODEL_TINT_HIGH: Field = Field::new(0, 30, 2);
 pub const MODEL_SHADE: Field = Field::new(2, 16, 8);
@@ -90,8 +84,6 @@ pub const MODEL_SPRITE: Field = Field::new(2, 0, FACE_SPRITE.bits);
 
 pub const MODEL_OVERHANG: f32 = 2.0;
 
-/// A group's box in whole blocks from its section's corner, raised by `MODEL_OVERHANG` so a
-/// model leaning out of its section still lands inside the field.
 pub const BOUNDS_LO_X: Field = Field::new(0, 0, 5);
 pub const BOUNDS_LO_Y: Field = Field::new(0, 5, 5);
 pub const BOUNDS_LO_Z: Field = Field::new(0, 10, 5);
@@ -184,17 +176,45 @@ const COUNTS: &[(&str, u32)] = &[
 ];
 
 #[cfg(test)]
+struct LayoutField {
+    name: &'static str,
+    ty: &'static str,
+}
+
+#[cfg(test)]
+const GROUP_FIELDS: &[LayoutField] = &[
+    LayoutField {
+        name: "quad_base",
+        ty: "u32",
+    },
+    LayoutField {
+        name: "quad_count",
+        ty: "u32",
+    },
+    LayoutField {
+        name: "section",
+        ty: "u32",
+    },
+    LayoutField {
+        name: "face",
+        ty: "u32",
+    },
+    LayoutField {
+        name: "bounds",
+        ty: "u32",
+    },
+];
+
+#[cfg(test)]
 fn wgsl_fields() -> String {
-    let mut out = String::from(
-        "// Generated from the field table in pack.rs. `cargo test -p \
-mcrs_minecraft_client`\n// checks it; `MCRS_BLESS=1 cargo test -p mcrs_minecraft_client` \
-rewrites it.\n",
-    );
+    let mut out = String::new();
     let mut group = "";
     for (name, field) in GROUPS.iter().flat_map(|(_, fields)| fields.iter()) {
         let prefix = name.split_once('_').map_or(*name, |(head, _)| head);
         if prefix != group {
-            out.push('\n');
+            if !group.is_empty() {
+                out.push('\n');
+            }
             group = prefix;
         }
         out.push_str(&format!("const {name}_WORD: u32 = {}u;\n", field.word));
@@ -221,7 +241,40 @@ rewrites it.\n",
         fixed.len(),
         colors.join(", ")
     ));
+    out.push_str("\nstruct Group {\n");
+    for field in GROUP_FIELDS {
+        out.push_str(&format!("    {}: {},\n", field.name, field.ty));
+    }
+    out.push_str("}\n");
     out
+}
+
+#[cfg(test)]
+fn rust_group() -> String {
+    let mut out = String::from(
+        "#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]\n\
+#[repr(C)]\npub struct Group {\n",
+    );
+    for field in GROUP_FIELDS {
+        out.push_str(&format!("    pub {}: {},\n", field.name, field.ty));
+    }
+    out.push_str("}\n");
+    out
+}
+
+#[cfg(test)]
+fn bless_or_check(path: &std::path::Path, generated: &str) {
+    if std::env::var("MCRS_BLESS").is_ok_and(|value| value == "1") {
+        std::fs::write(path, generated).expect("cannot rewrite the generated file");
+        return;
+    }
+    let checked_in = std::fs::read_to_string(path).unwrap_or_default();
+    assert_eq!(
+        checked_in,
+        generated,
+        "{} is stale; rerun with MCRS_BLESS=1 to rewrite it",
+        path.display()
+    );
 }
 
 #[cfg(test)]
@@ -231,19 +284,16 @@ mod tests {
 
     #[test]
     fn the_generated_field_header_matches_the_field_table() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../mcrs_minecraft_render/src/shaders/include/fields.wesl");
-        let generated = wgsl_fields();
-        if std::env::var("MCRS_BLESS").is_ok() {
-            std::fs::write(&path, &generated).expect("cannot rewrite the generated header");
-            return;
-        }
-        let checked_in = std::fs::read_to_string(&path).unwrap_or_default();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        bless_or_check(
+            &root.join("../mcrs_minecraft_render/src/shaders/include/fields.wesl"),
+            &wgsl_fields(),
+        );
+        bless_or_check(&root.join("src/group.rs"), &rust_group());
         assert_eq!(
-            checked_in,
-            generated,
-            "{} is stale; rerun with MCRS_BLESS=1 to rewrite it",
-            path.display()
+            std::mem::size_of::<crate::Group>(),
+            GROUP_FIELDS.len() * std::mem::size_of::<u32>(),
+            "Group size must match GROUP_FIELDS"
         );
     }
 

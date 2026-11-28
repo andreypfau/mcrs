@@ -5,10 +5,6 @@ use crate::reply::Reply;
 use crate::stage::Stage;
 use crate::task_end::TaskOutcome;
 
-/// A far end on a thread of its own. It blocks until an input or a task outcome arrives, takes
-/// in everything that waits, steps the stage and sends the outputs.
-///
-/// It stops once the near end is gone: the inputs disconnect, or a reply finds nobody.
 pub(crate) struct ThreadEnd<S: Stage> {
     end: InlineEnd<S>,
     inputs: Receiver<S::Input>,
@@ -81,10 +77,8 @@ impl<S: Stage> ThreadEnd<S> {
             self.replies.send(Reply::Output(output))?;
         }
         if emitted && let Some(wake) = &self.wake {
-            // A full channel already holds a wake, and a closed one has nobody to wake.
             let _ = wake.try_send(());
         }
-        // After the outputs, so the near end holds them by the time it counts the inputs answered.
         if self.seen != self.reported && self.end.is_idle() {
             self.replies.send(Reply::Answered { seen: self.seen })?;
             self.reported = self.seen;

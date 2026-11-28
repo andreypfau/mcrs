@@ -11,9 +11,11 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_nbt.workspace = true
 mcrs_engine_link.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_save.workspace = true
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_engine_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_assets.workspace = true
@@ -36,9 +38,9 @@ bevy_time.workspace = true
 bytes.workspace = true
 rand.workspace = true
 thiserror.workspace = true
+tokio = { version = "1.48.0", default-features = false, features = ["sync"] }
 tracing.workspace = true
 
-# Without this a build of the server alone runs every schedule and `par_iter` on one thread.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
@@ -48,6 +50,7 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_fixtures.workspace = true
 tokio.workspace = true
+bevy_tasks.workspace = true
 
 [features]
 default = ["client-jar"]

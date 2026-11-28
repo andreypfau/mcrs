@@ -10,13 +10,8 @@ use crate::reply::Reply;
 use crate::stage::Stage;
 use crate::thread_end::ThreadEnd;
 
-/// The near end of the connection to a [`Stage`]: the inputs go in, the outputs come out.
-///
-/// The near end sends inputs during its tick and takes the outputs at a point of its choice,
-/// such as the start of the next tick. Dropping the link stops the far end.
 pub struct Link<S: Stage> {
     far: FarEnd<S>,
-    /// Outputs taken off the far end and not handed out yet, oldest first.
     held: VecDeque<S::Output>,
     sent: u64,
     answered: u64,
@@ -33,15 +28,10 @@ struct ThreadLink<S: Stage> {
 }
 
 impl<S: Stage> Link<S> {
-    /// Places `stage` as `placement` asks. A stage whose thread does not start answers nothing,
-    /// as a stopped far end.
     pub fn new(stage: S, placement: Placement) -> Self {
         Self::place(stage, placement, None)
     }
 
-    /// As [`Self::new`], and a far end on a thread of its own sends `wake` a message each time
-    /// it hands out outputs, so that the near end can block on a channel of its choice until
-    /// they arrive. An inline far end runs only when the near end asks, so it never wakes.
     pub fn new_with_wake(stage: S, placement: Placement, wake: Sender<()>) -> Self {
         Self::place(stage, placement, Some(wake))
     }
@@ -63,7 +53,6 @@ impl<S: Stage> Link<S> {
         match &mut self.far {
             FarEnd::Inline(end) => end.receive(input),
             FarEnd::Thread(link) => {
-                // Fails only once the far end has stopped, and then no answer comes back to wait for.
                 if link.inputs.send(input).is_err() {
                     return;
                 }
@@ -72,8 +61,6 @@ impl<S: Stage> Link<S> {
         self.sent = self.sent.wrapping_add(1);
     }
 
-    /// Takes in what the far end has sent so far, so that [`Self::is_answered`] counts it,
-    /// and holds the outputs for [`Self::outputs`]. An inline far end runs here.
     fn take_in(&mut self) {
         match &mut self.far {
             FarEnd::Inline(end) => {
@@ -93,9 +80,6 @@ impl<S: Stage> Link<S> {
         }
     }
 
-    /// Waits until the far end owes no output for any input sent, and holds the outputs that
-    /// arrive meanwhile for [`Self::outputs`]. An inline far end runs here until its stage is
-    /// idle or cannot make progress. It resolves at once when the far end has stopped.
     pub async fn answered(&mut self) {
         loop {
             self.take_in();
@@ -112,22 +96,25 @@ impl<S: Stage> Link<S> {
         }
     }
 
-    /// Takes in what the far end has sent, and hands out every output not handed out yet, in
-    /// the order the stage emitted them.
     pub fn outputs(&mut self) -> Drain<'_, S::Output> {
         self.take_in();
         self.held.drain(..)
     }
 
-    /// Whether the far end owes no output for any input sent, as far as the outputs taken in
-    /// tell.
+    #[must_use]
+    pub fn has_replies(&self) -> bool {
+        !self.held.is_empty()
+            || match &self.far {
+                FarEnd::Inline(_) => !self.is_answered(),
+                FarEnd::Thread(link) => !link.replies.is_empty(),
+            }
+    }
+
     #[must_use]
     pub fn is_answered(&self) -> bool {
         self.answered == self.sent
     }
 
-    /// The stage, when it runs [`Placement::Inline`]. A stage on a thread of its own is out of
-    /// reach of the near end.
     #[must_use]
     pub fn inline_stage(&self) -> Option<&S> {
         match &self.far {
@@ -152,7 +139,6 @@ fn spawn<S: Stage>(stage: S, wake: Option<Sender<()>>) -> FarEnd<S> {
         .name(S::NAME.to_owned())
         .spawn(move || end.run());
     if let Err(error) = spawned {
-        // The channels of the stage are gone with it, so the link acts as a stopped far end.
         tracing::error!(%error, stage = S::NAME, "the stage thread did not start");
     }
     FarEnd::Thread(ThreadLink { inputs, replies })
@@ -167,8 +153,6 @@ mod tests {
     use crate::step::Step;
     use crate::task_end::TaskOutcome;
 
-    /// Doubles each even input on a thread of a task, and drops the task of each odd input
-    /// unfinished.
     #[derive(Default)]
     struct Doubler {
         inputs: Vec<u8>,
@@ -260,8 +244,6 @@ mod tests {
 
         drop(link);
 
-        // The thread holds the only sender of the replies, so the channel disconnects once the
-        // thread has ended.
         assert!(
             replies.recv().is_err(),
             "the thread replied with nothing sent to it"

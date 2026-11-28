@@ -4,40 +4,26 @@ use mcrs_minecraft_bedrock_wire::{
     BedrockDecode, BedrockEncode, Error, NetworkSignedBlockPos, VarI32, decode_items,
 };
 
-/// One block action, the part of input flag 35 of [`PlayerAuthInput`](crate::PlayerAuthInput).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum BlockAction {
-    /// An action that carries a position and a face.
     Targeted {
-        /// The action.
         action: TargetedBlockAction,
-        /// The block.
         position: NetworkSignedBlockPos,
-        /// The face of the block.
         face: VarI32,
     },
-    /// An action that carries no position and no face.
     Untargeted(UntargetedBlockAction),
 }
 
-/// A block action that carries a position and a face.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TargetedBlockAction {
-    /// Action 0.
     StartDestroy,
-    /// Action 1.
     AbortDestroy,
-    /// Action 18.
     CrackBlock,
-    /// Action 26.
     PredictDestroy,
-    /// Action 27.
     ContinueDestroy,
 }
 
-/// A block action value that carries no position and no face: any value that is not a
-/// [`TargetedBlockAction`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct UntargetedBlockAction(i32);
 
@@ -65,10 +51,8 @@ impl TargetedBlockAction {
 }
 
 impl UntargetedBlockAction {
-    /// Action 2: stop destroy block.
     pub const STOP_DESTROY: Self = Self(2);
 
-    /// The action, or `None` when the value is a [`TargetedBlockAction`].
     #[must_use]
     pub const fn new(action: i32) -> Option<Self> {
         match TargetedBlockAction::from_wire_id(action) {
@@ -77,7 +61,6 @@ impl UntargetedBlockAction {
         }
     }
 
-    /// The action value.
     #[must_use]
     pub const fn get(self) -> i32 {
         self.0

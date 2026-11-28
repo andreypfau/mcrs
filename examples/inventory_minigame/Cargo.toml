@@ -1,0 +1,36 @@
+[package]
+name = "mcrs_minecraft_inventory_minigame"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+test = false
+doctest = false
+
+[[bin]]
+name = "mcrs_minecraft_inventory_minigame"
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+mcrs_minecraft_engine_inventory_menu.workspace = true
+mcrs_minecraft_engine_item.workspace = true
+mcrs_minecraft_inventory_file.workspace = true
+mcrs_minecraft_inventory_menu.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_menu_key.workspace = true
+mcrs_minecraft_text.workspace = true
+mcrs_minecraft_vanilla_inventory.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_engine_world.workspace = true
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"

@@ -10,7 +10,6 @@ use crate::attribute_value::{AttributeValue, Interpolation, channels, read_float
 use crate::kind::AttributeType;
 use crate::mob_spawns::MobSpawnSettings;
 
-/// A modifier: how an argument changes the value of the layers below it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Operation {
     Override,
@@ -73,8 +72,6 @@ impl Operation {
         }
     }
 
-    /// The kind of argument the modifier takes on an attribute of `kind`, or `None` when the
-    /// type does not accept the modifier.
     #[must_use]
     pub fn argument_kind(self, kind: AttributeType) -> Option<ArgumentKind> {
         use AttributeType as T;
@@ -102,7 +99,6 @@ impl Operation {
         })
     }
 
-    /// The modifier applied to `subject`, or `None` when the argument does not fit it.
     #[must_use]
     pub fn apply(self, subject: &AttributeValue, argument: &Argument) -> Option<AttributeValue> {
         use AttributeValue as V;
@@ -163,18 +159,13 @@ impl FromStr for Operation {
     }
 }
 
-/// The shape of the argument a modifier takes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArgumentKind {
-    /// A value of the given type.
     Value(AttributeType),
-    /// A float `value` and an `alpha` in `[0, 1]`.
     FloatBlend,
-    /// A `brightness` and a `factor`, both in `[0, 1]`.
     Gray,
 }
 
-/// The argument of one modifier.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Argument {
     Value(AttributeValue),
@@ -192,7 +183,6 @@ fn unit(name: &str, tag: Option<&NbtTag>) -> Result<f32, String> {
 }
 
 impl Argument {
-    /// Reads an argument of `kind`. A value is not checked against a range here.
     pub fn read(kind: ArgumentKind, tag: &NbtTag) -> Result<Argument, String> {
         match (kind, tag) {
             (ArgumentKind::Value(kind), tag) => {
@@ -218,7 +208,6 @@ impl Argument {
         }
     }
 
-    /// The interpolation of a track's arguments between two keyframes.
     #[must_use]
     pub fn interpolate(
         operation: Operation,

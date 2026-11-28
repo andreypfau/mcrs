@@ -5,6 +5,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::{build_settings_router, carvers_of, corpus};
@@ -56,8 +57,6 @@ fn stone_column() -> (ColumnBlocks, VoxelId, VoxelId) {
 }
 
 fn ids() -> ModernCarverBlockIds {
-    // No tag registry in a unit test, so the uncarvable set is supplied the
-    // way the tag would: bedrock's states.
     ModernCarverBlockIds::for_test(vec![
         corpus()
             .default_state("minecraft:bedrock")
@@ -67,8 +66,6 @@ fn ids() -> ModernCarverBlockIds {
     ])
 }
 
-/// A tile of sources is filled in one pass over a strided volume; every
-/// source in it has to run the carvers a single-point evaluation resolves to.
 #[test]
 fn the_tiled_sources_match_point_sampling() {
     let router = build_settings_router("overworld", 12345);
@@ -90,10 +87,7 @@ fn the_tiled_sources_match_point_sampling() {
 }
 
 #[test]
-#[expect(
-    clippy::excessive_nesting,
-    reason = "checks each carved cell of the sections against bedrock at and below Y -60 and skips the stone, so a miss names its height"
-)]
+#[expect(clippy::excessive_nesting, reason = "a miss names its height")]
 fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     let router = build_settings_router("overworld", 12345);
     let table = CarverBiomeTable::from_climate(Preset::Overworld.parameter_list(), carvers_of);
@@ -104,6 +98,7 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     let mut carved_columns = 0;
     for chunk_x in 0..3 {
         let (column, stone, bedrock) = stone_column();
+        let mut cells = AquiferCells::default();
         apply_modern_carvers(
             &column,
             chunk_x,
@@ -114,10 +109,11 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
             &table,
             overworld_height(),
             &block_ids,
-            &mut column_fluid_field(&router, chunk_x * 16, 0),
+            &mut column_fluid_field(&router, &mut cells, chunk_x * 16, 0),
         );
 
-        let mut oracle = column_fluid_field(&router, chunk_x * 16, 0);
+        let mut oracle_cells = AquiferCells::default();
+        let mut oracle = column_fluid_field(&router, &mut oracle_cells, chunk_x * 16, 0);
         let mut oracle_ws = Workspace::new();
         let mut barrier = point_barrier(&router, &mut oracle_ws);
         let mut freed = 0;
@@ -157,7 +153,6 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     assert!(carved_columns > 0, "three chunks carved nothing at all");
 }
 
-/// The carvers every biome runs, indexed by biome number.
 fn carvers_by_biome() -> (&'static super::Biomes, Vec<Arc<[CarverConfig]>>) {
     let biomes = super::corpus_biomes();
     (biomes, (0..biomes.len()).map(super::carver_list).collect())
@@ -193,7 +188,6 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
     assert_eq!(wastes.len(), 1, "the nether wastes run one carver");
     assert!(matches!(wastes[0], CarverConfig::Cave { .. }));
 
-    // A source that lists its biomes instead of naming a preset.
     let point = Parameter::point(0.0);
     let explicit = of_entries(vec![(
         ParameterPoint {
@@ -210,8 +204,6 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
     .expect("an explicit list resolves");
     assert_eq!(explicit.entry_count(), 1);
 
-    // A biome with no carvers resolves to an empty list rather than to the
-    // wrong one.
     let empty = of_entries(vec![(
         ParameterPoint {
             temperature: point,
@@ -234,8 +226,6 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
     );
 }
 
-/// A Beta source runs the carvers of the land biome the palette gives the
-/// source chunk's first cell.
 #[test]
 fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     use glam::IVec3;
@@ -251,7 +241,6 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     let cave: serde_json::Value =
         serde_json::from_slice(&std::fs::read(worldgen_dir().join("carver/cave.json")).unwrap())
             .unwrap();
-    // A marker per land biome: a cave whose probability is the biome's index.
     let table = CarverBiomeTable::beta(&source, |biome| {
         let index = land_biomes.iter().position(|id| *id == biome).unwrap();
         let mut config = cave.clone();

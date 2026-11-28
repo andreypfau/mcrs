@@ -1,9 +1,10 @@
 use crate::{Tree, context, source};
 use mcrs_minecraft_chat::normalize;
 use mcrs_minecraft_chat_client::{
-    Anchor, ChatScreen, ClickMode, Closed, EditBox, History, HistoryChange, InputStyle, Key,
-    Outcome, Outgoing, Signing, Step, StyleClick, UnsentDraft, keeps_draft,
+    ChatScreen, ClickMode, Closed, History, HistoryChange, InputStyle, Key, Outcome, Outgoing,
+    Signing, StyleClick, UnsentDraft, keeps_draft,
 };
+use mcrs_minecraft_client_widget::{Anchor, EditBoxFrame, EditBoxPart, GuiRect, Step};
 use mcrs_minecraft_protocol_game::text::ClickEvent;
 
 #[test]
@@ -29,12 +30,46 @@ fn normalization_trims_and_collapses_whitespace() {
 
 #[test]
 fn the_input_box_rejects_section_signs_and_control_codes_and_holds_256_characters() {
-    let mut edit = EditBox::default();
+    let mut edit = ChatScreen::default().edit().clone();
     edit.insert("a\u{a7}b\u{7f}c\nd");
     assert_eq!(edit.text(), "abcd");
     edit.set("");
     edit.insert(&"\u{1f600}".repeat(300));
     assert_eq!(edit.text().chars().count(), 256);
+}
+
+#[test]
+fn pointer_click_drag_and_double_click_select_chat_input() {
+    let tree = Tree::new().build();
+    let source = source();
+    let cx = context(&tree, &source);
+    let mut screen = ChatScreen::default();
+    let rect = GuiRect::new(4, 0, 30, 12);
+    let width = |text: &str| text.chars().count() as i32;
+    screen.open("foo bar", InputStyle::Plain, 0, &cx);
+
+    screen.click_input(rect, 5.0, Anchor::Move, &width);
+    screen.drag_input(rect, 7.0, &width);
+    assert_eq!(
+        screen.edit().selected(),
+        "oo",
+        "drag selects the input text"
+    );
+
+    screen.select_input_word(rect, 9.0, &width);
+    assert_eq!(
+        screen.edit().selected(),
+        "bar",
+        "double click selects the word"
+    );
+
+    screen.click_input(rect, 4.0, Anchor::Move, &width);
+    screen.click_input(rect, 7.0, Anchor::Keep, &width);
+    assert_eq!(
+        screen.edit().selected(),
+        "foo",
+        "shift click keeps the anchor"
+    );
 }
 
 #[test]
@@ -46,7 +81,7 @@ fn up_and_down_recall_the_history_and_restore_the_typed_line() {
     history.add("a");
     history.add("b");
     let mut screen = ChatScreen::default();
-    screen.open("", InputStyle::Plain, &cx);
+    screen.open("", InputStyle::Plain, 0, &cx);
     screen.type_text("c", &cx);
     let mut seen = Vec::new();
     for key in [Key::Up, Key::Up, Key::Down, Key::Down] {
@@ -135,7 +170,7 @@ fn enter_sends_the_normalized_input_and_picks_the_packet() {
     ];
     for (typed, expected) in rows {
         let recalled = history.len();
-        screen.open("", InputStyle::Plain, &cx);
+        screen.open("", InputStyle::Plain, 0, &cx);
         screen.type_text(&typed, &cx);
         let outcome = screen.key(Key::Enter, &mut history, &cx);
         match expected {
@@ -181,7 +216,7 @@ fn backspace_on_a_draft_clears_it() {
     let cx = context(&tree, &source);
     let mut history = History::default();
     let mut screen = ChatScreen::default();
-    screen.open("abc", InputStyle::Draft, &cx);
+    screen.open("abc", InputStyle::Draft, 0, &cx);
     screen.key(Key::Backspace { step: Step::Char }, &mut history, &cx);
     assert_eq!(screen.input(), "");
     assert!(!screen.is_draft());
@@ -236,7 +271,7 @@ fn a_click_on_a_styled_line_inserts_or_suggests_by_modifier() {
         let source = source();
         let cx = context(&tree, &source);
         let mut screen = ChatScreen::default();
-        screen.open("ab", InputStyle::Plain, &cx);
+        screen.open("ab", InputStyle::Plain, 0, &cx);
         screen.key(
             Key::End {
                 anchor: Anchor::Move,
@@ -251,4 +286,87 @@ fn a_click_on_a_styled_line_inserts_or_suggests_by_modifier() {
         );
         assert_eq!(screen.input(), input, "{style:?} {mode:?}");
     }
+}
+
+struct ClipboardRow {
+    keys: &'static [Key],
+    copied: Option<&'static str>,
+    input: &'static str,
+}
+
+#[test]
+fn copy_and_cut_reach_the_clipboard_only_with_a_selection() {
+    let tree = Tree::new().build();
+    let source = source();
+    let cx = context(&tree, &source);
+    let rows = [
+        ClipboardRow {
+            keys: &[Key::Copy],
+            copied: None,
+            input: "abc",
+        },
+        ClipboardRow {
+            keys: &[Key::Cut],
+            copied: None,
+            input: "abc",
+        },
+        ClipboardRow {
+            keys: &[Key::SelectAll, Key::Copy],
+            copied: Some("abc"),
+            input: "abc",
+        },
+        ClipboardRow {
+            keys: &[Key::SelectAll, Key::Cut],
+            copied: Some("abc"),
+            input: "",
+        },
+    ];
+    for row in rows {
+        let mut history = History::default();
+        let mut screen = ChatScreen::default();
+        screen.open("", InputStyle::Plain, 0, &cx);
+        screen.type_text("abc", &cx);
+        let mut copied = None;
+        for &key in row.keys {
+            if let Outcome::Copy(text) = screen.key(key, &mut history, &cx) {
+                copied = Some(text);
+            }
+        }
+        assert_eq!(
+            copied.as_deref(),
+            row.copied,
+            "{:?}: the copied text",
+            row.keys
+        );
+        assert_eq!(screen.input(), row.input, "{:?}: the input", row.keys);
+    }
+}
+
+#[test]
+fn the_caret_blinks_from_the_time_that_the_chat_opened() {
+    let tree = Tree::new().build();
+    let source = source();
+    let cx = context(&tree, &source);
+    let mut screen = ChatScreen::default();
+    screen.open("ab", InputStyle::Plain, 450, &cx);
+    let rect = GuiRect::new(4, 0, 100, 12);
+    let shows = |now_ms: u64| {
+        let mut parts: Vec<EditBoxPart<'_>> = Vec::new();
+        screen.edit().draw(
+            EditBoxFrame::new(rect, now_ms),
+            &|text| text.chars().count() as i32 * 6,
+            &[],
+            &mut |part| parts.push(part),
+        );
+        parts.iter().any(|part| {
+            matches!(
+                part,
+                EditBoxPart::CaretBar { .. } | EditBoxPart::CaretUnderscore { .. }
+            )
+        })
+    };
+    assert!(shows(450), "on at the open time");
+    assert!(shows(749), "on for 300 ms");
+    assert!(!shows(750), "off for the next 300 ms");
+    assert!(shows(1050), "on again");
 }

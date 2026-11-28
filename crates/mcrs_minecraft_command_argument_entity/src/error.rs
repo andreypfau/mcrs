@@ -7,51 +7,29 @@ use mcrs_minecraft_command::{
 use mcrs_minecraft_snbt::SnbtError;
 use mcrs_minecraft_text::{IntoText, Text};
 
-/// The errors of an entity selector and of its search.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum EntityError {
-    /// The source may not use a selector that starts with `@`.
     SelectorNotAllowed,
-    /// The `@` has no kind after it.
     SelectorMissing,
-    /// The kind after `@` is none of the six.
     SelectorUnknown(char),
-    /// The text is neither a name nor a UUID.
     EntityInvalid,
-    /// No option has the key at the span.
     OptionsUnknown(StringSpan),
-    /// The option at the span cannot follow the options before it.
     OptionsInapplicable(StringSpan),
-    /// The option at the span has no `=` and value.
     OptionsValueless(StringSpan),
-    /// The options have no closing `]`.
     OptionsUnterminated,
-    /// The `distance` range holds a negative value.
     DistanceNegative,
-    /// The `level` range holds a negative value.
     LevelNegative,
-    /// The `limit` is below one.
     LimitTooSmall,
-    /// The word at the span names no sort order.
     SortIrreversible(Span),
-    /// The word at the span names no game mode.
     ModeInvalid(Span),
-    /// The identifier at the span names no entity type.
     TypeInvalid(Span),
-    /// The range has neither a minimum nor a maximum.
     RangeEmpty,
-    /// The minimum of the range is above its maximum.
     RangeSwapped,
-    /// The argument takes one player and the selector can find more.
     PlayerTooMany,
-    /// The argument takes one entity and the selector can find more.
     EntityTooMany,
-    /// The argument takes players and the selector can find other entities.
     PlayerEntities,
-    /// An error of the SNBT read; its spans are positions in the command line.
     Nbt(SnbtError),
-    /// An error of an identifier or of a registry entry that the selector names.
     Resource(ResourceError),
 }
 

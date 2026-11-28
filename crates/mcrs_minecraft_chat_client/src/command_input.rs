@@ -18,51 +18,35 @@ use mcrs_minecraft_wire::utf16_byte_offset;
 use std::mem;
 use std::ops::Range;
 
-/// What the client parse and the suggestions read: the client tree, the client source and the
-/// options and abilities that change the screen.
 pub struct Context<'a, L> {
     pub tree: &'a ClientGraph,
     pub source: &'a Source<'a, L>,
     pub abilities: ChatAbilities,
-    /// The option "Command Suggestions".
     pub auto_suggest: bool,
-    /// The custom completion set of the connection.
     pub completions: &'a [String],
 }
 
-/// A line above the input box that is not a suggestion.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Hint {
-    /// `command.context.parse_error` over the input.
     Error(CommandSyntaxError),
-    /// A usage line, a range of [`CommandInput::usage_text`].
     Usage(Range<usize>),
-    /// A translation key, shown in red.
     Restriction(&'static str),
 }
 
-/// How many colours the arguments of a command cycle through.
 pub const ARGUMENT_COLOURS: u8 = 5;
 
-/// The colour role of a range of a command input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Highlight {
-    /// The argument with this index modulo [`ARGUMENT_COLOURS`] in the last context.
     Argument(u8),
-    /// The text after the final cursor of the parse.
     Trailing,
 }
 
-/// A `command_suggestion` request: its id, and the end of the input it sends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Request {
     pub id: i32,
     pub end: usize,
 }
 
-/// The client parse, the suggestion state, the server requests, the suggestion list and the
-/// hint lines of one chat screen (`client-commands.md`). It owns its buffers, so a parse after
-/// each key reuses them.
 #[derive(Debug, Default)]
 pub struct CommandInput {
     scratch: ParseScratch<ArgumentError>,
@@ -88,7 +72,6 @@ pub struct CommandInput {
     pub auto: bool,
 }
 
-/// Whether the parse passes a message argument, which picks `chat_command_signed`.
 fn has_message<E: Copy>(tree: &ClientGraph, parse: &ParseResult<'_, '_, E>) -> bool {
     parse
         .contexts()
@@ -110,16 +93,12 @@ enum TooltipRef<'a> {
     Text(&'a Text),
 }
 
-/// What a refresh does with the suggestion list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ListOnRefresh {
-    /// The list hides, and the suggestion state is computed again.
     Rebuild,
-    /// The list stays, and no suggestion state is computed.
     Keep,
 }
 
-/// Whether a parse computes the suggestions of the caret.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Suggest {
     Skip,
@@ -127,57 +106,46 @@ enum Suggest {
 }
 
 impl CommandInput {
-    /// The input of the last refresh.
     pub fn input(&self) -> &str {
         &self.input
     }
 
-    /// Whether the input starts with `/`.
     pub fn is_command(&self) -> bool {
         self.command
     }
 
-    /// The colour roles of a command input, in input order.
     pub fn highlights(&self) -> &[(Span, Highlight)] {
         &self.highlights
     }
 
-    /// The parse contains a value of the type `minecraft:message`.
     pub fn has_message(&self) -> bool {
         self.message
     }
 
-    /// Whether the suggestions of the input are complete.
     pub fn is_ready(&self) -> bool {
         self.ready
     }
 
-    /// The suggestions of the input at the caret.
     pub fn suggestions(&self) -> &Entries {
         &self.entries
     }
 
-    /// The id of the server request that waits for its reply.
     pub fn open_request(&self) -> Option<i32> {
         self.open
     }
 
-    /// The suggestion list, while it shows.
     pub fn list(&self) -> Option<&SuggestionMenu> {
         self.list.as_ref()
     }
 
-    /// The suggestion list, while it shows.
     pub fn list_mut(&mut self) -> Option<&mut SuggestionMenu> {
         self.list.as_mut()
     }
 
-    /// Hides the suggestion list.
     pub fn hide_list(&mut self) {
         self.list = None;
     }
 
-    /// The hint lines; they show only while the list is hidden.
     pub fn hints(&self) -> &[Hint] {
         if self.list.is_some() {
             &[]
@@ -186,12 +154,10 @@ impl CommandInput {
         }
     }
 
-    /// The text of a [`Hint::Usage`].
     pub fn usage_text(&self, range: Range<usize>) -> &str {
         self.usage.get(range).unwrap_or_default()
     }
 
-    /// Shows the list when the state is ready and holds a suggestion.
     pub fn show_list(&mut self) -> bool {
         if !self.ready || self.entries.is_empty() {
             return false;
@@ -200,7 +166,6 @@ impl CommandInput {
         true
     }
 
-    /// The input changed. Returns the server request to send.
     pub fn refresh<L: VanillaLookup>(
         &mut self,
         input: &str,
@@ -210,8 +175,6 @@ impl CommandInput {
         self.update(input, caret, cx, ListOnRefresh::Rebuild)
     }
 
-    /// The input changed by an insert from the list: the list stays and no suggestion state is
-    /// computed. Returns the server request to send.
     pub fn refresh_after_insert<L: VanillaLookup>(
         &mut self,
         input: &str,
@@ -349,9 +312,6 @@ impl CommandInput {
         request
     }
 
-    /// Applies a `command_suggestions` reply. `start` and `length` count UTF-16
-    /// code units of the request text, as on the wire. Returns whether the reply was for the
-    /// open request.
     pub fn reply<L: VanillaLookup>(
         &mut self,
         id: i32,
@@ -418,7 +378,6 @@ impl CommandInput {
         true
     }
 
-    /// The suggestion state is ready.
     fn finish<L: VanillaLookup>(&mut self, cx: &Context<'_, L>) {
         self.entries.order_by_last_word(&self.input, self.caret);
         self.ready = true;
@@ -486,8 +445,6 @@ impl CommandInput {
         }
     }
 
-    /// The suggestions of chat text: player names and custom completions that match the last
-    /// word.
     fn chat_suggestions<L: VanillaLookup>(&mut self, cx: &Context<'_, L>) {
         let input = self.input.as_str();
         if input.trim_matches(is_separator).is_empty() {
@@ -513,8 +470,6 @@ impl CommandInput {
         self.ready = true;
     }
 
-    /// Whether `line`, a command line without its `/`, has a message argument, which picks
-    /// `chat_command_signed`.
     pub fn line_has_message<L: VanillaLookup>(&mut self, line: &str, cx: &Context<'_, L>) -> bool {
         let parse = cx.tree.parse(line, 0, cx.source, &mut self.scratch);
         has_message(cx.tree, &parse)

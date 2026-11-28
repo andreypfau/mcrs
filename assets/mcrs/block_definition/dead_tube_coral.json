@@ -45,6 +45,14 @@
         "seconds_to_destroy": 0
       },
       "minecraft:loot": "minecraft:blocks/dead_tube_coral",
+      "minecraft:placement_filter": {
+        "predicate": {
+          "type": "minecraft:has_sturdy_face",
+          "offset": [0, -1, 0],
+          "direction": "up"
+        }
+      },
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,

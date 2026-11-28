@@ -8,14 +8,14 @@ use mcrs_minecraft_chunk::section::{Biomes, Blocks, NoiseBiomes};
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
 use mcrs_minecraft_core::VERSION;
 
+use crate::ChunkStatus;
 use crate::ErrorKind;
 use crate::chunk::{Chunk, PackedData, RawChunk, RawLight, RawPalettedContainer, RawSection};
 use crate::palette::{BlockStateList, PaletteLookup, Properties};
+use crate::record::NoEntities;
 use crate::structures::Structures;
 use crate::ticks::FluidTicks;
 
-/// An id a [`PaletteNames`] can hand out; the width bounds how many distinct
-/// entries one table holds.
 pub trait PaletteId: Copy {
     fn from_index(index: usize) -> Option<Self>;
     fn index(self) -> usize;
@@ -41,9 +41,6 @@ impl PaletteId for u8 {
     }
 }
 
-/// Names a palette entry by its own text instead of a registry, so a chunk read
-/// through it writes back with every name and property order it was read with.
-/// Ids are handed out in the order entries are first seen.
 pub struct PaletteNames<V> {
     names: RefCell<Names>,
     id: PhantomData<V>,
@@ -70,7 +67,6 @@ impl<V: PaletteId> PaletteNames<V> {
         Self::default()
     }
 
-    /// `None` once every id `V` can express is taken.
     pub fn intern<'p>(
         &self,
         name: &str,
@@ -95,8 +91,6 @@ impl<V: PaletteId> PaletteNames<V> {
         Some(id)
     }
 
-    /// The name and properties, in their original order, that `id` was handed
-    /// out for.
     pub fn entry(&self, id: V) -> Option<(String, Vec<(String, String)>)> {
         let names = self.names.borrow();
         names.entries.get(id.index()).map(|(name, properties)| {
@@ -137,11 +131,6 @@ impl<V: PaletteId> PaletteLookup<V> for PaletteNames<V> {
     }
 }
 
-/// The chunk as NBT, uncompressed, at the current `DataVersion`, with the
-/// lowest section of its dimension as `yPos`.
-// Block ticks, post-processing and blending data are not in
-// `Chunk`, so a written chunk drops them and a vanilla server reads their
-// absence; carrying them in `Chunk` lifts this.
 pub fn write_chunk(
     chunk: &Chunk,
     min_section_y: i32,
@@ -180,7 +169,7 @@ pub fn write_chunk(
         x_pos: chunk.pos.x,
         z_pos: chunk.pos.z,
         y_pos: min_section_y,
-        status: chunk.status,
+        status: Some(chunk.status),
         sections,
         heightmaps: chunk.heightmaps.clone(),
         is_light_on: chunk.is_light_on,
@@ -188,9 +177,15 @@ pub fn write_chunk(
         inhabited_time: chunk.inhabited_time,
         last_update: chunk.last_update,
         retrogen: chunk.retrogen.clone(),
+        entities: (chunk.status != ChunkStatus::Full).then_some(NoEntities),
+        post_processing: chunk.post_processing.clone(),
+        upgrade_data: chunk.upgrade_data.clone(),
+        blending_data: chunk.blending_data.clone(),
         fluid_ticks: FluidTicks {
             ticks: Cow::Borrowed(&chunk.fluid_ticks),
-            dropped: Vec::new(),
+        },
+        block_ticks: crate::ticks::BlockTicks {
+            ticks: Cow::Borrowed(&chunk.block_ticks),
         },
         structures: Structures {
             pos: chunk.pos,
@@ -203,8 +198,6 @@ pub fn write_chunk(
     Ok(out)
 }
 
-/// The inverse of the reader's `unpack`: the width comes from the same
-/// `storage_bits`, and a single-entry palette carries no `data`.
 fn pack<K: SectionKind, V: PaletteId + Hash + Eq + Default, const DIM: usize>(
     container: &PalettedContainer<V, DIM>,
     names: &PaletteNames<V>,

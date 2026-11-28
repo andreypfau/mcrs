@@ -4,43 +4,37 @@ use bytes::{Bytes, BytesMut};
 use mcrs_engine_muxer::{EntityId, ViewerId};
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_protocol::{Result, VarInt};
-use mcrs_minecraft_protocol_game::clientbound::{ClientboundDamageEvent, ClientboundEntityEvent};
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 
+use crate::attribute_state::AttributeState;
 use crate::delivery::Delivery;
 use crate::encode::record;
 use crate::hold_set::HoldSet;
-use crate::mob_bundle::spawn_extras;
+use crate::mob_bundle::{Entries, LivingEntries, spawn_extras};
 use crate::mob_signal::MobSignal;
 use crate::mob_spawn::MobSpawn;
 use crate::mob_state::MobState;
 use crate::mob_tracker::MobTracker;
 use crate::player_input::Backlog;
+use crate::spawn_look::SpawnLook;
+use crate::subject_attributes::SubjectAttributes;
 use crate::wire_id::wire_id;
-use mcrs_minecraft_protocol_game::entity::MobLooks;
+use mcrs_minecraft_protocol_game::ProtoStack;
+use mcrs_minecraft_protocol_game::entity::{MetadataEntry, MobLooks};
+use mcrs_minecraft_registries::Wire;
 
 const BLOCKS_PER_COLUMN: u32 = 16;
 
-/// The mobs whose latest state a client that caught up receives in one tick.
 const RESENDS_PER_TICK: usize = 1024;
 
-/// The mobs of one world. Its updates come at the end of each tick for each held mob, not from
-/// the tile blobs (TRK-UPD-009). The [`HoldSet`] of the codec says which client holds each one.
 #[derive(Debug, Default)]
 pub(crate) struct MobTrackers {
     mobs: FxHashMap<EntityId, Mob>,
     scratch: BytesMut,
-    /// The signals of the tick, as records, in the order of their causes.
     signals: Vec<(EntityId, Bytes)>,
-    /// The viewers that held each mob that left the world in this tick. They get its signals
-    /// before its removal.
     farewells: FxHashMap<EntityId, Vec<ViewerId>>,
-    /// The viewers whose connection holds more bytes than their client reads. They get no move
-    /// of a mob until they catch up.
     behind: BTreeSet<ViewerId>,
-    /// The mobs whose updates each client missed. It gets their latest state once it catches up,
-    /// and no relative move before that.
     missed: BTreeMap<ViewerId, BTreeSet<EntityId>>,
 }
 
@@ -49,7 +43,9 @@ struct Mob {
     kind: &'static EntityTypeData,
     uuid: Uuid,
     looks: MobLooks,
+    spawn_data: VarInt,
     tracker: MobTracker,
+    attributes: SubjectAttributes,
 }
 
 impl MobTrackers {
@@ -58,13 +54,36 @@ impl MobTrackers {
     }
 
     pub(crate) fn spawn(&mut self, subject: EntityId, spawn: &MobSpawn, tick: u64) {
+        let (looks, entries, spawn_data) = match &spawn.look {
+            SpawnLook::Mob(looks) => (
+                looks.clone(),
+                Entries::Living(LivingEntries::of(&spawn.state)),
+                VarInt(0),
+            ),
+            SpawnLook::Item(stack) => {
+                (MobLooks::default(), Entries::Item(stack.clone()), VarInt(0))
+            }
+            SpawnLook::FallingBlock { state, start } => (
+                MobLooks::default(),
+                Entries::FallingBlock(*start),
+                VarInt(i32::from(state.0)),
+            ),
+            SpawnLook::Custom { data, entries } => {
+                (MobLooks::default(), Entries::custom(entries), VarInt(*data))
+            }
+        };
         self.mobs.insert(
             subject,
             Mob {
                 kind: spawn.kind,
                 uuid: spawn.uuid,
-                looks: spawn.looks.clone(),
-                tracker: MobTracker::new(spawn.state, spawn.kind.update_interval, tick),
+                looks,
+                spawn_data,
+                tracker: MobTracker::new(spawn.state, entries, spawn.kind, tick),
+                attributes: SubjectAttributes::with_stored(
+                    spawn.kind.attribute_bases(),
+                    Vec::new(),
+                ),
             },
         );
     }
@@ -76,7 +95,6 @@ impl MobTrackers {
         };
     }
 
-    /// Queues `signal` of `subject` for the clients that hold it at the end of the tick.
     pub(crate) fn signal(
         &mut self,
         subject: EntityId,
@@ -86,36 +104,13 @@ impl MobTrackers {
         if holds.holders(subject).is_empty() {
             return Ok(());
         }
-        let entity_id = wire_id(subject);
-        let event = |entity_status| {
-            record(&ClientboundEntityEvent {
-                entity_id: entity_id.0,
-                entity_status,
-            })
-        };
-        let packet = match signal {
-            MobSignal::Hurt { damage_type } => {
-                let Ok(damage_type) = i32::try_from(damage_type) else {
-                    tracing::warn!("the damage type {damage_type} of a hit has no id on the wire");
-                    return Ok(());
-                };
-                record(&ClientboundDamageEvent {
-                    entity_id,
-                    damage_type: VarInt(damage_type),
-                    cause_entity_id: VarInt(0),
-                    direct_entity_id: VarInt(0),
-                    source_position: None,
-                })?
-            }
-            MobSignal::Died => event(ClientboundEntityEvent::DIED)?,
-            MobSignal::Removed => event(ClientboundEntityEvent::REMOVED)?,
+        let Some(packet) = signal.encode(subject)? else {
+            return Ok(());
         };
         self.signals.push((subject, packet));
         Ok(())
     }
 
-    /// Appends the signals of the tick of each mob of `subjects` that left the world, for the
-    /// client of `viewer`, before the removal of the mobs.
     pub(crate) fn farewell(
         &self,
         viewer: ViewerId,
@@ -139,8 +134,24 @@ impl MobTrackers {
         }
     }
 
-    /// Forgets `subject` and takes it out of `holds`. The muxer removes it from each client that
-    /// holds it.
+    pub(crate) fn record_stack(&mut self, subject: EntityId, stack: &ProtoStack<Wire>) {
+        if let Some(mob) = self.mobs.get_mut(&subject) {
+            mob.tracker.record_stack(stack.clone());
+        }
+    }
+
+    pub(crate) fn record_entries(&mut self, subject: EntityId, entries: &[MetadataEntry<'static>]) {
+        if let Some(mob) = self.mobs.get_mut(&subject) {
+            mob.tracker.record_entries(entries);
+        }
+    }
+
+    pub(crate) fn record_attribute(&mut self, subject: EntityId, attribute: &AttributeState) {
+        if let Some(mob) = self.mobs.get_mut(&subject) {
+            mob.attributes.record(attribute);
+        }
+    }
+
     pub(crate) fn despawn(&mut self, subject: EntityId, holds: &mut HoldSet) {
         if self.mobs.remove(&subject).is_none() {
             return;
@@ -154,9 +165,6 @@ impl MobTrackers {
         self.farewells.insert(subject, holders);
     }
 
-    /// The tracking range of `subject` in blocks (TRK-RNG-001), at the
-    /// `entity-broadcast-range-percentage` of 100. The view distance of the viewer does not limit
-    /// it (TRK-DEV-004).
     pub(crate) fn tracking_range(&self, subject: EntityId) -> Option<u32> {
         let mob = self.mobs.get(&subject)?;
         Some(mob.kind.tracking_range.saturating_mul(BLOCKS_PER_COLUMN))
@@ -167,8 +175,6 @@ impl MobTrackers {
         Some(mob.tracker.latest().position.to_array())
     }
 
-    /// Appends the spawn bundle of `subject` for the client of `viewer` (TRK-SPN-001), at tick
-    /// `tick`, between two `delimiter`s, and records the hold in `holds`.
     pub(crate) fn gain(
         &mut self,
         viewer: ViewerId,
@@ -185,8 +191,8 @@ impl MobTrackers {
             mob.tracker.restart();
         }
         let id = wire_id(subject);
-        let add = record(&mob.tracker.add_entity(id, mob.uuid, mob.kind.entity_type))?;
-        let extras = spawn_extras(id, mob.kind, &mob.looks, mob.tracker.sent_entries())?;
+        let add = record(&mob.tracker.add_entity(id, mob.uuid, mob.spawn_data))?;
+        let extras = spawn_extras(id, &mob.looks, mob.tracker.sent_entries(), &mob.attributes)?;
         chunks.extend([delimiter.clone(), add, extras, delimiter.clone()]);
         holds.insert(viewer, subject);
         if let Some(missed) = self.missed.get_mut(&viewer) {
@@ -195,8 +201,6 @@ impl MobTrackers {
         Ok(())
     }
 
-    /// Ends what the client of `viewer` missed of `subject`, which it no longer holds; false when
-    /// `subject` is not a mob.
     pub(crate) fn lose(&mut self, viewer: ViewerId, subject: EntityId) -> bool {
         if !self.mobs.contains_key(&subject) {
             return false;
@@ -207,16 +211,12 @@ impl MobTrackers {
         true
     }
 
-    /// The viewer no longer subscribes: it holds no mob any more.
     pub(crate) fn forget(&mut self, viewer: ViewerId, holds: &mut HoldSet) {
         holds.release_where(viewer, |subject| self.mobs.contains_key(&subject));
         self.behind.remove(&viewer);
         self.missed.remove(&viewer);
     }
 
-    /// Runs the tracker tick of each held mob, and owes the bytes of each update to each viewer
-    /// that holds the mob. A viewer that is behind misses the update; a viewer that caught up
-    /// gets the latest state of the mobs it missed, a share in each tick.
     pub(crate) fn finish_tick(&mut self, tick: u64, holds: &HoldSet, delivery: &mut Delivery) {
         let Self {
             mobs,
@@ -237,7 +237,10 @@ impl MobTrackers {
                 continue;
             };
             scratch.clear();
-            if let Err(error) = mob.tracker.tick(wire_id(subject), tick, scratch) {
+            if let Err(error) =
+                mob.tracker
+                    .tick(wire_id(subject), tick, &mut mob.attributes, scratch)
+            {
                 tracing::warn!("the update of a mob did not encode: {error:#}");
                 continue;
             }
@@ -261,7 +264,6 @@ impl MobTrackers {
     }
 }
 
-/// Owes each viewer that is not behind the latest state of some of the mobs it missed.
 fn resend_missed(
     mobs: &FxHashMap<EntityId, Mob>,
     behind: &BTreeSet<ViewerId>,
@@ -281,7 +283,10 @@ fn resend_missed(
             let Some(mob) = mobs.get(&subject) else {
                 continue;
             };
-            if let Err(error) = mob.tracker.resend(wire_id(subject), scratch) {
+            if let Err(error) = mob
+                .tracker
+                .resend(wire_id(subject), &mob.attributes, scratch)
+            {
                 tracing::warn!("the state of a mob did not encode: {error:#}");
             }
         }
@@ -297,7 +302,20 @@ mod tests {
     use glam::DVec3;
     use mcrs_engine_muxer::ViewerBytes;
     use mcrs_minecraft_core::Look;
-    use mcrs_minecraft_protocol_game::clientbound::{ClientboundEntityPositionSync, PositionPath};
+    use mcrs_minecraft_entity::entity_type_keys::EntityType;
+    use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+    use mcrs_minecraft_entity_attribute::{
+        AttributeModifier, AttributeSet, InstanceModifier, ModifierKind, ModifierOperation,
+    };
+    use mcrs_minecraft_protocol_game::block::BlockStateNumber;
+    use mcrs_minecraft_protocol_game::clientbound::{
+        AttributeSnapshot, ClientboundAddEntity, ClientboundEntityPositionSync,
+        ClientboundSetEntityData, ClientboundUpdateAttributes, PositionPath,
+    };
+    use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};
+    use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3};
+    use mcrs_minecraft_resource::ResourceLocation;
+    use mcrs_voxel::BlockPos;
 
     use super::*;
 
@@ -340,7 +358,7 @@ mod tests {
                 kind: &EntityTypeData::PIG,
                 uuid: Uuid::nil(),
                 state,
-                looks: MobLooks::default(),
+                look: SpawnLook::Mob(MobLooks::default()),
             };
             world.mobs.spawn(MOB, &spawn, 0);
             world
@@ -367,7 +385,165 @@ mod tests {
     }
 
     #[test]
-    fn a_viewer_that_is_behind_misses_the_moves_and_then_gets_the_state_the_others_hold() {
+    fn the_spawn_bundle_holds_only_the_instances_that_differ_from_the_type() {
+        let mut world = World::spawned(at(0.5));
+        let data = record(&ClientboundSetEntityData {
+            entity_id: wire_id(MOB),
+            metadata: Metadata(vec![MetadataEntry {
+                index: 9,
+                value: MetaDataValue::Float(10.0),
+            }]),
+        })
+        .unwrap();
+        assert_eq!(
+            world.gain(KEEPS_UP, 0)[2],
+            data,
+            "a mob of the type sends no update_attributes"
+        );
+
+        let bases = EntityTypeData::PIG.attribute_bases().unwrap();
+        let mut set = AttributeSet::new();
+        set.add_modifier(
+            bases,
+            Attribute::MovementSpeed,
+            InstanceModifier::new(
+                "test:slow".parse().unwrap(),
+                -0.5,
+                ModifierOperation::AddMultipliedTotal,
+                ModifierKind::Permanent,
+            ),
+        )
+        .unwrap();
+        world.mobs.record_attribute(
+            MOB,
+            &AttributeState {
+                attribute: Attribute::MovementSpeed,
+                instance: set.instances().next().cloned(),
+            },
+        );
+        let attributes = record(&ClientboundUpdateAttributes {
+            entity_id: wire_id(MOB),
+            attributes: vec![AttributeSnapshot {
+                attribute: Attribute::MovementSpeed.into(),
+                base: 0.25,
+                modifiers: vec![AttributeModifier {
+                    id: ResourceLocation::new_static("test:slow").unwrap(),
+                    amount: -0.5,
+                    operation: ModifierOperation::AddMultipliedTotal,
+                }],
+            }],
+        })
+        .unwrap();
+        assert_eq!(
+            world.gain(BEHIND, 0)[2],
+            Bytes::from([data, attributes].concat()),
+            "the base of the type and the modifier"
+        );
+    }
+
+    #[test]
+    fn fbk_spn_002_the_spawn_of_a_falling_block_carries_its_state_and_start() {
+        let mut world = World::default();
+        let state = at(0.5);
+        let start = BlockPos::new(0, -59, 0);
+        let spawn = MobSpawn {
+            kind: &EntityTypeData::FALLING_BLOCK,
+            uuid: Uuid::nil(),
+            state,
+            look: SpawnLook::FallingBlock {
+                state: BlockStateNumber(118),
+                start,
+            },
+        };
+        world.mobs.spawn(MOB, &spawn, 0);
+
+        let chunks = world.gain(KEEPS_UP, 0);
+
+        let add = record(&ClientboundAddEntity {
+            id: wire_id(MOB),
+            uuid: Uuid::nil(),
+            kind: EntityType::FallingBlock,
+            pos: state.position,
+            movement: LpVec3(DVec3::ZERO),
+            pitch: ByteAngle::default(),
+            yaw: ByteAngle::default(),
+            head_yaw: ByteAngle::default(),
+            data: VarInt(118),
+        })
+        .unwrap();
+        let data = record(&ClientboundSetEntityData {
+            entity_id: wire_id(MOB),
+            metadata: Metadata(vec![MetadataEntry {
+                index: 8,
+                value: MetaDataValue::BlockPos(start),
+            }]),
+        })
+        .unwrap();
+        assert_eq!(
+            chunks[1..3],
+            [add, data],
+            "add_entity with the state id, then only the start position"
+        );
+    }
+
+    #[test]
+    fn a_custom_kind_spawns_with_its_data_and_sends_a_changed_entry_once() {
+        let entry = |index, value| MetadataEntry {
+            index,
+            value: MetaDataValue::VarInt(VarInt(value)),
+        };
+        let mut world = World::default();
+        let state = at(0.5);
+        let spawn = MobSpawn {
+            kind: &EntityTypeData::ITEM,
+            uuid: Uuid::nil(),
+            state,
+            look: SpawnLook::Custom {
+                data: 7,
+                entries: vec![entry(9, 2), entry(8, 1)],
+            },
+        };
+        world.mobs.spawn(MOB, &spawn, 0);
+
+        let chunks = world.gain(KEEPS_UP, 0);
+        world.tick(0);
+
+        let add = record(&ClientboundAddEntity {
+            id: wire_id(MOB),
+            uuid: Uuid::nil(),
+            kind: EntityType::Item,
+            pos: state.position,
+            movement: LpVec3(DVec3::ZERO),
+            pitch: ByteAngle::default(),
+            yaw: ByteAngle::default(),
+            head_yaw: ByteAngle::default(),
+            data: VarInt(7),
+        })
+        .unwrap();
+        let data = |entries| {
+            record(&ClientboundSetEntityData {
+                entity_id: wire_id(MOB),
+                metadata: Metadata(entries),
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            chunks[1..3],
+            [add, data(vec![entry(8, 1), entry(9, 2)])],
+            "add_entity with the data value, then the entries in the order of the indices"
+        );
+
+        world.mobs.record_entries(MOB, &[entry(8, 1), entry(9, 5)]);
+        assert_eq!(
+            world.tick(1).get(&KEEPS_UP),
+            Some(&vec![data(vec![entry(9, 5)])]),
+            "only the entry that changed"
+        );
+        assert!(world.tick(2).is_empty(), "the entry goes once");
+    }
+
+    #[test]
+    fn lagging_viewer_misses_moves_then_gets_the_held_state() {
         let mut world = World::spawned(at(0.5));
         for viewer in [KEEPS_UP, BEHIND] {
             world.gain(viewer, 0);
@@ -430,11 +606,9 @@ mod tests {
 
         world.gain(BEHIND, 10);
 
-        let add = world.mobs.mobs[&MOB].tracker.add_entity(
-            wire_id(MOB),
-            Uuid::nil(),
-            EntityTypeData::PIG.entity_type,
-        );
+        let add = world.mobs.mobs[&MOB]
+            .tracker
+            .add_entity(wire_id(MOB), Uuid::nil(), VarInt(0));
         assert_eq!(
             add.pos,
             at(9.5).position,

@@ -1,5 +1,3 @@
-/// A set of the control flags `move`, `look`, `jump` and `target`. One goal at a time holds each
-/// flag.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ControlFlags(u8);
 
@@ -9,9 +7,6 @@ impl ControlFlags {
     pub const LOOK: Self = Self(2);
     pub const JUMP: Self = Self(4);
     pub const TARGET: Self = Self(8);
-
-    /// The four flags, in the order of their slot.
-    pub const EACH: [Self; 4] = [Self::MOVE, Self::LOOK, Self::JUMP, Self::TARGET];
 
     #[must_use]
     pub const fn union(self, other: Self) -> Self {
@@ -33,7 +28,6 @@ impl ControlFlags {
         self.0 == 0
     }
 
-    /// The flags of the set, each as a slot from 0 to 3.
     pub fn slots(self) -> impl Iterator<Item = usize> {
         (0..4).filter(move |slot| self.0 & (1 << slot) != 0)
     }

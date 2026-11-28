@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 mcrs_minecraft_registries::static_registry! {
     pub enum MobEffect;
     Speed = "minecraft:speed",
@@ -43,4 +41,52 @@ mcrs_minecraft_registries::static_registry! {
     Infested = "minecraft:infested",
     BreathOfTheNautilus = "minecraft:breath_of_the_nautilus",
     Freezing = "minecraft:freezing",
+}
+
+impl MobEffect {
+    pub const fn color(self) -> u32 {
+        match self {
+            Self::Absorption => 0x2552A5,
+            Self::BadOmen => 0x0B6138,
+            Self::Blindness => 0x1F1F23,
+            Self::BreathOfTheNautilus => 0x00FFEE,
+            Self::ConduitPower => 0x1DC2D1,
+            Self::Darkness => 0x292721,
+            Self::DolphinsGrace => 0x88A3BE,
+            Self::FireResistance => 0xFF9900,
+            Self::Freezing => 0x9EEEEE,
+            Self::Glowing => 0x94A061,
+            Self::Haste => 0xD9C043,
+            Self::HealthBoost => 0xF87D23,
+            Self::HeroOfTheVillage => 0x44FF44,
+            Self::Hunger => 0x587653,
+            Self::Infested => 0x8C9B8C,
+            Self::InstantDamage => 0xA9656A,
+            Self::InstantHealth => 0xF82423,
+            Self::Invisibility => 0xF6F6F6,
+            Self::JumpBoost => 0xFDFF84,
+            Self::Levitation => 0xCEFFFF,
+            Self::Luck => 0x59C106,
+            Self::MiningFatigue => 0x4A4217,
+            Self::Nausea => 0x551D4A,
+            Self::NightVision => 0xC2FF66,
+            Self::Oozing => 0x99FFA3,
+            Self::Poison => 0x87A363,
+            Self::RaidOmen => 0xDE4058,
+            Self::Regeneration => 0xCD5CAB,
+            Self::Resistance => 0x9146F0,
+            Self::Saturation => 0xF82423,
+            Self::SlowFalling => 0xF3CFB9,
+            Self::Slowness => 0x8BAFE0,
+            Self::Speed => 0x33EBFF,
+            Self::Strength => 0xFFC700,
+            Self::TrialOmen => 0x16A6A6,
+            Self::Unluck => 0xC0A44D,
+            Self::WaterBreathing => 0x98DAC0,
+            Self::Weakness => 0x484D48,
+            Self::Weaving => 0x78695A,
+            Self::WindCharged => 0xBDC9FF,
+            Self::Wither => 0x736156,
+        }
+    }
 }

@@ -1,5 +1,3 @@
-// wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames, and
-// `#[derive(Resource)]` walks all of it.
 #![recursion_limit = "256"]
 
 mod counts;
@@ -20,7 +18,6 @@ use crate::probe::{CpuTimings, GpuTimings};
 pub use counts::{DrawnTriangles, ReportedCounts};
 
 pub struct ProbePlugin {
-    /// Workgroups of arithmetic burnt each frame to keep the GPU clocked up while passes are timed.
     pub heat: Option<u32>,
     pub timestamps: bool,
 }
@@ -67,9 +64,13 @@ impl Plugin for ProbePlugin {
                     counts::init_args_readback
                         .in_set(RenderSystems::Prepare)
                         .run_if(not(resource_exists::<ArgsReadback>)),
-                    counts::read_draw_args.in_set(RenderSystems::Cleanup),
+                    counts::read_draw_args
+                        .in_set(RenderSystems::Cleanup)
+                        .run_if(resource_exists::<ArgsReadback>),
                     counts::report_counts.in_set(RenderSystems::Cleanup),
-                    probe::read.in_set(RenderSystems::Cleanup),
+                    probe::read
+                        .in_set(RenderSystems::Cleanup)
+                        .run_if(resource_exists::<probe::Queries>),
                 ),
             )
             .add_systems(Core3d, probe::begin_frame.in_set(WorldPass::Upload));

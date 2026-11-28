@@ -11,7 +11,6 @@ fn minus_one() -> i32 {
     -1
 }
 
-/// A hopper saves like any container, plus its transfer cooldown.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HopperData {
     pub container: ContainerData,

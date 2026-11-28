@@ -8,8 +8,6 @@ use crate::corpus::{Corpus, Domain, Entry};
 use crate::extract::{Extraction, ValueForm};
 use crate::rate::{QueryRate, RATES, SpecQueries};
 
-/// Writes the aggregate statistics of the corpus as Markdown. The text has names of queries,
-/// functions and fields, and no expression text.
 pub fn render(extraction: &Extraction, corpus: &Corpus, spec: &SpecQueries) -> String {
     let mut out = String::new();
     files(&mut out, extraction);

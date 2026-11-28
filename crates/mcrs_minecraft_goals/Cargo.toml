@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 
 [lib]
+test = false
 doctest = false
 
 [lints]
@@ -13,20 +14,18 @@ workspace = true
 [dependencies]
 mcrs_minecraft_entity_key.workspace = true
 mcrs_voxel.workspace = true
-# The workspace entry enables std, which the wasm32v1-none build of this crate does not have.
-glam = { version = "0.33.12", default-features = false, features = ["nostd-libm", "all-types"] }
+glam = { workspace = true, features = ["nostd-libm"] }
 libm.workspace = true
 mcrs_minecraft_brain.workspace = true
 mcrs_minecraft_goal_world.workspace = true
 mcrs_minecraft_entity = { workspace = true, optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.7", default-features = false }
+criterion = { workspace = true }
 mcrs_minecraft_goals = { workspace = true, features = ["testing"] }
 rayon.workspace = true
 
 [features]
-# A flat pen of pigs with a host that applies the decisions, for tests and benches of the stage.
 testing = ["dep:mcrs_minecraft_entity"]
 
 [[bench]]

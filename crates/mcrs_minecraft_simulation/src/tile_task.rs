@@ -14,12 +14,10 @@ use crate::shard::{BlockShard, Env};
 use crate::tick_queue::Kinds;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
-/// Runs a closure on each item of a slice, on any threads and in any order.
 pub trait Spread {
     fn spread<T: Send, R: Fn(&mut T) + Sync>(&self, items: &mut [T], run: &R);
 }
 
-/// One thread, in the order of the slice.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Serial;
 
@@ -31,16 +29,12 @@ impl Spread for Serial {
     }
 }
 
-/// The random picks of one block tile in one step, and what they did, until the end of the
-/// colour phase of the tile.
 pub(crate) struct TileTask<K: Kinds> {
     pub(crate) tile: ColumnPos,
-    /// The hits of the tile in the hits of the step.
     hits: Range<usize>,
     shard: BlockShard<K>,
     out: StepOutput<K>,
     overlay: Overlay,
-    /// The hits that left the region, by their index in the hits of the step.
     reruns: Vec<usize>,
 }
 
@@ -56,8 +50,6 @@ impl<K: Kinds> TileTask<K> {
         }
     }
 
-    /// Makes `tasks` hold one task for each block tile of `hits`, in the order of the colour
-    /// phases, then of the tiles. Keeps the buffers of the tasks it held.
     pub(crate) fn plan(tasks: &mut Vec<Self>, hits: &[RandomHit]) {
         let tile_of = |hit: &RandomHit| block_tile(ColumnPos::from(SectionPos::from(hit.at)));
         let mut groups = Vec::new();
@@ -70,7 +62,6 @@ impl<K: Kinds> TileTask<K> {
             start = range.end;
             groups.push((tile_of(first), range));
         }
-        // A task is large: sorting the tasks themselves moves more memory than the step reads.
         groups.sort_unstable_by_key(|(tile, _)| (colour(*tile), *tile));
         tasks.truncate(groups.len());
         for (used, (tile, range)) in groups.into_iter().enumerate() {
@@ -117,8 +108,6 @@ impl<K: Kinds> TileTask<K> {
         }
     }
 
-    /// Writes what the task did into the world, the queues and `out`. The ticks and events of the
-    /// task take their sequence here, so their order is the order of the tiles.
     pub(crate) fn commit<V, F, B, P>(
         &mut self,
         shard: &mut BlockShard<K>,
@@ -134,7 +123,6 @@ impl<K: Kinds> TileTask<K> {
         P: OrderingPolicy,
     {
         for write in &self.out.writes {
-            // The task wrote only sections that were writable, and nothing wrote them since.
             let _ = volume.set_block(write.pos, write.new);
         }
         self.overlay.clear();

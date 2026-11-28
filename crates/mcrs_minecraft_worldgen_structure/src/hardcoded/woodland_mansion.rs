@@ -10,9 +10,8 @@ use mcrs_minecraft_worldgen_feature::template::{
 use super::lowest_corner_site;
 use crate::frozen::FrozenStructures;
 use crate::piece::{Piece, WoodlandMansionPiece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
-/// A mansion template's name, checked when the crate compiles.
 macro_rules! mansion {
     ($path:literal) => {
         const {
@@ -100,11 +99,14 @@ pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     rl!("minecraft:woodland_mansion/wall_window"),
 ];
 
-pub fn site(ctx: &mut Context<'_>, rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     lowest_corner_site(ctx, rng)
 }
 
-pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, mut site: Site) -> Vec<Piece> {
     let Stub::Rotated(rotation) = site.stub else {
         return Vec::new();
     };
@@ -137,7 +139,6 @@ const ROOM_CORRIDOR: i32 = 1 << 23;
 const ROOM_TYPE_MASK: i32 = 0xF_0000;
 const ROOM_ID_MASK: i32 = 0xFFFF;
 
-/// `Direction.from2DDataValue` of a `nextInt(4)` draw.
 fn from_2d_data(value: i32) -> Direction {
     match value {
         0 => Direction::South,
@@ -152,7 +153,6 @@ fn step(direction: Direction) -> (i32, i32) {
     (normal.x, normal.z)
 }
 
-/// `SimpleGrid`: an 11×11 plan whose cells outside read as blocked.
 #[derive(Clone)]
 struct Grid {
     cells: [[i32; SIZE]; SIZE],
@@ -564,7 +564,6 @@ const ROOMS_2X2_B: &[ResourceLocation<'static>] = &[
     mansion!("2x2_b5"),
 ];
 
-/// The three floors' room pools; the second and third share one.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FloorRooms {
     First,
@@ -680,11 +679,11 @@ impl Placer<'_> {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "places the mansion's walls, roofs and floors in the reference's order, so the pieces come out in the order it lists them"
+        reason = "places the mansion's walls, roofs and floors in the reference's order"
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "chooses the door directions of each room and the wall or door piece of each side inside the one pass over the grid, so the pieces keep the reference's order"
+        reason = "one pass keeps the pieces in the reference's order"
     )]
     fn create_mansion(&mut self, origin: IVec3, rotation: Rotation, mansion: &MansionGrid) {
         let mut data = PlacementData {
@@ -906,7 +905,6 @@ impl Placer<'_> {
         }
     }
 
-    /// The world position of grid cell `(x, y)` from `origin`.
     fn grid_pos(&self, origin: IVec3, rotation: Rotation, x: i32, y: i32) -> IVec3 {
         let pos = rotation
             .rotate(Direction::South)
@@ -916,9 +914,12 @@ impl Placer<'_> {
             .relative(pos, (x - self.start_x) * 8)
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the placement data, the grid, the heading and the start and end cells of one wall traversal, which the reference passes as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the start cell, the end cell and the heading change at each call of the wall walk"
+        )
     )]
     fn traverse_outer_walls(
         &mut self,
@@ -961,11 +962,11 @@ impl Placer<'_> {
 
     #[expect(
         clippy::too_many_lines,
-        reason = "lays the roof of one floor cell by cell with the reference's case for each direction, so each case reads against it"
+        reason = "one case per direction, read against the reference"
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "lays the roof of a floor cell by cell with the reference's neighbour test for each direction, so each case reads against it"
+        reason = "one case per direction, read against the reference"
     )]
     fn create_roof(
         &mut self,

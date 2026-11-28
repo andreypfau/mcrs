@@ -1,29 +1,24 @@
+use mcrs_minecraft_core::codec::is_default;
 use serde::{Deserialize, Serialize};
 
-/// The state of one clock: whole ticks, the fraction of the next tick, the clock ticks one
-/// game tick advances it by, and whether it stands still.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct ClockTime {
     pub total_ticks: i64,
-    #[serde(skip_serializing_if = "is_zero")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub partial_tick: f32,
-    #[serde(skip_serializing_if = "is_one")]
+    #[serde(default = "default_rate", skip_serializing_if = "is_one")]
     pub rate: f32,
-    #[serde(skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub paused: bool,
 }
 
-fn is_zero(value: &f32) -> bool {
-    *value == 0.0
+fn default_rate() -> f32 {
+    1.0
 }
 
 fn is_one(value: &f32) -> bool {
     *value == 1.0
-}
-
-fn is_false(value: &bool) -> bool {
-    !*value
 }
 
 impl Default for ClockTime {
@@ -37,12 +32,9 @@ impl Default for ClockTime {
     }
 }
 
-/// A change that a command makes to a clock.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ClockEdit {
-    /// The total ticks become the value, and the partial tick 0.
     SetTotalTicks(i64),
-    /// The total ticks move by the value, but not below 0; the partial tick stays.
     AddTicks(i32),
     SetPaused(bool),
     SetRate(f32),
@@ -63,7 +55,6 @@ impl ClockTime {
         }
     }
 
-    /// One server tick that runs normally, for a clock that is not paused.
     pub fn advance(&mut self) {
         if self.paused {
             return;
@@ -74,8 +65,6 @@ impl ClockTime {
         self.total_ticks = self.total_ticks.saturating_add(whole as i64);
     }
 
-    /// The advance of a client clock by `game_ticks`, which can be 0 or negative. The client
-    /// has no paused flag: a clock that stands still has the rate 0.
     pub fn advance_by_game_ticks(&mut self, game_ticks: i64) {
         let reached = f64::from(self.partial_tick) + game_ticks as f64 * f64::from(self.rate);
         let whole = reached.floor();

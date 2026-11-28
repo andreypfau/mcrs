@@ -1,10 +1,12 @@
 use std::time::{Duration, Instant};
 
 use bevy_app::App;
+use bevy_ecs::entity::Entity;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
+use mcrs_minecraft_engine::bus::{PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::client_info::ClientInfo;
 use mcrs_minecraft_engine_registries::install_registries;
 use mcrs_minecraft_engine_registries::test_corpus;
@@ -12,20 +14,18 @@ use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_game_registries::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
-use mcrs_minecraft_item::Items;
+use mcrs_minecraft_item::{ItemHoverMap, Items};
 use mcrs_minecraft_protocol::setting::ChatMode;
+use mcrs_minecraft_protocol_game::text::Text;
 use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 
-/// A dimension sub-app is handed the real corpus at spawn, and worldgen
-/// resolves the block it fills terrain with against it, so a stub would only
-/// move the failure somewhere less obvious.
+use crate::host_app::PlayServer;
+
 pub fn standalone_corpus() -> &'static (Blocks, Items) {
     test_corpus()
 }
 
-/// The host holds the loaded set, dimension types included, because a
-/// dimension is spawned with the type its entry names.
 pub fn insert_registries(app: &mut App) {
     let (blocks, items) = standalone_corpus();
     install_registries(
@@ -63,7 +63,6 @@ pub fn baked(
     bake(dimensions, registries).expect("a list with an overworld bakes")
 }
 
-/// The vanilla preset's three dimensions, then a data-pack dimension, baked as the server bakes them.
 pub fn dimension_list_with_extra() -> DimensionList {
     use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 
@@ -98,4 +97,74 @@ pub fn client_info_with_view_distance(view_distance: u8) -> ClientInfo {
         view_distance,
         chat_mode: ChatMode::Enabled,
     }
+}
+
+pub use mcrs_minecraft_region_disk::{CorpusBlockStates, RegistryBiomes};
+
+pub use mcrs_minecraft_worldgen_generator::staging::SectionData;
+
+pub fn column_sections(
+    mut saved: Vec<mcrs_minecraft_anvil::Section>,
+    y_sections: &[i32],
+) -> Vec<Option<SectionData>> {
+    y_sections
+        .iter()
+        .map(|&y| {
+            let (blocks, biomes) = saved
+                .iter()
+                .position(|section| i32::from(section.y) == y)
+                .map(|index| {
+                    let section = saved.swap_remove(index);
+                    (section.block_states, section.biomes)
+                })
+                .unwrap_or_default();
+            Some((
+                mcrs_minecraft_chunk::VoxelPalette(blocks.unwrap_or_default()),
+                mcrs_minecraft_chunk::VoxelPalette(biomes.unwrap_or_default()),
+            ))
+        })
+        .collect()
+}
+
+pub fn saved_block_entities(
+    chunk: &mcrs_minecraft_anvil::Chunk,
+) -> Result<Vec<mcrs_minecraft_block_entity::GeneratedBlockEntity>, mcrs_minecraft_nbt::Error> {
+    chunk
+        .block_entities
+        .iter()
+        .filter(|compound| {
+            compound
+                .get_string("id")
+                .and_then(mcrs_minecraft_block_entity::GeneratedBlockEntity::kind_of)
+                .is_some()
+        })
+        .map(mcrs_minecraft_block_entity::GeneratedBlockEntity::from_compound)
+        .collect()
+}
+
+pub fn chats(packets: &[PacketPayload]) -> Vec<Text> {
+    packets
+        .iter()
+        .filter_map(|packet| match packet {
+            PacketPayload::SystemChat(chat) => {
+                Some(chat.content.to_text().unwrap().map(&ItemHoverMap).unwrap())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+pub fn chats_to(server: &mut PlayServer, anchor: Entity) -> Vec<Text> {
+    let session = server.session_of(anchor).unwrap();
+    let packets: Vec<PacketPayload> = server
+        .ticks_all(2)
+        .into_iter()
+        .filter(|packet| matches!(&packet.target, PacketTarget::PlayerSet(set) if set.contains(&session)))
+        .map(|packet| packet.data)
+        .collect();
+    chats(&packets)
+}
+
+pub fn reply(key: &'static str) -> Text {
+    Text::translate(key, Vec::<Text>::new())
 }

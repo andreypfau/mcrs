@@ -1,6 +1,5 @@
 use crate::{BlockPos, SectionPos};
 
-/// Index of a block inside its own section: `x | z << 4 | y << 8`, twelve bits.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct LocalPos(u16);
 

@@ -1,10 +1,3 @@
-/// Calls the macro `$callback` once with each built-in component type as `Type => "path"`.
-///
-/// The types are in the order of the type ids: this order is the index of each [`BuiltinKey`],
-/// the order of the patch and saved data, so a new type goes at the end. The path is the path of
-/// the identifier of the type in the `minecraft` namespace.
-///
-/// [`BuiltinKey`]: crate::BuiltinKey
 #[doc(hidden)]
 #[macro_export]
 macro_rules! for_each_builtin {
@@ -20,11 +13,39 @@ macro_rules! for_each_builtin {
             Lore => "lore",
             Rarity => "rarity",
             Enchantments => "enchantments",
+            StoredEnchantments => "stored_enchantments",
             AttributeModifiers => "attribute_modifiers",
             TooltipDisplay => "tooltip_display",
             RepairCost => "repair_cost",
             Food => "food",
             Tool => "tool",
+            MapId => "map_id",
+            MapDecorations => "map_decorations",
+            Profile => "profile",
+            Equippable => "equippable",
+            DyedColor => "dyed_color",
+            CustomModelData => "custom_model_data",
+            EnchantmentGlintOverride => "enchantment_glint_override",
+            BlockState => "block_state",
+            LodestoneTracker => "lodestone_tracker",
+            Trim => "trim",
+            PotionContents => "potion_contents",
+            CustomData => "custom_data",
+            SuspiciousStewEffects => "suspicious_stew_effects",
+            OminousBottleAmplifier => "ominous_bottle_amplifier",
+            Instrument => "instrument",
+            ChargedProjectiles => "charged_projectiles",
+            BundleContents => "bundle_contents",
+            FireworkExplosion => "firework_explosion",
+            Fireworks => "fireworks",
+            BannerPatterns => "banner_patterns",
+            Container => "container",
+            Bees => "bees",
+            ContainerLoot => "container_loot",
+            PaintingVariant => "painting/variant",
+            PiercingWeapon => "piercing_weapon",
+            AttackAnimation => "attack_animation",
+            InteractAnimation => "interact_animation",
         }
     };
 }

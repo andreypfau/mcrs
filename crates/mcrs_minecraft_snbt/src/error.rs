@@ -1,20 +1,14 @@
 use core::fmt;
 
-/// The integer types of SNBT, by their suffix letter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IntegerType {
-    /// `b`: 8 bits.
     Byte,
-    /// `s`: 16 bits.
     Short,
-    /// `i` or no letter: 32 bits.
     Int,
-    /// `l`: 64 bits.
     Long,
 }
 
 impl IntegerType {
-    /// The width of the type in bits.
     pub const fn bits(self) -> u32 {
         match self {
             IntegerType::Byte => 8,
@@ -24,7 +18,6 @@ impl IntegerType {
         }
     }
 
-    /// The name of the type in an error message.
     pub const fn name(self) -> &'static str {
         match self {
             IntegerType::Byte => "byte",
@@ -35,67 +28,42 @@ impl IntegerType {
     }
 }
 
-/// What an SNBT read rejects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SnbtErrorKind {
-    /// The code units the token accepts, joined with `|`.
     LiteralIncorrect(&'static str),
-    /// An unquoted string is expected.
     ExpectedUnquotedString,
-    /// A decimal digit is expected.
     ExpectedDecimalNumeral,
-    /// A hexadecimal digit is expected.
     ExpectedHexNumeral,
-    /// A binary digit is expected.
     ExpectedBinaryNumeral,
-    /// A run of digits starts or ends with `_`.
     UnderscoreNotAllowed,
-    /// A decimal integer has a leading zero.
     LeadingZeroNotAllowed,
-    /// A quoted string holds a character that it may not hold.
     InvalidStringContents,
-    /// An escape takes this number of hexadecimal digits.
     ExpectedHexEscape(u8),
-    /// A `\N{...}` escape names no character.
     InvalidCharacterName,
-    /// An escape names no Unicode scalar value.
     InvalidCodepoint(u32),
-    /// The integer at the bytes `start..end` does not fit in `ty`.
     NumberParseFailure {
         start: usize,
         end: usize,
         ty: IntegerType,
     },
-    /// An unsigned integer has a `-`.
     ExpectedNonNegativeNumber,
-    /// The type of an element does not fit the array.
     InvalidArrayElementType,
-    /// A floating-point value is infinite.
     InfinityNotAllowed,
-    /// A key of a compound is empty.
     EmptyKey,
-    /// An unquoted string starts with a character that it may not start with.
     InvalidUnquotedStart,
-    /// No operation has the name at the bytes `start..end` and this number of arguments.
     NoSuchOperation {
         start: usize,
         end: usize,
         arguments: usize,
     },
-    /// An operation takes a number or a boolean.
     ExpectedNumberOrBoolean,
-    /// An operation takes a UUID string.
     ExpectedStringUuid,
-    /// A compound is expected.
     ExpectedCompound,
-    /// Text follows the value.
     Trailing,
-    /// The value nests too deep.
     TooDeep,
 }
 
 impl SnbtErrorKind {
-    /// The translation key of the error.
     pub const fn key(self) -> &'static str {
         use SnbtErrorKind::*;
         match self {
@@ -125,7 +93,6 @@ impl SnbtErrorKind {
         }
     }
 
-    /// Writes the key argument, if the key has one; the text of a byte range comes from `input`.
     pub fn write_argument(self, input: &str, out: &mut impl fmt::Write) -> fmt::Result {
         use SnbtErrorKind::*;
         match self {
@@ -151,7 +118,6 @@ impl SnbtErrorKind {
     }
 }
 
-/// An error of the read: a kind and the byte offset in the text where it happened.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SnbtError {
     pub kind: SnbtErrorKind,

@@ -2,13 +2,20 @@ use glam::DVec3;
 use mcrs_minecraft_client_ticks::Abilities;
 use mcrs_minecraft_client_ticks::Attribute;
 use mcrs_minecraft_client_ticks::BlockChange;
+use mcrs_minecraft_client_ticks::ChangedSlot;
+use mcrs_minecraft_client_ticks::Click;
+use mcrs_minecraft_client_ticks::Content;
+use mcrs_minecraft_client_ticks::DataEntity;
 use mcrs_minecraft_client_ticks::Effect;
+use mcrs_minecraft_client_ticks::EntityData;
 use mcrs_minecraft_client_ticks::Event;
 use mcrs_minecraft_client_ticks::Keys;
 use mcrs_minecraft_client_ticks::Modifier;
 use mcrs_minecraft_client_ticks::Move;
 use mcrs_minecraft_client_ticks::Rotation;
+use mcrs_minecraft_client_ticks::SlotChange;
 use mcrs_minecraft_client_ticks::Teleport;
+use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_protocol::Decode;
@@ -18,15 +25,20 @@ use mcrs_minecraft_protocol::packets::table::game_serverbound;
 use mcrs_minecraft_protocol_game::LpVec3;
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::Position;
-use mcrs_minecraft_protocol_game::clientbound::AttributeOperation;
 use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetContent;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundForgetLevelChunk;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerAbilities;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSectionBlocksUpdate;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundSetCursorItem;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateAttributes;
+use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::PlayerCommandAction;
+use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
+use mcrs_minecraft_protocol_game::serverbound::ServerboundInteract;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPos;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerPosRot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundMovePlayerRot;
@@ -36,22 +48,17 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerCommand;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerInput;
 
 use crate::names::Names;
+use crate::stack_text::hashed_stack_text;
+use crate::stack_text::sent_stack_text;
 
-/// What a play packet means to the recording.
 pub(crate) enum Play {
-    /// `login`: the network id of the player.
     Login(i32),
-    /// `player_loaded`: the client has loaded the world.
     Loaded,
-    /// `ping` or `pong`: the id.
     Ping(i32),
-    /// `bundle_delimiter`.
     Bundle,
-    /// The events of the packet; none for a packet that the recording does not keep.
     Events(Vec<Event>),
 }
 
-/// The name of the packet `id` in a packet table; empty for an id past its end.
 pub(crate) fn name_of(names: &'static [&'static str], id: i32) -> &'static str {
     usize::try_from(id)
         .ok()
@@ -60,7 +67,6 @@ pub(crate) fn name_of(names: &'static [&'static str], id: i32) -> &'static str {
         .unwrap_or_default()
 }
 
-/// Decodes a clientbound play packet. `player` is the network id of the player, once known.
 pub(crate) fn decode_clientbound(
     names: &Names,
     player: Option<i32>,
@@ -107,9 +113,12 @@ pub(crate) fn decode_clientbound(
             if Some(packet.entity_id.0) != player {
                 return Ok(Play::Events(Vec::new()));
             }
-            return Ok(Play::Events(
-                packet.attributes.iter().map(attribute).collect(),
-            ));
+            let events: Vec<Event> = packet
+                .attributes
+                .iter()
+                .map(attribute)
+                .collect::<anyhow::Result<_>>()?;
+            return Ok(Play::Events(events));
         }
         "update_mob_effect" if is_player(r, player)? => Event::Effect(Effect {
             name: effect_name(VarInt::decode(r)?.0),
@@ -148,12 +157,51 @@ pub(crate) fn decode_clientbound(
             let packet = ClientboundForgetLevelChunk::decode(r)?;
             Event::ChunkForgotten([packet.x, packet.z])
         }
-        _ => return Ok(Play::Events(Vec::new())),
+        "set_entity_data" => {
+            let id = VarInt::decode(r)?.0;
+            let entity = if Some(id) == player {
+                DataEntity::Own
+            } else {
+                DataEntity::Other(id)
+            };
+            return Ok(Play::Events(entity_data(entity, r)));
+        }
+        name => {
+            return Ok(Play::Events(
+                container_event(name, r)?.into_iter().collect(),
+            ));
+        }
     };
     Ok(Play::Events(vec![event]))
 }
 
-/// Decodes a serverbound play packet.
+fn container_event(name: &str, r: &mut &[u8]) -> anyhow::Result<Option<Event>> {
+    Ok(Some(match name {
+        "container_set_slot" => {
+            let packet = ClientboundContainerSetSlot::decode(r)?;
+            Event::Slot(SlotChange {
+                container: packet.container_id.0,
+                state: packet.state_seqno.0,
+                slot: packet.slot,
+                stack: sent_stack_text(&packet.item),
+            })
+        }
+        "container_set_content" => {
+            let packet = ClientboundContainerSetContent::decode(r)?;
+            Event::Content(Content {
+                container: packet.container_id.0,
+                state: packet.state_seqno.0,
+                cursor: sent_stack_text(&packet.carried_item),
+                slots: packet.slot_data.iter().map(sent_stack_text).collect(),
+            })
+        }
+        "set_cursor_item" => Event::Cursor(sent_stack_text(
+            &ClientboundSetCursorItem::decode(r)?.contents,
+        )),
+        _ => return Ok(None),
+    }))
+}
+
 pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Play> {
     let r = &mut body;
     let event = match name_of(game_serverbound::NAMES, id) {
@@ -174,13 +222,32 @@ pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Pla
         "player_command" => match ServerboundPlayerCommand::decode(r)?.action {
             PlayerCommandAction::StartSprinting => Event::Sprinting(true),
             PlayerCommandAction::StopSprinting => Event::Sprinting(false),
-            _ => return Ok(Play::Events(Vec::new())),
+            action => Event::Command(snake_case(&format!("{action:?}"))),
         },
+        "interact" => Event::Interact(ServerboundInteract::decode(r)?.using_secondary_action),
         "use_item" => Event::UseItem,
-        "player_action"
-            if ServerboundPlayerAction::decode(r)?.action == PlayerAction::ReleaseUseItem =>
-        {
-            Event::ReleaseUseItem
+        "player_action" => match ServerboundPlayerAction::decode(r)?.action {
+            PlayerAction::ReleaseUseItem => Event::ReleaseUseItem,
+            action => Event::Action(snake_case(&format!("{action:?}"))),
+        },
+        "container_click" => {
+            let packet = ServerboundContainerClick::decode(r)?;
+            Event::Click(Click {
+                container: packet.container_id.0,
+                state: packet.state_seqno.0,
+                slot: i16::try_from(packet.click.clicked)?,
+                button: packet.click.button,
+                input: input_name(packet.click.kind).to_owned(),
+                cursor: hashed_stack_text(packet.carried_item.as_ref()),
+                changed: packet
+                    .changed_slots
+                    .iter()
+                    .map(|(slot, stack)| ChangedSlot {
+                        slot: *slot,
+                        stack: hashed_stack_text(stack.as_ref()),
+                    })
+                    .collect(),
+            })
         }
         "move_player_pos" => {
             let packet = ServerboundMovePlayerPos::decode(r)?;
@@ -206,7 +273,6 @@ pub(crate) fn decode_serverbound(id: i32, mut body: &[u8]) -> anyhow::Result<Pla
     Ok(Play::Events(vec![event]))
 }
 
-/// Reads the entity id at the start of a packet and tells whether it is the player's.
 fn is_player(r: &mut &[u8], player: Option<i32>) -> anyhow::Result<bool> {
     Ok(Some(VarInt::decode(r)?.0) == player)
 }
@@ -235,25 +301,24 @@ fn vec3(r: &mut &[u8]) -> anyhow::Result<[f64; 3]> {
     Ok([f64::decode(r)?, f64::decode(r)?, f64::decode(r)?])
 }
 
-fn attribute(snapshot: &AttributeSnapshot<'_>) -> Event {
+fn attribute(snapshot: &AttributeSnapshot<'_>) -> anyhow::Result<Event> {
+    let Some(known) = snapshot.attribute.resolve() else {
+        anyhow::bail!("unknown attribute id {}", snapshot.attribute);
+    };
     let modifiers = snapshot
         .modifiers
         .iter()
         .map(|modifier| Modifier {
             id: modifier.id.to_string(),
             amount: modifier.amount,
-            operation: match modifier.operation {
-                AttributeOperation::AddValue => 0,
-                AttributeOperation::AddMultipliedBase => 1,
-                AttributeOperation::AddMultipliedTotal => 2,
-            },
+            operation: u8::from(modifier.operation),
         })
         .collect();
-    Event::Attribute(Attribute {
-        name: snapshot.attribute.as_static_str().to_owned(),
+    Ok(Event::Attribute(Attribute {
+        name: known.as_static_str().to_owned(),
         base: snapshot.base,
         modifiers,
-    })
+    }))
 }
 
 fn effect_name(id: i32) -> String {
@@ -264,4 +329,76 @@ fn effect_name(id: i32) -> String {
             || format!("#{id}"),
             |effect| effect.as_static_str().to_owned(),
         )
+}
+
+fn entity_data(entity: DataEntity, r: &mut &[u8]) -> Vec<Event> {
+    let mut events = Vec::new();
+    loop {
+        let entry = (|| -> anyhow::Result<Option<(u8, i32, MetaDataValue<'_>)>> {
+            let index = u8::decode(r)?;
+            if index == 0xFF {
+                return Ok(None);
+            }
+            let serializer = VarInt::decode(&mut &r[..])?.0;
+            Ok(Some((index, serializer, MetaDataValue::decode(r)?)))
+        })();
+        let (index, serializer, value) = match entry {
+            Ok(Some(entry)) => entry,
+            Ok(None) => return events,
+            Err(error) => {
+                println!("set_entity_data of {entity:?}: {error}; the later entries are not kept");
+                return events;
+            }
+        };
+        let undecoded = matches!(
+            value,
+            MetaDataValue::Particle | MetaDataValue::Particles | MetaDataValue::ResolvableProfile
+        );
+        events.push(Event::EntityData(EntityData {
+            entity,
+            index,
+            value: data_text(serializer, &value),
+        }));
+        if undecoded {
+            return events;
+        }
+    }
+}
+
+fn data_text(serializer: i32, value: &MetaDataValue<'_>) -> String {
+    match value {
+        MetaDataValue::Byte(byte) => format!("byte:{:#04x}", byte.cast_unsigned()),
+        MetaDataValue::VarInt(int) => format!("int:{}", int.0),
+        MetaDataValue::Float(float) => format!("float:{float}"),
+        MetaDataValue::Boolean(boolean) => format!("bool:{boolean}"),
+        MetaDataValue::OptionalBlockPos(None) => "block_pos:-".to_owned(),
+        MetaDataValue::BlockPos(at) | MetaDataValue::OptionalBlockPos(Some(at)) => {
+            format!("block_pos:{},{},{}", at.x, at.y, at.z)
+        }
+        MetaDataValue::Pose(pose) => format!("pose:{}", snake_case(&format!("{pose:?}"))),
+        _ => format!("serializer:{serializer}"),
+    }
+}
+
+fn input_name(kind: ClickKind) -> &'static str {
+    match kind {
+        ClickKind::PickUp => "pickup",
+        ClickKind::QuickMove => "quick_move",
+        ClickKind::Swap => "swap",
+        ClickKind::Clone => "clone",
+        ClickKind::Throw => "throw",
+        ClickKind::Drag => "quick_craft",
+        ClickKind::PickUpAll => "pickup_all",
+    }
+}
+
+fn snake_case(name: &str) -> String {
+    let mut text = String::new();
+    for (position, letter) in name.char_indices() {
+        if letter.is_ascii_uppercase() && position > 0 {
+            text.push('_');
+        }
+        text.push(letter.to_ascii_lowercase());
+    }
+    text
 }

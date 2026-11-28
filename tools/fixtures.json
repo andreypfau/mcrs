@@ -436,6 +436,16 @@
     ]
   },
   {
+    "name": "sign_text",
+    "task": "dumpSignText",
+    "outputs": [
+      {
+        "file": "sign_text.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
     "name": "numeric",
     "task": "dumpNumeric",
     "outputs": [
@@ -446,11 +456,41 @@
     ]
   },
   {
+    "name": "attributes",
+    "task": "dumpAttributes",
+    "outputs": [
+      {
+        "file": "attributes.json",
+        "to": "crates/mcrs_minecraft_entity/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "player_dimensions",
+    "task": "dumpPlayerDimensions",
+    "outputs": [
+      {
+        "file": "player_dimensions.json",
+        "to": "crates/mcrs_minecraft_entity/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
     "name": "block_models",
     "task": "dumpBlockModels",
     "outputs": [
       {
         "file": "block_models.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "potion_colors",
+    "task": "dumpPotionColors",
+    "outputs": [
+      {
+        "file": "potion_colors.json",
         "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
       }
     ]
@@ -472,6 +512,16 @@
       {
         "file": "environment.json",
         "to": "crates/mcrs_minecraft_environment/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "font",
+    "task": "dumpFont",
+    "outputs": [
+      {
+        "file": "font.json",
+        "to": "crates/mcrs_minecraft_client_gui/tests/fixtures/vanilla"
       }
     ]
   },
@@ -502,6 +552,36 @@
       {
         "pattern": "*",
         "to": "crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames"
+      }
+    ]
+  },
+  {
+    "name": "loot",
+    "task": "dumpLoot",
+    "outputs": [
+      {
+        "file": "loot.bin",
+        "to": "crates/mcrs_minecraft_loot_table/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "local_worlds",
+    "task": "dumpLocalWorlds",
+    "outputs": [
+      {
+        "file": "local_worlds.json",
+        "to": "crates/mcrs_minecraft_save/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
+    "name": "inventory_e17",
+    "task": "recordInventoryE17",
+    "outputs": [
+      {
+        "pattern": "inventory_e17_*.txt",
+        "to": "tools/mcrs_minecraft_client_recorder/recordings/inventory"
       }
     ]
   }

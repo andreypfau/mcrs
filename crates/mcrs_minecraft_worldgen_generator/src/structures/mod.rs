@@ -40,8 +40,6 @@ pub mod nearest_biome;
 
 pub mod place;
 
-// Vanilla marks these `dynamicShape()` and never files them as full blocks when
-// ordering a template; the block schema carries no such flag, so the set lives here.
 pub(crate) const DYNAMIC_SHAPE_BLOCKS: &[&str] = &[
     Block::MovingPiston.as_static_str(),
     Block::ShulkerBox.as_static_str(),
@@ -95,14 +93,10 @@ pub struct StructureInputs<'a> {
     pub pools: &'a BTreeMap<ResourceLocationBuf, TemplatePool>,
     pub template: &'a dyn Fn(&ResourceLocationBuf) -> Option<Cow<'a, Template>>,
     pub resolve: &'a dyn Fn(&PaletteState) -> Option<ResolvedState>,
-    /// The biome and structure ids and tags the sets are resolved against.
     pub registries: &'a Registries,
     pub variants: &'a VariantInputs<'a>,
 }
 
-/// The variant registries the structures' mobs draw from, each map in its
-/// registry order with the asset's `spawn_conditions`, and each sound registry
-/// as its ids in order.
 #[derive(Default)]
 pub struct VariantInputs<'a> {
     pub cats: Option<&'a BTreeMap<ResourceLocationBuf, Vec<SpawnSelector<Named>>>>,
@@ -165,8 +159,8 @@ fn freeze_variants(
             entries
                 .iter()
                 .map(|(id, selectors)| (id.clone(), selectors.as_slice())),
-            &|keys| structure_id_set(inputs, frozen, keys),
-            &|keys| biome_mask(inputs, keys),
+            |keys| structure_id_set(inputs, frozen, keys),
+            |keys| biome_mask(inputs, keys),
         )
         .map_err(|error| format!("{registry}: {error}"))
     };
@@ -210,7 +204,7 @@ fn biome_mask(inputs: &StructureInputs<'_>, keys: &KeySet<Biome>) -> Result<Biom
 
 fn biome_tag_mask(
     inputs: &StructureInputs<'_>,
-    owner: &dyn std::fmt::Display,
+    owner: &impl std::fmt::Display,
     key: TagKey<'static, Biome>,
 ) -> Result<BiomeMask, String> {
     biome_mask(inputs, &KeySet::Tag(key.into()))
@@ -250,9 +244,6 @@ fn freeze_pools(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> 
     Ok(())
 }
 
-/// The element's id and, unless it is empty, the y extent of its bounding box
-/// at the origin with no rotation. A list imposes its projection on every
-/// member, however deep.
 fn freeze_element(
     inputs: &StructureInputs<'_>,
     frozen: &mut FrozenStructures,
@@ -421,7 +412,7 @@ fn path_then_namespace(a: &ResourceLocationBuf, b: &ResourceLocationBuf) -> Orde
 
 #[expect(
     clippy::too_many_lines,
-    reason = "freezes every structure in id order into its kind with one arm per structure type, so the per-step counters advance in the reference's order"
+    reason = "one arm per structure type in id order keeps the counters in order"
 )]
 fn freeze_structures(
     inputs: &StructureInputs<'_>,
@@ -584,8 +575,6 @@ fn check_aliases(
                     target(&weighted.data)?;
                 }
             }
-            // One group is drawn per resolution, so the groups are alternatives:
-            // each must be free of repeats on its own, and any of them may follow.
             PoolAlias::RandomGroup { groups } => {
                 let before = seen.clone();
                 for group in groups {
@@ -599,8 +588,6 @@ fn check_aliases(
     Ok(())
 }
 
-/// Every pool a jigsaw can reach from the start pool must name, in each of its
-/// templates' jigsaw blocks, either a loaded pool or an alias of this structure.
 fn check_jigsaw_targets(
     structure: &ResourceLocationBuf,
     start: PoolId,
@@ -742,8 +729,6 @@ fn freeze_sets(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> R
     Ok(())
 }
 
-/// The sets a dimension whose source can answer `biomes` places, each with
-/// the structures of it that can land there.
 pub fn live_sets(
     frozen: &FrozenStructures,
     biomes: &FixedBitSet,

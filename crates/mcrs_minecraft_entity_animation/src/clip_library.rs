@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use mcrs_minecraft_pack_file::{Json, JsonObject, PackFileError};
 
-/// The clips of the animation files of a pack, by identifier, before a client entity compiles
-/// them.
 #[derive(Clone, Debug, Default)]
 pub struct ClipLibrary {
     clips: HashMap<String, JsonObject>,
@@ -15,8 +13,6 @@ impl ClipLibrary {
         Self::default()
     }
 
-    /// Adds the clips of an animation file. A clip replaces an earlier clip with the same
-    /// identifier. A clip that is not an object is left out.
     pub fn add_file(&mut self, text: &str) -> Result<(), PackFileError> {
         let root = Json::parse_lenient(text).map_err(PackFileError::Syntax)?;
         let animations = root

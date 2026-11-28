@@ -10,26 +10,21 @@ use mcrs_minecraft_protocol_game::position_delta;
 
 use crate::move_choice::{Due, KEYFRAME_INTERVAL_TICKS, MoveChoice, Resync};
 
-/// Where a subject is and where it looks, in degrees.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pose {
     pub position: DVec3,
     pub look: Look,
 }
 
-/// A point of a path: the position that the subject reaches `ticks` ticks after the point before.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Waypoint {
     pub(crate) ticks: u32,
     pub(crate) position: DVec3,
 }
 
-/// How a move reaches its last position.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Path<'a> {
-    /// One relative move, which the client interpolates over its own fixed time.
     Linear(DVec3),
-    /// Relative steps with the ticks between them, which keep a slow tier in motion.
     Stepped(&'a [Waypoint]),
 }
 
@@ -42,16 +37,12 @@ impl Path<'_> {
     }
 }
 
-/// What the viewers of one tier last received for a subject. All viewers of a subject at a tier
-/// share one base, so a relative move of the subject is the same packet for each of them.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DeltaBase {
     pub position: DVec3,
     pub look: Look,
-    /// The yaw of the body and of the head, which a player turns together.
     pub yaw: ByteAngle,
     pub pitch: ByteAngle,
-    /// The tick of the last absolute position that the viewers received.
     keyframe_tick: u64,
 }
 
@@ -66,10 +57,6 @@ impl DeltaBase {
         }
     }
 
-    /// Moves the base along `path` to its end, looking at `look`, at `tick`, and appends to
-    /// `bytes` the packets that move the subject `id` on a client from the old base to the new
-    /// one. A step that does not fit a relative move, or a keyframe due at `tick`, sends the
-    /// absolute position. The base and `bytes` stay as they are when an encoding fails.
     pub(crate) fn advance(
         &mut self,
         id: VarInt,
@@ -106,8 +93,6 @@ impl DeltaBase {
         };
         match MoveChoice::choose(resync, due, || delta) {
             MoveChoice::Sync => return self.sync(id, &pose, tick, bytes),
-            // Only the exact look changed, below what a client can see: keep the old one so that
-            // a keyframe shows what the client has.
             MoveChoice::Still => next.look = self.look,
             MoveChoice::Relative(relative) => all_or_nothing(bytes, |bytes| {
                 relative.write(id, next.yaw, next.pitch, true, bytes)?;
@@ -118,7 +103,6 @@ impl DeltaBase {
         Ok(())
     }
 
-    /// Moves the base to `pose` at `tick` and appends the absolute position of `id` there.
     pub(crate) fn sync(
         &mut self,
         id: VarInt,
@@ -143,8 +127,6 @@ impl DeltaBase {
         Ok(())
     }
 
-    /// Appends the absolute position and head of `id` at this base, so a client that holds the
-    /// subject at another base comes to this one.
     pub(crate) fn keyframe(&self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
         all_or_nothing(bytes, |bytes| {
             write_record(
@@ -180,7 +162,6 @@ impl DeltaBase {
     }
 }
 
-/// Runs `write` on `bytes`, and takes back what it wrote when it fails.
 pub(crate) fn all_or_nothing(
     bytes: &mut BytesMut,
     write: impl FnOnce(&mut BytesMut) -> Result<()>,
@@ -193,8 +174,6 @@ pub(crate) fn all_or_nothing(
     written
 }
 
-/// The steps from `from` along `waypoints`, without the steps that do not move, or `None` when
-/// a step moves more than a relative move holds.
 fn stepped_delta(from: DVec3, waypoints: &[Waypoint]) -> Option<VecDelta> {
     let mut steps = Vec::with_capacity(waypoints.len());
     let mut at = from;
@@ -212,7 +191,6 @@ fn stepped_delta(from: DVec3, waypoints: &[Waypoint]) -> Option<VecDelta> {
         at = waypoint.position;
         waited = 0;
     }
-    // The steps start at the end of the path that the viewers last received, so they extend it.
     Some(VecDelta::Stepped {
         steps,
         start_immediately: false,

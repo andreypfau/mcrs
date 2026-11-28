@@ -3,32 +3,26 @@ use mcrs_voxel::BlockPos;
 use crate::colors::LightColors;
 use crate::region::{Palette, Region};
 
-/// Light per cell and palette lane: cell `c`, lane `l` is `levels[c * bytes + l]`.
 pub struct Lanes {
     pub bytes: usize,
     pub levels: Box<[u8]>,
 }
 
 impl Lanes {
-    /// `None` when the cell and lane lie past `levels`.
     #[inline]
     pub fn level(&self, cell: usize, lane: usize) -> Option<u8> {
         self.levels.get(cell * self.bytes + lane).copied()
     }
 }
 
-/// The vanilla light curve, so a type counts in a mix as much as it brightens.
 pub fn light_weight(level: u8) -> f32 {
     let f = level as f32 / 15.0;
     f / (4.0 - 3.0 * f)
 }
 
-/// Per output cell, x fastest then z then y: the known colours mixed by weight
-/// in RGB, and the default type's share of the weight in A. The default tint is
-/// left to shading, so an unlit cell is `[0, 0, 0, 255]`.
 #[expect(
     clippy::excessive_nesting,
-    reason = "mixes the known colours of each output cell lane by lane, weighted by light, with the channel sums inline"
+    reason = "channel sums inline, lane by lane"
 )]
 pub fn resolve(
     region: &Region,

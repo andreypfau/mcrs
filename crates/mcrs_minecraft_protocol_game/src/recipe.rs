@@ -334,10 +334,6 @@ impl mcrs_minecraft_protocol::Decode<'_> for RecipeDisplay<Wire> {
     }
 }
 
-/// One recipe as the client's recipe book shows it; `group` is the index of
-/// its group, `crafting_requirements` is absent for recipes the book cannot
-/// place, and `flags` carries [`Self::FLAG_NOTIFICATION`] and
-/// [`Self::FLAG_HIGHLIGHT`].
 #[derive(Clone, Debug, PartialEq, FromWire)]
 pub struct RecipeBookEntry<M: Refs = Resolved> {
     pub id: VarInt,
@@ -377,11 +373,8 @@ impl mcrs_minecraft_protocol::Decode<'_> for RecipeBookEntry<Wire> {
     }
 }
 
-/// The items a `recipe_property_set` accepts, in the order vanilla's set
-/// iterates them.
 pub type RecipePropertySet<M = Resolved> = Vec<<M as Refs>::Id<Item>>;
 
-/// One stonecutter option: the input it accepts and what the button shows.
 #[derive(Clone, Debug, PartialEq, FromWire, Encode, Decode)]
 pub struct SelectableRecipe<M: Refs = Resolved> {
     pub input: Ingredient<M>,

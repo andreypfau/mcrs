@@ -12,17 +12,12 @@ const MAX_BRANCHING_DEPTH: i32 = 4;
 
 #[derive(Clone, Debug)]
 pub struct CompiledChorusPlant {
-    /// `supports_chorus_plant`, which only the downward connection reads.
     pub supports: StateMask,
-    /// Every state of `chorus_plant` and of `chorus_flower`: what a neighbour
-    /// must be for a connection to point at it.
     pub plant_or_flower: StateMask,
-    /// The 64 states of `chorus_plant`, indexed by [`connection_index`].
     pub plant_by_connections: [VoxelId; 64],
     pub flower_age5: VoxelId,
 }
 
-/// `down`, `up`, `north`, `east`, `south`, `west` as bits 5 down to 0.
 pub fn connection_index(
     down: bool,
     up: bool,
@@ -39,7 +34,6 @@ pub fn connection_index(
         | (west as usize)
 }
 
-/// A chorus plant grown from an air cell over end stone.
 pub fn place_chorus_plant<W: WorldGenVolume>(
     cfg: &CompiledChorusPlant,
     volume: &mut W,
@@ -69,7 +63,6 @@ fn grow<W: WorldGenVolume>(
 
     for step in 1..=height {
         let target = BlockPos::new(current.x, current.y + step, current.z);
-        // A blocked column abandons the whole node, flower included.
         if !neighbours_empty(volume, target, None) {
             return;
         }
@@ -146,8 +139,6 @@ mod tests {
     use crate::tree::provider::fake::FakeVolume;
 
     const END_STONE: VoxelId = VoxelId(1);
-    /// The 64 connection states of `chorus_plant` sit at 64..128, the flower at
-    /// 128, so a test reads a written connection mask straight off the id.
     const PLANT_BASE: u16 = 64;
     const FLOWER: VoxelId = VoxelId(128);
     const ORIGIN: BlockPos = BlockPos::new(8, 70, 8);
@@ -175,7 +166,6 @@ mod tests {
         volume
     }
 
-    /// Neither air nor ground costs a draw.
     #[test]
     fn a_refused_origin_draws_nothing() {
         let cfg = config();
@@ -195,9 +185,6 @@ mod tests {
         assert_eq!(rng, before);
     }
 
-    /// A neighbour touching the first cell above the origin abandons the node
-    /// before the branch draws and before the flower: one draw, one write, and
-    /// that write is the root with its `down` connection set.
     #[test]
     fn a_blocked_column_spends_one_draw_and_writes_only_the_root() {
         let cfg = config();
@@ -226,8 +213,6 @@ mod tests {
         );
     }
 
-    /// Open sky: the plant stays inside the reference's spread, roots itself on
-    /// the end stone and tops every unbranched node with a flower.
     #[test]
     fn an_open_plant_stays_within_the_spread_and_flowers() {
         let cfg = config();

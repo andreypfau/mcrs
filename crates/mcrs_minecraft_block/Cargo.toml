@@ -18,12 +18,12 @@ mcrs_minecraft_value_provider.workspace = true
 mcrs_minecraft_registries.workspace = true
 bevy_asset = { workspace = true, optional = true }
 bevy_ecs = { workspace = true, optional = true }
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 bevy_platform = { workspace = true, optional = true }
 bitflags = "2"
 mcrs_minecraft_assets = { workspace = true, optional = true }
 mcrs_minecraft_core.workspace = true
-mcrs_minecraft_sound.workspace = true
+mcrs_minecraft_sound = { workspace = true, features = ["registry"] }
 mcrs_molang.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true

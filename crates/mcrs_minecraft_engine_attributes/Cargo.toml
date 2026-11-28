@@ -1,0 +1,19 @@
+[package]
+name = "mcrs_minecraft_engine_attributes"
+description = "The attribute instances of the players of a dimension world: each player requires them with the bases of its type"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute = { workspace = true, features = ["bevy"] }
+tracing.workspace = true

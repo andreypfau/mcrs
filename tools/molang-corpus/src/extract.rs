@@ -8,15 +8,12 @@ use serde_json::Value;
 
 use crate::json::{self, members};
 
-/// The JSON form of one Molang field value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ValueForm {
     String,
     Number,
     Bool,
-    /// An array of strings that the loader joins into one expression (MOL-LOAD-002).
     ScriptArray,
-    /// An object `{"expression": …, "version": …}`.
     Versioned,
 }
 
@@ -32,12 +29,10 @@ impl ValueForm {
     }
 }
 
-/// One Molang field value of a pack file.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Occurrence {
     pub text: String,
     pub form: ValueForm,
-    /// The entries of a script array, before the join.
     pub entries: Vec<String>,
     pub version: Option<String>,
     pub kind: &'static str,
@@ -79,7 +74,6 @@ enum Side {
     Behavior,
 }
 
-/// Walks a pack, or a directory with `resource_pack` and `behavior_pack`.
 pub fn extract(root: &Path) -> anyhow::Result<Extraction> {
     let mut extraction = Extraction::default();
     let resource = root.join("resource_pack");
@@ -259,7 +253,6 @@ impl Extractor<'_> {
         });
     }
 
-    /// Emits one Molang value. An array is a vector of values, each one expression.
     fn emit(&mut self, value: &Value, field: &str, pointer: &str) {
         match value {
             Value::String(text) => self.push(text.clone(), ValueForm::String, field, pointer),
@@ -294,7 +287,6 @@ impl Extractor<'_> {
         }
     }
 
-    /// Emits a script: a string, or an array of strings that the loader joins.
     fn emit_script(&mut self, value: &Value, field: &str, pointer: &str) {
         let Value::Array(items) = value else {
             self.emit(value, field, pointer);
@@ -313,7 +305,6 @@ impl Extractor<'_> {
         }
     }
 
-    /// Emits the conditions of a list of `name` or `{name: condition}` entries.
     fn emit_conditions(&mut self, value: &Value, field: &str, pointer: &str) {
         let Value::Array(items) = value else {
             return;
@@ -578,8 +569,6 @@ impl Extractor<'_> {
         }
     }
 
-    /// Emits each string of a particle component, except the keys and the values that are
-    /// names, modes or colours.
     fn particle_value(&mut self, value: &Value, field: &str, pointer: &str) {
         const NOT_MOLANG: [&str; 9] = [
             "facing_camera_mode",
@@ -647,7 +636,6 @@ impl Extractor<'_> {
         }
     }
 
-    /// Emits each other string that looks like Molang, with the last two keys as the field.
     fn sweep(&mut self, value: &Value, pointer: &str, keys: &[&str]) {
         match value {
             Value::String(text) if !self.visited.contains(pointer) && looks_like_molang(text) => {
@@ -672,7 +660,6 @@ impl Extractor<'_> {
     }
 }
 
-/// A string looks like Molang when it has a namespace followed by `.` and a name.
 fn looks_like_molang(text: &str) -> bool {
     const NAMESPACES: [&str; 9] = [
         "q", "query", "v", "variable", "t", "temp", "c", "context", "math",

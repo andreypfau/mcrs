@@ -4,7 +4,6 @@ use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
-/// The chunk generator of each dimension, in the order of the [`DimensionList`].
 #[derive(Resource, Clone, Debug, Default)]
 pub struct DimensionGenerators(pub Vec<ChunkGenerator>);
 

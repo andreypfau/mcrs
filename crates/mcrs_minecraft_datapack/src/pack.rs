@@ -6,7 +6,6 @@ use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
 use crate::PackDiagnostic;
 use crate::filter::Filter;
 
-/// The id of the pack the game jar's data pack is loaded as.
 pub const VANILLA_PACK: &str = "vanilla";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,8 +57,6 @@ impl AvailablePack {
         }
     }
 
-    /// A pack that a program carries in its binary. It requests no feature and has no filter, no
-    /// overlay and no known-pack identity.
     pub fn embedded(id: impl Into<String>) -> Self {
         Self {
             id: id.into(),
@@ -96,8 +93,6 @@ pub struct Features {
 }
 
 impl Features {
-    /// The vanilla feature alone, known and enabled by the vanilla pack, in a world that does not
-    /// restrict its features.
     pub fn vanilla() -> Self {
         let vanilla: ResourceLocationBuf = rl!("minecraft:vanilla").into();
         Self {
@@ -115,7 +110,6 @@ pub struct KnownPack {
     pub version: String,
 }
 
-/// The position of a pack in its stack; a higher one overrides a lower one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackIndex(u16);
 
@@ -159,20 +153,15 @@ pub struct PackStack {
     pub(crate) enabled_features: Vec<ResourceLocationBuf>,
 }
 
-/// What a pack holds at a path: the bytes of a file, or a ready value in place of one.
 pub enum PackContent<'f> {
     Bytes(&'f [u8]),
     Value(Box<dyn Any + Send + Sync>),
 }
 
-/// A file or a value a pack contributes under `data/<namespace>/`, after its overlays are
-/// applied.
 pub struct PackFile<'f> {
     pub pack: PackIndex,
     pub namespace: &'f str,
-    /// The path below the namespace directory.
     pub relative: &'f str,
-    /// The path in the pack, overlay directory included.
     pub path: &'f str,
     pub content: PackContent<'f>,
 }
@@ -194,10 +183,6 @@ impl PackStack {
         &self.enabled_features
     }
 
-    /// Every file and value of every pack that no filter above it hides, from the bottom of the
-    /// stack up, and a diagnostic for each filter that is ignored. Within one pack the content of a
-    /// later overlay replaces the content of the same path below it. Each value of a listed pack
-    /// moves out of `files`, which keeps a unit value in its place.
     pub fn files<'f>(&self, files: &'f mut PackFiles) -> (Vec<PackFile<'f>>, Vec<PackDiagnostic>) {
         let mut by_pack: HashMap<&str, &'f mut BTreeMap<String, Content>> = files
             .packs
@@ -228,7 +213,6 @@ impl PackStack {
                     }
                     Content::Value(value) => {
                         if let Some((rank, key)) = under.next_back() {
-                            // A unit box does not allocate.
                             let value = std::mem::replace(value, Box::new(()));
                             keep(&mut merged, key, (rank, path, PackContent::Value(value)));
                         }
@@ -250,7 +234,6 @@ impl PackStack {
         self.filtered(out)
     }
 
-    /// A filter whose pattern fails on a file is ignored as a whole.
     fn filtered<'f>(&self, files: Vec<PackFile<'f>>) -> (Vec<PackFile<'f>>, Vec<PackDiagnostic>) {
         let mut hidden = vec![false; files.len()];
         let mut diagnostics = Vec::new();
@@ -290,8 +273,6 @@ impl PackStack {
     }
 }
 
-/// The content each `(namespace, relative)` path of one pack lists, with the rank of the root it
-/// lies below: `data/` first, then each overlay.
 type Merged<'f> = BTreeMap<(&'f str, &'f str), (usize, &'f str, PackContent<'f>)>;
 
 fn keep<'f>(
@@ -309,8 +290,6 @@ enum Content {
     Value(Box<dyn Any + Send + Sync>),
 }
 
-/// The files and ready values of each pack, by their path in the pack. A value replaces the file
-/// at the same path, whichever of the two is inserted first.
 #[derive(Default)]
 pub struct PackFiles {
     packs: HashMap<String, BTreeMap<String, Content>>,

@@ -1,13 +1,16 @@
 use bevy_ecs::component::Component;
+use bevy_ecs::entity::Entity;
 use bevy_ecs::storage::Table;
 use bevy_ecs::storage::TableRow;
+use bevy_ecs::world::World;
 use mcrs_minecraft_item_stack::ItemComponent;
 
 use crate::Removed;
 use crate::column::Column;
 use crate::effective;
+use crate::row::Row;
+use crate::row::row_mask;
 
-/// The table row of one stack and one bit for each row of the item components that it stores.
 #[derive(Clone, Copy)]
 pub(crate) struct Cells<'w> {
     table: &'w Table,
@@ -17,9 +20,9 @@ pub(crate) struct Cells<'w> {
 }
 
 impl<'w> Cells<'w> {
-    /// # Safety
-    /// `row` is the row of a live entity in `table` for `'w`, and the caller may read the column
-    /// of each row of the item components and of [`Removed`] for `'w`.
+    // SAFETY: the caller guarantees that `row` is the row of a live entity in `table` for `'w`,
+    // and that it may read the column of each row of the item components and of `Removed` for
+    // `'w`.
     pub(crate) unsafe fn new(
         table: &'w Table,
         row: TableRow,
@@ -36,16 +39,28 @@ impl<'w> Cells<'w> {
         cells
     }
 
+    pub(crate) fn in_world(world: &'w World, stack: Entity, rows: &[Row]) -> Option<Self> {
+        let location = world.entities().get(stack).ok()??;
+        let table = world.storages().tables.get(location.table_id)?;
+        let mut cells = Self {
+            table,
+            row: location.table_row,
+            mask: row_mask(rows, |id| table.has_column(id)),
+            removed: None,
+        };
+        cells.removed =
+            Column::<Removed>::of(world.components()).and_then(|removed| cells.get(removed));
+        Some(cells)
+    }
+
     pub(crate) fn removed(&self) -> Option<&'w Removed> {
         self.removed
     }
 
-    /// The rows whose effective value can differ from the neutral value.
     pub(crate) fn present(&self) -> u128 {
         self.mask | self.removed.map_or(0, |removed| u128::from(removed.bits()))
     }
 
-    /// The stored value of `T`. The column is that of an item component row or of [`Removed`].
     pub(crate) fn get<T: Component>(&self, column: Column<T>) -> Option<&'w T> {
         let data = self.table.get_column(column.id())?;
         // SAFETY: by the contract of `new`, `row` is a live row of `table` that the holder may

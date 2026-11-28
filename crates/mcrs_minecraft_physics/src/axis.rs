@@ -1,6 +1,5 @@
 use glam::DVec3;
 
-/// An axis of the world.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Axis {
     X,
@@ -20,7 +19,6 @@ impl Axis {
         }
     }
 
-    /// The two other axes, in the order `x`, `y`, `z`.
     #[must_use]
     pub const fn others(self) -> [Axis; 2] {
         match self {
@@ -39,7 +37,6 @@ impl Axis {
         }
     }
 
-    /// The element of `values` for this axis, with `values` in the order `x`, `y`, `z`.
     #[must_use]
     pub const fn pick<T>(self, values: &[T; 3]) -> &T {
         match self {

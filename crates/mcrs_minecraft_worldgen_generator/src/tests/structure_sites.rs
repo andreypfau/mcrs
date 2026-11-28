@@ -1,3 +1,4 @@
+use crate::probe_lattice::ProbeLattice;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_voxel::ColumnPos;
 use std::sync::{Arc, LazyLock};
@@ -221,11 +222,6 @@ fn world_states() -> &'static Arc<WorldStates> {
     &STATES
 }
 
-/// The strict profile is the oracle. The fast profile can flip a biome at a
-/// climate near-tie, which shifts the reservoir sample by one cell and moves
-/// that ring position anywhere inside its 57×57-quart search window; the
-/// observed count is one of 640, and a broken ring function would move
-/// positions out of the window, not merely within it.
 const RING_DIVERGENCE_BUDGET: usize = if mcrs_minecraft_worldgen_density::FAST_PROFILE {
     1
 } else {
@@ -241,12 +237,14 @@ fn assert_base_heights_match_the_oracle(dump: &[DumpSeed], dimensions: usize) {
         for (dimension_id, probes) in entry.heights.iter().take(dimensions) {
             let dimension = dimension(dimension_id);
             let router = build_settings_router(dimension.settings, entry.seed as u64);
+            let mut lattice = ProbeLattice::default();
             assert_eq!(probes.len(), 64);
             for probe in probes {
                 let mut height = |kind| {
                     base_height(
                         &router,
                         &mut ws,
+                        &mut lattice,
                         &predicates,
                         kind,
                         probe.x,
@@ -324,7 +322,7 @@ mod exhaustive {
     #[test]
     #[expect(
         clippy::excessive_nesting,
-        reason = "compares each structure's site with the oracle's site and verdict, with the pairing inline, so a mismatch names the structure"
+        reason = "pairing inline so a mismatch names the structure"
     )]
     fn structure_sites_match_the_oracle() {
         let dump = read_dump();
@@ -366,7 +364,7 @@ mod exhaustive {
     #[test]
     #[expect(
         clippy::excessive_nesting,
-        reason = "compares each hardcoded structure's site with the oracle's site and verdict, with the pairing inline, so a mismatch names the structure"
+        reason = "pairing inline so a mismatch names the structure"
     )]
     fn hardcoded_sites_match_the_oracle() {
         let dump = read_dump();
@@ -403,11 +401,9 @@ mod exhaustive {
                 }
             }
         }
-        assert_eq!((cases, present, biome_ok), (5 * 21 * 16, 866, 446));
+        assert_eq!((cases, present, biome_ok), (5 * 21 * 16, 866, 447));
     }
 
-    /// Every set whose entries all have a site, which since the mineshaft's port
-    /// is every set the dump holds.
     #[test]
     fn set_selection_matches_the_oracle() {
         let dump = read_dump();
@@ -435,7 +431,7 @@ mod exhaustive {
                 }
             }
         }
-        assert_eq!((cases, selected), (5 * 21 * 16, 659));
+        assert_eq!((cases, selected), (5 * 21 * 16, 660));
     }
 
     #[test]

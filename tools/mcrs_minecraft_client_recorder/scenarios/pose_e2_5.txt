@@ -1,0 +1,53 @@
+# Fall from 30 blocks and press Space in the air: with an elytra, with no elytra, and with an
+# elytra that the console removes just before the press. Experiment E2, step 5, of
+# docs/spec/player-pose.md: POSE-SRV-004, POSE-CLI-002.
+experiment pose_e2_5
+arena -16 96 -16 48 110 16
+
+step elytra
+instruction After Go, tap Space once in the air.
+go 10
+input 15 jump
+input 17 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run gamerule fall_damage false
+run clear @a
+run item replace entity @a armor.chest with minecraft:elytra
+start 0.5 130 0.5 -90 40
+ticks 160
+
+step no_elytra
+instruction After Go, tap Space once in the air.
+go 10
+input 15 jump
+input 17 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run clear @a
+start 0.5 130 0.5 -90 40
+ticks 100
+
+step elytra_removed_1
+instruction After Go, tap Space once in the air. The console removes the elytra one tick before.
+go 10
+input 14 jump
+input 16 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run clear @a
+run item replace entity @a armor.chest with minecraft:elytra
+start 0.5 130 0.5 -90 40
+at 13 item replace entity @a armor.chest with minecraft:air
+ticks 100
+
+step elytra_removed_2
+instruction After Go, tap Space once in the air. The console removes the elytra two ticks before.
+go 10
+input 15 jump
+input 17 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run clear @a
+run item replace entity @a armor.chest with minecraft:elytra
+start 0.5 130 0.5 -90 40
+at 13 item replace entity @a armor.chest with minecraft:air
+ticks 100

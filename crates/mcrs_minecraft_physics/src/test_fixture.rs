@@ -1,6 +1,6 @@
 use glam::DVec3;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 use crate::BlockAction;
 use crate::GridFlags;
@@ -15,8 +15,6 @@ use crate::TestBlocks;
 use crate::TestWorld;
 use crate::View;
 
-/// The test blocks, their tables, an empty world and the buffers of a tick, for tests and
-/// benchmarks.
 pub struct TestFixture {
     pub blocks: TestBlocks,
     pub tables: Tables,
@@ -44,11 +42,10 @@ impl TestFixture {
         View::new(&self.world, &NoBodies, &self.tables)
     }
 
-    /// A query entity at `position` with no fall, shift or powder snow rule.
     #[must_use]
     pub fn query_entity(position: DVec3) -> QueryEntity {
         QueryEntity {
-            key: EntityKey(0),
+            key: EntityUuid::from_u128(0),
             position,
             fall_distance: 0.0,
             shift: false,
@@ -57,16 +54,15 @@ impl TestFixture {
         }
     }
 
-    /// The grid row of a pushable mob of width 0.6 and height 1.95 at `(x, 0, z)`, with the
-    /// sequence `index` in its key.
     #[must_use]
     pub fn mob(index: u32, x: f64, z: f64) -> GridRow {
         let id = EntityId(u64::from(index) + 1);
         GridRow {
             position: DVec3::new(x, 0.0, z),
+            previous: DVec3::new(x, 0.0, z),
             half_width: 0.3,
             height: 1.95,
-            key: EntityKey(u128::from(index)),
+            key: EntityUuid::from_u128(u128::from(index)),
             id,
             root_vehicle: id,
             team: TeamSlot::default(),
@@ -82,7 +78,6 @@ impl Default for TestFixture {
     }
 }
 
-/// A SplitMix64 stream, for random tests.
 pub struct TestRng(pub u64);
 
 impl TestRng {

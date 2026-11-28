@@ -1,0 +1,15 @@
+# A closed trapdoor at the height 1 appears over the player, who then walks out. Experiment E2,
+# step 4, of docs/spec/player-pose.md: POSE-SRV-009, POSE-NET-002.
+experiment pose_e2_4
+arena -16 96 -16 48 110 16
+
+step trapdoor
+instruction Stand still; the console places trapdoors over the head. After 1 second, hold W for 5 seconds.
+input 91 forward
+input 191 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+start 0.5 100 0.5 -90 0
+at 70 fill -1 101 -1 1 101 1 minecraft:oak_trapdoor[half=bottom,open=false]
+ticks 220

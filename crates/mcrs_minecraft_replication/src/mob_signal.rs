@@ -1,12 +1,53 @@
-/// A packet that a mob sends its viewers once, besides its state (DMG-NET-001, DMG-NET-003).
+use bytes::Bytes;
+use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_protocol::{Result, VarInt};
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundDamageEvent, ClientboundEntityEvent, ClientboundTakeItemEntity,
+};
+
+use crate::encode::record;
+use crate::wire_id::wire_id;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MobSignal {
-    /// A full hit, with the network id of its damage type.
     Hurt { damage_type: u32 },
-    /// The death: the entity event [`DIED`](mcrs_minecraft_protocol_game::clientbound::ClientboundEntityEvent::DIED).
     Died,
-    /// The removal after the death: the entity event
-    /// [`REMOVED`](mcrs_minecraft_protocol_game::clientbound::ClientboundEntityEvent::REMOVED).
     Removed,
+    Taken { collector: EntityId, amount: i32 },
+}
+
+impl MobSignal {
+    pub(crate) fn encode(self, subject: EntityId) -> Result<Option<Bytes>> {
+        let entity_id = wire_id(subject);
+        let event = |entity_status| {
+            record(&ClientboundEntityEvent {
+                entity_id: entity_id.0,
+                entity_status,
+            })
+        };
+        let packet = match self {
+            Self::Hurt { damage_type } => {
+                let Ok(damage_type) = i32::try_from(damage_type) else {
+                    tracing::warn!("the damage type {damage_type} of a hit has no id on the wire");
+                    return Ok(None);
+                };
+                record(&ClientboundDamageEvent {
+                    entity_id,
+                    damage_type: VarInt(damage_type),
+                    cause_entity_id: VarInt(0),
+                    direct_entity_id: VarInt(0),
+                    source_position: None,
+                })?
+            }
+            Self::Died => event(ClientboundEntityEvent::DIED)?,
+            Self::Removed => event(ClientboundEntityEvent::REMOVED)?,
+            Self::Taken { collector, amount } => record(&ClientboundTakeItemEntity {
+                item_id: entity_id,
+                player_id: wire_id(collector),
+                amount: VarInt(amount),
+            })?,
+        };
+        Ok(Some(packet))
+    }
 }

@@ -1,6 +1,3 @@
-//! Reading the game's data pack and the repository's assets off disk, for the
-//! tests that check the engine against every file the game ships rather than
-//! against a fixture.
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -22,13 +19,10 @@ use std::sync::LazyLock;
 
 pub use mcrs_minecraft_fixtures::vanilla_dir;
 
-/// The repository's assets: the reports, the definitions and the local packs.
 pub fn assets_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
 }
 
-/// `relative` below a pack root, with the vanilla pack's `minecraft` directory read from the
-/// game's data pack and everything else from [`assets_dir`].
 pub fn corpus_path(relative: &str) -> PathBuf {
     match Path::new(relative).strip_prefix("minecraft").ok() {
         Some(below) => vanilla_dir().join(below),
@@ -40,7 +34,6 @@ pub fn worldgen_dir() -> PathBuf {
     vanilla_dir().join("worldgen")
 }
 
-/// Every data pack layered over the vanilla tree, in name order.
 pub fn packs() -> Vec<PathBuf> {
     let Ok(listing) = std::fs::read_dir(assets_dir().join("mcrs/datapacks")) else {
         return Vec::new();
@@ -54,12 +47,10 @@ pub fn packs() -> Vec<PathBuf> {
     packs
 }
 
-/// Every `.json` under `dir`, recursively, in a stable order.
 pub fn json_files(dir: &Path) -> Vec<PathBuf> {
     files_with_extension(dir, "json")
 }
 
-/// Every `.nbt` under `dir`, recursively, in a stable order.
 pub fn nbt_files(dir: &Path) -> Vec<PathBuf> {
     files_with_extension(dir, "nbt")
 }
@@ -83,9 +74,6 @@ fn collect(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Every structure template as the gzip NBT the loader reads, keyed by its path
-/// under `minecraft/structure`: the built-in ones, and the game's files the code
-/// builds none for.
 pub fn templates() -> BTreeMap<PathBuf, Vec<u8>> {
     let base = vanilla_dir().join("structure");
     let mut templates = BTreeMap::new();
@@ -106,19 +94,15 @@ pub fn templates() -> BTreeMap<PathBuf, Vec<u8>> {
     templates
 }
 
-/// One structure template as the gzip NBT the loader reads: the built-in, or the
-/// game's file when the code builds none.
 pub fn template(id: &ResourceLocationBuf) -> Option<Vec<u8>> {
     let path = format!("{}/structure/{}.nbt", id.namespace(), id.path());
     builtin::asset(&path).or_else(|| std::fs::read(corpus_path(&path)).ok())
 }
 
-/// Whether the code builds the structure template `id` in place of the game's file.
 pub fn is_built_template(id: &ResourceLocationBuf) -> bool {
     builtin::asset(&format!("{}/structure/{}.nbt", id.namespace(), id.path())).is_some()
 }
 
-/// The id a corpus file carries: its path under `base`, without the extension.
 fn id_of(base: &Path, path: &Path) -> ResourceLocationBuf {
     let relative = path.strip_prefix(base).expect("the file is under the base");
     let name = relative
@@ -136,14 +120,10 @@ fn worldgen_roots() -> impl Iterator<Item = PathBuf> {
     )
 }
 
-/// The built template pools as the JSON they encode to, for the tests that read
-/// the corpus as files.
 pub fn built_template_pools() -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
     built_json("template_pool")
 }
 
-/// The built biomes as the JSON they encode to, for the tests that read the
-/// corpus as files.
 pub fn built_biomes() -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
     encoded(builtin::biomes().unwrap_or_else(|error| panic!("{error}")))
 }
@@ -161,8 +141,6 @@ fn encoded<T: serde::Serialize>(
         .collect()
 }
 
-/// The built-in entries of one `minecraft/worldgen` folder as the JSON they
-/// encode to, for the tests that read the corpus as files.
 fn built_json(folder: &str) -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
     type Json = LazyLock<BTreeMap<ResourceLocationBuf, Vec<u8>>>;
     static NOISES: Json = LazyLock::new(|| encoded(builtin::noises()));
@@ -181,9 +159,6 @@ fn built_json(folder: &str) -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
     }
 }
 
-/// One `minecraft/worldgen` registry as the JSON the loader reads for each
-/// entry: the game's files, replaced by the built-in entries, replaced by the
-/// files of every pack. An id two packs ship, or a pack and the game, is refused.
 fn entries(folder: &str) -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
     let mut entries = BTreeMap::new();
     let mut shipped: BTreeMap<ResourceLocationBuf, PathBuf> = BTreeMap::new();
@@ -215,9 +190,6 @@ fn entries(folder: &str) -> BTreeMap<ResourceLocationBuf, Vec<u8>> {
     entries
 }
 
-/// One `minecraft/worldgen` registry, parsed. Every entry must parse: dropping
-/// the ones that do not would let a test read "the whole corpus compiles" off a
-/// corpus quietly missing the entries that broke.
 pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocationBuf, T> {
     entries(folder)
         .into_iter()
@@ -229,31 +201,6 @@ pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocationB
         .collect()
 }
 
-/// Every `.json` under the [`corpus_path`] of `dir`, parsed. Panics naming every
-/// file that did not parse, or if the folder holds none.
-pub fn parse_all<T: DeserializeOwned>(dir: &str) -> Vec<(PathBuf, T)> {
-    let mut parsed = Vec::new();
-    let mut failures = Vec::new();
-    for path in json_files(&corpus_path(dir)) {
-        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        match serde_json::from_slice::<T>(&bytes) {
-            Ok(value) => parsed.push((path, value)),
-            Err(e) => failures.push(format!("{}: {e}", path.display())),
-        }
-    }
-    assert!(
-        failures.is_empty(),
-        "{} of {} files in {dir} failed to parse:\n{}",
-        failures.len(),
-        failures.len() + parsed.len(),
-        failures.join("\n")
-    );
-    assert!(!parsed.is_empty(), "no files found in {dir}");
-    parsed
-}
-
-/// One named `minecraft/worldgen` asset, which must parse: the file a pack
-/// ships, else the built-in entry, else the game's file.
 pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocationBuf) -> T {
     let path = format!("{}/worldgen/{folder}/{}.json", id.namespace(), id.path());
     let bytes = packs()
@@ -266,23 +213,15 @@ pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocationBuf) -> T {
     serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}"))
 }
 
-/// A value as its JSON text reads back. `serde_json::to_value` widens an `f32`
-/// to the `f64` nearest its bits; the text form is the shortest decimal that
-/// reads back as the same `f32`, which is what the pack shipped.
 pub fn reencode<T: serde::Serialize>(value: &T) -> serde_json::Value {
     serde_json::from_str(&serde_json::to_string(value).unwrap()).unwrap()
 }
 
-/// Whether two JSON texts hold the same value, whatever their layout.
 pub fn same_json(a: &[u8], b: &[u8]) -> bool {
     let parse = |bytes| serde_json::from_slice::<serde_json::Value>(bytes).ok();
     parse(a).is_some_and(|a| Some(a) == parse(b))
 }
 
-/// Every entry of one `minecraft/worldgen` registry, shipped or built in,
-/// parsed and written back, which must equal what was read. Returns how many
-/// entries were checked, so a caller can pin the count and see a corpus change
-/// as a failure.
 pub fn round_trips<T: DeserializeOwned + serde::Serialize>(folder: &str) -> usize {
     let entries = entries(folder);
     for (id, bytes) in &entries {
@@ -295,14 +234,11 @@ pub fn round_trips<T: DeserializeOwned + serde::Serialize>(folder: &str) -> usiz
     entries.len()
 }
 
-/// A length-prefixed string of one of the oracle's little-endian dumps.
 pub fn dump_string(r: &mut impl bytes::Buf) -> String {
     let len = r.get_u32_le() as usize;
     String::from_utf8(r.copy_to_bytes(len).to_vec()).unwrap()
 }
 
-/// A palette of state names followed by positions indexing into it, as the
-/// oracle dumps every list of placed blocks.
 pub fn dump_placements(r: &mut impl bytes::Buf) -> Vec<([i32; 3], String)> {
     let palette: Vec<String> = (0..r.get_u32_le()).map(|_| dump_string(r)).collect();
     (0..r.get_u32_le())

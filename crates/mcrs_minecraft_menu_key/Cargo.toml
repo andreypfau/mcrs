@@ -1,0 +1,16 @@
+[package]
+name = "mcrs_minecraft_menu_key"
+description = "The keys of the menu registry"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_registries.workspace = true

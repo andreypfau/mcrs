@@ -1,7 +1,6 @@
 use mcrs_minecraft_protocol::{Decode, Encode, Result};
 use std::io::Write;
 
-/// For the first 8 values set means relative value while unset means absolute
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum PositionFlag {
     X,
@@ -33,18 +32,15 @@ impl PositionFlag {
     }
 }
 
-/// The flags of a teleport, one bit each on the wire.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 pub struct PositionFlags(u16);
 
 impl PositionFlags {
-    /// The wire bitmask of the flags.
     #[must_use]
     pub const fn bits(self) -> u16 {
         self.0
     }
 
-    /// The flags of the wire bitmask `bits`, without the bits that name no flag.
     #[must_use]
     pub const fn from_bits_truncate(bits: u16) -> Self {
         Self(bits & ((1 << PositionFlag::ALL.len()) - 1))

@@ -29,10 +29,6 @@ const LEGACY_GEOMETRY_FIELDS: [&str; 6] = [
 ];
 const LEGACY_PREFIX: &str = "geometry.";
 
-/// The geometries of one geometry file, and the diagnostics of the file.
-///
-/// A geometry with a content error is not in `geometries`; a
-/// [`Diagnostic::RejectedGeometry`] names it.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct GeometryFile {
@@ -74,7 +70,6 @@ impl FromStr for GeometryFile {
     }
 }
 
-/// The state of the reading of one file.
 pub(crate) struct Reader {
     pub(crate) format: FormatVersion,
     pub(crate) shape: Shape,
@@ -218,7 +213,6 @@ impl Reader {
         Ok(())
     }
 
-    /// Logs each field of `object` that is not in `known`.
     pub(crate) fn check_fields(&mut self, object: &JsonObject, known: &[&str]) {
         for (key, _) in object.iter() {
             if !known.contains(&key) {
@@ -326,7 +320,6 @@ pub(crate) fn vec2(
         .transpose()
 }
 
-/// The numbers of an array of exactly `N` numbers.
 pub(crate) fn numbers<const N: usize>(value: &Json) -> Option<[f32; N]> {
     let elements = value.as_array()?;
     if elements.len() != N {

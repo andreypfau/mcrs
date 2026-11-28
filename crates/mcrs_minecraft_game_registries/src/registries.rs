@@ -32,6 +32,8 @@ use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::{
     InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
+use mcrs_minecraft_loot_condition::{ConditionFile, FloatProviderFile, IntProviderFile};
+use mcrs_minecraft_loot_table::{LootTableFile, ModifierFile};
 use mcrs_minecraft_registries::{Declaration, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
 use serde::Deserialize;
@@ -49,7 +51,6 @@ macro_rules! spawning_variants {
     };
 }
 
-/// Every data registry whose values this crate reads.
 fn typed_declarations() -> Vec<Declaration> {
     let mut declarations: Vec<Declaration> = vec![
         Declaration::data::<BiomeFile>()
@@ -107,6 +108,11 @@ fn typed_declarations() -> Vec<Declaration> {
         Declaration::data::<DimensionEntry>().into(),
         Declaration::data::<MultiNoiseBiomeSourceParameterList>().into(),
         Declaration::data::<WorldPreset>().into(),
+        Declaration::data::<LootTableFile>().into(),
+        Declaration::data::<ModifierFile>().into(),
+        Declaration::data::<ConditionFile>().into(),
+        Declaration::data::<IntProviderFile>().into(),
+        Declaration::data::<FloatProviderFile>().into(),
     ];
     declarations.extend(spawning_variants!(
         WolfVariantFile as WolfVariant,
@@ -131,8 +137,6 @@ struct Flags {
     stable: bool,
 }
 
-/// The stage of every data registry the data pack report lists: one whose entries a reload may
-/// change is reloadable.
 fn data_registries(
     report: &[u8],
 ) -> Result<BTreeMap<ResourceLocationBuf, Stage>, RegistryLoadError> {
@@ -154,10 +158,6 @@ fn data_registries(
         .collect())
 }
 
-/// Every registry a load declares: the static registries, the data registries this crate reads,
-/// `extra`, and every other data registry of the data pack `report` by its names alone. A
-/// declaration of `extra` replaces the declaration of this crate for its key. A data
-/// registry that the report lists loads in the stage of the report; any other keeps its own.
 pub fn declarations(
     report: &[u8],
     extra: Vec<Declaration>,

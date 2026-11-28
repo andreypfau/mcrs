@@ -1,10 +1,13 @@
-/// Vanilla shades the bytes its textures are written with and hands the result to the screen
-/// unchanged. The view target encodes to sRGB as it is written, so the colour is decoded first
-/// and the target writes vanilla's bytes back out.
 fn to_target(raw: vec3<f32>) -> vec3<f32> {
     let low = raw / 12.92;
     let high = pow((raw + 0.055) / 1.055, vec3<f32>(2.4));
     return select(high, low, raw <= vec3<f32>(0.04045));
+}
+
+fn from_target(stored: vec3<f32>) -> vec3<f32> {
+    let low = stored * 12.92;
+    let high = 1.055 * pow(stored, vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(high, low, stored <= vec3<f32>(0.0031308));
 }
 
 fn edge_pixels(quad_uv: vec2<f32>) -> f32 {

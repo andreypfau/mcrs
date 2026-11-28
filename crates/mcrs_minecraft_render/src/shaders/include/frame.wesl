@@ -6,7 +6,6 @@ struct Params {
     counter: u32,
     flags: u32,
 }
-
 const PARAMS_MODEL: u32 = 1u;
 const PARAMS_QUAD_CULL: u32 = 2u;
 
@@ -21,6 +20,11 @@ struct Camera {
     quad_cull: u32,
     viewport: vec2<f32>,
     shade_table: u32,
+    render_distance: u32,
+    raster_viewport: vec2<f32>,
+    fog_color: vec3<f32>,
+    fog_environmental: vec2<f32>,
+    fog_render_distance: vec2<f32>,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;

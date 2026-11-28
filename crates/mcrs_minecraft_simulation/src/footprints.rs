@@ -1,17 +1,12 @@
 use mcrs_voxel::BlockStateId;
 
-/// The footprint bound of the handlers of each block state (SIM-MODEL-009), on the horizontal
-/// axes only: a block tile covers the whole height. One reach covers every handler kind of a
-/// state, so it is the largest bound of Tables 1 to 7 for its block type.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Footprints {
     reach: Vec<u8>,
 }
 
 impl Footprints {
-    /// The default bound of shape functions, side effects and scheduled ticks (Tables 4 to 6).
     pub const DEFAULT: u8 = 2;
-    /// A handler with no bound: it runs only in the serial step.
     pub const UNBOUNDED: u8 = u8::MAX;
 
     pub fn new(
@@ -37,8 +32,6 @@ impl Footprints {
         footprints
     }
 
-    /// The largest horizontal distance, in blocks, from the position of a handler call of
-    /// `state` to a position that the call reads or writes.
     #[must_use]
     pub fn reach(&self, state: BlockStateId) -> u8 {
         self.reach

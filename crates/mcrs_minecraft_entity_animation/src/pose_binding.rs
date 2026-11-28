@@ -4,13 +4,9 @@ use mcrs_minecraft_entity_model::{BakedGeometry, BonePose, space};
 use crate::pose::{Pose, PoseBone};
 use crate::rig::Rig;
 
-/// The bones of one geometry matched to the bones of a rig by name.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PoseBinding {
-    /// For each rig bone, its rest rotation in file space, or zero when the geometry has no bone
-    /// with its name.
     rest: Vec<Vec3>,
-    /// For each geometry bone, the index of the rig bone with its name.
     rig_bones: Vec<Option<usize>>,
 }
 
@@ -31,14 +27,11 @@ impl PoseBinding {
         Self { rest, rig_bones }
     }
 
-    /// The rest rotation of a rig bone in file space, in degrees.
     #[must_use]
     pub fn rest_rotation(&self, rig_bone: usize) -> Vec3 {
         self.rest.get(rig_bone).copied().unwrap_or(Vec3::ZERO)
     }
 
-    /// The pose of each bone of `geometry` in internal space. A bone that the rig does not
-    /// animate takes its rest pose.
     pub fn bone_poses(&self, geometry: &BakedGeometry, pose: &Pose, poses: &mut Vec<BonePose>) {
         poses.clear();
         for (bone, rig_bone) in geometry.bones.iter().zip(&self.rig_bones) {
@@ -54,8 +47,6 @@ impl PoseBinding {
         }
     }
 
-    /// The model transform of each bone of `geometry`. A bone with a rotation relative to the
-    /// entity keeps the rotation of its own pose: its parents move its pivot but do not turn it.
     #[must_use]
     pub fn model_transforms(&self, geometry: &BakedGeometry, pose: &Pose) -> Vec<Affine3A> {
         let mut poses = Vec::with_capacity(geometry.bones.len());

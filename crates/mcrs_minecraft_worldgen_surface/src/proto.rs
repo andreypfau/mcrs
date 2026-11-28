@@ -32,7 +32,7 @@ pub enum MaterialConditionHolder {
 #[serde(deny_unknown_fields)]
 #[expect(
     clippy::large_enum_variant,
-    reason = "the ore vein variant holds three density holders and three block states in line, and boxing them would add a pointer to every block rule"
+    reason = "boxing the vein would add a pointer to every block rule"
 )]
 pub enum MaterialRule {
     Block {
@@ -122,7 +122,6 @@ mod tests {
         );
     }
 
-    /// Neither shape occurs in the shipped corpus, so nothing else covers them.
     #[test]
     fn the_unshipped_shapes_round_trip() {
         let stated = r#"{"type":"minecraft:block","result_state":{"id":"minecraft:snow","properties":{"layers":"1"}}}"#;

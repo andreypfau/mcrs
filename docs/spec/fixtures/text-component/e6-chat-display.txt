@@ -1,0 +1,128 @@
+# Experiment E6 of docs/spec/text-component.md, section 8.7: how chat shows the style, the legacy codes and the object contents.
+# Source: screenshots of the window of the vanilla client. The images are e6-style.png, e6-style-2.png, e6-codes-1.png, e6-codes-2.png and e6-objects.png.
+# The player is the offline test player Recorder. The vanilla client of the project version joined the vanilla server
+# on 127.0.0.1. The server ran in offline mode. The console of the server gave each command.
+# A marker line "[Server] @@vis-..." precedes the cases of each image. The cases follow the rows of the image from top to bottom.
+# The code character is the section sign. A "legacy code" is that character with the character that follows it.
+#
+# image e6-style.png
+# case STY-a
+> tellraw Recorder {text:"P",color:"red",bold:true,extra:[{text:"C",bold:false},{text:"D",color:"blue"},{text:"E",italic:true}]}
+# observed: P red and bold. C red and not bold. D blue and bold. E red, bold and italic.
+# case STY-b
+> tellraw Recorder {text:"UUU",underlined:true,extra:[{text:"NNN",underlined:false},{text:"UUU"}]}
+# observed: the first UUU underlined. NNN not underlined. The second UUU underlined.
+# case STY-c
+> tellraw Recorder {translate:"%s-%s-%s",color:"red",bold:false,with:[{text:"a",color:"blue"},{text:"b",bold:true},"c"],extra:["!"]}
+# observed: "a-b-c!" with a blue, b red and bold, the hyphens, c and ! red and not bold.
+# case STY-d
+> tellraw Recorder {translate:"%s>%s",color:"red",with:[{text:"a",color:"blue",extra:["a2"]},"b"],extra:["e"]}
+# observed: "aa2>be" with a and a2 blue, the other characters red.
+# case STY-e
+> tellraw Recorder {translate:"%s %s",color:"green",bold:true,with:[1,true]}
+# observed: "1 1" green and bold.
+# case STY-font
+> tellraw Recorder {text:"ABC ",font:"minecraft:illageralt",extra:[{text:"DEF "},{text:"GHI ",font:"minecraft:default"}]}
+# observed: ABC and DEF in the glyphs of the font illageralt. GHI in the glyphs of the default font.
+# case STY-g
+> tellraw Recorder {text:"BBB",bold:true,extra:[{text:"NNN",bold:false},{text:"BBB"}]}
+# observed: the first BBB bold. NNN not bold. The second BBB bold.
+# case STY-h
+> tellraw Recorder {translate:"%s%s%s",color:"gold",with:[{text:"A",extra:["B"]},"C",{text:"D",color:"aqua"}],extra:["E"]}
+# observed: "ABCDE" with D aqua and the other characters gold.
+#
+# image e6-codes-1.png
+# case FMT-a
+> tellraw Recorder {text:"a§cb§lc§rd"}
+# observed: a white. b red. c red and bold. d white and not bold.
+# case FMT-b
+> tellraw Recorder {text:"a§cb§rc",color:"blue"}
+# observed: a blue. b red. c blue.
+# case FMT-c
+> tellraw Recorder {text:"§0A§1B§2C§3D§4E§5F§6G§7H"}
+# observed: eight colours in the order of the codes 0 to 7: black, dark blue, dark green, dark aqua, dark red, dark purple, gold, gray.
+# case FMT-d
+> tellraw Recorder {text:"§8A§9B§aC§bD§cE§dF§eG§fH"}
+# observed: eight colours in the order of the codes 8 to f: dark gray, blue, green, aqua, red, light purple, yellow, white.
+# case FMT-e
+> tellraw Recorder {text:"§lB§mS§nU§oI§rN"}
+# observed: B bold. S bold and struck through. U bold, struck through and underlined. I the same and italic. N plain.
+# case FMT-f
+> tellraw Recorder {text:"§lB§cR§lB"}
+# observed: B white and bold. R red and not bold. The second B red and bold.
+# case FMT-g
+> tellraw Recorder {text:"§CR§LB§RN"}
+# observed: R red. B red and bold. N white and plain. The upper case letters act as the lower case letters.
+# case FMT-h
+> tellraw Recorder {text:"§cA",extra:["B"]}
+# observed: A red. B white.
+# case FMT-i
+> tellraw Recorder {text:"a§zb§!c"}
+# observed: "abc" in white. Each code that no format has is gone, with the character after the code character.
+#
+# image e6-codes-2.png
+# case FMT-j
+> tellraw Recorder {text:"A§",extra:["cB"]}
+# observed: "AcB" in white. The code character at the end of a text is gone, and the next text does not start a code.
+# case FMT-k
+> tellraw Recorder {translate:"§c%s",with:["a"]}
+# observed: "a" in white. A code in the pattern does not act on the argument.
+# case FMT-l
+> tellraw Recorder {text:"§kXXXX§rN"}
+# observed: four characters that change at each frame, then N plain.
+# case FMT-m
+> tellraw Recorder {text:"§aA§rB",color:"red",bold:true}
+# observed: A green and bold. B red and bold.
+# case FMT-n
+> tellraw Recorder {text:"§lB§r§cR",color:"blue"}
+# observed: B blue and bold. R red and not bold.
+# case FMT-o
+> tellraw Recorder {text:"§9§lB§oI§cR"}
+# observed: B blue and bold. I blue, bold and italic. R red, not bold and not italic.
+# case FMT-p
+> tellraw Recorder {text:"NNN§mSSS§nUUU§rN"}
+# observed: NNN plain. SSS struck through. UUU struck through and underlined. N plain.
+#
+# image e6-objects.png
+# case OBJ-a
+> tellraw Recorder {text:"[",extra:[{atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:"FB"},"]"]}
+# observed: the image of the stone sprite between the two brackets.
+# case OBJ-b
+> tellraw Recorder {text:"[",extra:[{atlas:"minecraft:items",sprite:"minecraft:item/diamond"},"]"]}
+# observed: the image of the diamond between the two brackets.
+# case OBJ-c
+> tellraw Recorder {text:"[",extra:[{player:{id:[I;1,2,3,4]},fallback:"FB"},"]"]}
+# observed: the head of the default skin between the two brackets.
+# case OBJ-d
+> tellraw Recorder {text:"[",extra:[{player:{id:[I;1,2,3,4]},hat:false},"]"]}
+# observed: the head of the default skin between the two brackets.
+# case OBJ-e
+> tellraw Recorder {text:"[",extra:[{atlas:"minecraft:blocks",sprite:"minecraft:block/stone",color:"red",font:"minecraft:illageralt"},"]"]}
+# observed: the image of the stone sprite in a red tint between the two brackets.
+# case OBJ-f
+> tellraw Recorder {translate:"[%s]",with:[{atlas:"minecraft:blocks",sprite:"minecraft:block/dirt",fallback:"FB"}]}
+# observed: the image of the dirt sprite between the two brackets.
+# case OBJ-g
+> tellraw Recorder {text:"[",extra:[{atlas:"minecraft:blocks",sprite:"my:no/such"},"]"]}
+# observed: the image of the missing texture, a magenta and black pattern, between the two brackets.
+# case OBJ-h
+> tellraw Recorder {text:"[",extra:[{atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:""},"]"]}
+# observed: the image of the stone sprite between the two brackets.
+#
+# image e6-style-2.png
+# The options file of the client binds the key mapping key.jump to the key X.
+# case STY2-strike
+> tellraw Recorder {text:"AAA",strikethrough:true,extra:[{text:"BBB"},{text:"CCC",strikethrough:false}]}
+# observed: AAA and BBB struck through. CCC not struck through.
+# case STY2-italic
+> tellraw Recorder {text:"AAA",italic:true,extra:[{text:"BBB"},{text:"CCC",italic:false}]}
+# observed: AAA and BBB in italic. CCC not in italic.
+# case STY2-obf
+> tellraw Recorder {text:"AAA",obfuscated:true,extra:[{text:"BBB"},{text:"CCC",obfuscated:false}]}
+# observed: six characters that change at each frame. CCC readable.
+# case STY2-shadow
+> tellraw Recorder {text:"AAA",shadow_color:-65536,extra:[{text:"BBB"},{text:"CCC",shadow_color:0}]}
+# observed: AAA and BBB with a red shadow. CCC with no shadow.
+# case STY2-key
+> tellraw Recorder {keybind:"key.attack",color:"red",bold:true,extra:["|",{keybind:"key.jump",color:"blue"}]}
+# observed: "Left Button|X" in bold. Left Button and the bar red. X blue.

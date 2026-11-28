@@ -1,0 +1,29 @@
+# Hold Shift while the proxy module no_shift_input clears the shift flag of player_input; then
+# right-click a pig with Shift held. Experiment E8, step 2, of docs/spec/player-pose.md:
+# POSE-SRV-012. Run with CHEAT=no_shift_input.
+experiment pose_e8_2
+arena -16 96 -16 48 110 16
+
+step shift_only
+instruction After Go, hold Shift for 2 seconds, then release it.
+input 61 shift
+input 101 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run kill @e[type=!minecraft:player]
+run clear @a
+start 0.5 100 0.5 -90 30
+ticks 140
+
+step interact_shift
+instruction After Go, hold Shift; after half a second, right-click the pig once; release Shift after 2 seconds.
+input 61 shift -90 30
+input 71 shift,use
+input 72 shift
+input 101 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run kill @e[type=!minecraft:player]
+run summon minecraft:pig 2.5 100 0.5 {NoAI:1b}
+start 0.5 100 0.5 -90 30
+ticks 140

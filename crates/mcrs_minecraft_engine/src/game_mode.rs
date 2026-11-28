@@ -1,9 +1,9 @@
-use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use crate::ability::{PlayerFlying, PlayerOpLevel};
 use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine_world::session::Owner;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::GameEventKind;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundGameEvent, ClientboundPlayerAbilities};
@@ -11,9 +11,9 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundChangeGameMode, ServerboundPlayerAbilities,
 };
 
-/// The game mode that the player list shows for a player, which the login and a dimension
-/// change leave as it was told.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(
+    Component, Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 pub struct ListedGameMode(pub GameMode);
 
 pub struct GameModePlugin;
@@ -60,12 +60,9 @@ fn handle_player_abilities(
     }
 }
 
-// The flying and walking speeds are the defaults, because the saved speeds of a player
-// are not read yet; reading them with the rest of the player data lifts it.
 const FLYING_SPEED: f32 = 0.05;
 const WALKING_SPEED: f32 = 0.1;
 
-/// The abilities of a player in `mode` that flew as `flying` before.
 pub(crate) fn abilities(mode: GameMode, flying: PlayerFlying) -> ClientboundPlayerAbilities {
     let (invulnerable, flying, may_fly, instant_build) = match mode {
         GameMode::Survival | GameMode::Adventure => (false, false, false, false),
@@ -82,13 +79,8 @@ pub(crate) fn abilities(mode: GameMode, flying: PlayerFlying) -> ClientboundPlay
     }
 }
 
-/// Gives a player the abilities of its new game mode and tells it both. The change of
-/// [`ListedGameMode`] tells the viewers that have its profile entry. A mode that the login or a
-/// dimension change already told is not sent again.
-// A player that flies near the ground keeps its flight on a change to creative, since
-// the server has no collision query for it yet; a ground test over the block world lifts it.
 pub(crate) fn send_game_mode(
-    mut players: Query<
+    mut players: Populated<
         (
             &PlayerGameMode,
             &mut ListedGameMode,
@@ -99,22 +91,21 @@ pub(crate) fn send_game_mode(
     >,
     mut writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    for (mode, mut listed, mut flying, &Owner(session)) in &mut players {
-        if listed.0 == mode.0 {
+    for (mode, listed, mut flying, &Owner(session)) in &mut players {
+        if !listed
+            .map_unchanged(|listed| &mut listed.0)
+            .set_if_neq(mode.0)
+        {
             continue;
         }
-        listed.0 = mode.0;
         let abilities = abilities(mode.0, *flying);
         flying.set_if_neq(PlayerFlying(abilities.flying));
-        writer.write(
-            to(
-                session,
-                PacketPayload::GameEvent(ClientboundGameEvent {
-                    game_event: GameEventKind::ChangeGameMode(mode.0),
-                }),
-            )
-            .critical(),
-        );
-        writer.write(to(session, PacketPayload::PlayerAbilities(abilities)).critical());
+        writer.write(to(
+            session,
+            PacketPayload::GameEvent(ClientboundGameEvent {
+                game_event: GameEventKind::ChangeGameMode(mode.0),
+            }),
+        ));
+        writer.write(to(session, PacketPayload::PlayerAbilities(abilities)));
     }
 }

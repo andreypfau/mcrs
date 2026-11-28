@@ -13,8 +13,6 @@ use mcrs_minecraft_volume::{BlockVolume, PaletteBuffer, SectionBlocks};
 use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 use proptest::prelude::*;
 
-/// Sections `0..LISTED` on x and z take picks: 3 × 3 block tiles of 4 × 4 sections. The world
-/// holds `MARGIN` more sections on each side, so a serial re-run reads only loaded blocks.
 const LISTED: i32 = 12;
 const MARGIN: i32 = 3;
 const FAR: i8 = 40;
@@ -32,7 +30,6 @@ enum Op {
     HasTick(i8, i8),
 }
 
-/// A tick or a block event that a pick queued. A copy of a queued item is dropped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Item {
     BlockTick(BlockPos, ProbeBlock),
@@ -64,7 +61,6 @@ fn offset(at: BlockPos, dx: i8, dz: i8) -> BlockPos {
     BlockPos::new(at.x + i32::from(dx), at.y, at.z + i32::from(dz))
 }
 
-/// What a handler can do, in the kernel and in the reference.
 trait Effects {
     fn read(&mut self, pos: BlockPos) -> Option<BlockStateId>;
     fn write(&mut self, pos: BlockPos, state: BlockStateId) -> bool;
@@ -72,7 +68,6 @@ trait Effects {
     fn has_tick(&mut self, pos: BlockPos, block: ProbeBlock) -> bool;
 }
 
-/// Each result feeds the next op, so a read or a write that differs changes what follows.
 fn handle(
     rule: &Rule,
     effects: &mut impl Effects,
@@ -93,7 +88,6 @@ fn handle(
                 acc = acc.wrapping_mul(31).wrapping_add(read);
             }
             Op::Write(dx, dz) => {
-                // Air or any state past the void air.
                 let written = match acc as usize % (STATES - 1) {
                     0 => AIR,
                     n => state(n + 1),
@@ -213,9 +207,6 @@ impl<V: SimulationVolume, F: BlockFacts<ProbeKinds>> Effects for Kernel<'_, '_, 
     }
 }
 
-/// The world after the steps: the writes in order, the scheduled ticks in queue order, the
-/// block events that an event phase after the steps delivers, the number of re-runs and the
-/// final state of each written position.
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Outcome {
     writes: Vec<BlockWrite>,
@@ -239,7 +230,6 @@ struct Blob {
     sx: i32,
     sz: i32,
     state: usize,
-    /// Out of 64 positions.
     density: u32,
     seed: u64,
 }
@@ -284,7 +274,6 @@ fn tile_of(section: SectionPos) -> (i32, i32) {
     (section.x.div_euclid(4), section.z.div_euclid(4))
 }
 
-/// The listed sections grouped by block tile, the groups and the sections in each group shuffled.
 fn listed(host: &Host, order: u64) -> Vec<SectionPos> {
     let mut random = LegacyRandom::new(order);
     let mut tiles: Vec<Vec<SectionPos>> = Vec::new();
@@ -302,7 +291,6 @@ fn listed(host: &Host, order: u64) -> Vec<SectionPos> {
     tiles.into_iter().flatten().collect()
 }
 
-/// Runs the items on `threads` threads, each thread in a shuffled order of its own.
 struct Shuffled {
     threads: usize,
     seed: u64,
@@ -426,23 +414,15 @@ fn kernel<S: Spread>(case: &Case, mut host: Host, spread: &S) -> Outcome {
     }
 }
 
-/// The reference: one thread, no overlay. It draws the picks of all listed sections from the
-/// ticking positions at the start of the step, then runs the hits in the order colour, tile,
-/// listed section, pick. A hit that leaves the region of its tile is rolled back from a journal
-/// and runs again after all tiles, in the order of the listed sections and the picks.
 struct Reference<'a> {
     host: Host,
     rules: &'a Rules,
     table: &'a RandomTickTable,
-    /// The ticking positions of each section, in ascending local index.
     lists: HashMap<SectionPos, Vec<u16>>,
     writes: Vec<BlockWrite>,
-    /// The queued items in queue order, with the tick of their step. The steps never run a tick
-    /// or deliver an event, so a copy of an item stays dropped.
     queued: Vec<(Item, i64)>,
     seen: HashSet<Item>,
     now: i64,
-    /// The block tile whose region bounds the current pick.
     region: Option<(i32, i32)>,
     overflowed: bool,
     journal: Vec<(BlockPos, BlockStateId)>,
@@ -462,7 +442,6 @@ impl Reference<'_> {
         span(tx).contains(&pos.x) && span(tz).contains(&pos.z)
     }
 
-    /// Fails the pick when `pos` is outside the region.
     fn reach_out(&mut self, pos: BlockPos) -> bool {
         let inside = self.inside(pos, 0);
         self.overflowed |= !inside;
@@ -511,8 +490,6 @@ impl Reference<'_> {
         }
     }
 
-    /// Runs one pick, in the region of the tile of `region` if any. Returns `false` and leaves
-    /// no trace when the pick left the region.
     fn bounded_pick(
         &mut self,
         at: BlockPos,
@@ -620,7 +597,6 @@ impl Effects for Reference<'_> {
             new,
             flags: FLAGS,
         });
-        // The placement side effect of the new state has its own bound.
         if !self.inside(pos, self.rules.reach(new)) {
             self.overflowed = true;
         }
@@ -642,7 +618,6 @@ impl Effects for Reference<'_> {
 fn reference(case: &Case, host: Host) -> Outcome {
     let table = case.rules.table();
     let mut lists: HashMap<SectionPos, Vec<u16>> = HashMap::new();
-    // Outside the blobs the world is air.
     for blob in &case.blobs {
         let at = section(blob.sx, 0, blob.sz);
         if lists.contains_key(&at) {
@@ -742,24 +717,54 @@ fn case() -> impl Strategy<Value = Case> {
         })
 }
 
-proptest! {
-    #![proptest_config(ProptestConfig { cases: 64, ..ProptestConfig::default() })]
+fn colour_phases_equal_the_serial_order(
+    case: &Case,
+    threads: usize,
+    order: u64,
+) -> Result<(), TestCaseError> {
+    let world = world(&case.blobs, &case.rules.table());
+    let expected = reference(case, world.clone());
+    let found = match threads {
+        0 => kernel(case, world, &Serial),
+        _ => kernel(
+            case,
+            world,
+            &Shuffled {
+                threads,
+                seed: order,
+            },
+        ),
+    };
+    prop_assert_eq!(found, expected);
+    Ok(())
+}
 
-    /// SIM-MODEL-102(a), SIM-RND-001: on any world, footprints and handlers, on one thread in
-    /// order or on 1 to 16 threads that run the tasks of a colour in any order, the step leaves
-    /// the writes, the queued ticks and events and the re-run count of the serial order.
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 4, ..ProptestConfig::default() })]
+
     #[test]
     fn colour_phases_on_any_threads_equal_the_serial_order(
         case in case(),
         threads in 0usize..=16,
         order in any::<u64>(),
     ) {
-        let world = world(&case.blobs, &case.rules.table());
-        let expected = reference(&case, world.clone());
-        let found = match threads {
-            0 => kernel(&case, world, &Serial),
-            _ => kernel(&case, world, &Shuffled { threads, seed: order }),
-        };
-        prop_assert_eq!(found, expected);
+        colour_phases_equal_the_serial_order(&case, threads, order)?;
+    }
+}
+
+mod exhaustive {
+    use super::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 64, ..ProptestConfig::default() })]
+
+        #[test]
+        fn colour_phases_on_any_threads_equal_the_serial_order(
+            case in case(),
+            threads in 0usize..=16,
+            order in any::<u64>(),
+        ) {
+            colour_phases_equal_the_serial_order(&case, threads, order)?;
+        }
     }
 }

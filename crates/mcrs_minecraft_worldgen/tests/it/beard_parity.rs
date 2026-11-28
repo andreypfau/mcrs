@@ -1,7 +1,3 @@
-//! The beard term against the reference's `Beardifier` over synthetic piece sets:
-//! the kernel entry by entry, then every point of each case's volume through both
-//! the point sampler and the volume fill.
-
 use bytes::{Buf, Bytes};
 use glam::IVec3;
 use mcrs_minecraft_core::BoundingBox;
@@ -133,10 +129,7 @@ mod exhaustive {
     use super::*;
 
     #[test]
-    #[expect(
-        clippy::excessive_nesting,
-        reason = "compares the sampled and the filled beard of every cell with the reference across three axes, so a mismatch names its cell"
-    )]
+    #[expect(clippy::excessive_nesting, reason = "a mismatch names its cell")]
     fn sample_and_fill_match_the_reference_bit_for_bit() {
         let (_, cases) = read_dump();
         assert!(!cases.is_empty(), "the dump holds no cases");

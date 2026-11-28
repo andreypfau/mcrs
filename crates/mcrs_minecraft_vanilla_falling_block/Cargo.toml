@@ -1,0 +1,47 @@
+[package]
+name = "mcrs_minecraft_vanilla_falling_block"
+description = "The vanilla falling block: a requested fall moves with the motion pass and lands as a block or an item"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+glam.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_entity_motion.workspace = true
+mcrs_minecraft_engine_entity_motion_replication.workspace = true
+mcrs_minecraft_engine_item.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_falling_block.workspace = true
+mcrs_minecraft_game_rule.workspace = true
+mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item_entity.workspace = true
+mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_replication.workspace = true
+mcrs_minecraft_vanilla_block_place.workspace = true
+mcrs_minecraft_vanilla_item_entity.workspace = true
+mcrs_minecraft_volume.workspace = true
+mcrs_voxel.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+bevy_tasks.workspace = true
+mcrs_minecraft_collision_table.workspace = true
+mcrs_minecraft_engine_physics.workspace = true
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true

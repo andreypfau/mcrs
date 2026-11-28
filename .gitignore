@@ -11,3 +11,6 @@ target/memory-profile/
 # Local Claude Code state
 .claude/settings.local.json
 .claude/worktrees/
+/ops.json
+lints/target/
+lints/fixture/target/

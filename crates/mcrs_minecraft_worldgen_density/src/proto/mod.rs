@@ -22,8 +22,6 @@ use std::hash::{Hash, Hasher};
 
 pub const MAX_REASONABLE_NOISE_VALUE: f32 = 1_000_000.0;
 
-/// `NOISE_VALUE_CODEC`. Stored as `f64` because that is what `serde_json`
-/// parses, but bounded and compared as the `float` vanilla keeps.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(try_from = "f64")]
 pub struct NoiseValue(pub f64);
@@ -56,8 +54,6 @@ impl TryFrom<f64> for NoiseValue {
     }
 }
 
-/// The game writes a `float` as its shortest decimal, which is not the `f64`
-/// nearest its bits: `0.1f32 as f64` is `0.10000000149011612`.
 impl From<f32> for NoiseValue {
     fn from(value: f32) -> Self {
         NoiseValue(value.to_string().parse().unwrap_or(f64::from(value)))
@@ -79,8 +75,6 @@ impl From<f64> for ConstantValue {
     }
 }
 
-/// The tagged `minecraft:constant` carries `{"value": n}`, but a bare number is
-/// the shape every shipped asset uses and the only one vanilla ever writes.
 mod bare_value {
     use super::{ConstantValue, NoiseValue};
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -109,9 +103,6 @@ pub enum DensityFunctionHolder {
 }
 
 impl DensityFunctionHolder {
-    /// The `instanceof ConstantFunction` test every compile-time specialization
-    /// performs. A bare number and a tagged `constant` are the same function to
-    /// vanilla, so both answer here.
     pub fn as_constant(&self) -> Option<f32> {
         match self {
             Self::Value(c) => Some(c.value.0 as f32),
@@ -123,9 +114,6 @@ impl DensityFunctionHolder {
         }
     }
 
-    /// Structural equality against `DensityFunctions.zero()`, which is a record
-    /// over a `float`: a shift of `-0.0` is *not* zero and forces the shifted
-    /// noise sampler.
     pub fn is_zero_constant(&self) -> bool {
         self.as_constant().is_some_and(|v| v.to_bits() == 0)
     }
@@ -349,8 +337,6 @@ mod tests {
         );
     }
 
-    /// A type without a namespace is the `minecraft` one, as the game reads
-    /// it; one that names nothing is a load error.
     #[test]
     fn a_type_without_a_namespace_is_a_load_error() {
         assert!(
@@ -364,8 +350,6 @@ mod tests {
         assert!(error.contains("minecraft:nonsense"), "{error}");
     }
 
-    /// The three-way `noise` specialization tests structural equality against
-    /// `ConstantFunction(+0.0)`, and `Float.compare` separates the two zeros.
     #[test]
     fn a_negative_zero_shift_is_not_the_default() {
         let plain: ProtoDensityFunction = serde_json::from_str(
@@ -382,7 +366,6 @@ mod tests {
             panic!("the parsed function is a noise")
         };
         assert!(!shift_x.is_zero_constant());
-        // A zero shift is the default, so it never reaches the encoded form.
         assert_eq!(
             serde_json::to_string(&plain).unwrap(),
             r#"{"type":"minecraft:noise","noise":"minecraft:ridge","xz_scale":1.0,"y_scale":1.0}"#

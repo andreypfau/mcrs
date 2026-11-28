@@ -1,7 +1,3 @@
-//! What a dimension world sends other parts besides the packets of its clients: the orders for
-//! players of other worlds, the clock, whitelist, ban and operator changes for the coordinator and the command
-//! runs that go on elsewhere. The world hands them over in the output of its tick.
-
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use mcrs_minecraft_environment::WorldClocks;
@@ -14,7 +10,6 @@ use crate::player_order::OrderedPlayer;
 use crate::server_edit::{self, ServerEdit};
 use crate::whitelist::{EditWhitelist, Whitelist};
 
-/// The messages of this tick for other parts, each class in the order of writing.
 #[derive(Resource, Default)]
 pub struct DimMail {
     pub(crate) orders: Vec<OrderedPlayer>,
@@ -27,19 +22,15 @@ pub struct DimMail {
 }
 
 impl DimMail {
-    /// Sends `order` to the world that holds its player.
     pub fn order(&mut self, order: OrderedPlayer) {
         self.orders.push(order);
     }
 
-    /// Sends the rest of a command run to the world of its dimension.
     pub fn hand_off(&mut self, handoff: CommandHandoff) {
         self.handoffs.push(handoff);
     }
 }
 
-/// Applies `edit` to the copy of the clocks in this world at once, so the rest of the tick reads
-/// it, and sends it to the coordinator, which owns the clocks and tells every world.
 pub fn edit_clock(world: &mut World, edit: EditClock) {
     if let Some(mut clocks) = world.get_resource_mut::<WorldClocks>()
         && let Some(state) = clocks.get_mut(edit.clock)
@@ -52,12 +43,7 @@ pub fn edit_clock(world: &mut World, edit: EditClock) {
         .push(edit);
 }
 
-/// Applies `edit` to the copy of the whitelist in this world at once, so the rest of the tick
-/// reads it, and sends it to the host, which owns the whitelist, writes the file and tells every
-/// world.
 pub fn edit_whitelist(world: &mut World, edit: EditWhitelist) {
-    // The host reads the file for a reload after it applied the earlier edits, so a reload here
-    // would read a file without them.
     if edit != EditWhitelist::Reload
         && let Some(mut whitelist) = world.get_resource_mut::<Whitelist>()
     {
@@ -69,9 +55,6 @@ pub fn edit_whitelist(world: &mut World, edit: EditWhitelist) {
         .push(edit);
 }
 
-/// Applies `edit` to the copy of the ban list in this world at once, so the rest of the tick
-/// reads it, and sends it to the host, which owns the list, writes the file and tells every
-/// world.
 pub fn edit_bans(world: &mut World, edit: EditBans) {
     if let Some(mut bans) = world.get_resource_mut::<BanList>() {
         bans.apply(&edit);
@@ -79,9 +62,6 @@ pub fn edit_bans(world: &mut World, edit: EditBans) {
     world.get_resource_or_init::<DimMail>().ban_edits.push(edit);
 }
 
-/// Applies `edit` to the copy of the operators in this world at once, so the rest of the tick
-/// reads it, and sends it to the host, which owns the operators, writes the file and tells every
-/// world.
 pub fn edit_ops(world: &mut World, edit: EditOps) {
     if let Some(mut ops) = world.get_resource_mut::<OpList>() {
         ops.apply(&edit);
@@ -89,9 +69,6 @@ pub fn edit_ops(world: &mut World, edit: EditOps) {
     world.get_resource_or_init::<DimMail>().ops_edits.push(edit);
 }
 
-/// Applies `edit` to the copies of the state of the whole server in this world at once, so the
-/// rest of the tick reads it, and sends it to the host, which owns that state and tells every
-/// world.
 pub fn edit_server(world: &mut World, edit: ServerEdit) {
     server_edit::apply_edit(world, edit);
     world

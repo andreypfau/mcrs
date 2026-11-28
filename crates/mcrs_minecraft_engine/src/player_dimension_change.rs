@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::With;
-use bevy_ecs::world::World;
+use bevy_ecs::world::{EntityRef, World};
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -17,13 +17,11 @@ use crate::departure::{CarriedPlayer, Departure, PlayerTransfer};
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::game_mode::ListedGameMode;
 use crate::minecraft_entity::EntityBundle;
+use crate::persisted_registry::CaptureCause;
 use crate::player_order::{DepartureRequest, DepartureRequests};
 use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
 
-/// Lets go of each player that a [`ChangeDimensionRequest`] of this tick names, in the order of
-/// writing, then of each player that a command sends away, into `departures`. A request that
-/// this world cannot meet leaves the player where it is.
 pub(crate) fn depart_players(world: &mut World, departures: &mut Vec<Departure>) {
     let ordered = world
         .get_resource_mut::<DepartureRequests>()
@@ -36,27 +34,25 @@ pub(crate) fn depart_players(world: &mut World, departures: &mut Vec<Departure>)
     if requests.is_empty() && ordered.is_empty() {
         return;
     }
-    let own = world
-        .query_filtered::<&ResourceKeyBuf<DimensionKey>, With<Dimension>>()
-        .single(world)
-        .ok()
-        .cloned();
-    let written = requests.into_iter().filter_map(|request| {
-        if own.as_ref() == Some(&request.to) {
-            tracing::error!(to = %request.to, "a dimension change names its own dimension");
-            return None;
-        }
-        Some(DepartureRequest {
-            player: request.player,
-            to: request.to,
-            arrival: Arrival::absolute(request.transform),
+    let written: Vec<DepartureRequest> = requests
+        .into_iter()
+        .filter_map(|request| {
+            if is_own_dimension(world, &request.to) {
+                tracing::error!(to = %request.to, "a dimension change names its own dimension");
+                return None;
+            }
+            Some(DepartureRequest {
+                player: request.player,
+                to: request.to,
+                arrival: Arrival::absolute(request.transform),
+            })
         })
-    });
+        .collect();
     for DepartureRequest {
         player,
         to,
         arrival,
-    } in written.chain(ordered)
+    } in written.into_iter().chain(ordered)
     {
         match depart(world, player, to, arrival) {
             Ok(departure) => departures.push(departure),
@@ -67,7 +63,22 @@ pub(crate) fn depart_players(world: &mut World, departures: &mut Vec<Departure>)
     }
 }
 
-/// Takes the carried state of `player` and despawns it. Its viewers here lose it.
+pub fn check_departure(player: EntityRef<'_>) -> Result<PlayerSession, DimensionChangeError> {
+    let Some(&Owner(session)) = player.get::<Owner>() else {
+        return Err(DimensionChangeError::NoPlayer);
+    };
+    CarriedPlayer::check(player)?;
+    Ok(session)
+}
+
+#[must_use]
+pub fn is_own_dimension(world: &World, to: &ResourceKeyBuf<DimensionKey>) -> bool {
+    world
+        .try_query_filtered::<&ResourceKeyBuf<DimensionKey>, With<Dimension>>()
+        .and_then(|mut own| own.single(world).ok().map(|own| own == to))
+        .unwrap_or(false)
+}
+
 fn depart(
     world: &mut World,
     player: Entity,
@@ -77,17 +88,13 @@ fn depart(
     let mut leaving = world
         .get_entity_mut(player)
         .map_err(|_| DimensionChangeError::NoPlayer)?;
-    let Some(&Owner(session)) = leaving.get::<Owner>() else {
-        return Err(DimensionChangeError::NoPlayer);
-    };
+    let session = check_departure(leaving.as_readonly())?;
     let listed = leaving
         .get::<Replicated>()
         .zip(leaving.get::<ListedGameMode>())
         .filter(|(replicated, listed)| replicated.game_mode != listed.0)
         .map(|(replicated, listed)| (replicated.tile, replicated.id, listed.0));
-    let carried = CarriedPlayer::take(&mut leaving)?;
-    // A game mode that changed in the tick the player leaves reaches its viewers before its
-    // despawn, as the publish of the next tick would have sent it.
+    let carried = CarriedPlayer::take(&mut leaving, CaptureCause::DimensionChange)?;
     if let Some((tile, id, mode)) = listed
         && let Some(mut events) = world.get_resource_mut::<TileEvents>()
     {
@@ -106,8 +113,13 @@ fn depart(
     })
 }
 
-/// Spawns the players that the host handed this world in the input of this tick, before their
-/// serverbound packets of the same tick reach them.
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "places an arriving player with all its carried components, which needs the whole world"
+    )
+)]
 pub(crate) fn receive_transfers(world: &mut World) {
     let Some(mut messages) = world.get_resource_mut::<Messages<PlayerTransfer>>() else {
         return;
@@ -121,7 +133,7 @@ pub(crate) fn receive_transfers(world: &mut World) {
                 }
             }
             PlayerTransfer::Return(departure) => {
-                let transform = departure.carried.transform;
+                let transform = departure.carried.transform();
                 if let Err(error) = place(
                     world,
                     departure.session,
@@ -136,8 +148,6 @@ pub(crate) fn receive_transfers(world: &mut World) {
     }
 }
 
-/// Spawns the player of `departure` at its arrival. Its view starts empty and fills as on a
-/// join.
 fn arrive(world: &mut World, departure: Departure) -> Result<Entity, DimensionChangeError> {
     let Departure {
         session,
@@ -145,7 +155,7 @@ fn arrive(world: &mut World, departure: Departure) -> Result<Entity, DimensionCh
         carried,
         ..
     } = departure;
-    let level = carried.op_level;
+    let level = carried.op_level();
     let arrived = place(
         world,
         session,
@@ -161,7 +171,6 @@ fn arrive(world: &mut World, departure: Departure) -> Result<Entity, DimensionCh
     Ok(arrived)
 }
 
-/// Spawns the player of `session` with `carried`, and with `view` as the view its client holds.
 pub(crate) fn place(
     world: &mut World,
     session: PlayerSession,
@@ -170,22 +179,23 @@ pub(crate) fn place(
     view: SentChunkView,
 ) -> Result<Entity, DimensionChangeError> {
     let dimension = own_dimension(world)?;
-    let mut player = world.spawn((
-        EntityBundle {
-            minecraft_entity: Default::default(),
-            dimension: InDimension(dimension),
-            transform,
-            uuid: carried.uuid,
-        },
-        Owner(session),
-        Player,
-        view,
-    ));
-    carried.insert_into(&mut player);
-    Ok(player.id())
+    let player = world
+        .spawn((
+            EntityBundle {
+                minecraft_entity: Default::default(),
+                dimension: InDimension(dimension),
+                transform,
+                uuid: carried.uuid(),
+            },
+            Owner(session),
+            Player,
+            view,
+        ))
+        .id();
+    carried.insert_into(world, player);
+    Ok(player)
 }
 
-/// The dimension entity of this world.
 pub(crate) fn own_dimension(world: &mut World) -> Result<Entity, DimensionChangeError> {
     world
         .query_filtered::<Entity, With<Dimension>>()

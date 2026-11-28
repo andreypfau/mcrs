@@ -8,7 +8,6 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 use crate::tagged_compound::{tagged_compound, variant};
 use crate::{ItemHover, TextMap, TextSerde, TextTypes};
 
-/// Action to take on click of the text.
 #[derive(Clone, PartialEq, Debug, Serialize)]
 #[serde(
     tag = "action",
@@ -19,7 +18,6 @@ pub enum ClickEvent<I: TextTypes = ItemHover> {
     OpenUrl {
         url: Cow<'static, str>,
     },
-    /// Only the client may create one; vanilla refuses to encode or decode it.
     #[serde(skip)]
     OpenFile {
         path: Cow<'static, str>,
@@ -126,7 +124,6 @@ impl<'de, I: TextSerde> Deserialize<'de> for ClickEvent<I> {
     }
 }
 
-/// Any number is accepted and truncated to an int before the bound check.
 fn positive_int<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
     let value = int_value(d)?;
     if value < 1 {
@@ -150,7 +147,6 @@ fn chat_string<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
     Ok(value)
 }
 
-/// A URI whose scheme is http or https, kept as written.
 fn untrusted_uri<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
     let value = String::deserialize(d)?;
     let scheme = java_uri::scheme(&value).map_err(de::Error::custom)?;
@@ -167,8 +163,6 @@ fn untrusted_uri<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
     Ok(value)
 }
 
-/// The `java.net.URI` parser (RFC 2396 with the RFC 2732 brackets), as far
-/// as deciding whether a string is a URI and what its scheme is.
 mod java_uri {
     fn unreserved(c: char) -> bool {
         c.is_ascii_alphanumeric() || "-_.!~*'()".contains(c)

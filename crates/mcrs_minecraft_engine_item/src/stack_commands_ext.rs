@@ -12,39 +12,28 @@ use crate::give::put_in;
 use crate::placement::Placement;
 use crate::placement::put_at;
 use crate::placement::swap;
+use crate::slot_changed::touch;
 use crate::store::Target;
 use crate::store::store;
 
-/// The write commands of a stack. Each does nothing to an entity that is not a stack or no longer
-/// exists.
 pub trait StackCommandsExt {
-    /// Gives the stack the component `value`.
     fn set<T: ItemComponent + Component>(&mut self, value: T) -> &mut Self;
 
-    /// Removes the component of type `T` from the stack, also when its prototype has one.
     fn unset<T: ItemComponent + Component>(&mut self) -> &mut Self;
 
-    /// Gives the stack the component of type `T` of its prototype.
     fn reset<T: ItemComponent + Component>(&mut self) -> &mut Self;
 
-    /// Takes `count` items from the stack. The stack despawns when none is left, also when `count`
-    /// is larger than its count.
     fn consume(&mut self, count: u8) -> &mut Self;
 
-    /// Merges the stack into the stacks of `holder`, then puts the rest in the first free slot.
-    /// The rest that finds no room keeps the placement that it had. The stack despawns when it
-    /// gives all its items.
     fn put_in(&mut self, holder: Entity) -> &mut Self;
 
-    /// Puts the stack in the slot `index` of `holder`. A stack in that slot loses its placement.
-    /// It does nothing when the slot does not exist.
     fn put_at(&mut self, holder: Entity, index: u16) -> &mut Self;
 
-    /// Exchanges the placements of the stack and `other`.
     fn swap_with(&mut self, other: Entity) -> &mut Self;
 
-    /// Puts the stack in the world at `pos`.
     fn drop_at(&mut self, pos: DVec3) -> &mut Self;
+
+    fn touch(&mut self) -> &mut Self;
 }
 
 impl StackCommandsExt for EntityCommands<'_> {
@@ -90,5 +79,9 @@ impl StackCommandsExt for EntityCommands<'_> {
             let stack = entity.id();
             Placement::World(Dropped { pos }).apply(entity.into_world_mut(), stack);
         })
+    }
+
+    fn touch(&mut self) -> &mut Self {
+        self.queue_silenced(|mut entity: EntityWorldMut| touch(&mut entity))
     }
 }

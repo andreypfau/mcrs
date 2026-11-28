@@ -81,14 +81,12 @@ pub(crate) fn build(
     })
 }
 
-/// Which axes the distance to a found position counts, and so whether its y is shown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Distance {
     Horizontal,
     Spatial,
 }
 
-/// The message, and the distance that is the result of the command.
 fn found(
     key: &'static str,
     value: ResourceOrTag<'_>,

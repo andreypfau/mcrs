@@ -20,7 +20,6 @@ struct TagFile {
     replace: bool,
 }
 
-/// One value of a tag file: an entry or a `#tag`, required unless the file says otherwise.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TagEntry {
     pub id: ResourceLocationBuf,
@@ -168,7 +167,6 @@ fn reversed(adjacency: &[Vec<usize>]) -> Vec<Vec<usize>> {
     reverse
 }
 
-// An edge lies on a cycle exactly when both of its ends share a component.
 fn components(adjacency: &[Vec<usize>]) -> Vec<Option<usize>> {
     let reverse = reversed(adjacency);
     let mut component = vec![None; adjacency.len()];
@@ -227,7 +225,6 @@ fn is_failed(nodes: &[Node], at: usize) -> bool {
     nodes.get(at).is_none_or(|node| node.failed)
 }
 
-// A value stands for an entry; a tag is read from a file only.
 fn read_nodes(
     registry: &ResourceLocationBuf,
     files: BTreeMap<ResourceLocationBuf, Vec<PackFile<'_>>>,
@@ -482,7 +479,6 @@ fn number(
     numbered
 }
 
-/// The tags of `registry` its tag `files` define, numbered after the tags of `previous`.
 pub(crate) fn resolve_tags(
     registry: &ResourceLocationBuf,
     names: &Names,

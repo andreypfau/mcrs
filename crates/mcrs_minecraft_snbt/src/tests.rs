@@ -42,9 +42,6 @@ fn no_compound_has_two_keys(tag: &NbtTag) -> bool {
     }
 }
 
-/// Vanilla's compound is a hash map, so its bytes carry no key order; the
-/// tag decoded from them is compared through the key-sorted SNBT form, and
-/// the bytes are compared only where no compound has two keys.
 #[test]
 fn parses_like_vanilla() {
     for case in &GOLDEN.parses {
@@ -99,6 +96,46 @@ fn writes_like_vanilla_and_round_trips_its_bytes() {
     let tag = decode(&unhex(&GOLDEN.pretty_hex));
     assert_eq!(write(&tag), GOLDEN.pretty);
     assert_eq!(hex(&tag), GOLDEN.pretty_hex);
+}
+
+#[test]
+fn the_text_form_spaces_entries_and_folds_deep_and_long_values() {
+    let long_array = format!(
+        "[I;{}]",
+        (0..200)
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    let deep = format!("{}{}", "[".repeat(66), "]".repeat(66));
+    let cases = [
+        ("[B;1B,2B]", "[B; 1b, 2b]".to_owned()),
+        ("[B;]", "[B;]".to_owned()),
+        ("[L;1L,-2L]", "[L; 1L, -2L]".to_owned()),
+        ("[0.5d,-10.7d]", "[0.5d, -10.7d]".to_owned()),
+        (
+            "{\"1a\":{\"true\":\"it's\"}}",
+            "{1a: {true: \"it's\"}}".to_owned(),
+        ),
+        ("{\"a b\":[],c:{}}", "{\"a b\": [], c: {}}".to_owned()),
+        (
+            long_array.as_str(),
+            format!(
+                "[I; {},<...>]",
+                (0..128)
+                    .map(|n| n.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        ),
+        (
+            deep.as_str(),
+            format!("{}[<...>]{}", "[".repeat(64), "]".repeat(64)),
+        ),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(text_form(&parse_tag(input).unwrap()), expected, "{input}");
+    }
 }
 
 fn validate(input: &str) -> Result<usize, SnbtError> {
@@ -257,8 +294,6 @@ const ERRORS: &[(&str, usize, &str, &str)] = &[
     ("@", 0, "snbt.parser.expected_unquoted_string", ""),
 ];
 
-/// The reported key, its argument and its
-/// offset.
 #[test]
 fn a_failed_read_reports_the_first_record_at_the_furthest_position() {
     for &(input, offset, key, argument) in ERRORS {
@@ -272,7 +307,6 @@ fn a_failed_read_reports_the_first_record_at_the_furthest_position() {
     }
 }
 
-/// The values of sections 2 and 3, in the compact form, and the text the read leaves.
 #[test]
 fn a_read_gives_the_tag_of_its_form_and_stops_after_it() {
     let cases: &[(&str, &str, &str)] = &[
@@ -376,7 +410,6 @@ fn the_read_starts_at_the_cursor_and_the_compound_reads_check_the_type() {
     );
 }
 
-/// 512 levels read; the `{` or `[` of level 513 stops the read.
 #[test]
 fn a_tag_deeper_than_512_levels_is_rejected_at_the_opening_of_level_513() {
     let lists = |levels: usize| "[".repeat(levels) + &"]".repeat(levels);
@@ -417,7 +450,6 @@ fn a_tag_deeper_than_512_levels_is_rejected_at_the_opening_of_level_513() {
     );
 }
 
-/// A string longer than the binary limit of 65535 bytes still reads.
 #[test]
 fn a_string_has_no_length_limit() {
     let text = "a".repeat(70_000);
@@ -425,7 +457,6 @@ fn a_string_has_no_length_limit() {
     assert_eq!(read_tag(&input, 0), Ok((NbtTag::String(text), input.len())));
 }
 
-/// The match of an expected tag against an actual tag.
 #[test]
 fn a_tag_matches_when_the_actual_tag_holds_it() {
     let cases = [

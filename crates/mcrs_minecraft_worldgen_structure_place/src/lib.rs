@@ -31,9 +31,6 @@ use mcrs_minecraft_worldgen_feature_place::template::{
 };
 use mcrs_minecraft_worldgen_structure::orient::Orientation;
 
-/// One block state as `StructurePiece.placeBlock` mirrors and rotates it
-/// under each orientation, resolved once so a painter indexes instead of
-/// walking properties by name per block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Oriented(pub [VoxelId; 4]);
 
@@ -47,7 +44,7 @@ impl Oriented {
 
     pub fn named(
         world: &WorldStates,
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         block: Block,
         properties: &[(&str, &str)],
     ) -> Result<Self, FeatureCompileError> {
@@ -64,14 +61,13 @@ impl Oriented {
         }
     }
 
-    /// The state as given, under the orientation that transforms nothing.
     pub fn unoriented(&self) -> VoxelId {
         self.get(Orientation::North)
     }
 }
 
 pub(crate) fn ignore_blocks(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     names: &[Block],
 ) -> Result<CompiledChain, FeatureCompileError> {
     Ok(vec![CompiledProcessor::BlockIgnore(block_mask(
@@ -79,12 +75,12 @@ pub(crate) fn ignore_blocks(
     )?)])
 }
 
-/// `TemplateStructurePiece.postProcess`: the palette drawn from the piece's
-/// position, then the template placed with positional randomness. The palette
-/// comes back when anything was placed.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the template, its position, rotation, mirror and pivot, the clip, the processor chain, the waterlog and entity flags, the volume, the random source and the two lists of one positional placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one positional placement"
+    )
 )]
 pub fn place_positional<W: WorldGenVolume>(
     template: &FrozenTemplate,

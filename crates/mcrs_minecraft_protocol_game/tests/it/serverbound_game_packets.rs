@@ -1,5 +1,3 @@
-//! Bytes written by the vanilla packet stream codecs for the serverbound game packets.
-
 use crate::common::encoded;
 use mcrs_minecraft_fixtures::fixture;
 use std::collections::BTreeMap;

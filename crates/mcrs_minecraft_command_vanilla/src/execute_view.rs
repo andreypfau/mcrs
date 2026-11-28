@@ -15,15 +15,12 @@ use mcrs_minecraft_command_engine::{
 };
 use mcrs_minecraft_nbt::compound::NbtCompound;
 
-/// Everything a stage of `execute` reads: the players of every dimension through the context,
-/// and the blocks of the source dimension, the world the stage runs in.
 #[derive(SystemParam)]
 pub(crate) struct ExecuteView<'w, 's> {
     pub(crate) context: VanillaContext<'w, 's>,
     pub(crate) dimension: DimensionView<'w, 's>,
 }
 
-/// The result of a condition: a boolean, or a count.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Outcome {
     Boolean(bool),
@@ -31,7 +28,6 @@ pub(crate) enum Outcome {
 }
 
 impl ExecuteView<'_, '_> {
-    /// One source for each entity of `targets` in any dimension, from `each`.
     pub(crate) fn fork(
         &self,
         call: &Call<Branch, ExecuteCommand>,
@@ -115,7 +111,6 @@ impl ExecuteView<'_, '_> {
         }
     }
 
-    /// The source gets the dimension, and its x and z are scaled.
     pub(crate) fn move_to(
         &self,
         call: &Call<Branch, ExecuteCommand>,
@@ -143,7 +138,6 @@ impl ExecuteView<'_, '_> {
     }
 }
 
-/// The running dimension an argument names.
 fn dimension<'a>(
     context: &'a VanillaContext,
     call: &Call<Branch, ExecuteCommand>,
@@ -155,9 +149,9 @@ fn dimension<'a>(
     })
 }
 
-/// The saved data of a block entity: the compound the save writes, which holds
-/// `id`, `x`, `y` and `z`, with an empty `components` when it has none.
-fn saved_data(entry: &GeneratedBlockEntity) -> Result<NbtCompound, mcrs_minecraft_nbt::Error> {
+pub(crate) fn saved_data(
+    entry: &GeneratedBlockEntity,
+) -> Result<NbtCompound, mcrs_minecraft_nbt::Error> {
     let mut compound = mcrs_minecraft_nbt::to_nbt_compound(entry)?;
     if compound.get("components").is_none() {
         compound.put_component("components", NbtCompound::new());

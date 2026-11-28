@@ -43,28 +43,20 @@ pub mod clientbound {
         pub dialog: NbtCompound,
     }
 
-    /// A single tag within a registry, containing the tag name and entry IDs.
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct TagGroup<'a> {
-        /// The tag identifier (e.g., "minecraft:mineable/pickaxe")
         pub name: ResourceLocation<'a>,
-        /// Array of numeric registry entry IDs that belong to this tag
         pub entries: Vec<crate::VarInt>,
     }
 
-    /// Tags for a specific registry type.
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct RegistryTags<'a> {
-        /// The registry identifier (e.g., "minecraft:block", "minecraft:item")
         pub registry: ResourceLocation<'a>,
-        /// Array of tags for this registry
         pub tags: Vec<TagGroup<'a>>,
     }
 
-    /// Packet sent during Configuration phase to synchronize tags with the client.
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundUpdateTags<'a> {
-        /// Tags grouped by registry type
         pub registries: Vec<RegistryTags<'a>>,
     }
 }

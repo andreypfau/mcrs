@@ -9,17 +9,30 @@ stability: changing
 tracking: [507]
 sources:
   - README.md
+  - AGENTS.md
   - .config/nextest.toml
   - xtask/src/checks.rs
   - xtask/src/trigger.rs
+  - xtask/src/comments.rs
   - .github/workflows/checks.yml
+  - .github/workflows/scheduled-tests.yml
   - .github/actions/rust/action.yml
   - pr:691
   - scripts/hooks/run-checks
+  - rust-toolchain.toml
+  - .claude/hooks/cargo-guard.sh
+  - crates/mcrs_minecraft_mesh/src/pack.rs
+  - crates/mcrs_minecraft_render/src/shader_layout_emit.rs
+  - crates/mcrs_minecraft_entity_model/tests/it/mob_assets.rs
+  - crates/mcrs_minecraft_entity_animation/tests/it/mob_assets.rs
+  - crates/mcrs_minecraft_client_jar/examples/fetch.rs
+  - docs/README.md
+  - tools/vanilla-server/run.sh
+  - issue:507
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -46,7 +59,7 @@ The detailed build guide is not written yet. It will appear before the alpha for
 
 ```bash
 cargo nextest run -p <crate>        # one crate
-cargo nextest run --workspace       # everything, before a commit
+cargo nextest run --workspace       # everything, before a push
 cargo nextest run --profile full    # plus the exhaustive sweeps
 ```
 
@@ -60,12 +73,12 @@ A test name carries a tier prefix such as `exhaustive::` or `gpu::`, and each pr
 |---|---|
 | `default` | Everything except `exhaustive::`, `gpu::`, `online::` and `vanilla_server::` tests. |
 | `ci` | The same filter as `default`, and it does not stop at the first failure. |
-| `ci-hosted` | The filter of `ci`, for the `test` job on a GitHub-hosted machine with four cores. A test may run 5 minutes, and the whole run 30 minutes. |
-| `full` | The default tier plus `exhaustive::` and `online::`. The scheduled CI job uses it. |
+| `ci-hosted` | The filter of `ci`, for the `test` job on a GitHub-hosted machine. A test may run 5 minutes, and the whole run 30 minutes. |
+| `full` | The default tier plus `exhaustive::` and `online::`. The scheduled CI job and the `worldgen-full` job use it. |
 | `gpu` | Only `gpu::` tests. They need a machine with a Metal GPU. |
 | `vanilla-server` | Only `vanilla_server::` tests. They run through [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh). |
 
-No test run may take longer than five minutes, except in `ci-hosted`. A test that is slower belongs in the `exhaustive::` tier.
+The default profile has a five-minute limit for the whole run and stops a test after four 15-second timeout periods. The `full`, `gpu` and `vanilla-server` profiles allow five 60-second periods per test; `ci-hosted` also allows 30 minutes for the whole run. Put expensive sweeps in `exhaustive::` so ordinary runs skip them.
 
 ## Run the xtask checks before a push
 
@@ -79,44 +92,50 @@ Each trigger runs a fixed set of checks. Run `scripts/hooks/run-checks` with no 
 
 | Trigger | Checks |
 |---|---|
-| `commit`, `push` | `parity`, `fmt` |
-| `lint` | `parity`, `fmt`, `keys` |
+| `commit`, `push` | `comments`, `parity`, `fmt` |
+| `lint` | `comments`, `parity`, `fmt`, `keys` |
 | `clippy` | `clippy` |
-| `test` | The tests of the changed crates and their dependents. |
-| `portability` | `no-bevy`, `layers`, `wasm32`, `no-std` |
+| `test` | The tests of changed crates and their dependents, plus doctests when core, resource or voxel is selected. |
+| `portability` | `no-bevy`, `layers`, `example-dependencies`, `wasm32`, `no-std` |
 
 `fmt` and `clippy` run the Cargo commands of the same names. The other checks are specific to mcrs, and the package lists they use are in `xtask/src/checks.rs`.
 
 | Check | What it requires |
 |---|---|
+| `comments` | No comments in source and config files outside `examples/`, except a `// SAFETY:` note on `unsafe` code. `cargo run -p xtask -- strip-comments` removes them all. |
 | `parity` | A test that claims vanilla behavior must load a fixture the game produced. A claim against a literal gives a warning. [Specs and parity](/docs/en/contributing/specs-and-parity/) explains parity tests. |
 | `keys` | The generated registry key sources must match what the generator writes from the stored reports. Never edit a generated file by hand. |
-| `no-bevy` | 100 packages must build without Bevy. |
-| `no-std` | 9 packages must build for a target without std. |
-| `wasm32` | 11 packages must build for wasm32. |
-| `layers` | The wire and network crates must not link game data, so a proxy or a bot can use them alone. |
+| `no-bevy` | {fact('crates_no_bevy')} packages must build without Bevy. |
+| `no-std` | {fact('crates_no_std')} packages must build for a target without std. |
+| `wasm32` | {fact('crates_wasm32')} packages must build for wasm32. |
+| `example-dependencies` | Each package under `examples/` obeys its normal dependency policy in `examples/dependencies.json`. A failure shows the dependency path. |
+| `layers` | The wire and network crates must not link game data, so a proxy or a bot can use them alone. The model bake, item icon and entity renderer crates must not link the network, a client or a server, so a viewer works with no connection. The play-state packet crate must not link inventory layout or rules. The inventory gameplay crate must not depend on the packet edge. The inventory crates that a client uses (`mcrs_minecraft_engine_item`, `mcrs_minecraft_player_holders` and `mcrs_minecraft_inventory_client`) must not link a crate of the server. |
 
 ## Rewrite a stale blessed file with MCRS_BLESS
 
-Some tests compare a generated file with a checked-in copy, called a blessed file. The baked entity assets and a shader field table are checked this way. When the copy is stale, the test fails and its message names an environment variable. Run the test again with that variable set, and the test rewrites the copy:
+Some tests compare a generated file with a checked-in copy, called a blessed file. The baked entity assets and the generated shader layouts are checked this way. When the copy is stale, the test fails and its message names an environment variable. Run the test again with that variable set, and the test rewrites the copy:
 
 ```bash
 MCRS_BLESS=1 cargo nextest run -p <crate>
 ```
 
-Read the diff before you commit it. If a blessed file changed and you cannot say why, the bug is in your change and the test was right to fail. The tests that read the variable are in `crates/mcrs_minecraft_mesh/src/pack.rs` and `crates/mcrs_minecraft_entity_model/tests/it/mob_assets.rs`.
+Read the diff before you commit it. If a blessed file changed and you cannot say why, the bug is in your change and the test was right to fail. The tests that read the variable are in `crates/mcrs_minecraft_mesh/src/pack.rs`, `crates/mcrs_minecraft_render/src/shader_layout_emit.rs`, `crates/mcrs_minecraft_entity_model/tests/it/mob_assets.rs` and `crates/mcrs_minecraft_entity_animation/tests/it/mob_assets.rs`.
 
 ## What CI runs on your pull request
 
-The workflow `.github/workflows/checks.yml` runs on every pull request to `main` and on every push to `main`. Its first job, `changes`, reads the file list of the pull request. If every file is under `docs/`, is a Markdown file in the repository root or is a `LICENSE-*` file, no other job runs and the check passes. A change to `docs-site/` runs the full set.
+The workflow `.github/workflows/checks.yml` runs on every pull request to `main` and on every push to `main`. Its first job, `changes`, reads the file list of the pull request. If every file is documentation, agent instructions or a GitHub form, the Rust jobs do not run. Such files are under `docs/`, `docs-site/`, `.agents/` or `.claude/`, or they are the issue forms, the pull request template, `CODEOWNERS`, `.coderabbit.yaml`, a Markdown file in the repository root or a `LICENSE-*` file.
 
-Which jobs run depends on where the pull request comes from.
+The job `issue-link` runs on every pull request. It fails when the description of the pull request has no line `Closes #N`, `Fixes #N`, `Resolves #N` or `Refs #N`, unless the pull request has the label `no-issue`. A line inside an HTML comment does not count, because GitHub closes nothing from it. After you fix the description, rerun the failed jobs.
+
+Which Rust jobs run depends on where the pull request comes from.
 
 | Source | Jobs |
 |---|---|
 | A branch of this repository | `lint` on a GitHub-hosted `ubuntu-24.04` machine. One `self-hosted` job on the project's own runner runs the `clippy`, `test` and `portability` triggers at the same time. |
 | A fork | `lint`, `clippy`, `test` and `portability`, each on a GitHub-hosted `ubuntu-24.04` machine. They start from the build caches that each push to `main` saves. |
 | A push to `main` | Both sets. |
+
+When a pull request from a branch of this repository changes a world generation crate, the noise or biome crate or the block entity oracle, the job `worldgen-full` also runs. It runs the `full` profile on the project's own runner for each changed crate of that group and the crates of the group that depend on it.
 
 A final job, `checks`, fails unless every job that applies passed.
 

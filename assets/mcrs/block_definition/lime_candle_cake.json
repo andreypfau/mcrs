@@ -41,6 +41,12 @@
         "seconds_to_destroy": 0.5
       },
       "minecraft:loot": "minecraft:blocks/lime_candle_cake",
+      "minecraft:placement_filter": {
+        "predicate": {
+          "type": "minecraft:solid",
+          "offset": [0, -1, 0]
+        }
+      },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [
         { "origin": [-7, 0, -7], "size": [14, 8, 14] },

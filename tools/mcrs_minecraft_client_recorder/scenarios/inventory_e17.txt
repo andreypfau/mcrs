@@ -1,0 +1,34 @@
+# Experiment E17 of docs/spec/inventory-transactions.md: ITX-JAV-025. The proxy removes each
+# player_action packet, so the server applies neither the drop nor the hand swap. Each click
+# shows in its hashed stacks what the client holds. Run with CHEAT=remove:player_action.
+experiment inventory_e17
+arena -4 99 -4 4 102 4
+
+step drop
+instruction After Go, press Q once, open the inventory, and click the first hotbar slot.
+go 10
+input 15 drop
+input 25 inventory
+input 35 click:36
+input 45 close
+fill -4 99 -4 4 99 4 minecraft:stone
+run gamemode survival @a
+run clear @a
+start 0.5 100 0.5 0 0
+at 2 item replace entity @a hotbar.0 with minecraft:stone 10
+ticks 60
+
+step swap
+instruction After Go, press F once, open the inventory, and click the offhand slot.
+go 10
+input 15 swap_hands
+input 25 inventory
+input 35 click:45
+input 45 close
+fill -4 99 -4 4 99 4 minecraft:stone
+run gamemode survival @a
+run clear @a
+start 0.5 100 0.5 0 0
+at 2 item replace entity @a hotbar.0 with minecraft:iron_helmet
+at 3 item replace entity @a weapon.offhand with minecraft:shield
+ticks 60

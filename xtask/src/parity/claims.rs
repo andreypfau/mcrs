@@ -1,5 +1,5 @@
 use super::rules;
-use crate::source::{self, is_test, line};
+use crate::source::{is_test, line};
 use std::collections::BTreeSet;
 use syn::visit::{self, Visit};
 use syn::{Expr, ExprLit, ItemFn, Lit, Macro};
@@ -53,7 +53,6 @@ impl<'ast> Visit<'ast> for Tests {
         if is_test(&item.attrs) {
             let name = item.sig.ident.to_string();
             let mut texts = vec![name.replace('_', " ")];
-            texts.extend(item.attrs.iter().filter_map(source::doc_line));
             let mut messages = Messages::default();
             messages.visit_block(&item.block);
             texts.extend(messages.0);
@@ -133,13 +132,6 @@ mod tests {
                     "name",
                     format!("#[test]\nfn {ident}_holds() {{\n    assert_eq!(got(), 1);\n}}\n"),
                     (2, format!("{ident}_holds")),
-                ),
-                (
-                    "doc",
-                    format!(
-                        "/// Compares {term} output.\n#[test]\nfn holds() {{\n    assert_eq!(got(), 1);\n}}\n"
-                    ),
-                    (3, "holds".to_owned()),
                 ),
                 (
                     "message of a comparison",
@@ -231,7 +223,7 @@ mod tests {
             (
                 "codec in lower case",
                 PATH,
-                "/// the codec\n#[test]\nfn codec_holds() {\n    assert_eq!(got(), 1, \"codec\");\n}\n".to_owned(),
+                "#[test]\nfn codec_holds() {\n    assert_eq!(got(), 1, \"codec\");\n}\n".to_owned(),
                 &[],
             ),
             (
@@ -243,7 +235,7 @@ mod tests {
             (
                 "a claim in a helper that is no test",
                 PATH,
-                "/// vanilla\nfn vanilla_helper() {\n    assert_eq!(got(), 1, \"vanilla\");\n}\n#[test]\nfn holds() {\n    helper();\n}\n".to_owned(),
+                "fn vanilla_helper() {\n    assert_eq!(got(), 1, \"vanilla\");\n}\n#[test]\nfn holds() {\n    helper();\n}\n".to_owned(),
                 &[],
             ),
             (
@@ -265,9 +257,9 @@ mod tests {
                 &[],
             ),
             (
-                "the game state in a doc and a message",
+                "the game state in a message",
                 PATH,
-                "/// Holds in The Game State.\n#[test]\nfn holds() {\n    assert_eq!(got(), 1, \"the game state\");\n}\n".to_owned(),
+                "#[test]\nfn holds() {\n    assert_eq!(got(), 1, \"the game state\");\n}\n".to_owned(),
                 &[],
             ),
             (

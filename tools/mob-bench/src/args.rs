@@ -7,12 +7,9 @@ use crate::adapter::{PlayerMode, Target};
 use crate::phase::Phase;
 use crate::stir;
 
-/// Whether a watcher client joins the run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Client {
-    /// This harness's own protocol client, of mcrs's protocol version.
     Watcher,
-    /// One `horizon-bots` client with the `stand` behaviour, for a server of 26.3's protocol.
     Bot,
     None,
 }
@@ -41,7 +38,6 @@ pub struct Args {
     pub stimulus_period: Duration,
     pub stimulus_warmup: Duration,
     pub stir_mode: stir::Mode,
-    /// The game mode of the client's player; a spectator has no influence on the pigs.
     pub player_mode: PlayerMode,
     pub contended_cores: f64,
     pub java: String,
@@ -161,18 +157,17 @@ mod tests {
     }
 
     #[test]
-    fn an_option_without_a_value_fails() {
-        let error = parse(&options(&["--server", "mcrs", "--pigs"]))
-            .map(|_| ())
-            .expect_err("no value");
-        assert!(error.to_string().contains("has no value"));
-    }
-
-    #[test]
-    fn an_unknown_option_fails() {
-        let error = parse(&options(&["--speed", "9"]))
-            .map(|_| ())
-            .expect_err("unknown option");
-        assert!(error.to_string().contains("unknown option --speed"));
+    fn a_malformed_command_line_fails_with_its_reason() {
+        let cases: [(&[&str], &str); 2] = [
+            (&["--server", "mcrs", "--pigs"], "has no value"),
+            (&["--speed", "9"], "unknown option --speed"),
+        ];
+        for (words, reason) in cases {
+            let error = parse(&options(words)).map(|_| ()).expect_err(reason);
+            assert!(
+                error.to_string().contains(reason),
+                "{words:?}: {error} does not name {reason:?}"
+            );
+        }
     }
 }

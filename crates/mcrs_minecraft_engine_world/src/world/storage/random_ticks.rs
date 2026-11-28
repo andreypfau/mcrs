@@ -1,5 +1,3 @@
-//! The positions that tick randomly in each loaded section of a dimension, by block tile.
-
 use core::ops::Range;
 
 use bevy_app::{App, Plugin};
@@ -17,10 +15,6 @@ use rustc_hash::FxHashMap;
 
 use crate::world::lifecycle::simulation::EntityTicking;
 
-/// Keeps the [`RandomTickIndex`] of a dimension world with the sections that start or stop
-/// random ticks. Each change of blocks goes through the
-/// [`SectionIndex`](crate::world::storage::section::SectionIndex), which keeps the ticking
-/// positions.
 pub struct RandomTickIndexPlugin;
 
 impl Plugin for RandomTickIndexPlugin {
@@ -30,8 +24,6 @@ impl Plugin for RandomTickIndexPlugin {
     }
 }
 
-/// The positions whose state ticks randomly in each loaded section, and for each block tile the
-/// random-ticked sections that hold such a position.
 #[derive(Resource, Debug)]
 pub struct RandomTickIndex {
     table: RandomTickTable,
@@ -41,32 +33,21 @@ pub struct RandomTickIndex {
     batches: Vec<TileBatch>,
 }
 
-/// Tiles that draw together in one step. A batch holds several tiles, so that its buffers stay in
-/// the cache from one tile to the next.
 #[derive(Debug, Default)]
 struct TileBatch {
-    /// The tiles of the batch in `RandomTickIndex::order`.
     tiles: Range<usize>,
-    /// The slots of the listed sections of one tile.
     drawn: Vec<u16>,
-    /// The picks of one tile that hit, and the slot of the section of each.
     picks: Vec<RandomPick>,
     pick_slots: Vec<u16>,
     listing: RandomListing,
-    /// The tiles whose `listed` holds a section that is no longer listed.
     stale: Vec<ColumnPos>,
 }
 
 #[derive(Debug, Default)]
 struct BlockTile {
-    /// Sorted by x, z, then y.
     sections: Vec<IndexedSection>,
-    /// Slots of `sections`, sorted: each random-ticked section that holds a ticking position, and
-    /// possibly some that no longer do, until the next draw.
     listed: Vec<u16>,
-    /// The first slot of each column of the tile in `sections`, then the end of the last.
     columns: [u16; COLUMNS + 1],
-    /// One bit for each column that holds a random-ticked section, at its index in the tile.
     random_ticked_columns: u16,
 }
 
@@ -97,15 +78,12 @@ fn tile_of(pos: SectionPos) -> ColumnPos {
     block_tile(ColumnPos::from(pos))
 }
 
-/// The column of `pos` in its tile: ascending in the order of `BlockTile::sections`.
 fn column_in_tile(pos: SectionPos) -> usize {
     (pos.x.rem_euclid(PRECIPITATION_TILE) * PRECIPITATION_TILE
         + pos.z.rem_euclid(PRECIPITATION_TILE)) as usize
 }
 
 impl BlockTile {
-    /// The sections of a column lie in ascending y, mostly with no gap, so the slot of a section
-    /// is first guessed from the lowest one: a lookup reads one section, not a binary search.
     fn slot(&self, pos: SectionPos) -> Result<usize, usize> {
         let column = column_in_tile(pos);
         let start = self
@@ -179,7 +157,6 @@ impl BlockTile {
 }
 
 impl RandomTickIndex {
-    /// An index of no section, under the random ticks of `table`.
     #[must_use]
     pub fn new(table: RandomTickTable) -> Self {
         Self {
@@ -191,8 +168,6 @@ impl RandomTickIndex {
         }
     }
 
-    /// Lists the ticking positions of `blocks`, the section at `pos`, in place of what the index
-    /// held for it.
     pub fn insert<S: SectionBlocks>(&mut self, pos: SectionPos, blocks: &S, random_ticked: bool) {
         let mut ticking = TickingPositions::default();
         ticking.rebuild(blocks, &self.table, &mut self.palette);
@@ -252,7 +227,6 @@ impl RandomTickIndex {
             .map_or(&[], |section| section.ticking.as_slice())
     }
 
-    /// A handle that writes `blocks`, the section at `pos`, and keeps its ticking positions.
     pub(crate) fn section_mut<'a, S: SectionBlocksMut>(
         &'a mut self,
         pos: SectionPos,
@@ -264,7 +238,6 @@ impl RandomTickIndex {
         let Ok(slot) = tile.slot(pos) else {
             return TickingSectionMut::untracked(blocks);
         };
-        // The write can make the section list a position; `listed` may hold more than it needs.
         if tile
             .sections
             .get(slot)
@@ -278,11 +251,6 @@ impl RandomTickIndex {
         }
     }
 
-    /// Replaces `out` with what takes random ticks in the columns that `owns` accepts, block tile
-    /// by block tile in the order of the tiles: the hits of the `speed` picks of each
-    /// random-ticked section from `streams`, in the order of the sections and the picks, and the
-    /// columns that hold a random-ticked section, sorted by x, then z. The tiles draw on the
-    /// threads of `spread`; each section has its own stream, so the threads do not change `out`.
     pub fn draw<S: Spread>(
         &mut self,
         owns: impl Fn(ColumnPos) -> bool + Sync,
@@ -359,8 +327,6 @@ impl TileBatch {
             .filter(|&column| tile.random_ticked_columns & 1 << column != 0)
             .filter(|&column| owns(column_pos(column)))
             .fold(0u16, |mask, column| mask | 1 << column);
-        // The sections are checked in a pass of their own before the first draw, so their cache
-        // misses overlap.
         drawn.clone_from(&tile.listed);
         drawn.retain(|&slot| is_listed(&tile.sections, slot));
         if drawn.len() < tile.listed.len() {
@@ -375,8 +341,6 @@ impl TileBatch {
                 pick_slots.resize(picks.len(), slot);
             }
         }
-        // The lists of the hits are read after all draws of the tile, so their cache misses
-        // overlap.
         for (slot, pick) in pick_slots.drain(..).zip(picks.drain(..)) {
             if let Some(section) = tile.sections.get(usize::from(slot)) {
                 let ticking = section.ticking.as_slice();
@@ -393,7 +357,6 @@ impl TileBatch {
     }
 }
 
-/// What takes random ticks in one step, as [`RandomTickIndex::draw`] gives it.
 #[derive(Clone, Debug, Default)]
 pub struct RandomListing {
     pub hits: Vec<RandomHit>,
@@ -428,7 +391,6 @@ mod tests {
     use mcrs_minecraft_volume::PalettedSection;
     use mcrs_voxel::BlockStateId;
 
-    /// One pick in each listed section: in a section of grass it always hits.
     fn draw(index: &mut RandomTickIndex, owns: impl Fn(ColumnPos) -> bool + Sync) -> RandomListing {
         let mut out = RandomListing::default();
         let streams = StreamSeed::new(0, "minecraft:overworld").sections(GameTick(0));
@@ -461,8 +423,6 @@ mod tests {
         let mut index = RandomTickIndex::new(RandomTickTable::new([grass], |_| RandomTicks::BLOCK));
         let grass_section = ChunkBlocks::new(SectionStates::homogeneous(grass));
         let air = air_section();
-        // Two columns of one tile, inserted out of order, with gaps; grass and air alternate so
-        // that a lookup one slot off answers wrong.
         let sections = [
             (5, 2, 9),
             (4, 1, 8),
@@ -505,8 +465,6 @@ mod tests {
         check(&index, Some((5, 0, 9)));
     }
 
-    /// SIM-RND-004: a column takes precipitation while it holds a random-ticked section, whatever
-    /// its blocks are; a column of another cell takes neither precipitation nor random picks.
     #[test]
     fn a_listing_holds_the_owned_columns_of_random_ticked_sections() {
         let grass = BlockStateId::checked(1, 2).expect("a state past air");
@@ -540,7 +498,6 @@ mod tests {
         );
     }
 
-    /// Runs each item on a thread of its own, the last first.
     struct Reversed;
 
     impl Spread for Reversed {
@@ -558,7 +515,6 @@ mod tests {
         let grass = BlockStateId::checked(1, 2).expect("a state past air");
         let mut index = RandomTickIndex::new(RandomTickTable::new([grass], |_| RandomTicks::BLOCK));
         let grass_section = ChunkBlocks::new(SectionStates::homogeneous(grass));
-        // One section in each of 8 × 8 tiles: more tiles than a batch holds.
         for x in -4..4 {
             for z in -4..4 {
                 index.insert(

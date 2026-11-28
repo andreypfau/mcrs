@@ -1,4 +1,5 @@
 use std::num::NonZeroU64;
+use std::ops::Range;
 
 use bevy::camera::NormalizedRenderTarget;
 use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_transparent_pass_3d};
@@ -6,25 +7,29 @@ use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::mesh::VertexBufferLayout;
 use bevy::prelude::*;
 use bevy::render::camera::ExtractedCamera;
+use bevy::render::render_phase::TrackedRenderPass;
 use bevy::render::render_resource::binding_types::{
-    sampler, storage_buffer_read_only_sized, texture_2d, texture_2d_array, uniform_buffer_sized,
+    sampler, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
+use mcrs_minecraft_entity_render::{FigureDraw, FigureTargets, FigureViewSystems};
 use mcrs_minecraft_render::{
-    DEPTH_COMPARE, Terrain, WorldPass, pipeline_descriptor, uniform_buffer,
+    DEPTH_COMPARE, RenderPath, Terrain, Words, WorldPass, pipeline_descriptor, uniform_buffer,
 };
 
-use crate::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch};
+use crate::font_unihex::CELL;
+use crate::glyph_cache;
+use crate::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch, GuiDraw, GuiDrawKind};
 
 pub struct GuiItemsPlugin;
 
 impl Plugin for GuiItemsPlugin {
     fn build(&self, app: &mut App) {
-        bevy::asset::embedded_asset!(app, "gui_items.wgsl");
+        bevy::asset::embedded_asset!(app, "gui_items.wesl");
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
@@ -32,7 +37,7 @@ impl Plugin for GuiItemsPlugin {
             .add_systems(RenderStartup, init_gui_pass)
             .add_systems(
                 Render,
-                (prepare_gui_pass, write_gui_buffers)
+                (prepare_gui_pass, upload_glyphs, write_gui_buffers)
                     .chain()
                     .in_set(RenderSystems::Prepare),
             )
@@ -40,6 +45,8 @@ impl Plugin for GuiItemsPlugin {
                 Core3d,
                 draw_gui
                     .after(WorldPass::Forward)
+                    .after(mcrs_minecraft_render::PanoramaPass)
+                    .after(FigureViewSystems)
                     .before(main_transparent_pass_3d)
                     .in_set(Core3dSystems::MainPass),
             );
@@ -62,16 +69,31 @@ pub struct GuiPass {
     shader: Handle<Shader>,
     uniform: Buffer,
     vertices: Option<Buffer>,
-    pipelines: Option<(
-        TextureFormat,
-        CachedRenderPipelineId,
-        CachedRenderPipelineId,
-    )>,
+    pipelines: Option<GuiPipelines>,
     textures: Option<GuiTextures>,
+    resident: Vec<Option<char>>,
     bind_group: Option<([TextureId; 4], BindGroup)>,
 }
 
+struct GuiPipelines {
+    format: TextureFormat,
+    flat: CachedRenderPipelineId,
+    item: CachedRenderPipelineId,
+    invert_red_green: CachedRenderPipelineId,
+    full_blue: CachedRenderPipelineId,
+}
+
+const INVERT: BlendState = BlendState {
+    color: BlendComponent {
+        src_factor: BlendFactor::OneMinusDst,
+        dst_factor: BlendFactor::Zero,
+        operation: BlendOperation::Add,
+    },
+    alpha: BlendComponent::REPLACE,
+};
+
 struct GuiTextures {
+    atlas: Texture,
     atlas_view: TextureView,
     glint_view: TextureView,
     glint_sampler: Sampler,
@@ -81,6 +103,7 @@ pub(super) fn init_gui_pass(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     device: Res<RenderDevice>,
+    path: Res<RenderPath>,
 ) {
     commands.insert_resource(GuiPass {
         layout: BindGroupLayoutDescriptor::new(
@@ -94,19 +117,20 @@ pub(super) fn init_gui_pass(
                     texture_2d_array(TextureSampleType::Float { filterable: true }),
                     texture_2d_array(TextureSampleType::Float { filterable: true }),
                     sampler(SamplerBindingType::Filtering),
-                    storage_buffer_read_only_sized(false, None),
-                    storage_buffer_read_only_sized(false, None),
+                    Words::layout(*path),
+                    Words::layout(*path),
                     texture_2d(TextureSampleType::Float { filterable: true }),
                     texture_2d(TextureSampleType::Float { filterable: true }),
                     sampler(SamplerBindingType::Filtering),
                 ),
             ),
         ),
-        shader: asset_server.load("embedded://mcrs_minecraft_client_gui/gui_items.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_client_gui/gui_items.wesl"),
         uniform: uniform_buffer("gui items", size_of::<GuiUniform>() as u64, &device),
         vertices: None,
         pipelines: None,
         textures: None,
+        resident: Vec::new(),
         bind_group: None,
     });
 }
@@ -118,8 +142,8 @@ fn srgb_texture(
     pixels: &[u8],
     device: &RenderDevice,
     queue: &RenderQueue,
-) -> TextureView {
-    let texture = device.create_texture_with_data(
+) -> Texture {
+    device.create_texture_with_data(
         queue,
         &TextureDescriptor {
             label: Some(label),
@@ -132,20 +156,35 @@ fn srgb_texture(
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: TextureFormat::Rgba8UnormSrgb,
-            usage: TextureUsages::TEXTURE_BINDING,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
             view_formats: &[],
         },
         wgpu::util::TextureDataOrder::LayerMajor,
         pixels,
-    );
-    texture.create_view(&TextureViewDescriptor::default())
+    )
 }
 
 #[expect(
     clippy::too_many_lines,
-    reason = "one render-world prepare step creates the GUI pass's textures, pipelines and bind group in the order each depends on the last"
+    reason = "a render prepare step creates each target in dependency order"
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "checks on each frame that the textures, the pipelines and the bind group match the window view and the terrain atlases"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only when it creates the GUI textures, the pipelines for a new target format or a bind group for new atlases"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(7))]
 pub(super) fn prepare_gui_pass(
+    mut commands: Commands,
     pass: Option<ResMut<GuiPass>>,
     atlas: Option<Res<GuiAtlas>>,
     terrain: Option<Res<Terrain>>,
@@ -166,15 +205,18 @@ pub(super) fn prepare_gui_pass(
             return;
         };
         let atlas = &*atlas.0;
+        let atlas_texture = srgb_texture(
+            "gui atlas",
+            atlas.width,
+            atlas.height,
+            &atlas.pixels,
+            &device,
+            &queue,
+        );
+        pass.resident.clear();
         pass.textures = Some(GuiTextures {
-            atlas_view: srgb_texture(
-                "gui atlas",
-                atlas.width,
-                atlas.height,
-                &atlas.pixels,
-                &device,
-                &queue,
-            ),
+            atlas_view: atlas_texture.create_view(&TextureViewDescriptor::default()),
+            atlas: atlas_texture,
             glint_view: srgb_texture(
                 "enchanted glint",
                 atlas.glint.0,
@@ -182,7 +224,8 @@ pub(super) fn prepare_gui_pass(
                 &atlas.glint.2,
                 &device,
                 &queue,
-            ),
+            )
+            .create_view(&TextureViewDescriptor::default()),
             glint_sampler: device.create_sampler(&SamplerDescriptor {
                 label: Some("enchanted glint"),
                 address_mode_u: AddressMode::Repeat,
@@ -196,18 +239,44 @@ pub(super) fn prepare_gui_pass(
     if pass
         .pipelines
         .as_ref()
-        .is_none_or(|(format, ..)| *format != view.target_format)
+        .is_none_or(|pipelines| pipelines.format != view.target_format)
     {
-        let queue_pipeline = |item: bool| {
+        let queue_pipeline = |kind: GuiDrawKind| {
+            let item = kind == GuiDrawKind::Item;
+            let (label, blend, write_mask) = match kind {
+                GuiDrawKind::Flat | GuiDrawKind::Figure { .. } => (
+                    "gui flat",
+                    Some(BlendState::ALPHA_BLENDING),
+                    ColorWrites::ALL,
+                ),
+                GuiDrawKind::Item => (
+                    "gui items",
+                    Some(BlendState::ALPHA_BLENDING),
+                    ColorWrites::ALL,
+                ),
+                GuiDrawKind::InvertRedGreen => (
+                    "gui invert",
+                    Some(INVERT),
+                    ColorWrites::RED | ColorWrites::GREEN,
+                ),
+                GuiDrawKind::FullBlue => ("gui blue", None, ColorWrites::BLUE),
+            };
             let mut descriptor = pipeline_descriptor(
-                if item { "gui items" } else { "gui flat" }.into(),
+                label.into(),
                 vec![pass.layout.clone()],
                 &pass.shader,
                 "vs_gui".into(),
                 "fs_gui".into(),
                 view,
-                Some(BlendState::ALPHA_BLENDING),
+                blend,
             );
+            descriptor.vertex.shader_defs = terrain.path().shader_defs();
+            if let Some(fragment) = descriptor.fragment.as_mut() {
+                fragment.shader_defs = terrain.path().shader_defs();
+                for target in fragment.targets.iter_mut().flatten() {
+                    target.write_mask = write_mask;
+                }
+            }
             descriptor.vertex.buffers = vec![VertexBufferLayout::from_vertex_formats(
                 VertexStepMode::Vertex,
                 [
@@ -236,11 +305,19 @@ pub(super) fn prepare_gui_pass(
             });
             pipeline_cache.queue_render_pipeline(descriptor)
         };
-        pass.pipelines = Some((
-            view.target_format,
-            queue_pipeline(true),
-            queue_pipeline(false),
-        ));
+        commands.insert_resource(FigureTargets {
+            color: view.target_format,
+            depth: CORE_3D_DEPTH_FORMAT,
+            depth_compare: DEPTH_COMPARE,
+            sample_count: 1,
+        });
+        pass.pipelines = Some(GuiPipelines {
+            format: view.target_format,
+            flat: queue_pipeline(GuiDrawKind::Flat),
+            item: queue_pipeline(GuiDrawKind::Item),
+            invert_red_green: queue_pipeline(GuiDrawKind::InvertRedGreen),
+            full_blue: queue_pipeline(GuiDrawKind::FullBlue),
+        });
     }
     let sprites = &terrain.sprites;
     let atlas_ids = sprites.atlases.each_ref().map(|slot| slot.texture.id());
@@ -262,14 +339,70 @@ pub(super) fn prepare_gui_pass(
                 &sprites.atlases[2].view,
                 &sprites.atlases[3].view,
                 &sprites.atlas_sampler,
-                sprites.frames.as_entire_buffer_binding(),
-                sprites.table.as_entire_buffer_binding(),
+                sprites.frames.binding(),
+                sprites.table.binding(),
                 &textures.atlas_view,
                 &textures.glint_view,
                 &textures.glint_sampler,
             )),
         );
         pass.bind_group = Some((atlas_ids, bind_group));
+    }
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the main world rebuilds the GUI batch on each frame, so the render world uploads its glyphs on each frame"
+    )
+)]
+pub(super) fn upload_glyphs(
+    pass: Option<ResMut<GuiPass>>,
+    batch: Option<Res<GuiBatch>>,
+    atlas: Option<Res<GuiAtlas>>,
+    queue: Res<RenderQueue>,
+) {
+    let (Some(mut pass), Some(batch), Some(atlas)) = (pass, batch, atlas) else {
+        return;
+    };
+    let pass = &mut *pass;
+    let Some(textures) = pass.textures.as_ref() else {
+        return;
+    };
+    pass.resident.resize(batch.glyphs.len(), None);
+    for (cell, (wanted, drawn)) in batch.glyphs.iter().zip(&mut pass.resident).enumerate() {
+        if wanted == drawn {
+            continue;
+        }
+        *drawn = *wanted;
+        let Some(pixels) = wanted.and_then(|glyph| atlas.0.font.unifont_cell(glyph)) else {
+            continue;
+        };
+        let (x, y) = glyph_cache::cell_origin(cell);
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &textures.atlas,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: atlas.0.glyph_origin.x as u32 + x,
+                    y: atlas.0.glyph_origin.y as u32 + y,
+                    z: 0,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            &pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(CELL as u32 * 4),
+                rows_per_image: Some(CELL as u32),
+            },
+            Extent3d {
+                width: CELL as u32,
+                height: CELL as u32,
+                depth_or_array_layers: 1,
+            },
+        );
     }
 }
 
@@ -285,6 +418,13 @@ fn window_view<'a>(
         .find_map(|(view, camera)| on_window(camera).then_some(view))
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the main world rebuilds the GUI batch on each frame, so the render world uploads its vertices on each frame"
+    )
+)]
 pub(super) fn write_gui_buffers(
     pass: Option<ResMut<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
@@ -332,10 +472,6 @@ pub(super) fn write_gui_buffers(
     }
 }
 
-/// The world's depth is cleared first: the items' private bands must not be tested
-/// against terrain, and vanilla likewise draws each GUI item into a fresh atlas slot.
-/// Every item element then gets its own slice of the depth range, so its own geometry is
-/// depth-tested against itself and later elements land over earlier ones by draw order.
 pub fn draw_gui(
     view: ViewQuery<(
         &ViewTarget,
@@ -345,6 +481,7 @@ pub fn draw_gui(
     )>,
     gui: Option<Res<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
+    figure: Option<FigureDraw>,
     pipeline_cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
@@ -382,40 +519,88 @@ pub fn draw_gui(
     if batch.draws.is_empty() {
         return;
     }
-    let (Some((_, item_id, flat_id)), Some((_, bind_group)), Some(vertices)) = (
-        gui.pipelines,
+    let (Some(ids), Some((_, bind_group)), Some(vertices)) = (
+        gui.pipelines.as_ref(),
         gui.bind_group.as_ref(),
         gui.vertices.as_ref(),
     ) else {
         return;
     };
-    let (Some(item), Some(flat)) = (
-        pipeline_cache.get_render_pipeline(item_id),
-        pipeline_cache.get_render_pipeline(flat_id),
+    let (Some(flat), Some(item)) = (
+        pipeline_cache.get_render_pipeline(ids.flat),
+        pipeline_cache.get_render_pipeline(ids.item),
     ) else {
         return;
     };
-    let size = extracted.viewport.zw().as_vec2();
-    let items = batch.draws.iter().filter(|draw| draw.item).count().max(1) as f32;
+    let invert_red_green = pipeline_cache.get_render_pipeline(ids.invert_red_green);
+    let full_blue = pipeline_cache.get_render_pipeline(ids.full_blue);
+    let size = extracted.viewport.zw();
+    let banded =
+        |draw: &&GuiDraw| matches!(draw.kind, GuiDrawKind::Item | GuiDrawKind::Figure { .. });
+    let bands = batch.draws.iter().filter(banded).count().max(1) as f32;
     pass.set_bind_group(0, bind_group, &[]);
     pass.set_vertex_buffer(0, vertices.slice(..));
     let mut band = 0;
+    let band_range = |band: u32| band as f32 / bands..(band + 1) as f32 / bands;
     for draw in &batch.draws {
-        if draw.item {
-            pass.set_render_pipeline(item);
+        let pipeline = match draw.kind {
+            GuiDrawKind::Flat => Some(flat),
+            GuiDrawKind::Item => Some(item),
+            GuiDrawKind::InvertRedGreen => invert_red_green,
+            GuiDrawKind::FullBlue => full_blue,
+            GuiDrawKind::Figure { rect } => {
+                let depth = band_range(band);
+                band += 1;
+                if let Some(figure) = figure.as_ref() {
+                    let scissor = IRect::from_corners(
+                        rect.min * batch.scale as i32,
+                        rect.max * batch.scale as i32,
+                    );
+                    draw_figure(&mut pass, figure, scissor, size, depth);
+                    pass.set_bind_group(0, bind_group, &[]);
+                    pass.set_vertex_buffer(0, vertices.slice(..));
+                }
+                continue;
+            }
+        };
+        let Some(pipeline) = pipeline else {
+            continue;
+        };
+        pass.set_render_pipeline(pipeline);
+        if draw.kind == GuiDrawKind::Item {
+            let depth = band_range(band);
             pass.set_viewport(
                 0.0,
                 0.0,
-                size.x,
-                size.y,
-                band as f32 / items,
-                (band + 1) as f32 / items,
+                size.x as f32,
+                size.y as f32,
+                depth.start,
+                depth.end,
             );
             band += 1;
         } else {
-            pass.set_render_pipeline(flat);
-            pass.set_viewport(0.0, 0.0, size.x, size.y, 0.0, 1.0);
+            pass.set_viewport(0.0, 0.0, size.x as f32, size.y as f32, 0.0, 1.0);
         }
         pass.draw(draw.range.clone(), 0..1);
     }
+}
+
+fn draw_figure(
+    pass: &mut TrackedRenderPass,
+    figure: &FigureDraw,
+    rect: IRect,
+    target: UVec2,
+    depth: Range<f32>,
+) {
+    let scissor = rect.intersect(IRect::from_corners(IVec2::ZERO, target.as_ivec2()));
+    if scissor.is_empty() {
+        return;
+    }
+    let min = scissor.min.as_uvec2();
+    let scissor_size = scissor.size().as_uvec2();
+    let size = target.as_vec2();
+    pass.set_viewport(0.0, 0.0, size.x, size.y, depth.start, depth.end);
+    pass.set_scissor_rect(min.x, min.y, scissor_size.x, scissor_size.y);
+    figure.encode(pass.wgpu_pass());
+    pass.set_scissor_rect(0, 0, target.x, target.y);
 }

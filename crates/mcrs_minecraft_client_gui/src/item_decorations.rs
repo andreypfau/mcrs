@@ -1,10 +1,14 @@
-use bevy::color::{ColorToPacked, Hsva, Srgba};
-use bevy::math::{IRect, IVec2};
+use std::io::Write;
 
-use crate::font::{Font, Span, draw_text};
+use bevy::color::{ColorToPacked, Hsva, Srgba};
+use bevy::math::{IRect, IVec2, Vec2};
+
+use crate::font::{Font, draw_str};
 use crate::scene::GuiQuad;
+use mcrs_minecraft_item_icon::Durability;
 
 pub const WHITE: u32 = 0xFFFF_FFFF;
+const CAPPED: u32 = 0xFFFF_FF55;
 const BAR_BACK: u32 = 0xFF00_0000;
 
 pub fn bar_width(damage: i32, max_damage: i32) -> i32 {
@@ -18,13 +22,19 @@ pub fn bar_color(damage: i32, max_damage: i32) -> u32 {
     u32::from_be_bytes([0, r, g, b])
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CountLabel {
+    Plain(u8),
+    Capped(u8),
+}
+
 pub struct Decorated {
-    pub count: u8,
-    pub damage: Option<(i32, i32)>,
+    pub count: CountLabel,
+    pub damage: Option<Durability>,
 }
 
 pub fn decorations(origin: IVec2, stack: &Decorated, font: &Font, out: &mut Vec<GuiQuad>) {
-    if let Some((damage, max_damage)) = stack.damage {
+    if let Some(Durability { damage, max_damage }) = stack.damage {
         let (left, top) = (origin.x + 2, origin.y + 13);
         out.push(GuiQuad::Fill {
             rect: IRect::new(left, top, left + 13, top + 2),
@@ -35,17 +45,40 @@ pub fn decorations(origin: IVec2, stack: &Decorated, font: &Font, out: &mut Vec<
             color: 0xFF00_0000 | bar_color(damage, max_damage),
         });
     }
-    if stack.count != 1 {
-        let text = [Span::new(stack.count.to_string(), WHITE)];
-        let x = origin.x + 19 - 2 - font.width(&text);
-        draw_text(font, IVec2::new(x, origin.y + 6 + 3), &text, out);
+    let (count, color) = match stack.count {
+        CountLabel::Plain(1) => return,
+        CountLabel::Plain(count) => (count, WHITE),
+        CountLabel::Capped(count) => (count, CAPPED),
+    };
+    let mut digits = [0; 3];
+    let mut free = digits.as_mut_slice();
+    if write!(free, "{count}").is_err() {
+        return;
     }
+    let written = 3 - free.len();
+    let Some(text) = digits
+        .get(..written)
+        .and_then(|digits| std::str::from_utf8(digits).ok())
+    else {
+        return;
+    };
+    let x = origin.x + 19 - 2 - font.str_width(text);
+    draw_str(
+        font,
+        Vec2::new(x as f32, (origin.y + 6 + 3) as f32),
+        text,
+        color,
+        false,
+        out,
+    );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::font::corpus_font;
+    use crate::font_glyph::Weight;
+    use bevy::math::Vec2;
 
     #[test]
     fn bar_width_and_hue_follow_the_damage() {
@@ -66,13 +99,14 @@ mod tests {
             an_undamaged_stack_shows_no_bar();
             the_bar_is_two_fills_at_the_slot_bottom();
             counts_are_right_aligned_with_a_shadow();
+            a_capped_count_shows_in_yellow_also_at_one();
         }
     }
 
     fn an_undamaged_stack_shows_no_bar() {
         let mut out = Vec::new();
         let stack = Decorated {
-            count: 1,
+            count: CountLabel::Plain(1),
             damage: None,
         };
         decorations(IVec2::ZERO, &stack, corpus_font(), &mut out);
@@ -82,8 +116,11 @@ mod tests {
     fn the_bar_is_two_fills_at_the_slot_bottom() {
         let mut out = Vec::new();
         let stack = Decorated {
-            count: 1,
-            damage: Some((50, 100)),
+            count: CountLabel::Plain(1),
+            damage: Some(Durability {
+                damage: 50,
+                max_damage: 100,
+            }),
         };
         decorations(IVec2::new(10, 20), &stack, corpus_font(), &mut out);
         assert_eq!(
@@ -104,7 +141,7 @@ mod tests {
     fn counts_are_right_aligned_with_a_shadow() {
         let mut out = Vec::new();
         let stack = Decorated {
-            count: 64,
+            count: CountLabel::Plain(64),
             damage: None,
         };
         decorations(IVec2::ZERO, &stack, corpus_font(), &mut out);
@@ -112,36 +149,66 @@ mod tests {
             out,
             vec![
                 GuiQuad::Glyph {
-                    origin: IVec2::new(6, 10),
+                    pen: Vec2::new(6.0, 10.0),
                     glyph: '6',
-                    color: 0xFF3F_3F3F
+                    image: corpus_font().glyph('6').image.unwrap(),
+                    color: 0xFF3F_3F3F,
+                    weight: Weight::Regular,
                 },
                 GuiQuad::Glyph {
-                    origin: IVec2::new(5, 9),
+                    pen: Vec2::new(5.0, 9.0),
                     glyph: '6',
-                    color: WHITE
+                    image: corpus_font().glyph('6').image.unwrap(),
+                    color: WHITE,
+                    weight: Weight::Regular,
                 },
                 GuiQuad::Glyph {
-                    origin: IVec2::new(12, 10),
+                    pen: Vec2::new(12.0, 10.0),
                     glyph: '4',
-                    color: 0xFF3F_3F3F
+                    image: corpus_font().glyph('4').image.unwrap(),
+                    color: 0xFF3F_3F3F,
+                    weight: Weight::Regular,
                 },
                 GuiQuad::Glyph {
-                    origin: IVec2::new(11, 9),
+                    pen: Vec2::new(11.0, 9.0),
                     glyph: '4',
-                    color: WHITE
+                    image: corpus_font().glyph('4').image.unwrap(),
+                    color: WHITE,
+                    weight: Weight::Regular,
                 },
             ]
         );
         out.clear();
         let seven = Decorated {
-            count: 7,
+            count: CountLabel::Plain(7),
             damage: None,
         };
         decorations(IVec2::ZERO, &seven, corpus_font(), &mut out);
         assert_eq!(out.len(), 2);
         assert!(
-            matches!(out[1], GuiQuad::Glyph { origin, glyph: '7', .. } if origin == IVec2::new(11, 9))
+            matches!(out[1], GuiQuad::Glyph { pen, glyph: '7', .. } if pen == Vec2::new(11.0, 9.0))
+        );
+    }
+
+    fn a_capped_count_shows_in_yellow_also_at_one() {
+        let mut out = Vec::new();
+        let stack = Decorated {
+            count: CountLabel::Capped(1),
+            damage: None,
+        };
+        decorations(IVec2::ZERO, &stack, corpus_font(), &mut out);
+        assert_eq!(out.len(), 2, "a shadow and the text of one glyph");
+        assert!(
+            matches!(
+                out[1],
+                GuiQuad::Glyph {
+                    glyph: '1',
+                    color: 0xFFFF_FF55,
+                    ..
+                }
+            ),
+            "the yellow text of a capped entry, {:?}",
+            out[1]
         );
     }
 }

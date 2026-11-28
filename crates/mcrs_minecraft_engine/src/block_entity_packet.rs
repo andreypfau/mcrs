@@ -3,7 +3,6 @@ use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_protocol_game::chunk::ChunkDataBlockEntity;
 use std::borrow::Cow;
 
-/// The chunk packet's entry, carrying the same compound the save holds.
 pub fn packet_entry(
     entry: &GeneratedBlockEntity,
 ) -> Result<ChunkDataBlockEntity<'static>, mcrs_minecraft_nbt::Error> {

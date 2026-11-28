@@ -17,37 +17,32 @@ use bevy_ecs::schedule::ScheduleLabel;
 use bevy_ecs::schedule::common_conditions;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::Query;
-use mcrs_minecraft_item_table::ItemTable;
 
 use crate::Equipped;
 use crate::Given;
 use crate::InSlot;
 use crate::ItemSet;
+use crate::RequestDrop;
 use crate::RequestResult;
 use crate::Selected;
+use crate::SlotChanged;
 use crate::Slots;
 use crate::item_components::ItemComponents;
 use crate::request_scratch::RequestScratch;
 
-/// Stacks as entities over the prototypes of `table`.
-///
-/// It keeps [`Equipped`] on the stack in the [`Selected`] slot of each holder, in [`ItemSet`] of
-/// the schedule that [`ItemPlugin::in_schedule`] names, `FixedUpdate` by default.
 pub struct ItemPlugin {
-    pub table: ItemTable,
     schedule: InternedScheduleLabel,
 }
 
-impl ItemPlugin {
-    #[must_use]
-    pub fn new(table: ItemTable) -> Self {
+impl Default for ItemPlugin {
+    fn default() -> Self {
         Self {
-            table,
             schedule: FixedUpdate.intern(),
         }
     }
+}
 
-    /// Runs [`ItemSet`] in `schedule`.
+impl ItemPlugin {
     #[must_use]
     pub fn in_schedule(mut self, schedule: impl ScheduleLabel) -> Self {
         self.schedule = schedule.intern();
@@ -55,14 +50,24 @@ impl ItemPlugin {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+pub struct ItemPersistencePlugin;
+
+impl Plugin for ItemPersistencePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ItemComponents>();
+    }
+}
+
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
         let changed = common_conditions::any_match_filter::<HolderChanged>;
-        app.insert_resource(self.table)
-            .init_resource::<ItemComponents>()
+        app.init_resource::<ItemComponents>()
             .init_resource::<RequestScratch>()
             .add_message::<Given>()
+            .add_message::<RequestDrop>()
             .add_message::<RequestResult>()
+            .add_message::<SlotChanged>()
             .add_systems(
                 self.schedule,
                 project_equipped.in_set(ItemSet).run_if(changed),
@@ -73,12 +78,8 @@ impl Plugin for ItemPlugin {
 
 type HolderChanged = (With<Selected>, Or<(Changed<Selected>, Changed<Slots>)>);
 
-/// An equipped stack whose placement changed since the last run, or that has none.
 type EquippedMoved = (With<Equipped>, Or<(Changed<InSlot>, Without<InSlot>)>);
 
-/// Visits the stacks that can have become equipped or stopped being equipped: the selected stack
-/// of a changed holder, every stack of a holder whose selection changed, and each equipped stack
-/// that moved.
 fn project_equipped(
     mut commands: Commands,
     changed: Query<(Entity, Ref<Selected>, &Slots), HolderChanged>,
@@ -115,8 +116,6 @@ fn project_equipped(
     }
 }
 
-/// The second remover of [`Equipped`]: the removal of [`Selected`] is a temporal fact that a fixed
-/// step which does not run in the frames of the removal never sees.
 fn unequip_unselected(
     unselected: On<Remove<Selected>>,
     mut commands: Commands,

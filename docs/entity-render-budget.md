@@ -7,7 +7,7 @@ the numbers force. The behaviour of a mob is in `docs/spec/`. This note does not
 
 Each number has one of three marks:
 
-- **measured**: the probe of appendix A measured it on the reference machine;
+- **measured**: the probe `crates/mcrs_minecraft_render_probe/examples/entity_budget.rs` measured it on the reference machine;
 - **source**: a document of section 0.3 states it;
 - **estimate**: this note computes it from other numbers, and the arithmetic is next to it. An
   estimate for a tier that this note cannot measure also has the mark **not measured**.
@@ -65,7 +65,6 @@ Each number has one of three marks:
 | S6 | Wihlidal, "Optimizing the Graphics Pipeline with Compute", GDC 2016, <https://archive.org/details/GDC2016Wihlidal> |
 | S7 | Karis, Stubbe, Wihlidal, "A Deep Dive into Nanite Virtualized Geometry", SIGGRAPH 2021, <https://advances.realtimerendering.com/s2021/Karis_Nanite_SIGGRAPH_Advances_2021_final.pdf> |
 | S8 | wgpu 29.0.4, `wgpu-types/src/limits.rs`: `Limits::defaults`, `downlevel_defaults`, `downlevel_webgl2_defaults` |
-| S9 | `PERF.md` of this repository, sections "GPU frame" and "Render distance" |
 | S10 | Apple, MacBook Pro (M4 Max) technical data, <https://support.apple.com/en-us/121554>; WWDC20 session 10632, <https://developer.apple.com/videos/play/wwdc2020/10632/> |
 | S11 | Intel, "The Compute Architecture of Intel Processor Graphics Gen9", section 5.8; Intel Core i5-8250U data, <https://www.intel.com/content/www/us/en/products/sku/124967/> |
 | S12 | NVIDIA GeForce RTX 3060 data, <https://en.wikipedia.org/wiki/GeForce_30_series> |
@@ -75,11 +74,11 @@ Each number has one of three marks:
 
 | Tier | Adapter | Viewport | Frame target | Entity GPU share | Entity CPU share |
 |---|---|---|---|---|---|
-| `M` | Apple M4 Max, 40 GPU cores, Metal, native. The reference machine of S9. | 2560 × 1440 | 120 Hz, 8.33 ms | 2.0 ms (24%) | 1.0 ms |
+| `M` | Apple M4 Max, 40 GPU cores, Metal, native. The reference machine. | 2560 × 1440 | 120 Hz, 8.33 ms | 2.0 ms (24%) | 1.0 ms |
 | `D` | a mid-range discrete GPU, NVIDIA RTX 3060 class, native, Vulkan or DX12 | 2560 × 1440 | 144 Hz, 6.94 ms | 2.0 ms (29%) | 1.0 ms |
 | `W` | Intel UHD Graphics 620 (Gen9.5 GT2, 24 EU), Chrome, WebGPU compatibility mode or core | 1920 × 1080 | 60 Hz, 16.7 ms | 4.0 ms (24%) | 2.0 ms, one thread |
 
-The entity shares of `D` and `W` are the targets of `docs/entity-render.md`, section 8. The CPU
+The entity shares of `D` and `W` are the targets of section 1. The CPU
 share of `W` is for one thread, because a wasm build without threads has one.
 
 The capacity of each tier:
@@ -87,10 +86,10 @@ The capacity of each tier:
 | Value | `M` | `D` | `W` |
 |---|---|---|---|
 | bandwidth, peak | 546 GB/s (source S10) | 360 GB/s (source S12) | 37.5 GB/s, shared with the CPU (source S11) |
-| effective bandwidth | 407–425 GB/s copy, 436–520 GB/s read (measured, A.3) | 280 GB/s (estimate: 78% of the peak, the ratio of `M`; not measured) | 25 GB/s (estimate: 67% of the peak; the CPU uses the same bus; not measured) |
-| FP32 arithmetic | 3.9 TFLOP/s achieved by the probe kernel (measured, A.3); about 16 TFLOP/s claimed by third parties, which is unverified | 12.7 TFLOP/s (source S12) | 0.42 TFLOP/s: 384 FLOP per clock at 1.1 GHz (source S11) |
-| face cost | 0.60 ns at 6.3 M faces; 1.1–1.7 ns at 0.6–0.9 M faces (measured, A.5) | 0.4 ns (estimate: 4 triangles per clock is the setup maximum of current GPUs (source S7, p. 80), so 2 triangles at 1.78 GHz is 0.28 ns, plus the vertex shader; not measured) | 3.0 ns (estimate: 1 triangle per clock at 1.1 GHz is 1.8 ns per face; the vertex shader needs 6 × 60 lane operations of 192 per clock, 1.7 ns; not measured) |
-| fill rate | 25–55 Gpx/s for faces of 8 to 16 px; 3.7 Gpx/s for faces of 2 px (measured, A.5) | 10 Gpx/s (estimate: 28 B per pixel at 280 GB/s; not measured) | 0.9 Gpx/s (estimate: 28 B per pixel at 25 GB/s; not measured) |
+| effective bandwidth | 407–425 GB/s copy, 436–520 GB/s read (measured) | 280 GB/s (estimate: 78% of the peak, the ratio of `M`; not measured) | 25 GB/s (estimate: 67% of the peak; the CPU uses the same bus; not measured) |
+| FP32 arithmetic | 3.9 TFLOP/s achieved by the probe kernel (measured); about 16 TFLOP/s claimed by third parties, which is unverified | 12.7 TFLOP/s (source S12) | 0.42 TFLOP/s: 384 FLOP per clock at 1.1 GHz (source S11) |
+| face cost | 0.60 ns at 6.3 M faces; 1.1–1.7 ns at 0.6–0.9 M faces (measured) | 0.4 ns (estimate: 4 triangles per clock is the setup maximum of current GPUs (source S7, p. 80), so 2 triangles at 1.78 GHz is 0.28 ns, plus the vertex shader; not measured) | 3.0 ns (estimate: 1 triangle per clock at 1.1 GHz is 1.8 ns per face; the vertex shader needs 6 × 60 lane operations of 192 per clock, 1.7 ns; not measured) |
+| fill rate | 25–55 Gpx/s for faces of 8 to 16 px; 3.7 Gpx/s for faces of 2 px (measured) | 10 Gpx/s (estimate: 28 B per pixel at 280 GB/s; not measured) | 0.9 Gpx/s (estimate: 28 B per pixel at 25 GB/s; not measured) |
 
 The tier `W` has no tile memory, so each gbuffer pixel goes to the shared memory. The 28 B per
 pixel are the 20 B of the gbuffer, plus a depth read and a depth write. The tier `M` keeps the
@@ -143,11 +142,11 @@ A pass is limited by the bandwidth when `bytes / bandwidth` is larger than
 `operations / arithmetic rate`. On `W`, the pig pose is `400 B / 25 GB/s = 16 ns` against
 `450 / 0.25 TFLOP/s = 1.8 ns`. Thus the bandwidth limits each compute pass of each tier. The
 frog pose on `M` is the exception: the probe measures 3.2 ns per mob, against 2.4 ns from the
-bandwidth (A.4).
+bandwidth.
 
 ### 2.3 Time per mob
 
-`M` is measured with the probe kernels of A.4 and A.5, at 300,000 mobs. `D` and `W` are
+`M` is measured with the probe kernels, at 300,000 mobs. `D` and `W` are
 estimates from section 1 and are not measured: bytes divided by the effective bandwidth, and
 faces times the face cost.
 
@@ -181,7 +180,7 @@ no tiers. The fill is in section 2.5.
 | `W` pig | 10,000 / 100,000 / 300,000 | 0.038 / 0.38 / 1.15 | 0.16 / 1.60 / 4.80 | 0.20 / 2.02 / 6.05 | 0.63 / 6.30 / 18.9 | 1.03 / 10.3 / 30.9 ms |
 | `W` frog | 10,000 / 100,000 / 300,000 | 0.038 / 0.38 / 1.15 | 0.39 / 3.90 / 11.7 | 0.44 / 4.35 / 13.1 | 1.02 / 10.2 / 30.6 | 1.89 / 18.8 / 56.6 ms |
 
-The `M` draw of 300,000 pigs is the probe draw of 6.3 M faces: 3.80 ms (A.5). For a small count,
+The `M` draw of 300,000 pigs is the probe draw of 6.3 M faces: 3.80 ms. For a small count,
 the probe shows a fixed cost: the frog pose at 10,000 mobs is 4.7 ns per mob, against 3.2 ns at
 300,000, because 157 workgroups do not fill 40 cores.
 
@@ -219,11 +218,11 @@ sets the draw time, and the rasterizer efficiency is below 25% (S6, p. 51).
 
 | Item | Value | Mark |
 |---|---|---|
-| pack a 32 B tick record as a `#[repr(C)]` struct into the mirror, at a random slot, and set the dirty bit of its page | 2.1 ns per mob at 10,000 and 100,000; 2.8 ns at 300,000 | measured, A.2 |
-| the same record, packed byte by byte with `copy_from_slice` | 24–30 ns per mob | measured, A.2 |
+| pack a 32 B tick record as a `#[repr(C)]` struct into the mirror, at a random slot, and set the dirty bit of its page | 2.1 ns per mob at 10,000 and 100,000; 2.8 ns at 300,000 | measured |
+| the same record, packed byte by byte with `copy_from_slice` | 24–30 ns per mob | measured |
 | read the ECS components of a moving mob | 5–8 ns per mob | estimate: two or three cache misses; not measured |
-| `queue.write_buffer`, CPU time | 0.12–0.31 ms for 1 MiB; 0.53–1.27 ms for 6 MiB; 1.2–2.1 ms for 13 MiB | measured, A.2 |
-| `queue.write_buffer`, then submit and wait | 2.5–7.3 ms for 13 MiB | measured, A.2 |
+| `queue.write_buffer`, CPU time | 0.12–0.31 ms for 1 MiB; 0.53–1.27 ms for 6 MiB; 1.2–2.1 ms for 13 MiB | measured |
+| `queue.write_buffer`, then submit and wait | 2.5–7.3 ms for 13 MiB | measured |
 | `writeBuffer` in a browser | an extra copy out of the wasm memory and a transfer to the GPU process | estimate; not measured |
 
 Upload per tick, with the 64 B tick record of `docs/entity-render.md`, section 4.1:
@@ -246,7 +245,7 @@ On `M`, 120,000 moving mobs give 7.7 MB (7.3 MiB) in one frame of each tick. The
 | `M` | face cost of the draw | 2.0 ms / 14.9 ns = 134,000 full-rig pigs, or 2.0 ms / 26.2 ns = 76,000 full-rig frogs | CPU upload in the tick frame: 7.7 MB at 64 B per record takes 0.7–1.5 ms, and the packing 1.2 ms more (section 2.6) |
 | `D` | face cost of the draw (not measured) | 2.0 ms / 11.9 ns = 168,000 pigs, or 94,000 frogs | fill of a near crowd: S4 at 1440p is 13 M px at 10 Gpx/s = 1.3 ms |
 | `W` | face cost and bandwidth together (not measured) | 4.0 ms / 103 ns = 39,000 full-rig pigs, or 4.0 ms / 189 ns = 21,000 frogs, with no fill | fill: 0.9 Gpx/s gives 3.6 M px in 4 ms, which is 1.7 screens at 1080p; the cull of 300,000 slots alone is 1.15 ms |
-| `W` | upload | the target of 1.5 MB per tick (`docs/entity-render.md`, section 8) allows 23,000 moving mobs at 64 B, or 47,000 at 32 B | the main thread of wasm does the packing and the upload |
+| `W` | upload | the target of 1.5 MB per tick (section 1) allows 23,000 moving mobs at 64 B, or 47,000 at 32 B | the main thread of wasm does the packing and the upload |
 | `W` compatibility mode | binding | `maxStorageBuffersInVertexStage` is 0 by default (source S1, S2). The vertex stage reads no storage buffer | `maxTextureDimension2D` is 4096 and `maxComputeInvocationsPerWorkgroup` is 128 in compatibility mode (source S1) |
 
 These limits of the web do not bind the entity passes:
@@ -266,7 +265,7 @@ These limits of the web do not bind the entity passes:
 The adapter `M` reports 31 storage buffers per stage, a binding size of 4 GiB, 2048 array
 layers and 32 KiB of workgroup memory. It reports `TIMESTAMP_QUERY` and
 `INDIRECT_FIRST_INSTANCE`, but not `TIMESTAMP_QUERY_INSIDE_PASSES` and not
-`MULTI_DRAW_INDIRECT_COUNT` (measured, A.1).
+`MULTI_DRAW_INDIRECT_COUNT` (measured).
 
 ## 4. Decisions that the numbers force
 
@@ -292,11 +291,11 @@ full rig.
 
 A mob of less than 12 px has faces of less than 4 px² on average (section 2.5). A 2 px leg is
 inside the position tolerance of CEREN (0.5 px) only in the impostor view at its own size. Thus
-the impostor needs a new spec rule (section 6.2).
+the impostor needs a new spec rule.
 
 Not selected: a compute rasterizer for small faces (S7, p. 81, "3x faster than hardware" for
 triangles with edges below 32 px). It needs 64-bit atomics, which the web does not have
-(`SHADER_INT64_ATOMIC_MIN_MAX` is native only, A.1).
+(`SHADER_INT64_ATOMIC_MIN_MAX` is native only).
 
 ### 4.2 Full-rig cap and the size of the bone arena
 
@@ -350,8 +349,8 @@ usages `STORAGE | VERTEX`, and the draw reads them as a vertex buffer with the s
 
 - A pig after the expand pass has 126 vertices and 42 triangles. An instanced cuboid mesh has
   168 vertices and 84 triangles, and the hardware culls 42 of them after the setup (section 2.1).
-- On `M`, the expand costs 1.04 ns per pig. The vertex rate is about 10 G per second (A.5, and
-  30 M vertices in 2.9 ms for terrain, S9). Thus the expand path costs `1.04 + 126 · 0.1 =
+- On `M`, the expand costs 1.04 ns per pig. The vertex rate is about 10 G per second (and
+  30 M vertices in 2.9 ms for terrain). Thus the expand path costs `1.04 + 126 · 0.1 =
   13.6 ns` against `168 · 0.1 = 16.8 ns` and the setup of 42 more triangles.
 - On `W`, the setup is about one triangle per clock (estimate, not measured). The instanced mesh
   doubles the triangles: 10,000 pigs need 0.84 M triangles instead of 0.42 M, which is 0.38 ms
@@ -371,7 +370,7 @@ pyramid, and the entity passes have no second phase.
 - The two-phase scheme of S5 (p. 51–52) and S7 (p. 19) exists because the first phase tests
   against the pyramid of the previous frame. The entity cull tests against the pyramid of the
   current frame, so it has no false negative that a second phase must correct.
-- A second pyramid with mobs costs one more build (0.073 ms, S9) and a second cull of the
+- A second pyramid with mobs costs one more build (0.073 ms) and a second cull of the
   candidates.
 - Mobs are poor occluders in the pyramid. The cull reads the mip in which the rectangle of the
   mob is at most 2 × 2 texels. For a pig at 50 blocks at 1440p (18 px high), the texel is 16 px,
@@ -396,7 +395,7 @@ which is inside the tolerance.
 ### 4.8 Previous bone palette for motion vectors: not now
 
 **Decision.** The renderer has no TAA, and the gbuffer writes zero motion
-(`crates/mcrs_minecraft_render/src/shaders/include/deferred.wgsl`). No document of the
+(`crates/mcrs_minecraft_render/src/shaders/include/deferred.wesl`). No document of the
 repository plans TAA. The bone storage keeps the room for a second copy, as
 `docs/entity-render.md`, section 5.2, states. The pose pass writes only the current pose.
 
@@ -434,7 +433,7 @@ writes the new record. The scatter pass also writes the cull record of 4.11.
   upload sends them twice.
 - `W` at 1.5 MB per tick: 23,000 moving mobs at 64 B, 47,000 at 32 B (section 3).
 - `M`, S2 with 120,000 moving mobs: 7.7 MB at 64 B, 3.8 MB at 32 B. `write_buffer` needs about
-  0.15 ms per MiB (A.2), thus 1.1 ms and 0.55 ms.
+  0.15 ms per MiB, thus 1.1 ms and 0.55 ms.
 - The scatter pass on `W` reads 32 B and the old 32 B and writes 64 B for each moving mob. For
   47,000 mobs, that is 6 MB, 0.24 ms, in the frame of each tick.
 
@@ -458,7 +457,7 @@ They do not build it from byte slices. On native, they split the work by page ac
 compute task pool when more than 50,000 mobs move in a tick.
 
 **Numbers.** 2.1–2.8 ns per mob for the struct store, against 24–30 ns per mob for byte packing
-(A.2). With the estimated 5–8 ns to read the ECS components, 300,000 moving mobs need 2.1–3.2 ms
+(measured). With the estimated 5–8 ns to read the ECS components, 300,000 moving mobs need 2.1–3.2 ms
 of one thread per tick, which is more than the CPU share of `M` and `D`. 50,000 mobs need
 0.35–0.55 ms.
 
@@ -468,7 +467,7 @@ of one thread per tick, which is more than the CPU share of `M` and `D`. 50,000 
 `atomicAdd`, after a scan inside the workgroup, like the cull.
 
 **Numbers.** On `M`, the two forms cost the same: 0.30–0.31 ms with one atomic per workgroup and
-0.31–0.35 ms with one atomic per lane, for 2.1 M lanes (A.4). Thus the aggregation costs
+0.31–0.35 ms with one atomic per lane, for 2.1 M lanes. Thus the aggregation costs
 nothing on `M`. On a GPU that serializes atomics on one address, 2.1 M atomics at one per clock
 and 1.5 GHz take 1.4 ms (estimate, not measured).
 
@@ -476,12 +475,12 @@ and 1.5 GHz take 1.4 ms (estimate, not measured).
 
 **Decision.** The gates of section 5 time the compute passes with pass timestamps. They time
 the entity draw on Metal as the difference of two runs, with and without the entity draw, under
-`MCRS_GPU_HOT` (S9). In Chrome, a gate reads the timestamps only with the developer flag, or it
+`MCRS_GPU_HOT`. In Chrome, a gate reads the timestamps only with the developer flag, or it
 takes the mean of at least 64 frames.
 
-**Numbers.** The adapter `M` has no `TIMESTAMP_QUERY_INSIDE_PASSES` (A.1). In the probe, the
+**Numbers.** The adapter `M` has no `TIMESTAMP_QUERY_INSIDE_PASSES`. In the probe, the
 timestamps at the bounds of a render pass read an end before the start in some runs, and the
-median and the minimum of the same draw differ by 3 to 10 times (A.5). Chrome quantizes a
+median and the minimum of the same draw differ by 3 to 10 times. Chrome quantizes a
 timestamp to 100 µs without the flag `enable-webgpu-developer-features` (S13). Third-party
 reports state other steps for Chrome 148 and later; they are unverified.
 
@@ -555,8 +554,7 @@ those from 6 to 12 px 0.10 ms. With no discard at all, the fragment time of the 
 
 ### 5.1 Scenes
 
-A debug spawner creates the client entities from a seed, so a scene needs no server
-(`docs/entity-render.md`, section 8). Each scene has a fixed camera, a fixed seed and a fixed
+A debug spawner creates the client entities from a seed, so a scene needs no server. Each scene has a fixed camera, a fixed seed and a fixed
 number of ticks. A mob that walks follows a seeded random path at the walk speed of its type.
 
 | Scene | Mobs | Distance distribution | Animation state | Occlusion | What it loads |
@@ -591,7 +589,7 @@ For each scene and each run:
   render-world upload;
 - the counts: slots, visible mobs, full rigs, impostors, emitted faces, bytes uploaded per tick.
 
-The probe runs with `MCRS_HOT=1` and `MCRS_GPU_HOT=16384` on `M`, as S9 states.
+The probe runs with `MCRS_HOT=1` and `MCRS_GPU_HOT=16384` on `M`.
 
 ### 5.3 Gates
 
@@ -615,249 +613,3 @@ entity passes exist.
 Only the gates of `M` can run on the reference machine. The gates of `D` and `W` need such an
 adapter in CI, or a forced path on native (`docs/entity-render.md`, section 6). A forced path
 tests the code of a path, not the speed of a tier.
-
-## 6. Edits that the numbers require
-
-### 6.1 `docs/entity-render.md`
-
-These edits are in this change. Each one follows only from a number of this note.
-
-1. Section 6.1, row "Compatibility": "a bone texture of 4096 × 4096 texels holds 1.3 M bones"
-   is wrong. At 3 texels per bone, 4096 × 4096 texels hold 5.6 M bones and use 256 MiB. The row
-   now gives the size from the full-rig cap.
-2. Section 8: a reference to this note, and the rule for the time measurement of the draw on Metal (4.14).
-
-These edits need a decision of the owner of the design, so this change does not make them:
-
-3. Section 4.1: the tick record of 32 B with the previous record on the GPU (4.10).
-4. Section 4.1 or a new section 4.7: the cull record of 16 B (4.11).
-5. Section 4.6: the tick records always go through the scatter pass, which rotates the previous
-   record (4.10).
-6. Section 5.1: the cull selects the tier of 4.1 and appends to one visible list per tier. Add
-   the height threshold to the frame uniforms, and its feedback from the full-rig count (4.2).
-7. Section 5.2: the pose dispatch covers only the full rigs. The bone arena has the size of the
-   full-rig cap (4.2).
-8. Section 5.3: one global `atomicAdd` per workgroup, after a scan inside the workgroup (4.13).
-9. Section 6, row "Compatibility": the face records as an instance-rate vertex buffer, not an
-   instanced cuboid mesh (4.5). Integer varyings use `@interpolate(flat, either)`, because
-   compatibility mode has no other flat mode (S2). Entity workgroups have at most 128
-   invocations (S1).
-10. Section 6.1, column "Visible mobs, target": replace it with the full-rig caps of 4.2: 75,000
-    on `M` and `D`, 20,000 on `W`. Impostors have no cap.
-11. Section 8: replace the benchmark scene with the scenes and gates of section 5.
-12. Section 9: move the tier selection of the cull (4.1) into step 2. Add the impostor pipeline as
-    a step after step 4.
-13. Section 10: remove "Tiers by distance" and "Impostors for the horizon" from the deferred
-    items. Keep "a lower update rate for far mobs" there only for the Minimal path (4.3).
-
-### 6.2 Specifications
-
-The specifications do not change in this note. These rules need a decision of the
-specification author:
-
-1. `client-entity-render.md`: a new rule for the fidelity of a small entity. Below a projected
-   height of 12 px at the test resolution, the client can draw the entity with less detail: an
-   image from a fixed set of views and animation phases. The parity tests of section 0.2 (0.5 px,
-   2 of 255) then apply only to entities at or above that height. Kind: semantic. Source: 4.1.
-2. `entity-animation.md`, EANIM-GPU-003: item 2 states that the limits apply "whichever
-   processor evaluates a slot". Add an item: the limits apply to an entity that the client draws
-   with its full rig. An entity under the rule of item 1 has no pose to compare. Source: 4.1.
-3. `entity-animation.md`, EANIM-GPU-003, item 3: "for example because the slots of the type
-   exceed a GPU budget". Add the full-rig cap as such a budget: over the cap, the client draws
-   the entity with less detail under item 1, and does not compute its pose on the CPU. Source:
-   4.2.
-4. `client-entity-render.md`, CEREN-VIS-002, item 5: the cull of 4.11 uses a sphere about the
-   centre of the block, with the radius grown by `√3 / 2` block. This sphere contains the culling
-   volume, so the rule allows it. No edit is necessary. Confirm it in the provenance line.
-5. `client-entity-render.md`, CEREN-VIS-001, item 3: a translucent entity uses the tiers of 4.1.
-   The rule of item 1 must also cover translucent entities. Source: 4.9.
-6. `docs/molang.md`, section 10.2: the tick record of 4.10 holds the current values only. The
-   table row for `lerp`, `alerp` and `walk` says that "the record holds the current and the
-   previous value". Change it to "the GPU keeps the previous record". This is a design document,
-   not a specification.
-
-## Appendix A. Probe output on `M`
-
-The probe is `crates/mcrs_minecraft_render_probe/examples/entity_budget.rs`:
-
-```
-cargo run --release -p mcrs_minecraft_render_probe --example entity_budget
-```
-
-It requests the adapter with `PowerPreference::HighPerformance` and all its limits. It times a
-GPU pass with timestamps at the bounds of the pass. A calibration run selects the repetition
-count that makes one submission about 25 ms long; the figures are per repetition, the median
-and the minimum over 9 submissions. The data is synthetic, with the record sizes of
-`docs/entity-render.md`. The probe ran on 2026-11-07, release build, wgpu 29.0.4, macOS, while
-other builds ran on the same machine (load average 40 to 87). Thus the figures are lower bounds
-of the speed of `M`. A second run without the calibration gave the same bandwidth and the same
-arithmetic rate within 5%.
-
-### A.1 Adapter
-
-```
-name: "Apple M4 Max", device_type: IntegratedGpu, backend: Metal
-subgroup_min_size: 4, subgroup_max_size: 64
-features (WebGPU): DEPTH_CLIP_CONTROL | DEPTH32FLOAT_STENCIL8 | TEXTURE_COMPRESSION_BC |
-  TEXTURE_COMPRESSION_BC_SLICED_3D | TEXTURE_COMPRESSION_ETC2 | TEXTURE_COMPRESSION_ASTC |
-  TEXTURE_COMPRESSION_ASTC_SLICED_3D | TIMESTAMP_QUERY | INDIRECT_FIRST_INSTANCE | SHADER_F16 |
-  RG11B10UFLOAT_RENDERABLE | BGRA8UNORM_STORAGE | FLOAT32_FILTERABLE | FLOAT32_BLENDABLE |
-  DUAL_SOURCE_BLENDING | IMMEDIATES | PRIMITIVE_INDEX
-features (wgpu): SHADER_FLOAT32_ATOMIC | TEXTURE_FORMAT_16BIT_NORM | TEXTURE_COMPRESSION_ASTC_HDR |
-  TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES | TIMESTAMP_QUERY_INSIDE_ENCODERS |
-  MAPPABLE_PRIMARY_BUFFERS | TEXTURE_BINDING_ARRAY | STORAGE_RESOURCE_BINDING_ARRAY |
-  SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING |
-  STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING | PARTIALLY_BOUND_BINDING_ARRAY |
-  ADDRESS_MODE_CLAMP_TO_ZERO | ADDRESS_MODE_CLAMP_TO_BORDER | POLYGON_MODE_LINE |
-  VERTEX_WRITABLE_STORAGE | CLEAR_TEXTURE | MULTIVIEW | TEXTURE_ATOMIC | EXTERNAL_TEXTURE |
-  EXPERIMENTAL_RAY_QUERY | SHADER_INT64 | SUBGROUP | SUBGROUP_BARRIER |
-  SHADER_INT64_ATOMIC_MIN_MAX | TEXTURE_INT64_ATOMIC | EXPERIMENTAL_MESH_SHADER |
-  PASSTHROUGH_SHADERS | SHADER_BARYCENTRICS | EXPERIMENTAL_COOPERATIVE_MATRIX |
-  MEMORY_DECORATION_COHERENT
-not present: TIMESTAMP_QUERY_INSIDE_PASSES, MULTI_DRAW_INDIRECT_COUNT
-downlevel flags: COMPUTE_SHADERS | FRAGMENT_WRITABLE_STORAGE | INDIRECT_EXECUTION | BASE_VERTEX |
-  READ_ONLY_DEPTH_STENCIL | NON_POWER_OF_TWO_MIPMAPPED_TEXTURES | CUBE_ARRAY_TEXTURES |
-  COMPARISON_SAMPLERS | INDEPENDENT_BLEND | VERTEX_STORAGE | ANISOTROPIC_FILTERING |
-  FRAGMENT_STORAGE | MULTISAMPLED_SHADING | DEPTH_TEXTURE_AND_BUFFER_COPIES |
-  WEBGPU_TEXTURE_FORMAT_SUPPORT | BUFFER_BINDINGS_NOT_16_BYTE_ALIGNED | UNRESTRICTED_INDEX_BUFFER |
-  FULL_DRAW_INDEX_UINT32 | DEPTH_BIAS_CLAMP | VIEW_FORMATS | UNRESTRICTED_EXTERNAL_TEXTURE_COPIES |
-  SURFACE_VIEW_FORMATS | NONBLOCKING_QUERY_RESOLVE | SHADER_F16_IN_F32
-shader model: Sm5
-```
-
-Limits: the adapter, then the wgpu values of S8 (`defaults` is WebGPU core, `downlevel` is GLES
-3.1 and D3D11, `webgl2` is GLES 3.0 and WebGL2). wgpu 29 has no limit for the storage buffers in
-the vertex stage. It reports their absence with the downlevel flag `VERTEX_STORAGE`.
-
-```
-limit                                                adapter      defaults   downlevel      webgl2
-max_storage_buffers_per_shader_stage                      31             8           4           0
-max_storage_buffer_binding_size                   4294967292     134217728   134217728           0
-max_buffer_size                                  86586540032     268435456   268435456   268435456
-max_uniform_buffer_binding_size                   4294967295         65536       16384       16384
-max_storage_textures_per_shader_stage                    128             4           4           0
-max_sampled_textures_per_shader_stage                    128            16          16          16
-max_texture_array_layers                                2048           256         256         256
-max_texture_dimension_2d                               16384          8192        2048        2048
-max_texture_dimension_3d                                2048          2048         256         256
-max_bind_groups                                            8             4           4           4
-max_bindings_per_bind_group                            65535          1000        1000        1000
-max_dynamic_storage_buffers_per_pipeline_layout            4             4           4           0
-max_compute_workgroup_storage_size                     32768         16384       16352           0
-max_compute_invocations_per_workgroup                   1024           256         256           0
-max_compute_workgroup_size_x                            1024           256         256           0
-max_compute_workgroups_per_dimension                   65535         65535       65535           0
-max_color_attachments                                      8             8           4           4
-max_color_attachment_bytes_per_sample                    128            32          32          32
-max_inter_stage_shader_variables                          31            16          15          15
-max_vertex_buffers                                        16             8           8           8
-max_vertex_attributes                                     31            16          16          16
-max_immediate_size                                      4096             0           0           0
-min_storage_buffer_offset_alignment                      256           256         256         256
-min_uniform_buffer_offset_alignment                      256           256         256         256
-```
-
-The compatibility-mode defaults of WebGPU are in S1: `maxStorageBuffersInVertexStage` 0,
-`maxStorageTexturesInVertexStage` 0, `maxStorageBuffersInFragmentStage` 4,
-`maxComputeInvocationsPerWorkgroup` 128, `maxTextureDimension2D` 4096, `maxColorAttachments` 4,
-`maxUniformBufferBindingSize` 16384, `maxInterStageShaderVariables` 15. The other limits of
-section 3 have the core value. A native adapter cannot report these limits through wgpu 29.
-
-### A.2 CPU
-
-```
-# CPU upload: queue.write_buffer + submit + wait, wall clock
-  1 MiB  write_buffer   0.119–0.313 ms  with submit and wait   1.39–1.70 ms
-  6 MiB  write_buffer   0.529–1.270 ms  with submit and wait   1.79–6.13 ms
- 13 MiB  write_buffer   1.207–2.078 ms  with submit and wait   2.47–7.29 ms
- 26 MiB  write_buffer   2.293–3.821 ms  with submit and wait   3.57–5.49 ms
-
-# CPU tick records: pack and scatter into the slot mirror, one thread
-mobs   10000 64 B record, byte packing     0.255 ms median   25.47 ns/mob
-mobs   10000 32 B record, byte packing     0.268 ms median   26.76 ns/mob
-mobs   10000 32 B record, struct store     0.021 ms median    2.12 ns/mob
-mobs  100000 64 B record, byte packing     2.578 ms median   25.78 ns/mob
-mobs  100000 32 B record, byte packing     2.676 ms median   26.76 ns/mob
-mobs  100000 32 B record, struct store     0.214 ms median    2.14 ns/mob
-mobs  300000 64 B record, byte packing     8.968 ms median   29.89 ns/mob
-mobs  300000 32 B record, byte packing     7.416 ms median   24.72 ns/mob
-mobs  300000 32 B record, struct store     0.851 ms median    2.84 ns/mob
-```
-
-The upload rows give the range over four runs.
-
-### A.3 Bandwidth and arithmetic
-
-```
-copy (read + write)       1.318 ms median    1.263 min    407.3 GB/s median   425.1 GB/s best
-read only                 0.616 ms median    0.581 min    435.6 GB/s median   462.2 GB/s best
-fma f32                   8.869 ms median    8.705 min     3873.9 GFLOP/s median    3947.0 best
-scalar mul-add f32        4.423 ms median    4.393 min     3884.1 GFLOP/s median    3910.6 best
-sin + cos f32             2.884 ms median    2.854 min      744.5 G trig/s median     752.5 best
-```
-
-The buffers are 256 MiB each. The copy reaches 75–78% of the peak of 546 GB/s (S10). The
-arithmetic kernels reach 3.9 TFLOP/s with 16 or 8 independent chains for each lane. The
-third-party figure of about 16 TFLOP/s is unverified, and this note does not use it. The other
-load on the machine can explain a part of the difference.
-
-### A.4 Entity compute passes
-
-The probe no longer has the synthetic kernels of A.4 and A.5. The `stress_field` example of
-`mcrs_minecraft_entity_render` times the production passes. A.4 and A.5 record the run of
-2026-11-07.
-
-```
-cull   slots   10000 kept  300‰   0.0034 ms median  0.0032 min    0.34 ns/slot
-cull   slots  100000 kept  300‰   0.0189 ms median  0.0186 min    0.19 ns/slot
-cull   slots  300000 kept  300‰   0.0836 ms median  0.0802 min    0.28 ns/slot
-cull   slots  300000 kept 1000‰   0.0741 ms median  0.0706 min    0.25 ns/slot
-pose   pig           mobs   10000   0.0050 ms median  0.0047 min    0.50 ns/mob
-pose   pig           mobs  100000   0.0794 ms median  0.0701 min    0.79 ns/mob
-pose   pig           mobs  300000   0.2918 ms median  0.2859 min    0.97 ns/mob   411.3 GB/s
-pose   pig + saddle  mobs   10000   0.0066 ms median  0.0064 min    0.66 ns/mob
-pose   pig + saddle  mobs  100000   0.1627 ms median  0.1541 min    1.63 ns/mob
-pose   pig + saddle  mobs  300000   0.6189 ms median  0.5884 min    2.06 ns/mob   333.5 GB/s
-pose   frog          mobs   10000   0.0471 ms median  0.0467 min    4.71 ns/mob
-pose   frog          mobs  100000   0.2993 ms median  0.2782 min    2.99 ns/mob
-pose   frog          mobs  300000   0.9655 ms median  0.9392 min    3.22 ns/mob   273.4 GB/s
-expand pig   workgroup atomic mobs   10000 lanes    70000   0.0082 ms median  0.0080 min    0.82 ns/mob
-expand pig   workgroup atomic mobs  100000 lanes   700000   0.0769 ms median  0.0733 min    0.77 ns/mob
-expand pig   workgroup atomic mobs  300000 lanes  2100000   0.3118 ms median  0.3046 min    1.04 ns/mob
-expand pig   lane atomic      mobs  300000 lanes  2100000   0.3503 ms median  0.3098 min    1.17 ns/mob
-expand frog  workgroup atomic mobs   10000 lanes   160000   0.0156 ms median  0.0149 min    1.56 ns/mob
-expand frog  workgroup atomic mobs  100000 lanes  1600000   0.2207 ms median  0.2156 min    2.21 ns/mob
-expand frog  workgroup atomic mobs  300000 lanes  4800000   0.7121 ms median  0.6848 min    2.37 ns/mob
-expand frog  lane atomic      mobs  300000 lanes  4800000   0.7135 ms median  0.6749 min    2.38 ns/mob
-```
-
-The GB/s column is the bytes of section 2.2 divided by the median. At 10,000 and 100,000 mobs,
-the records stay in the cache, so the column is not a memory figure there. The pose kernel of
-the frog composes each bone with one kept parent; the real pose reads the parent from the bone
-arena, which the cache holds.
-
-### A.5 Gbuffer draw
-
-Vertex pulling of face records into the three gbuffer targets and a 32-bit depth target at
-2560 × 1440, with a `discard` test in the fragment shader. The faces lie on a grid of squares
-with the side in pixels. A side of 0.25 px gives triangles that cover almost no sample. The time
-is the wall time per repetition, because the timestamps of a render pass on `M` do not bracket
-its work (section 4.14).
-
-```
-side  0.25 px faces   630000 verts   3780000 covered  0.00 screens   wall 1.063 ms  1.69 ns/face
-side  0.25 px faces  6300000 verts  37800000 covered  0.00 screens   wall 3.795 ms  0.60 ns/face
-side     2 px faces   921600 verts   5529600 covered  1.00 screens   wall 0.979 ms  1.06 ns/face   3.76 Gpx/s
-side     4 px faces   230400 verts   1382400 covered  1.00 screens   wall 0.292 ms  1.27 ns/face  12.62 Gpx/s
-side     4 px faces   921600 verts   5529600 covered  4.00 screens   wall 0.999 ms  1.08 ns/face  14.76 Gpx/s
-side     8 px faces    57600 verts    345600 covered  1.00 screens   wall 0.143 ms  2.49 ns/face  25.73 Gpx/s
-side    16 px faces    14400 verts     86400 covered  1.00 screens   wall 0.071 ms  4.94 ns/face  51.81 Gpx/s
-side    16 px faces    57600 verts    345600 covered  4.00 screens   wall 0.270 ms  4.68 ns/face  54.70 Gpx/s
-side    16 px faces    57600 verts    345600 covered  4.00 screens   no discard   wall 0.269 ms  54.90 Gpx/s
-side    64 px faces     3600 verts     21600 covered  4.00 screens   wall 0.191 ms 53.19 ns/face  77.01 Gpx/s
-```
-
-The fragment shader has a `discard` that no texel takes. The hidden surface removal of the GPU
-stops for a shader with `discard` (S10, WWDC20 session 10632), so these figures include each
-covered pixel of each layer. The row with no `discard` reads the same. At 6.3 M faces, the draw
-reaches 10 G vertices per second, the rate that S9 measured for terrain.

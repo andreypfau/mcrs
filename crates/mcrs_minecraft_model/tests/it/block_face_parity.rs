@@ -1,6 +1,3 @@
-//! The baked faces of each model file and variant turn agree with the face artefact of the
-//! reference client.
-
 use bevy::math::DVec3;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_fixtures::fixture;
@@ -44,7 +41,6 @@ fn named(name: Option<&str>) -> Option<Direction> {
     name.map(|name| direction_named(name).unwrap())
 }
 
-/// Why `ours` disagrees with `expected`, or `None` when it agrees.
 fn disagreement(ours: &ElementFace, expected: &ExpectedFace) -> Option<String> {
     if ours.texture != expected.texture
         || ours.tint.map_or(-1, i64::from) != expected.tint
@@ -74,8 +70,6 @@ fn disagreement(ours: &ElementFace, expected: &ExpectedFace) -> Option<String> {
     None
 }
 
-/// Whether the face sits at the same angle to both directions, which the reference resolves by
-/// its rounding.
 fn tied(face: &ElementFace, other: Direction) -> bool {
     let [p0, p1, p2, _] = face.positions.map(|p| p.as_dvec3());
     let normal = (p1 - p0).cross(p2 - p0).normalize_or_zero();

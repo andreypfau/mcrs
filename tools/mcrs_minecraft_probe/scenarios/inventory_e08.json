@@ -1,0 +1,151 @@
+{
+  "target": {
+    "operators": [
+      "inve08probeplyr"
+    ]
+  },
+  "observe": {
+    "inventory": true
+  },
+  "steps": [
+    {
+      "id": "join",
+      "join": "inve08probeplyr"
+    },
+    {
+      "id": "peaceful",
+      "command": {
+        "client": "inve08probeplyr",
+        "line": "difficulty peaceful"
+      }
+    },
+    {
+      "id": "teleport_to_origin",
+      "command": {
+        "client": "inve08probeplyr",
+        "line": "tp @s 0.5 -60 0.5"
+      }
+    },
+    {
+      "id": "survival",
+      "command": {
+        "client": "inve08probeplyr",
+        "line": "gamemode survival"
+      }
+    },
+    {
+      "id": "place_chest",
+      "command": {
+        "client": "inve08probeplyr",
+        "line": "setblock 1 -60 0 chest"
+      }
+    },
+    {
+      "id": "stone_5_in_p1_before_open",
+      "command": {
+        "client": "inve08probeplyr",
+        "line": "item replace entity @s hotbar.1 with stone 5"
+      }
+    },
+    {
+      "id": "open_chest",
+      "use_block": {
+        "client": "inve08probeplyr",
+        "position": [
+          1,
+          -60,
+          0
+        ]
+      }
+    },
+    {
+      "id": "chest_open_helmet_to_head",
+      "command": {
+        "client": "inve08probeplyr",
+        "line": "item replace entity @s armor.head with iron_helmet"
+      }
+    },
+    {
+      "id": "chest_open_shield_to_off_hand",
+      "command": {
+        "client": "inve08probeplyr",
+        "line": "item replace entity @s weapon.offhand with shield"
+      }
+    },
+    {
+      "id": "chest_open_dirt_to_craft_grid_0",
+      "command": {
+        "client": "inve08probeplyr",
+        "line": "item replace entity @s player.crafting.0 with dirt 1"
+      }
+    },
+    {
+      "id": "chest_open_dirt_3_to_p0",
+      "command": {
+        "client": "inve08probeplyr",
+        "line": "item replace entity @s hotbar.0 with dirt 3"
+      }
+    },
+    {
+      "id": "close_chest",
+      "close": {
+        "client": "inve08probeplyr"
+      }
+    },
+    {
+      "id": "inventory_pick_up_p0_with_prediction",
+      "click": {
+        "client": "inve08probeplyr",
+        "slot": 36,
+        "button": 0,
+        "mode": "pickup",
+        "changed_slots": [
+          {
+            "slot": 36,
+            "stack": null
+          }
+        ],
+        "carried": {
+          "item": "minecraft:dirt",
+          "count": 3
+        }
+      }
+    },
+    {
+      "id": "inventory_put_back_p0_with_prediction",
+      "click": {
+        "client": "inve08probeplyr",
+        "slot": 36,
+        "button": 0,
+        "mode": "pickup",
+        "changed_slots": [
+          {
+            "slot": 36,
+            "stack": {
+              "item": "minecraft:dirt",
+              "count": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "inventory_pick_up_p0_without_prediction",
+      "click": {
+        "client": "inve08probeplyr",
+        "slot": 36,
+        "button": 0,
+        "mode": "pickup"
+      }
+    },
+    {
+      "id": "inventory_put_back_p0_without_prediction",
+      "click": {
+        "client": "inve08probeplyr",
+        "slot": 36,
+        "button": 0,
+        "mode": "pickup"
+      }
+    }
+  ]
+}

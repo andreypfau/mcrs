@@ -5,12 +5,17 @@ version.workspace = true
 edition.workspace = true
 
 [lib]
+test = false
 doctest = false
 
 [lints]
 workspace = true
 
 [dependencies]
-# The workspace entry enables std, which the wasm32v1-none build of this crate does not have.
-glam = { version = "0.33.12", default-features = false, features = ["nostd-libm", "all-types"] }
+bevy_ecs = { workspace = true, optional = true }
+glam = { workspace = true, features = ["nostd-libm"] }
 mcrs_voxel.workspace = true
+uuid = { version = "1.18.1", default-features = false }
+
+[features]
+bevy = ["dep:bevy_ecs"]

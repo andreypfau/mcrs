@@ -1,8 +1,10 @@
 use crate::aquifer::{AquiferConfig, GlobalFluid};
 use crate::beta::BetaTerrainNoises;
 use crate::cell::CellBounds;
+use crate::column_bound::{ColumnBound, ColumnBoundScratch};
 use crate::program::{Node, NodeId, Program, Workspace};
 use crate::proto::{DensityFunctionHolder, ValueRange};
+use crate::router_key::{self, RouterKey};
 use glam::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
@@ -46,7 +48,6 @@ pub struct RouterFunctions {
 }
 
 impl RouterFunctions {
-    /// A router that shapes terrain alone: every climate root is zero.
     pub fn of_density(final_density: DensityFunctionHolder) -> Self {
         let zero = || DensityFunctionHolder::ZERO;
         RouterFunctions {
@@ -61,8 +62,6 @@ impl RouterFunctions {
         }
     }
 
-    /// In the order of [`ROOT_NAMES`], which is also the order the compiler
-    /// visits them and therefore the order the graph is grown in.
     pub fn roots(&self) -> [&DensityFunctionHolder; 8] {
         [
             &self.temperature,
@@ -119,18 +118,11 @@ impl DebugFunction {
 
 pub type SpawnTargetPoint = BTreeMap<ResourceLocationBuf, ValueRange>;
 
-/// `worldgen/noise_settings/*.json` in full.
-///
-/// The density engine reads only `noise`, `noise_router`, `sea_level` and
-/// `legacy_random_source`, but the shape is closed: an unknown field is a
-/// datapack this build does not understand, not a field to skip.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
 pub struct NoiseGeneratorSettings {
     pub noise: NoiseSettings,
-    /// The block the fill stands in for solid terrain before the material rule
-    /// decides it. Absent, it is the block the rule falls back to.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_block: Option<BlockState>,
     pub default_fluid: BlockState,
@@ -151,9 +143,6 @@ impl mcrs_minecraft_resource::RegistryValue for NoiseGeneratorSettings {
 }
 
 impl NoiseGeneratorSettings {
-    /// Settings with nothing optional: no terrain block of their own, no spawn
-    /// target, no aquifers, no debug functions, mobs generated, and the
-    /// current random source.
     pub fn new(
         noise: NoiseSettings,
         default_fluid: BlockState,
@@ -177,7 +166,6 @@ impl NoiseGeneratorSettings {
     }
 }
 
-/// The block states a router places that no density function names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RouterBlocks {
     pub default_block: VoxelId,
@@ -186,9 +174,8 @@ pub struct RouterBlocks {
     pub lava: VoxelId,
 }
 
-/// A compiled density graph plus the eight root indices the generator reads.
 pub struct NoiseRouter {
-    pub program: Program,
+    pub(crate) program: Program,
     pub sea_level: i32,
     pub noise: NoiseSettings,
     pub world_seed: u64,
@@ -196,23 +183,27 @@ pub struct NoiseRouter {
     pub default_block_state: VoxelId,
     pub default_fluid_state: VoxelId,
     pub water_state: VoxelId,
-    pub lava_state: VoxelId,
-    pub global_fluid: GlobalFluid,
-    /// `None` where the settings have no `aquifers`: the global rule alone.
-    pub aquifer: Option<AquiferConfig>,
+    pub(crate) lava_state: VoxelId,
+    pub(crate) global_fluid: GlobalFluid,
+    pub(crate) aquifer: Option<AquiferConfig>,
     beta: Option<Box<BetaTerrainNoises>>,
     cell_bounds: CellBounds,
+    column_bound: Option<ColumnBound>,
+    build: u64,
 }
 
 impl NoiseRouter {
     pub fn new(
-        program: Program,
+        mut program: Program,
         settings: &NoiseGeneratorSettings,
         world_seed: u64,
         blocks: RouterBlocks,
         aquifer: Option<AquiferConfig>,
     ) -> Self {
         let cell_bounds = CellBounds::new(&program, program.root_node(FINAL_DENSITY));
+        let column_bound = cell_bounds
+            .chain_input()
+            .and_then(|input| ColumnBound::new(&mut program, input, cell_bounds.inputs()));
         Self {
             program,
             sea_level: settings.sea_level,
@@ -229,18 +220,37 @@ impl NoiseRouter {
                 .legacy_random_source
                 .then(|| Box::new(BetaTerrainNoises::new(world_seed))),
             cell_bounds,
+            column_bound,
+            build: router_key::next_build(),
         }
     }
 
-    /// The Beta noises the surface rules read directly, outside the density
-    /// graph. `None` on a modern generator.
     pub fn beta_noises(&self) -> Option<&BetaTerrainNoises> {
         self.beta.as_deref()
+    }
+
+    #[must_use]
+    pub fn program(&self) -> &Program {
+        &self.program
+    }
+
+    #[must_use]
+    pub fn lava_state(&self) -> VoxelId {
+        self.lava_state
+    }
+
+    #[must_use]
+    pub fn aquifer(&self) -> Option<&AquiferConfig> {
+        self.aquifer.as_ref()
+    }
+
+    #[must_use]
+    pub fn key(&self) -> RouterKey {
+        RouterKey::new(self.build, self.world_seed)
     }
 }
 
 impl NoiseRouter {
-    /// One `volume.len()`-long row per root, in the order given.
     pub fn fill_roots(
         &self,
         ws: &mut Workspace,
@@ -257,8 +267,6 @@ impl NoiseRouter {
         }
     }
 
-    /// [`NoiseRouter::fill_roots`] for nodes inside the graph rather than roots,
-    /// which is what [`NoiseRouter::cell_inputs`] names.
     pub fn fill_nodes(
         &self,
         ws: &mut Workspace,
@@ -275,15 +283,27 @@ impl NoiseRouter {
         }
     }
 
-    /// Hand `ws` the cell lattice already sampled over `volume`, laid out one row
-    /// per [`NoiseRouter::cell_inputs`] entry, so the block fills that follow
-    /// interpolate from it instead of resampling every input once per cell.
+    pub fn fill_cell_inputs(
+        &self,
+        ws: &mut Workspace,
+        volume: &SampleGrid,
+        scratch: &ColumnBoundScratch,
+        out: &mut [f32],
+    ) {
+        let seeded = scratch.serves(self.key())
+            && self
+                .column_bound
+                .as_ref()
+                .is_some_and(|bound| bound.fill_inputs(&self.program, ws, volume, scratch, out));
+        if !seeded {
+            self.fill_nodes(ws, volume, self.cell_inputs(), out);
+        }
+    }
+
     pub fn pin_cell_lattice(&self, ws: &mut Workspace, volume: &SampleGrid, values: &[f32]) {
         self.pin_lattice_of(&self.cell_bounds, ws, volume, values);
     }
 
-    /// [`NoiseRouter::pin_cell_lattice`] for any root's bounds, laid out one row
-    /// per [`CellBounds::inputs`] entry.
     pub fn pin_lattice_of(
         &self,
         bounds: &CellBounds,
@@ -308,27 +328,42 @@ impl NoiseRouter {
         }
     }
 
-    /// The `interpolated` inputs to sample over the cell-corner lattice, in the
-    /// order [`NoiseRouter::final_density_cell_bounds`] expects their corner
-    /// intervals.
     #[inline]
     pub fn cell_inputs(&self) -> &[NodeId] {
         self.cell_bounds.inputs()
     }
 
-    /// The cell lattice `final_density` interpolates on, or `None` when its
-    /// wrappers disagree and there is no single one.
     #[inline]
     pub fn cell_size(&self) -> Option<IVec3> {
         self.cell_bounds.cell_size()
     }
 
-    /// Bounds on `final_density` across a whole cell, given each `interpolated`
-    /// wrapper's own bounds over the cell's eight corners and the cell's
-    /// inclusive block box.
-    ///
-    /// `None` when a term above the wrappers has a kind interval arithmetic
-    /// cannot bound, which means the caller must fill the cell block by block.
+    pub fn final_density_chain_bound(
+        &self,
+        values: &[f32],
+        lattice: &SampleGrid,
+        at: IVec3,
+        min: IVec3,
+        max: IVec3,
+    ) -> Option<Interval> {
+        self.cell_bounds
+            .chain_bound(&self.program, values, lattice, at, min, max)
+    }
+
+    pub fn final_density_first_air_row(
+        &self,
+        ws: &mut Workspace,
+        lattice: &SampleGrid,
+        hint: Option<i32>,
+        scratch: &mut ColumnBoundScratch,
+    ) -> i32 {
+        let top = lattice.size().y - 1;
+        scratch.bind(self.key());
+        self.column_bound.as_ref().map_or(top, |bound| {
+            bound.first_air_row(&self.program, &self.cell_bounds, ws, lattice, hint, scratch)
+        })
+    }
+
     pub fn final_density_cell_bounds(
         &self,
         corners: &[Interval],
@@ -340,8 +375,6 @@ impl NoiseRouter {
             .eval(&self.program, corners, min, max, terms)
     }
 
-    /// Temperature and vegetation over the 16x16 block footprint of a chunk,
-    /// indexed `x * 16 + z`, as the Beta density computation reads them.
     pub fn sample_beta_climate_grids(
         &self,
         ws: &mut Workspace,
@@ -367,7 +400,6 @@ impl NoiseRouter {
         (temperature, vegetation)
     }
 
-    /// Temperature and vegetation at one block column.
     pub fn sample_beta_climate(
         &self,
         ws: &mut Workspace,

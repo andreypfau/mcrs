@@ -7,7 +7,7 @@ use crate::keys;
 
 pub const DEFINITIONS: &str = "assets/mcrs/registry_definition/game_rule.json";
 pub const ENUM_FILE: &str = "crates/mcrs_minecraft_game_rule/src/game_rule_keys.rs";
-const REGISTRY: &str = "minecraft:game_rule";
+pub const REGISTRY: &str = "minecraft:game_rule";
 
 #[derive(Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
@@ -30,8 +30,6 @@ enum Definition {
     },
 }
 
-/// `GameRule::definition` as one exhaustive match, so a rule the dump lacks
-/// fails the build of the game rule crate.
 pub fn definition_impl(json: &str) -> Result<String, String> {
     let definitions: BTreeMap<String, Definition> =
         serde_json::from_str(json).map_err(|error| format!("{DEFINITIONS}: {error}"))?;

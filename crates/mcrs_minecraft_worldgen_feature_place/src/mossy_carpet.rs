@@ -9,7 +9,6 @@ use rustc_hash::FxHashMap as HashMap;
 
 use crate::holds;
 
-/// `WallSide`, in the property's declared order.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum WallSide {
     #[default]
@@ -18,8 +17,6 @@ pub enum WallSide {
     Tall,
 }
 
-/// What a carpet state says about itself: whether it is the bottom layer, and
-/// how far it climbs on each horizontal, in [`Direction::HORIZONTAL`] order.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CarpetShape {
     pub base: bool,
@@ -33,39 +30,23 @@ impl CarpetShape {
             .fold(usize::from(self.base), |acc, side| acc * 3 + *side as usize)
     }
 
-    /// `MossyCarpetBlock.hasFaces`.
     fn has_faces(self) -> bool {
         self.base || self.sides.iter().any(|side| *side != WallSide::None)
     }
 }
 
-/// The number of `(base, north, east, south, west)` combinations, which is how
-/// many states the block has.
 pub const SHAPE_COUNT: usize = 2 * 3 * 3 * 3 * 3;
 
-/// Every state of `minecraft:pale_moss_carpet`, resolved both ways, with the
-/// neighbour test each side asks.
 #[derive(Clone, Debug)]
 pub struct MossyCarpetStates {
-    /// Indexed by [`CarpetShape::index`].
     pub by_shape: [VoxelId; SHAPE_COUNT],
-    /// The shape a state carries; a state of another block has no entry.
     pub by_state: HashMap<u16, CarpetShape>,
-    /// Per [`Direction::HORIZONTAL`] entry, the states whose face toward the
-    /// carpet is full — `MultifaceBlock.canAttachTo`.
     pub attaches: [StateMask; 4],
     pub air: VoxelId,
-    /// The carpet's topper is the one shape the reference draws from the
-    /// level's own random rather than from the feature's source, so it is not
-    /// reproducible from the world seed there and the draw order here must not
-    /// move. This build draws it from the position instead: same world every
-    /// time it is generated, at the cost of a different topper than a vanilla
-    /// save would hold.
     pub world_seed: i64,
 }
 
 impl MossyCarpetStates {
-    /// Whether a state belongs to the carpet at all.
     pub fn holds(&self, state: VoxelId) -> bool {
         self.by_state.contains_key(&state.0)
     }
@@ -82,7 +63,6 @@ impl MossyCarpetStates {
     }
 }
 
-/// `Mth.getSeed`.
 fn position_seed(pos: BlockPos) -> i64 {
     let seed = (pos.x as i64).wrapping_mul(3_129_871)
         ^ (pos.z as i64).wrapping_mul(116_129_781)
@@ -94,8 +74,6 @@ fn position_seed(pos: BlockPos) -> i64 {
     seed >> 16
 }
 
-/// `MultifaceBlock.canAttachTo` for a horizontal, which is the only plane a
-/// carpet climbs.
 fn can_attach<W: WorldGenVolume>(
     volume: &W,
     attaches: &StateMask,
@@ -105,7 +83,6 @@ fn can_attach<W: WorldGenVolume>(
     volume.holds(attaches, pos + direction.normal())
 }
 
-/// `MossyCarpetBlock.getUpdatedState`.
 fn updated<W: WorldGenVolume>(
     states: &MossyCarpetStates,
     volume: &W,
@@ -153,8 +130,6 @@ fn updated<W: WorldGenVolume>(
     shape
 }
 
-/// `MossyCarpetBlock.createTopperWithSideChance`: `None` where the reference
-/// answers with air.
 fn topper<W: WorldGenVolume>(
     states: &MossyCarpetStates,
     volume: &W,
@@ -182,9 +157,6 @@ fn topper<W: WorldGenVolume>(
     (shape.has_faces() && states.state(shape) != previous).then_some(shape)
 }
 
-/// `MossyCarpetBlock.placeAt`: the carpet with the sides its neighbours allow,
-/// then a topper above whose sides survive a coin each, then the carpet again
-/// so its own sides can grow tall against the topper.
 pub fn place_mossy_carpet<W: WorldGenVolume>(
     states: &MossyCarpetStates,
     volume: &mut W,
@@ -215,12 +187,11 @@ mod tests {
     const ORIGIN: BlockPos = BlockPos::new(0, 0, 0);
     const AIR: VoxelId = VoxelId(0);
     const STONE: VoxelId = VoxelId(1);
-    /// The carpet occupies `100..100 + SHAPE_COUNT`.
     const CARPET_BASE: u16 = 100;
 
     #[expect(
         clippy::excessive_nesting,
-        reason = "enumerates the carpet states by the base flag and the shape of each of the four sides, so the fixture covers every combination in one table"
+        reason = "one table covers every combination"
     )]
     fn states(attaching: &[VoxelId]) -> MossyCarpetStates {
         let mut by_shape = [AIR; SHAPE_COUNT];
@@ -305,7 +276,6 @@ mod tests {
     #[test]
     fn the_topper_only_grows_where_the_wall_reaches_above_the_carpet() {
         let states = states(&[STONE]);
-        // A wall one block tall: beside the carpet but not beside the topper.
         let mut short = volume();
         short.set(ORIGIN + Direction::North.normal(), STONE);
         place_mossy_carpet(&states, &mut short, ORIGIN);

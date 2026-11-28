@@ -88,12 +88,10 @@ fn encoded(packet: &impl Encode) -> Vec<u8> {
 fn a_static_registry_number_past_its_table_does_not_decode() {
     use glam::DVec3;
     use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
-    use mcrs_minecraft_entity::{attribute_keys::Attribute, entity_type_keys::EntityType};
-    use mcrs_minecraft_menu::menu_keys::MenuType;
+    use mcrs_minecraft_entity::entity_type_keys::EntityType;
+    use mcrs_minecraft_menu_key::menu_keys::MenuType;
     use mcrs_minecraft_protocol_game::chunk::ChunkDataBlockEntity;
-    use mcrs_minecraft_protocol_game::clientbound::{
-        AttributeSnapshot, ClientboundAddEntity, ClientboundOpenScreen, ClientboundUpdateAttributes,
-    };
+    use mcrs_minecraft_protocol_game::clientbound::{ClientboundAddEntity, ClientboundOpenScreen};
     use mcrs_minecraft_protocol_game::text::{RawText, Text};
 
     let add_entity = ClientboundAddEntity {
@@ -137,22 +135,6 @@ fn a_static_registry_number_past_its_table_does_not_decode() {
         |r| ClientboundOpenScreen::decode(r).map(drop),
     );
 
-    let attributes = ClientboundUpdateAttributes {
-        entity_id: VarInt(1),
-        attributes: vec![AttributeSnapshot {
-            attribute: *Attribute::ALL.last().unwrap(),
-            base: 1.0,
-            modifiers: vec![],
-        }],
-    };
-    refused_past_the_table(
-        "minecraft:attribute",
-        Attribute::ALL.len(),
-        1 + 1,
-        &encoded(&attributes),
-        |r| ClientboundUpdateAttributes::decode(r).map(drop),
-    );
-
     let block_entity = ChunkDataBlockEntity {
         packed_xz: 0,
         y: 0,
@@ -176,4 +158,58 @@ fn a_world_registry_id_writes_its_number_without_a_registry() {
     let mut bytes = Vec::new();
     id.encode(&mut bytes).unwrap();
     assert_eq!(bytes, var_int(2));
+}
+
+#[test]
+fn an_attribute_id_outside_the_registry_decodes_and_encodes_to_the_same_bytes() {
+    use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+    use mcrs_minecraft_entity_attribute::{AttributeId, AttributeModifier, ModifierOperation};
+    use mcrs_minecraft_protocol_game::clientbound::{
+        AttributeSnapshot, ClientboundUpdateAttributes,
+    };
+    use mcrs_minecraft_resource::rl;
+
+    let past_the_table = i32::try_from(Attribute::ALL.len()).unwrap();
+    for raw in [past_the_table, -1, 65536, i32::MAX] {
+        let packet = ClientboundUpdateAttributes {
+            entity_id: VarInt(7),
+            attributes: vec![
+                AttributeSnapshot {
+                    attribute: AttributeId(raw),
+                    base: 2.0,
+                    modifiers: vec![AttributeModifier {
+                        id: rl!("test:unknown"),
+                        amount: 0.5,
+                        operation: ModifierOperation::AddValue,
+                    }],
+                },
+                AttributeSnapshot {
+                    attribute: Attribute::Armor.into(),
+                    base: 3.0,
+                    modifiers: vec![],
+                },
+            ],
+        };
+        let modifier_id = b"test:unknown";
+        let bytes = [
+            var_int(7),
+            var_int(2),
+            var_int(raw),
+            2.0_f64.to_be_bytes().to_vec(),
+            var_int(1),
+            var_int(modifier_id.len() as i32),
+            modifier_id.to_vec(),
+            0.5_f64.to_be_bytes().to_vec(),
+            var_int(0),
+            var_int(i32::from(Attribute::Armor.id().number())),
+            3.0_f64.to_be_bytes().to_vec(),
+            var_int(0),
+        ]
+        .concat();
+        let decoded = ClientboundUpdateAttributes::decode(&mut bytes.as_slice())
+            .unwrap_or_else(|e| panic!("{raw}: {e:#}"));
+        assert_eq!(decoded, packet, "{raw}");
+        assert_eq!(decoded.attributes[0].attribute.resolve(), None, "{raw}");
+        assert_eq!(encoded(&decoded), bytes, "{raw}");
+    }
 }

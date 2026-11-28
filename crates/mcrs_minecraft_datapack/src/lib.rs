@@ -15,7 +15,7 @@ pub use pack::{
     PackStack, StackedPack, VANILLA_PACK,
 };
 pub use root::{
-    DirectoryEntry, DirectoryPacks, PACKS_ROOT, PackSource, ReadError, RootPacks, VANILLA_ROOT,
-    below_vanilla_root, read_vanilla,
+    DirectoryEntry, DirectoryPacks, PACKS_ROOT, PackSource, REPOSITORY_PACKS, ReadError, RootPacks,
+    VANILLA_ROOT, below_vanilla_root, read_vanilla,
 };
 pub use stack::pack_stack;

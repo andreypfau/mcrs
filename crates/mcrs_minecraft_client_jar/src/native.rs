@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use crate::schedule::{self, Chunk, Queue, REST, Ranges, Source};
 use crate::{
-    Artifact, Directory, Files, Progress, RELEASE, Release, VanillaDataError, font_files, lock,
-    verify,
+    Artifact, AssetObject, Directory, Files, INDEX_OBJECTS, IndexLayer, Progress, RELEASE, Release,
+    VanillaDataError, font_files, lock, verify,
 };
 
 const CHUNK: u64 = 1 << 20;
@@ -21,6 +21,8 @@ const READ: usize = 64 << 10;
 pub const WORKERS: usize = 4;
 pub(crate) const FIRST_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
+const OBJECT_BODY_TIMEOUT: Duration = Duration::from_secs(60);
+const OBJECT_ATTEMPTS: u32 = 4;
 
 pub(crate) fn home() -> Option<PathBuf> {
     std::env::home_dir()
@@ -42,14 +44,12 @@ pub fn official_dir() -> Option<PathBuf> {
     return home().map(|home| home.join(".minecraft"));
 }
 
-/// Where the official launcher keeps the pinned release, which a download fills.
 pub(crate) fn download_dir() -> Result<PathBuf, VanillaDataError> {
     official_dir()
         .map(|dir| dir.join("versions").join(RELEASE.id))
         .ok_or(VanillaDataError::NoLauncherDir)
 }
 
-/// Where launchers keep an installed client jar of the pinned release, most likely first.
 pub fn candidates() -> Vec<PathBuf> {
     let id = RELEASE.id;
     let installed = format!("versions/{id}/{id}.jar");
@@ -88,8 +88,6 @@ fn third_party_launcher_jars(_id: &str, _installed: &str) -> Vec<PathBuf> {
     Vec::new()
 }
 
-/// The first of `paths` whose size and SHA-1 are the artifact's. Anything else, including a
-/// patched or half-written jar, is skipped rather than trusted.
 pub fn locate(paths: &[PathBuf], artifact: &Artifact, progress: &Progress) -> Option<Vec<u8>> {
     paths.iter().find_map(|path| {
         if fs::metadata(path).ok()?.len() != artifact.size {
@@ -117,9 +115,6 @@ pub(crate) fn read_counting(path: &Path, progress: &Progress) -> std::io::Result
     Ok(bytes)
 }
 
-/// The picked `assets/` files of the pinned client jar, from whichever launcher installed it or,
-/// failing that, downloaded into the official launcher's directory. Font files go to `fonts`
-/// first. A download returns once the assets are in; the [`Remainder`] completes the jar.
 pub fn resolve(
     progress: &Progress,
     pick: impl FnMut(&str) -> bool,
@@ -139,6 +134,85 @@ pub fn resolve(
     }
 }
 
+pub fn index_assets(objects: &str) -> IndexLayer {
+    let store = official_dir().map(|dir| dir.join("assets").join("objects"));
+    std::thread::scope(|scope| {
+        let tasks: Vec<_> = INDEX_OBJECTS
+            .iter()
+            .map(|object| scope.spawn(|| font_object(object, objects, store.as_deref())))
+            .collect();
+        IndexLayer::gather(INDEX_OBJECTS.iter().zip(tasks).map(|(object, task)| {
+            let bytes = task
+                .join()
+                .unwrap_or_else(|_| Err("the fetch panicked".to_owned()));
+            (object, bytes)
+        }))
+    })
+}
+
+fn font_object(
+    object: &AssetObject,
+    objects: &str,
+    store: Option<&Path>,
+) -> Result<Vec<u8>, String> {
+    let kept = store.map(|store| store.join(object.directory()).join(object.sha1));
+    if let Some(bytes) = kept
+        .as_ref()
+        .and_then(|path| fs::read(path).ok())
+        .filter(|bytes| object.holds(bytes))
+    {
+        return Ok(bytes);
+    }
+    let bytes = fetch_object(object, objects)?;
+    if let Some(path) = &kept
+        && let Err(error) = keep_object(path, &bytes)
+    {
+        tracing::warn!(path = %path.display(), "cannot keep a font object: {error}");
+    }
+    Ok(bytes)
+}
+
+fn fetch_object(object: &AssetObject, objects: &str) -> Result<Vec<u8>, String> {
+    let url = object.url(objects);
+    let agent = agent_with(OBJECT_BODY_TIMEOUT);
+    let mut backoff = FIRST_BACKOFF;
+    let mut failure = String::new();
+    for attempt in 0..OBJECT_ATTEMPTS {
+        if attempt > 0 {
+            std::thread::sleep(backoff);
+            backoff = (backoff * 2).min(MAX_BACKOFF);
+        }
+        let body = agent
+            .get(&url)
+            .call()
+            .map_err(|error| error.to_string())
+            .and_then(|response| {
+                response
+                    .into_body()
+                    .with_config()
+                    .limit(u64::MAX)
+                    .read_to_vec()
+                    .map_err(|error| error.to_string())
+            });
+        match body {
+            Ok(bytes) if object.holds(&bytes) => return Ok(bytes),
+            Ok(_) => failure = "it is not the pinned object".to_owned(),
+            Err(error) => failure = error,
+        }
+        tracing::debug!(%url, attempt, "a font object failed: {failure}");
+    }
+    Err(format!("{url}: {failure}"))
+}
+
+fn keep_object(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let staging = with_suffix(path, ".part");
+    fs::write(&staging, bytes)?;
+    fs::rename(&staging, path)
+}
+
 fn local(
     jar: &[u8],
     pick: impl FnMut(&str) -> bool,
@@ -151,8 +225,6 @@ fn local(
         .map_err(VanillaDataError::MalformedJar)
 }
 
-/// Downloads the release's jar into `dir` as a sparse `.part` file, which a `.ranges` sidecar
-/// makes resumable, and returns the picked assets once they are in.
 pub fn download(
     release: &'static Release<'static>,
     dir: &Path,
@@ -302,7 +374,6 @@ impl Shared {
         self.changed.notify_all();
     }
 
-    /// Writes what arrives for `range` at its own offset, advancing `reached` as it goes.
     fn fetch(
         &self,
         agent: &ureq::Agent,
@@ -363,18 +434,18 @@ impl Shared {
 }
 
 fn agent() -> ureq::Agent {
+    agent_with(Duration::from_secs(30))
+}
+
+fn agent_with(body: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_connect(Some(Duration::from_secs(10)))
         .timeout_recv_response(Some(Duration::from_secs(15)))
-        // ureq has no idle timeout, so a stalled socket would hang forever; capping each request
-        // costs nothing because the next one resumes where this one stopped.
-        .timeout_recv_body(Some(Duration::from_secs(30)))
+        .timeout_recv_body(Some(body))
         .build()
         .into()
 }
 
-/// One request, no retry: a caller that is given a wrong address must see the error. The body
-/// is not checked against anything.
 pub fn get(url: &str) -> Result<Vec<u8>, String> {
     agent()
         .get(url)
@@ -424,9 +495,6 @@ fn work(shared: &Shared, id: usize) {
     }
 }
 
-/// The part of a download still running after the assets are in: the rest of the jar, then
-/// the move into place and the version JSON next to it. Dropping it stops the workers; the
-/// sidecar keeps what they fetched.
 pub struct Remainder {
     shared: Arc<Shared>,
     workers: Vec<JoinHandle<()>>,
@@ -479,8 +547,6 @@ impl Drop for Remainder {
     }
 }
 
-/// Writes the version JSON the official launcher expects next to the jar, unless a valid one
-/// is already there.
 fn write_json(release: &Release, path: &Path, progress: &Progress, first_backoff: Duration) {
     if locate(&[path.to_owned()], &release.json, progress).is_some() {
         return;
@@ -528,8 +594,6 @@ fn retry<T>(
     }
 }
 
-// The native source blocks inside `wait` instead of returning pending, so a single poll always
-// completes and this never spins.
 fn block_on<F: Future>(future: F) -> F::Output {
     let mut future = pin!(future);
     let mut context = Context::from_waker(Waker::noop());

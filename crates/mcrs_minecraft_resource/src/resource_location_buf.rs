@@ -8,10 +8,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{InvalidResourceLocation, ResourceLocation};
 
-/// An owned resource location, always held as its canonical `namespace:path` text.
-///
-/// [`as_location`](Self::as_location) lends the borrowed form. A clone copies the text, so code
-/// that runs per tick holds a numeric registry id instead.
 #[derive(Clone)]
 pub struct ResourceLocationBuf {
     string: Box<str>,
@@ -19,7 +15,6 @@ pub struct ResourceLocationBuf {
 }
 
 impl ResourceLocationBuf {
-    /// Both halves are checked and nothing is defaulted, so an empty namespace stays empty.
     pub fn new(namespace: &str, path: &str) -> Result<Self, InvalidResourceLocation> {
         ResourceLocation::new(namespace, path).map(Self::from)
     }
@@ -28,12 +23,10 @@ impl ResourceLocationBuf {
         Self::new("minecraft", path)
     }
 
-    /// A missing or empty namespace is `minecraft`, as [`ResourceLocation::read`] reads it.
     pub fn read(text: &str) -> Result<Self, InvalidResourceLocation> {
         ResourceLocation::read(text).map(Self::from)
     }
 
-    /// The canonical `namespace:path` text.
     #[inline]
     pub fn as_str(&self) -> &str {
         &self.string
@@ -49,7 +42,6 @@ impl ResourceLocationBuf {
         self.as_location().path()
     }
 
-    /// The borrowed form. The name is not `as_ref`, which returns a reference.
     #[inline]
     pub fn as_location(&self) -> ResourceLocation<'_> {
         let (namespace, path) = self
@@ -66,7 +58,6 @@ impl From<ResourceLocation<'_>> for ResourceLocationBuf {
         let namespace = location.namespace();
         Self {
             string: format!("{namespace}:{}", location.path()).into_boxed_str(),
-            // A location is checked on construction, so its namespace fits the offset.
             colon: u16::try_from(namespace.len()).unwrap_or(u16::MAX),
         }
     }
@@ -78,7 +69,6 @@ impl<'a> From<&'a ResourceLocationBuf> for ResourceLocation<'a> {
     }
 }
 
-/// Looks an owned key up by a borrowed location, in a map such as `hashbrown`'s.
 impl equivalent::Equivalent<ResourceLocationBuf> for ResourceLocation<'_> {
     fn equivalent(&self, key: &ResourceLocationBuf) -> bool {
         *self == key.as_location()

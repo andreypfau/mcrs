@@ -1,49 +1,53 @@
-//! The game mode, the flight and the operator level of a player.
-
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_ecs::prelude::Component;
 use bevy_ecs::schedule::SystemSet;
 use derive_more::{Deref, DerefMut};
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_game_mode::GameMode;
 
-/// The game mode of a player.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut)]
-pub struct PlayerGameMode(pub GameMode);
-
-impl Default for PlayerGameMode {
-    fn default() -> Self {
-        Self(GameMode::Survival)
-    }
-}
-
-/// Whether the player flies, as its client reports it and its game mode allows.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, Default)]
+#[derive(
+    Component,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Deref,
+    DerefMut,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct PlayerFlying(pub bool);
 
-/// The operator permission level of a player, from 0 for a player who is no operator.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, Default)]
+#[derive(
+    Component,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Deref,
+    DerefMut,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct PlayerOpLevel(pub u8);
 
 impl PlayerOpLevel {
-    /// The highest level; a higher stored value counts as this one.
     pub const MAX: u8 = 4;
-    /// The lowest level that may switch its own game mode.
     pub const GAMEMASTERS: u8 = 2;
 
-    /// The level, at most [`Self::MAX`].
     pub fn clamped(self) -> u8 {
         self.0.min(Self::MAX)
     }
 
-    /// The `entity_event` status that tells a client its operator level.
     pub fn entity_status(self) -> i8 {
         24i8 + self.clamped() as i8
     }
 }
 
-/// The operator level a client was just told, for the features whose packets depend on it.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OpLevelAnnounced {
     pub player: Entity,
@@ -51,11 +55,8 @@ pub struct OpLevelAnnounced {
     pub level: PlayerOpLevel,
 }
 
-/// The systems that tell a client its operator level and write [`OpLevelAnnounced`].
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AnnounceOpLevel;
 
-/// The systems that answer [`OpLevelAnnounced`], after [`AnnounceOpLevel`] and before the
-/// player's later packets.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AnswerOpLevel;

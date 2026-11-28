@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_minecraft_inventory_menu"
+description = "The menu layout as a plain value: entries, quick-move routes, pick up all and drag permits"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_ecs = { workspace = true, optional = true }
+mcrs_minecraft_inventory_player.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_menu_key.workspace = true
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]

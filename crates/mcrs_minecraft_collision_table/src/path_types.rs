@@ -11,7 +11,6 @@ use mcrs_minecraft_resource::TagId;
 use mcrs_minecraft_resource::TagKey;
 use mcrs_voxel::BlockStateId;
 
-/// The state path types that a block tag gives, in the order of PATH-TYP-002, step 1.
 const PATH_TAGS: [(TagKey<'static, Block>, PathType); 9] = [
     (block_tag_keys::PATHFINDING_OPEN, PathType::Open),
     (block_tag_keys::PATHFINDING_DROP_DOWN, PathType::DropDown),
@@ -39,10 +38,6 @@ const FIRE_BLOCKS: [&str; 3] = [
     "minecraft:lava_cauldron",
 ];
 
-/// The tags and the blocks that decide the state path type of a state (PATH-TYP-002).
-///
-/// A state is pathfindable on land when its collision shape is empty, since the corpus does not
-/// hold the navigation component of PATH section 12.3 yet.
 pub(crate) struct PathTypes<'a> {
     tags: &'a Tags<Block>,
     path_tags: Vec<(TagId<Block>, PathType)>,
@@ -78,7 +73,6 @@ impl<'a> PathTypes<'a> {
         }
     }
 
-    /// The state path type of the state `id`, whose collision shape is `boxes`.
     pub(crate) fn of(
         &self,
         definitions: &BlockDefinitions,

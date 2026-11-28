@@ -15,7 +15,6 @@ use crate::canvas::{ChestStates, PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, state};
 use mcrs_minecraft_block::block_keys::Block;
 
-/// `DesertPyramidPiece.addCellar`'s room centre, piece-local.
 const CELLAR_CENTRE: IVec3 = IVec3::new(16, -4, 13);
 
 #[derive(Clone, Debug)]
@@ -42,7 +41,7 @@ pub struct DesertPyramidBlocks {
 
 impl DesertPyramidBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
@@ -73,12 +72,9 @@ impl DesertPyramidBlocks {
     }
 }
 
-/// `DesertPyramidPiece.postProcess` for one column, `bounds` already sunk to
-/// its floor. The first draw is the reference's ground-height offset, spent
-/// here and read from the start chunk's stream by the caller.
 #[expect(
     clippy::too_many_lines,
-    reason = "paints the pyramid's shell, chambers, floor pattern and chests as one run of canvas calls in the reference's order, so it reads against it"
+    reason = "one run of canvas calls in the reference's order"
 )]
 pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
     b: &DesertPyramidBlocks,
@@ -499,8 +495,6 @@ fn add_cellar_room<W: WorldGenVolume, R: Random>(
     c.place(chiseled, x, -2, z - 4);
 }
 
-/// Where `placeCollapsedRoof` leaves its one marked cell: a positional draw at
-/// the roof's first corner, from the world seed.
 pub fn collapsed_roof_pos(
     world_seed: i64,
     bounds: BoundingBox,
@@ -516,9 +510,6 @@ pub fn collapsed_roof_pos(
     world_pos(Some(orientation), bounds, IVec3::new(roof_x, y0, roof_z))
 }
 
-/// `getPotentialSuspiciousSandWorldPositions`: the cellar's sand box and the
-/// eight cells behind its four doorways, in the order the reference lists
-/// them.
 pub fn potential_suspicious_sand(
     bounds: BoundingBox,
     orientation: Orientation,
@@ -564,7 +555,7 @@ pub struct SwampHutBlocks {
 
 impl SwampHutBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let oriented = |block: Block| Oriented::named(world, blocks, block, &[]);
@@ -597,9 +588,6 @@ impl SwampHutBlocks {
     }
 }
 
-/// `SwampHutPiece.postProcess` for one column, `bounds` already raised to
-/// its ground: the hut, then the witch and the cat at the same cell, each
-/// spawned by the column holding it.
 pub fn paint_swamp_hut<W: WorldGenVolume>(
     b: &SwampHutBlocks,
     c: &mut PieceCanvas<'_, W>,

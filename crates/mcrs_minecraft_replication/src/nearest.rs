@@ -8,8 +8,6 @@ struct Ranked {
     player: EntityId,
 }
 
-/// The at most `limit` members of `roster` nearest `position`, `viewer` aside. Equal distances
-/// go to the lower player.
 pub(crate) fn nearest(
     viewer: EntityId,
     position: DVec3,

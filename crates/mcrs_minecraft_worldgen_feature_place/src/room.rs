@@ -15,17 +15,12 @@ pub struct CompiledMonsterRoom {
     pub cobblestone: VoxelId,
     pub mossy_cobblestone: VoxelId,
     pub spawner: VoxelId,
-    /// The chest in each horizontal facing, indexed like `Direction::HORIZONTAL`.
-    /// A default chest faces north, which is index 0.
     pub chest_facing: [VoxelId; 4],
     pub chest_states: StateMask,
     pub spawner_states: StateMask,
-    /// `BlockTags.FEATURES_CANNOT_REPLACE`, the one predicate every write of
-    /// this feature is guarded by.
     pub cannot_replace: StateMask,
 }
 
-/// `MonsterRoomFeature.MOBS`, whose repeat of the zombie is the weighting.
 const MOBS: [mcrs_minecraft_entity::entity_type_keys::EntityType; 4] = [
     mcrs_minecraft_entity::entity_type_keys::EntityType::Skeleton,
     mcrs_minecraft_entity::entity_type_keys::EntityType::Zombie,
@@ -40,7 +35,7 @@ pub struct CompiledBonusChest {
 }
 #[expect(
     clippy::excessive_nesting,
-    reason = "places the monster room's floor, walls and chests in the reference's order, with the per-cell block draw inline so its random draws keep their sequence"
+    reason = "per-cell draw inline keeps the random draws in sequence"
 )]
 pub fn place_monster_room<W: WorldGenVolume>(
     config: &CompiledMonsterRoom,
@@ -82,9 +77,6 @@ pub fn place_monster_room<W: WorldGenVolume>(
             for dz in min_z..=max_z {
                 let pos = origin + IVec3::new(dx, dy, dz);
                 let state = volume.get(pos);
-                // `dy == 4` is unreachable in this loop and is kept because the
-                // reference tests it; dropping it would change nothing but the
-                // next reader's confidence.
                 if dx == min_x || dy == -1 || dz == min_z || dx == max_x || dy == 4 || dz == max_z {
                     if pos.y >= min_y && !volume.holds(&volume.world().solid, pos + IVec3::NEG_Y) {
                         volume.set(pos, volume.world().cave_air);
@@ -148,9 +140,6 @@ pub fn place_monster_room<W: WorldGenVolume>(
     true
 }
 
-/// `StructurePiece.reorient` for a chest: back onto the one solid neighbour, or
-/// walk the default facing round until it points at open space. `chest_facing`
-/// is the chest in each `Direction::HORIZONTAL` facing, north first.
 pub fn reorient<W: WorldGenVolume>(
     chest_facing: &[VoxelId; 4],
     chest_states: &StateMask,
@@ -194,15 +183,12 @@ pub fn reorient<W: WorldGenVolume>(
     chest(facing)
 }
 
-/// `Util.toShuffledList(IntStream.rangeClosed(min, max), random)`.
 fn shuffled_range(rng: &mut WorldgenRandom, min: i32, max: i32) -> Vec<i32> {
     let mut values: Vec<i32> = (min..=max).collect();
     mcrs_minecraft_random::shuffle(&mut values, rng);
     values
 }
 
-/// `BonusChestFeature.place`: both shuffles are spent up front, so the column
-/// the chest lands in costs no further draw.
 pub fn place_bonus_chest<W: WorldGenVolume>(
     config: &CompiledBonusChest,
     volume: &mut W,
@@ -232,8 +218,6 @@ pub fn place_bonus_chest<W: WorldGenVolume>(
             ));
             for side in Direction::HORIZONTAL {
                 let torch = pos + side.normal();
-                // `canSupportCenter(level, below, UP)` as the full-collision-cube
-                // flag; upgrade when the freeze can answer a per-face sturdiness.
                 if volume.holds(&volume.world().sturdy_up, torch + IVec3::NEG_Y) {
                     volume.set(torch, config.torch);
                 }
@@ -273,7 +257,6 @@ mod tests {
         }
     }
 
-    /// Stone, cobble and moss are the solids; both airs are air.
     fn cave() -> FakeVolume {
         let mut volume = FakeVolume::default();
         volume.world.cave_air = CAVE_AIR;
@@ -286,8 +269,6 @@ mod tests {
 
     const ORIGIN: BlockPos = BlockPos::new(0, 20, 0);
 
-    /// Solid stone everywhere but a single air gap on the room's edge at
-    /// `dy == 0`, which is the one hole the reference needs to accept.
     fn stone_with_one_hole() -> FakeVolume {
         let mut volume = cave();
         for x in -12..=12 {
@@ -297,8 +278,6 @@ mod tests {
                 }
             }
         }
-        // Whichever of the two radii the source draws, one of these columns
-        // sits on the room's own edge and is the single hole it needs.
         for dy in 0..=1 {
             volume.blocks.insert((0, ORIGIN.y + dy, -3), AIR);
             volume.blocks.insert((0, ORIGIN.y + dy, -4), AIR);
@@ -321,8 +300,6 @@ mod tests {
         assert!(volume.block_entities.is_empty());
     }
 
-    /// The hole scan runs after the two radius draws and before anything else,
-    /// so a rejected room costs exactly those two.
     #[test]
     fn a_rejected_room_spends_two_draws() {
         let mut volume = cave();
@@ -334,12 +311,6 @@ mod tests {
         assert_eq!(rng, replay);
     }
 
-    /// Every draw the whole feature spends: two radii, one per floor cell of
-    /// the wall ring, two per chest attempt plus a long for each chest that
-    /// lands, and one for the mob.
-    ///
-    /// Self-recorded: the ladder is read off `MonsterRoomFeature`, the number
-    /// off this implementation.
     #[test]
     fn room_draw_count_anchor() {
         let mut volume = stone_with_one_hole();

@@ -6,8 +6,6 @@ use smallvec::SmallVec;
 use crate::bus::InboundPlayerPacket;
 use mcrs_minecraft_engine_world::session::{PlayerSession, Session, SessionPlacement};
 
-/// Serverbound packets that arrived while the session had no dimension to take them, handed
-/// on in arrival order once it is attached.
 #[derive(Component, Default)]
 pub struct PendingInbound(pub SmallVec<[InboundPlayerPacket; 4]>);
 
@@ -32,7 +30,6 @@ impl SessionBundle {
     }
 }
 
-/// On a connection: the host anchor that carries its session.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 #[relationship(relationship_target = SessionConnection)]
 pub struct HostAnchorRef(pub Entity);

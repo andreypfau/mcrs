@@ -1,7 +1,3 @@
-//! A model of the vanilla client decodes the bytes that each viewer receives and checks what it
-//! shows: the other players near it, at their positions, and never itself, and at most
-//! [`LISTED_CAP`] players in its player list.
-
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_engine_link::Placement;
@@ -26,19 +22,15 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::host_app::{self, PlayServer, sent_to};
 use crate::mock_connection;
 
-/// The ticks between two moves of a subject in the slowest tier.
 const SLOWEST_TIER_TICKS: usize = 20;
 
-/// The default cap of the muxer, K.
 const CAP: usize = 200;
 
-/// What a vanilla client knows of the entities of its world.
 #[derive(Default)]
 struct ClientModel {
     own_id: i32,
     profiles: FxHashSet<Uuid>,
     listed: FxHashSet<Uuid>,
-    /// The position of each entity, by wire id.
     entities: FxHashMap<i32, DVec3>,
     uuids: FxHashMap<i32, Uuid>,
 }
@@ -106,8 +98,6 @@ impl ClientModel {
         }
     }
 
-    /// Applies a relative move as the client does: from its last position on the step grid,
-    /// each step of a path after the one before.
     fn step(&mut self, id: VarInt, delta: &VecDelta) {
         let steps: Vec<[i16; 3]> = match delta {
             VecDelta::Linear(delta) => vec![*delta],
@@ -128,13 +118,11 @@ impl ClientModel {
     }
 }
 
-/// One viewer: the bytes its connection writes, framed, and the client model that reads them.
 struct Viewer {
     world: World,
     connection: Entity,
     frames: OutboundReceiver,
     client: ClientModel,
-    /// The framed bytes of the entity and player list packets that the viewer received.
     received_bytes: usize,
 }
 
@@ -162,8 +150,6 @@ impl Viewer {
         }
     }
 
-    /// Writes the entity packets of `payloads` through the bridge and feeds the decoded frames to
-    /// the client model.
     fn receive(&mut self, payloads: Vec<PacketPayload>) {
         let mut queue = self
             .world
@@ -196,7 +182,6 @@ fn is_entity_packet(data: &PacketPayload) -> bool {
     )
 }
 
-/// Players that join in one place; the first of them are viewers with a client model.
 struct Scene {
     server: PlayServer,
     anchors: Vec<Entity>,
@@ -253,7 +238,6 @@ impl Scene {
         }
     }
 
-    /// Takes the player of `anchors[index]` out as a disconnect does.
     fn disconnect(&mut self, index: usize) {
         let session = self.server.session_of(self.anchors[index]).unwrap();
         let dim = self.server.dim;
@@ -288,7 +272,6 @@ impl Scene {
         self.viewers[0].client.position_of(self.uuids[1])
     }
 
-    /// How many players the first viewer shows at their position in `at`, by index.
     fn shown_at(&self, at: &[DVec3]) -> usize {
         let client = &self.viewers[0].client;
         self.uuids
@@ -324,7 +307,6 @@ fn walk_away(muxer: Placement) {
     for step in 1..=20 {
         let target = start + DVec3::new(2.3 * f64::from(step), 0.0, 0.0);
         scene.place_second(target);
-        // The slowest tier sends a move each 20 ticks.
         scene.tick(SLOWEST_TIER_TICKS - 1);
         let seen = scene.first_sees_second_at().unwrap();
         assert!(
@@ -384,7 +366,6 @@ fn a_crowd_past_the_cap_shows_at_most_the_cap_and_moves_each_player_it_shows() {
     let players = 320;
     let mut scene = Scene::crowd(players, 1);
     let origin = scene.position(0);
-    // Seven tiles in a row around the viewer, about 46 players in each.
     for index in 1..players {
         let tile = (index % 7) as f64 - 3.0;
         scene.place(index, origin + DVec3::new(32.0 * tile, 0.0, 0.0));

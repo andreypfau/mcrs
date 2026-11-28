@@ -1,6 +1,5 @@
 pub use mcrs_voxel::SectionPos;
 
-use crate::entity::SectionEntities;
 use crate::palette::ChunkBlocks;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::stage::SectionStage;
@@ -24,7 +23,6 @@ impl Plugin for SectionPlugin {
 pub struct SectionBundle {
     pub dimension: InDimension,
     pub pos: SectionPos,
-    pub entities: SectionEntities,
     marker: Section,
     stage: SectionStage,
 }
@@ -38,17 +36,12 @@ impl SectionBundle {
         Self {
             dimension,
             pos: chunk_pos,
-            entities: SectionEntities::default(),
             marker: Section,
             stage: SectionStage::Loading,
         }
     }
 }
 
-/// The sections of a dimension by position: the entity of each, and the blocks of each loaded
-/// one. The index is the only owner of the blocks, so a read of a block finds them with one
-/// lookup, without the entity. Each change of blocks takes the [`RandomTickIndex`] of the world,
-/// so their ticking positions follow.
 #[derive(Component, Debug, Default)]
 pub struct SectionIndex(FxHashMap<SectionPos, IndexEntry>);
 
@@ -67,7 +60,6 @@ impl SectionIndex {
         self.0.get(&pos.into()).map(|section| section.entity)
     }
 
-    /// Indexes a section with no blocks yet, in place of what the index held at `pos`.
     pub fn insert(&mut self, pos: SectionPos, entity: Entity) {
         self.0.insert(
             pos,
@@ -78,7 +70,6 @@ impl SectionIndex {
         );
     }
 
-    /// Forgets the section at `pos` with its blocks and their ticking positions.
     pub fn remove(
         &mut self,
         pos: SectionPos,
@@ -100,12 +91,10 @@ impl SectionIndex {
         self.0.is_empty()
     }
 
-    /// The blocks of the section at `pos`, once they landed.
     pub fn blocks(&self, pos: SectionPos) -> Option<&ChunkBlocks> {
         self.0.get(&pos)?.blocks.as_ref()
     }
 
-    /// A handle that writes the blocks of the section at `pos` and keeps their ticking positions.
     pub fn section_mut<'a>(
         &'a mut self,
         pos: SectionPos,
@@ -119,8 +108,6 @@ impl SectionIndex {
         })
     }
 
-    /// Gives `entity`, the section at `pos`, its blocks, and lists their ticking positions. False
-    /// when the index holds another section there, or none.
     pub fn land(
         &mut self,
         pos: SectionPos,
@@ -143,7 +130,6 @@ impl SectionIndex {
         true
     }
 
-    /// The loaded sections with their blocks, in no order.
     pub fn loaded(&self) -> impl Iterator<Item = (SectionPos, Entity, &ChunkBlocks)> {
         self.0
             .iter()

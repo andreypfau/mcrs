@@ -3,16 +3,13 @@ use mcrs_voxel::{LocalPos, SectionPos};
 use rustc_hash::FxHashMap;
 use std::hash::Hash;
 
-/// 3d array indexed by y,z,x
 pub type AbstractCube<T, const DIM: usize> = [[[T; DIM]; DIM]; DIM];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeterogeneousPaletteData<V: Hash + Eq + Copy, const DIM: usize> {
-    /// Inline, not boxed: a read of a cell then misses the cache once less.
     pub cube: AbstractCube<V, DIM>,
     pub palette: Vec<V>,
     pub counts: Vec<u16>,
-    /// Reverse index: value → palette index. Kept in sync with `palette`.
     index: FxHashMap<V, usize>,
 }
 
@@ -25,14 +22,11 @@ impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
         self.cube.get_mut(y)?.get_mut(z)?.get_mut(x)
     }
 
-    /// O(1) palette index lookup via the reverse HashMap.
     #[inline]
     fn palette_index(&self, value: &V) -> Option<usize> {
         self.index.get(value).copied()
     }
 
-    /// Drops one use of `value`, which sits at palette `index`. Answers whether
-    /// the palette lost the entry, which moves the last entry into `index`.
     fn release(&mut self, value: &V, index: usize) -> bool {
         let Some(count) = self.counts.get_mut(index) else {
             return false;
@@ -50,8 +44,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
         true
     }
 
-    /// Adds one use of `value` and answers its palette index, appending it on
-    /// its first use.
     fn acquire(&mut self, value: V) -> usize {
         match self.palette_index(&value) {
             Some(index) => {
@@ -74,7 +66,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
         }
     }
 
-    /// Returns the Original
     fn set(&mut self, x: usize, y: usize, z: usize, value: V) -> Option<V> {
         let original = std::mem::replace(self.cell_mut(x, y, z)?, value);
         if let Some(index) = self.palette_index(&original) {
@@ -92,8 +83,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
     }
 }
 
-/// A paletted container is a cube of registry ids. It uses a custom compression scheme based on how
-/// may distinct registry ids are in the cube.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PalettedContainer<V: Hash + Eq + Copy, const DIM: usize> {
     Homogeneous(V),
@@ -104,12 +93,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
     pub const SIZE: usize = DIM;
     pub const VOLUME: usize = DIM * DIM * DIM;
 
-    /// Build the two-entry container a homogeneous cube turns into once part of
-    /// it is overwritten. `from_cube` would rediscover the same palette by
-    /// scanning every cell; here both entries and their counts are already
-    /// known. `value_is_first` says whether cell index 0 (x=y=z=0) holds the new
-    /// value, which is what decides the first-appearance order `from_cube`
-    /// would produce.
     #[expect(
         clippy::boxed_local,
         reason = "callers fill the cube in place on the heap, not on the stack"
@@ -151,34 +134,42 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
         let mut counts: Vec<u16> = Vec::new();
         let mut index: FxHashMap<V, usize> = FxHashMap::default();
 
-        // Cubes arrive in runs of one value (terrain layers, air above them),
-        // so remembering the previous cell answers most lookups without hashing.
         let mut last: Option<(V, usize)> = None;
-        for val in cube.as_flattened().as_flattened().iter() {
+        for row in cube.as_flattened() {
             if let Some((prev, idx)) = last
-                && prev == *val
+                && *row == [prev; DIM]
             {
                 if let Some(count) = counts.get_mut(idx) {
-                    *count += 1;
+                    *count += DIM as u16;
                 }
                 continue;
             }
-            let idx = match index.get(val) {
-                Some(&idx) => {
+            for val in row {
+                if let Some((prev, idx)) = last
+                    && prev == *val
+                {
                     if let Some(count) = counts.get_mut(idx) {
                         *count += 1;
                     }
-                    idx
+                    continue;
                 }
-                None => {
-                    let idx = palette.len();
-                    index.insert(*val, idx);
-                    palette.push(*val);
-                    counts.push(1);
-                    idx
-                }
-            };
-            last = Some((*val, idx));
+                let idx = match index.get(val) {
+                    Some(&idx) => {
+                        if let Some(count) = counts.get_mut(idx) {
+                            *count += 1;
+                        }
+                        idx
+                    }
+                    None => {
+                        let idx = palette.len();
+                        index.insert(*val, idx);
+                        palette.push(*val);
+                        counts.push(1);
+                        idx
+                    }
+                };
+                last = Some((*val, idx));
+            }
         }
 
         if let &[only] = palette.as_slice() {
@@ -192,8 +183,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
         }))
     }
 
-    /// Cells in `index` order: y-major, then z, then x. `None` unless `cells`
-    /// holds exactly [`Self::VOLUME`] of them.
     pub fn from_cells(cells: &[V]) -> Option<Self> {
         let (rows, []) = cells.as_chunks::<DIM>() else {
             return None;
@@ -215,8 +204,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
                 debug_assert!(bits_per_entry <= 15);
 
                 let cells = data.cube.as_flattened().as_flattened();
-                // Neighbouring cells mostly hold the same value, so the hash is only asked
-                // where the value changes.
                 let mut last: Option<(V, u32)> = None;
                 let packed = crate::pack_from(bits_per_entry as u32, cells, |key| {
                     if let Some((value, index)) = last
@@ -234,7 +221,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
         }
     }
 
-    /// `None` when a coordinate is outside the cube.
     pub fn get(&self, x: usize, y: usize, z: usize) -> Option<V> {
         match self {
             Self::Homogeneous(value) => (x < DIM && y < DIM && z < DIM).then_some(*value),
@@ -242,8 +228,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
         }
     }
 
-    /// Returns the value the cell held, or `None` with nothing changed when a
-    /// coordinate is outside the cube.
     pub fn set(&mut self, x: usize, y: usize, z: usize, value: V) -> Option<V> {
         match self {
             Self::Homogeneous(original) => {
@@ -266,21 +250,16 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
         }
     }
 
-    /// Fill the axis-aligned box `[x0, x1) x [y0, y1) x [z0, z1)` with `value`.
-    /// The part of the box outside the cube is ignored.
-    ///
-    /// Equivalent to calling `set` for every position in the box, including the
-    /// exact palette-entry ordering produced by that sequence (appends on first
-    /// occurrence, swap_remove when a count reaches zero), so serialized output
-    /// is bit-identical. Palette index lookups are memoized across the box,
-    /// avoiding the per-block reverse-index hashing of repeated `set` calls.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the lower and upper bound of the box on each axis, then the value to fill it with"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the lower and upper bound of the box on each axis, then the value to fill it with"
+        )
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "walks the box in y, z, x order with the palette and count bookkeeping of each changed cell inline, so the fill and its palette order read in one place"
+        reason = "the palette bookkeeping of each cell stays inline"
     )]
     pub fn fill_box(
         &mut self,
@@ -324,8 +303,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
                 );
             }
             Self::Heterogeneous(data) => {
-                // Memoized palette indices; invalidated whenever palette
-                // membership changes (swap_remove shifts indices).
                 let mut orig_memo: Option<(V, usize)> = None;
                 let mut value_idx: Option<usize> = None;
                 for y in y0..y1 {
@@ -336,9 +313,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
                             };
                             let original = std::mem::replace(cell, value);
                             if original == value {
-                                // Re-setting the same value can reorder the palette
-                                // (remove + re-append when count is 1); redo the
-                                // bookkeeping of `set` for exact semantics and drop memos.
                                 if let Some(index) = data.palette_index(&original) {
                                     data.release(&original, index);
                                 }
@@ -394,8 +368,6 @@ impl<V: Hash + Eq + Copy, const DIM: usize> PalettedContainer<V, DIM> {
         }
     }
 
-    /// The same cells with every value passed through `f`. While `f` keeps distinct values
-    /// distinct, the palette keeps its order and counts.
     pub fn map<W: Hash + Eq + Copy, F: Fn(V) -> W>(&self, f: F) -> PalettedContainer<W, DIM> {
         match self {
             Self::Homogeneous(value) => PalettedContainer::Homogeneous(f(*value)),
@@ -423,8 +395,6 @@ impl<V: Hash + Eq + Copy> PalettedContainer<V, { SectionPos::SIZE }> {
         match self {
             Self::Homogeneous(value) => *value,
             Self::Heterogeneous(data) => {
-                // A `LocalPos` keeps every coordinate inside the cube, so the
-                // lookup cannot miss; the corner only gives the type a value.
                 let [[[corner, ..], ..], ..] = &data.cube;
                 data.get(pos.x().into(), pos.y().into(), pos.z().into())
                     .unwrap_or(*corner)
@@ -432,10 +402,7 @@ impl<V: Hash + Eq + Copy> PalettedContainer<V, { SectionPos::SIZE }> {
         }
     }
 
-    /// Returns the value the cell held.
     pub fn set_local(&mut self, pos: LocalPos, value: V) -> V {
-        // A `LocalPos` keeps every coordinate inside the cube, so `set` cannot
-        // refuse it.
         self.set(pos.x().into(), pos.y().into(), pos.z().into(), value)
             .unwrap_or(value)
     }

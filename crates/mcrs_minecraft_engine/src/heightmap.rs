@@ -46,18 +46,12 @@ fn rebuild_heightmap_predicates(
     )));
 }
 
-/// `Heightmap.Types` ids. The client reads the packet's map keys through them,
-/// and takes only the three the server is expected to send.
 const WORLD_SURFACE: i32 = 1;
 
 const MOTION_BLOCKING: i32 = 4;
 
 const MOTION_BLOCKING_NO_LEAVES: i32 = 5;
 
-/// The three maps the chunk packet carries, in the client's wire encoding.
-///
-/// `SolidHeightmap` is deliberately absent: the client is never sent
-/// `OCEAN_FLOOR`, and a map it does not ask for would only cost bandwidth.
 pub fn client_heightmaps(
     surface: &SurfaceHeightmap,
     motion: &MotionHeightmap,
@@ -73,7 +67,6 @@ pub fn client_heightmaps(
     ]
 }
 
-/// Maps built by the column task, waiting for their column entity to exist.
 #[derive(Resource, Default, Debug)]
 pub struct PendingColumnHeightmaps(pub FxHashMap<(Entity, ColumnPos), ColumnHeightmapSet>);
 
@@ -88,12 +81,6 @@ impl Plugin for DimHeightmapPlugin {
     }
 }
 
-/// Attach the freshly built maps to the column entity that `reconcile_columns`
-/// and `reconcile_block_entities` have just spawned.
-///
-/// Merged with `max` because a column may be generated in more than one Y range:
-/// "topmost block satisfying P" combines that way whatever order the ranges
-/// arrive in, and a range that found nothing contributes its floor.
 pub fn prime_column_heightmaps(
     mut pending: ResMut<PendingColumnHeightmaps>,
     indices: Query<&ColumnIndex>,
@@ -147,9 +134,6 @@ fn merge_max(into: &mut ColumnHeights, from: &ColumnHeights) {
     for z in 0..SectionPos::SIZE {
         for x in 0..SectionPos::SIZE {
             let candidate = from.get(x, z);
-            // A found block always lands strictly above the range's own floor,
-            // so the floor itself only ever means "nothing here" — and a range
-            // starting above the dimension floor must not claim that as a height.
             if candidate == from.min_y() {
                 continue;
             }
@@ -161,9 +145,6 @@ fn merge_max(into: &mut ColumnHeights, from: &ColumnHeights) {
     }
 }
 
-/// Keeps the four maps exact across block edits, per the update rules: a write
-/// strictly below the topmost satisfying block can neither raise nor lower the
-/// map, and only removing that very block costs a descent.
 pub fn update_column_heightmaps(
     mut placed: MessageReader<BlockPlaced>,
     predicates: Res<BlockHeightmapPredicates>,

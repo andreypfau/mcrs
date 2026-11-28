@@ -4,6 +4,7 @@ extern crate self as mcrs_minecraft_registries;
 
 #[cfg(feature = "bevy")]
 mod bevy;
+mod content_paths;
 mod declaration;
 mod diagnostics;
 pub mod dispatch;
@@ -14,7 +15,6 @@ mod receive;
 mod refs;
 mod registries;
 mod registry;
-pub mod static_key;
 mod tag_file;
 mod tags;
 mod text;
@@ -22,9 +22,14 @@ mod wire;
 
 #[cfg(feature = "bevy")]
 pub use bevy::CurrentRegistries;
+pub use content_paths::ContentPaths;
 pub use declaration::{DataDeclaration, Declaration, RegistryAdditions, insert_entry};
 pub use diagnostics::{Diagnostic, Diagnostics, Missing, Referrer};
 pub use mcrs_minecraft_registries_derive::{FromWire, Resolve, dispatch, registry_value};
+pub use mcrs_minecraft_static_registry as static_key;
+pub use mcrs_minecraft_static_registry::{
+    StaticEntry, decode_registry_id, encode_registry_id, static_registry,
+};
 pub use network::NetworkSnapshot;
 pub use receive::{Received, ReceivedTags};
 pub use refs::{
@@ -32,15 +37,11 @@ pub use refs::{
 };
 pub use registries::{Registries, Stage};
 pub use registry::{DataValue, Entries, Registry};
-pub use static_key::StaticEntry;
 pub use tag_file::TagEntry;
 pub use tags::{IdSet, Tags};
 pub use wire::{
-    BlockStates, FromWire, Wire, WireId, WireNames, WireSet, decode_holder_id, decode_registry_id,
-    encode_holder_id, encode_registry_id,
+    BlockStates, FromWire, Wire, WireId, WireNames, WireSet, decode_holder_id, encode_holder_id,
 };
 
 #[doc(hidden)]
-pub use mcrs_minecraft_wire as __wire;
-#[doc(hidden)]
-pub use serde as __serde;
+pub use mcrs_minecraft_static_registry::{__serde, __wire};

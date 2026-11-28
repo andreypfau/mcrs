@@ -11,9 +11,6 @@ It also states the header of one game packet. The batch that carries packets is 
 `bedrock-batch.md`. The packets of the connection handshake are in `bedrock-handshake.md`. The
 game packets are in `bedrock-game-packets.md`.
 
-This document states only what a capture of the bytes can show. It does not prescribe an
-architecture.
-
 ## 0. Conventions
 
 ### 0.1 Terms
@@ -71,13 +68,12 @@ This document uses the provenance labels of `registry.md`, section 0.3, with the
 
 - `documentation`: the public Bedrock protocol documentation of Mojang, at the revision for
   protocol 729 (repository `Mojang/bedrock-protocol-docs`, release r21u3).
-- `source_suggested`: the open-source Bedrock servers and libraries that issue #656 allows. This
+- `source_suggested`: the open-source Bedrock servers and libraries that this project allows. This
   document used gophertunnel 1.41.0 (protocol 729), the CloudburstMC protocol codec that GeyserMC
   uses (codecs up to 729), and GeyserMC. These sources agree with each other, except where a rule
   says otherwise.
 
-None of the experiments in this document has been run. Each one is a proposal. Each rule has
-`Edition: bedrock`.
+Each rule has `Edition: bedrock`.
 
 ### 0.4 Experiment set-up
 
@@ -443,10 +439,10 @@ with one extra byte after its last field. Record whether BDS keeps the connectio
 - **Prediction risk**: none.
 - **Parity list**: none.
 
-## 10. Open questions
+## 10. Unresolved
 
-- **Q1.** The issue and the crate comments name game version 1.21.40 for protocol 729. The
-  public documentation and the libraries give protocol 729 for 1.21.30, and protocol 748 for
-  1.21.40. This document follows protocol 729. The owner must confirm the pin.
+- **Q1.** The public documentation and the libraries give protocol 729 for 1.21.30, and
+  protocol 748 for 1.21.40. This document follows protocol 729. The game version of protocol 729
+  is not confirmed.
 - **Q2.** The largest `string` length that BDS accepts is not known. Experiment: send BDS a
   `Text` packet with a message of 1 MiB. Record the result.

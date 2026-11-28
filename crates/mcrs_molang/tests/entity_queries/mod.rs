@@ -1,18 +1,10 @@
-//! The entity queries of `docs/spec/molang-queries.md`, so that a test sees the errors of the
-//! language rather than unknown names. The `spec` test keeps the table equal to the document.
-
 use mcrs_molang::{Arguments, QueryDeclaration, QueryRegistry, Rate, UseContext, ValueType};
 
-/// How a query reaches a GPU channel: the column "Pose input" of the spec.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PoseInput {
-    /// `time`: a value of the entity clock, never negative.
     Time,
-    /// `tick` for a flag: `0` or `1`.
     Flag,
-    /// Any other pose input kind.
     Other,
-    /// `—`: not a pose input.
     None,
 }
 

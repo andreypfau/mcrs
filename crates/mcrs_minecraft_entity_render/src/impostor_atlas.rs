@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::ops::Range;
 
 use bytemuck::{Pod, Zeroable};
 use mcrs_minecraft_entity_model::{
@@ -17,11 +18,9 @@ use crate::impostor_frame::{
 };
 use crate::records::{HIDEABLE_ENTRIES, STATE_HIDDEN_SHIFT, StateRecord, f16_up};
 
-/// The value of a pair with no image set.
 const NO_IMPOSTOR: u32 = u32::MAX;
 const FIRST_LAYERS: u32 = 8;
-const COVER: &str = include_str!("shaders/impostor_cover.wgsl");
-/// The most image sets: a layer of the image arrays holds one set.
+pub(crate) const COVER: &str = include_str!("shaders/impostor_cover.wgsl");
 const MAX_LAYERS: u32 = 2048;
 const FACE_EAST: u32 = 0;
 const FACE_WEST: u32 = 2;
@@ -29,7 +28,6 @@ const FACE_SOUTH: u32 = 3;
 const FACE_DOWN: u32 = 5;
 const VIEWS: u32 = IMPOSTOR_VIEWS as u32;
 
-/// The instance record of the draw shader, as the bake fills it: the projection of a view.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
 struct BakeInstance {
@@ -38,7 +36,6 @@ struct BakeInstance {
     light: [f32; 4],
 }
 
-/// The buffers and the pipeline that a bake shares with the draw of the full rigs.
 pub(crate) struct BakeResources<'a> {
     pub(crate) pipeline: &'a RenderPipeline,
     pub(crate) draw_layout: &'a BindGroupLayout,
@@ -47,11 +44,9 @@ pub(crate) struct BakeResources<'a> {
     pub(crate) models: &'a Buffer,
     pub(crate) cuboids: &'a Buffer,
     pub(crate) variants: &'a Buffer,
-    /// The bind group of each texture array.
     pub(crate) arrays: &'a [BindGroup],
 }
 
-/// A model and a texture of a layer, with the bones that the render controllers hide.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Pair {
     model: u16,
@@ -59,16 +54,11 @@ struct Pair {
     hidden: u16,
 }
 
-/// The impostor image sets: for each pair of a model and a texture that a layer of a slot
-/// shows, the views of the rest pose that the bake renders with the draw of the full rigs the
-/// first time a state record names the pair. The image set of a pair is one layer of a colour
-/// array and of a normal array.
 pub(crate) struct ImpostorAtlas {
     models: Vec<ModelRecord>,
     bones: Vec<BoneRecord>,
     cuboids: Vec<u8>,
     variants: Vec<VariantRecord>,
-    /// The views of each model.
     frames: Vec<ImpostorFrames>,
     colours: Texture,
     normals: Texture,
@@ -76,15 +66,12 @@ pub(crate) struct ImpostorAtlas {
     layers: u32,
     used: u32,
     max_layers: u32,
-    /// For each model and variant, the layer of its set and its hidden mask, or [`NO_IMPOSTOR`].
     pub(crate) pairs: Buffer,
-    /// [`ImpostorView`] of each model and view.
-    pub(crate) frame_table: Buffer,
     rest_bones: Buffer,
     seen: HashSet<(u16, u16)>,
     noted: Vec<Pair>,
+    skin_variants: Range<u16>,
     pub(crate) images: BindGroup,
-    /// For each layer and view: the centroid of the covered texels in the image and their share.
     pub(crate) covers: Buffer,
     cover: wgpu::ComputePipeline,
 }
@@ -109,16 +96,8 @@ impl ImpostorAtlas {
             bytemuck::cast_slice(&vec![NO_IMPOSTOR; pair_count]),
             BufferUsages::COPY_DST,
         );
-        let frame_table = storage(
-            "entity impostor frames",
-            bytemuck::cast_slice(
-                &frames
-                    .iter()
-                    .flat_map(|frames| frames.views)
-                    .collect::<Vec<ImpostorView>>(),
-            ),
-            BufferUsages::empty(),
-        );
+        let views: Vec<ImpostorView> = frames.iter().flat_map(|frames| frames.views).collect();
+        let first_cover = views.len();
         let rest_bones = storage(
             "entity rest bones",
             bytemuck::cast_slice(&library.rest_bones),
@@ -154,23 +133,30 @@ impl ImpostorAtlas {
             used: 0,
             max_layers,
             pairs,
-            frame_table,
             rest_bones,
             seen: HashSet::new(),
             noted: Vec::new(),
+            skin_variants: library.skin_variants.clone(),
             images,
-            covers: device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("entity impostor covers"),
-                size: u64::from(max_layers) * u64::from(VIEWS) * 16,
-                usage: BufferUsages::STORAGE,
-                mapped_at_creation: false,
-            }),
+            covers: storage(
+                "entity impostor covers",
+                &[
+                    bytemuck::cast_slice(&views),
+                    vec![0; max_layers as usize * VIEWS as usize * 16].as_slice(),
+                ]
+                .concat(),
+                BufferUsages::empty(),
+            ),
             cover: device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some("entity impostor cover"),
                 layout: None,
                 module: &device.create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some("entity impostor cover"),
-                    source: wgpu::ShaderSource::Wgsl(impostor_constants(COVER).into()),
+                    source: wgpu::ShaderSource::Wgsl(
+                        impostor_constants(COVER)
+                            .replace("#{FIRST_COVER}", &first_cover.to_string())
+                            .into(),
+                    ),
                 }),
                 entry_point: Some("cover"),
                 compilation_options: Default::default(),
@@ -179,7 +165,6 @@ impl ImpostorAtlas {
         }
     }
 
-    /// Measures the coverage of each view image of the layer `layer`.
     fn encode_cover(&self, device: &Device, encoder: &mut CommandEncoder, layer: u32) {
         let layer_uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("entity impostor cover layer"),
@@ -217,11 +202,13 @@ impl ImpostorAtlas {
         pass.dispatch_workgroups(VIEWS, 1, 1);
     }
 
-    /// Notes the pairs of the active layers of `state` that have no image set yet.
     pub(crate) fn note(&mut self, state: &StateRecord) {
         let hidden = (state.flags >> STATE_HIDDEN_SHIFT) as u16;
         for (layer, [model, variant]) in state.layers.iter().enumerate() {
-            if state.layer_mask & (1 << layer) != 0 && self.seen.insert((*model, *variant)) {
+            if state.layer_mask & (1 << layer) != 0
+                && !self.skin_variants.contains(variant)
+                && self.seen.insert((*model, *variant))
+            {
                 self.noted.push(Pair {
                     model: *model,
                     variant: *variant,
@@ -231,8 +218,6 @@ impl ImpostorAtlas {
         }
     }
 
-    /// Renders the image set of each noted pair. A pair that does not fit keeps no set, so its
-    /// slots draw a full rig.
     pub(crate) fn bake_noted(
         &mut self,
         device: &Device,
@@ -337,8 +322,6 @@ impl ImpostorAtlas {
         );
     }
 
-    /// The bind group of the draw of the full rigs for the bake of `pair`: one visible entry and
-    /// one projection for each view, and the face records `faces` for each view.
     fn bake_bind(
         &self,
         device: &Device,
@@ -411,8 +394,6 @@ impl ImpostorAtlas {
         })
     }
 
-    /// The faces of the cuboids of `model` that the bake draws, in the order of the expand
-    /// pass: with the depth test, the faces that a camera does not see stay hidden.
     fn bake_faces(&self, model: &ModelRecord, hidden: u16) -> Vec<(u32, u32)> {
         let mut faces = Vec::new();
         for index in 0..model.cuboid_count {
@@ -464,7 +445,6 @@ impl ImpostorAtlas {
         faces
     }
 
-    /// Doubles the layers of the image arrays. `false` when they are at the limit.
     fn grow(
         &mut self,
         device: &Device,
@@ -491,7 +471,6 @@ impl ImpostorAtlas {
         true
     }
 
-    /// The image sets that the atlas holds.
     pub(crate) fn image_sets(&self) -> u32 {
         self.used
     }

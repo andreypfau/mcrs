@@ -1,15 +1,9 @@
-// The prepare pass of the impostors: one lane for each slot of the impostor list. A lane selects
-// the view and writes the draw record of the impostor, so the vertex stage of the impostor draw
-// only places the corners of its quad.
-
 const TILE: u32 = #{TILE}u;
 const YAWS: i32 = #{YAWS};
-/// The elevations of the views in degrees, rising.
 const ELEVATIONS = #{ELEVATIONS};
 const ELEVATION_COUNT: u32 = #{ELEVATION_COUNT}u;
 const VIEWS: u32 = #{VIEWS}u;
 const NO_ENTRY: u32 = 0xffffu;
-/// The projected height in pixels under which an impostor draws its whole quad with no discard.
 const SMALL_HEIGHT: f32 = #{SMALL_HEIGHT};
 
 fn layer_entry(state: StateRecord, layer: u32) -> u32 {
@@ -26,10 +20,10 @@ fn layer_entry(state: StateRecord, layer: u32) -> u32 {
 
 fn layer_rect(state: StateRecord, layer: u32, view: u32) -> vec4<f32> {
     let at = (layer_word(state, layer) & 0xffffu) * VIEWS + view;
-    if ((layer_mask(state) & (1u << layer)) == 0u || at >= arrayLength(&impostor_frames)) {
+    if ((layer_mask(state) & (1u << layer)) == 0u || at >= FIRST_COVER) {
         return vec4<f32>(0.0);
     }
-    return impostor_frames[at];
+    return impostor_covers[at];
 }
 
 @compute @workgroup_size(64)
@@ -40,10 +34,10 @@ fn prepare(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     let slot = impostors[id.x];
     let state = states[slot];
-    let current = ticks[slot];
+    let current = ticks[current_tick(slot)];
     var previous = current;
     if (tick_of_record[slot] == frame.tick) {
-        previous = previous_ticks[slot];
+        previous = ticks[previous_tick(slot)];
     }
     let pt = frame.partial_tick;
     let body_yaw = wrap_degrees(alerp(pt, turn_degrees(previous.fraction_z_body >> 16u), turn_degrees(current.fraction_z_body >> 16u)));
@@ -79,7 +73,7 @@ fn prepare(@builtin(global_invocation_id) id: vec3<u32>) {
     let overlay = entity_overlay(state, whole_age, false);
     let light = entity_light(state);
     draw.origin_yaw = vec4<f32>(position, body_yaw);
-    draw.axes = vec4<f32>(facing.y * scale, -facing.x * scale, scale, bitcast<f32>(yaw * TILE | ((row * TILE) << 16u)));
+    draw.axes = vec4<f32>(facing.y * scale, -facing.x * scale, scale, bitcast<f32>((yaw * TILE) | ((row * TILE) << 16u)));
     draw.bounds = bounds;
     draw.words = vec4<u32>(
         layer_entry(state, 0u) | (layer_entry(state, 1u) << 16u),
@@ -92,10 +86,8 @@ fn prepare(@builtin(global_invocation_id) id: vec3<u32>) {
     let baby = select(1.0, size.y, (state.flags & STATE_BABY) != 0u);
     let pixels = size.x * baby * scale * frame.projection_scale / max(length(to_camera), 1e-3);
     if (pixels < SMALL_HEIGHT) {
-        // A small impostor draws a rectangle with the covered area of its image, about the
-        // centroid of the covered texels, so its pixels cover about what the image covers.
         let rect = draw.rects[first];
-        let cover = impostor_covers[layer_entry(state, first) * VIEWS + view];
+        let cover = impostor_covers[FIRST_COVER + layer_entry(state, first) * VIEWS + view];
         if (cover.z > 0.0) {
             let shrink = sqrt(cover.z) * 0.5;
             let size = vec2<f32>(rect.y - rect.x, rect.w - rect.z);

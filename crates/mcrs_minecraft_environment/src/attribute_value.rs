@@ -15,7 +15,6 @@ use crate::value::{
     AmbientParticle, AmbientSounds, BackgroundMusic, BedRule, BedRuleCondition, MoonPhase, TriState,
 };
 
-/// A value of one attribute. `Float` holds both `float` and `angle_degrees`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AttributeValue {
     Boolean(bool),
@@ -34,7 +33,6 @@ pub enum AttributeValue {
     AmbientParticles(Vec<AmbientParticle>),
 }
 
-/// The four places a value is interpolated, each with its own function per type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interpolation {
     Keyframe,
@@ -53,7 +51,6 @@ fn bed_rule(can_set_spawn: BedRuleCondition, destroy_on_leave: bool) -> BedRule 
     }
 }
 
-/// The value of `attribute` before any layer.
 #[must_use]
 pub fn default_value(attribute: EnvironmentAttribute) -> AttributeValue {
     use AttributeValue as V;
@@ -152,7 +149,6 @@ fn tri_state(tag: &NbtTag) -> Result<TriState, String> {
 }
 
 impl AttributeValue {
-    /// Reads the value form of `kind`. A float is not checked against a range here.
     pub fn read(kind: AttributeType, tag: &NbtTag) -> Result<AttributeValue, String> {
         use AttributeType as T;
         Ok(match kind {
@@ -173,7 +169,6 @@ impl AttributeValue {
         })
     }
 
-    /// A colour as `0xAARRGGBB`, each byte as a colour writes it; an RGB colour is opaque.
     #[must_use]
     pub fn packed_argb(&self) -> Option<u32> {
         let pack = |[red, green, blue, alpha]: [f32; 4]| {
@@ -191,8 +186,6 @@ impl AttributeValue {
         }
     }
 
-    /// The value after the last layer: a float outside the range of `attribute` becomes the
-    /// nearer bound.
     #[must_use]
     pub fn sanitized(self, attribute: EnvironmentAttribute) -> AttributeValue {
         match (self, info(attribute).range) {
@@ -203,7 +196,6 @@ impl AttributeValue {
         }
     }
 
-    /// The interpolation of `kind` for `place`, from `from` at 0 to `to` at 1.
     #[must_use]
     pub fn interpolate(
         kind: AttributeType,

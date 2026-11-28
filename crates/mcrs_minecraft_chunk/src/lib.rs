@@ -18,9 +18,9 @@ pub use light_storage::LightStorage;
 pub use nibbles::SectionNibbles;
 pub use voxel_palette::{SharedVoxelPalette, VoxelPalette};
 
-/// An opaque voxel identifier. The engine never interprets it: the game assigns
-/// ids when its asset corpus loads, and they are not stable across runs, so a
-/// save names the voxel instead of storing its id.
+pub type ChunkBlocks =
+    SharedVoxelPalette<mcrs_voxel::BlockStateId, { mcrs_voxel::SectionPos::SIZE }>;
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
 pub struct VoxelId(pub u16);
 
@@ -54,8 +54,6 @@ impl std::ops::Deref for VoxelId {
     }
 }
 
-/// `Mth.ceillog2`: the width an index into `count` distinct values must have.
-/// Answers 0 for a count of 0 or 1, which is what a single-value palette needs.
 #[inline]
 pub const fn ceillog2(count: usize) -> u32 {
     match count {
@@ -64,8 +62,6 @@ pub const fn ceillog2(count: usize) -> u32 {
     }
 }
 
-/// The per-axis index formula and the stored width for one kind of section
-/// container.
 pub trait SectionKind {
     const AXIS_BITS: u32;
     const MIN_INDIRECT_BITS: u32;
@@ -78,8 +74,6 @@ pub trait SectionKind {
         (y << Self::AXIS_BITS | z) << Self::AXIS_BITS | x
     }
 
-    /// The width the save format stores at. Values are indices into the palette
-    /// list at every width — `Configuration.Global` widens `bitsInMemory` only.
     #[inline]
     fn storage_bits(palette_len: usize) -> u32 {
         match ceillog2(palette_len) {
@@ -117,8 +111,6 @@ pub fn check_len(bits: u32, data: &[i64], entry_count: usize) -> Result<(), Data
     }
 }
 
-/// Unpacks `data` into one entry per element of `out`, low entry first, with the
-/// spare high bits of each word discarded. `bits` must be in `1..=16`.
 pub fn unpack_into(bits: u32, data: &[i64], out: &mut [u16]) -> Result<(), DataLength> {
     debug_assert!((1..=16).contains(&bits));
     check_len(bits, data, out.len())?;
@@ -134,8 +126,6 @@ pub fn unpack_into(bits: u32, data: &[i64], out: &mut [u16]) -> Result<(), DataL
     Ok(())
 }
 
-/// Masking alternate lanes leaves `bits` spare bits above each one kept, which
-/// is the room a carry out of that lane needs.
 fn even_lanes(bits: u32, lane_limit: usize, limit: u64) -> (u64, u64, u64) {
     let lane_mask = (1u64 << bits) - 1;
     let bump = (1u64 << bits) - limit;
@@ -151,10 +141,6 @@ fn even_lanes(bits: u32, lane_limit: usize, limit: u64) -> (u64, u64, u64) {
     (lanes, carries, addend)
 }
 
-/// Adding `2^bits - limit` to a lane carries out of it exactly when the lane
-/// reaches `limit`, so one word answers for all of its cells at once. Entries
-/// past the end of `data` are not examined; [`check_len`] reports a short
-/// `data`.
 pub fn any_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usize) -> bool {
     debug_assert!((1..=16).contains(&bits));
     if limit >= 1usize << bits {
@@ -190,8 +176,6 @@ pub fn any_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usize)
     })
 }
 
-/// Only the error path needs this, so it may be as slow as it likes. Entries
-/// past the end of `data` are not examined.
 pub fn first_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usize) -> Option<u16> {
     let per_long = entries_per_long(bits);
     let mask = (1u64 << bits) - 1;
@@ -203,8 +187,6 @@ pub fn first_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usiz
         .find(|&e| e as usize >= limit)
 }
 
-/// Packs one entry per element of `cells`, taking each entry's value from `id`.
-/// The caller owns the width: `id` must never answer more than `bits` bits.
 pub fn pack_from<T>(bits: u32, cells: &[T], mut id: impl FnMut(&T) -> u32) -> Box<[i64]> {
     debug_assert!((1..=32).contains(&bits));
     let per_long = entries_per_long(bits);
@@ -223,7 +205,6 @@ pub fn pack_from<T>(bits: u32, cells: &[T], mut id: impl FnMut(&T) -> u32) -> Bo
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemapError {
     DataLength(DataLength),
-    /// A stored entry that is not an index into the table.
     PaletteIndex(u16),
 }
 
@@ -233,8 +214,6 @@ impl From<DataLength> for RemapError {
     }
 }
 
-/// Replaces every stored entry with the `table` element it indexes. On an
-/// error, `out` holds a partial result.
 pub fn remap_into<T: Copy>(
     bits: u32,
     data: &[i64],

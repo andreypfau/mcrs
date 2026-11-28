@@ -46,13 +46,10 @@ fn button(facing: Direction) -> Cell {
     ))
 }
 
-/// A sandstone wall standing free of the block above it: a post joined low
-/// to `sides`.
 fn low_wall(sides: &[Direction]) -> Cell {
     wall_joined(Block::SandstoneWall.as_static_str(), sides, &[])
 }
 
-/// A smooth sandstone floor inside a ring of sand.
 fn floor(c: &mut Canvas, min: [i32; 2], max: [i32; 2]) {
     c.solid(&K.sand, [min[0], 0, min[1]], [max[0], 0, max[1]]);
     c.solid(
@@ -69,8 +66,6 @@ fn glazed(colour: &str, facing: Direction) -> Cell {
     ))
 }
 
-/// Four glazed tiles, each turned a quarter from the last round the corner
-/// they share.
 fn pinwheel(c: &mut Canvas, colour: &str, at: [i32; 3]) {
     let [x, y, z] = at;
     for (dx, dz, facing) in [(0, 0, North), (1, 0, East), (0, 1, West), (1, 1, South)] {
@@ -78,7 +73,6 @@ fn pinwheel(c: &mut Canvas, colour: &str, at: [i32; 3]) {
     }
 }
 
-/// Niches in a wall: a potted cactus under a slab.
 fn niches(c: &mut Canvas, lintel: &Cell, cells: &[[i32; 2]]) {
     for [x, z] in cells {
         c.place(&K.potted_cactus, *x, 2, *z);
@@ -90,7 +84,6 @@ fn hay(axis: Axis) -> Cell {
     log(Block::HayBlock.as_static_str(), axis)
 }
 
-/// A step under water, its shape left to the neighbours.
 fn wet_step(facing: Direction) -> Cell {
     settled(&format!(
         "{SMOOTH_STAIRS}[facing={},half=bottom,waterlogged=true]",
@@ -98,13 +91,10 @@ fn wet_step(facing: Direction) -> Cell {
     ))
 }
 
-/// A step whose corner turns towards a neighbour that is not there.
 fn corner_step(facing: Direction, shape: &str) -> Cell {
     corner_stairs(SMOOTH_STAIRS, facing, shape)
 }
 
-/// Windows in a wall: a sandstone slab on the sill and another under the
-/// lintel.
 fn slits(c: &mut Canvas, cells: &[[i32; 2]]) {
     for [x, z] in cells {
         c.place(&sandstone_slab("bottom"), *x, 2, *z);
@@ -112,7 +102,6 @@ fn slits(c: &mut Canvas, cells: &[[i32; 2]]) {
     }
 }
 
-/// A column of cut sandstone `height` tall under terracotta and a torch.
 fn lamp(c: &mut Canvas, at: [i32; 3], height: i32) {
     let [x, y, z] = at;
     c.solid(&K.cut, [x, y, z], [x, y + height - 1, z]);
@@ -120,14 +109,12 @@ fn lamp(c: &mut Canvas, at: [i32; 3], height: i32) {
     c.place(&S.torch, x, y + height + 1, z);
 }
 
-/// Where the camel of a living village stands.
 fn camel(c: &mut Canvas, at: [i32; 3], orientation: &str, floor: &str) {
     let jigsaw = block(&format!("minecraft:jigsaw[orientation={orientation}]"));
     c.place(&jigsaw, at[0], at[1], at[2]);
     c.jigsaw_aligned(at, EMPTY, CAMEL, floor);
 }
 
-/// A seat with a step against it on the north and on the south.
 fn bench(c: &mut Canvas, at: [i32; 3], steps: &str, seat: &Cell) {
     let [x, y, z] = at;
     c.place(&stairs(steps, North), x, y, z - 1);
@@ -139,7 +126,6 @@ fn path(c: &mut Canvas, along: Axis, middle: i32, range: [i32; 2]) {
     path_strip(c, &K.smooth, along, middle, range);
 }
 
-/// The west end of a street that nothing joins.
 fn dead_end(c: &mut Canvas, at: [i32; 3]) {
     c.socket(at, "minecraft:street", EMPTY, NOTHING);
 }
@@ -216,8 +202,6 @@ fn square_02(c: &mut Canvas, v: Village) {
     decorations(c, v, SAND, &[[4, 8], [0, 10]]);
 }
 
-/// A street from west to east along the row `middle`, with places for houses
-/// on its `side` at three points.
 fn straight_with_houses(c: &mut Canvas, v: Village, middle: i32, side: Direction, at: [i32; 3]) {
     street(c, v, &[[0, middle], [14, middle]]);
     path(c, X, middle, [0, 14]);
@@ -394,9 +378,6 @@ fn small_house_5(c: &mut Canvas, v: Village) {
     villagers(c, v, SMOOTH, &[[3, 0, 3]]);
 }
 
-/// The watchtower: a spiral stair of a step and a landing a level, a slit
-/// over the door on every turn. The abandoned one has lost its porch and
-/// the torches on its battlements, and is entered through its wall.
 fn small_house_6(c: &mut Canvas, v: Village) {
     let west = if v.zombie { 0 } else { 1 };
     let x = |from_wall: i32| west + from_wall;
@@ -1288,7 +1269,6 @@ fn desert_large_farm_1(c: &mut Canvas) {
     c.scatter(&S.composter, 2, &[[4, 3], [5, 9]]);
 }
 
-/// A walled pen behind a double gate, `south` its far side.
 fn pen(c: &mut Canvas, south: i32, animals: [i32; 3]) {
     let gate =
         block("minecraft:jungle_fence_gate[facing=south,in_wall=true,open=false,powered=false]");
@@ -1307,7 +1287,6 @@ fn pen(c: &mut Canvas, south: i32, animals: [i32; 3]) {
     c.spot(animals, ANIMALS, GRASS);
 }
 
-/// Slabs on four wall posts.
 fn shade(c: &mut Canvas, min: [i32; 2], max: [i32; 2]) {
     c.posts(&K.stone_wall, &[min[0], max[0]], &[min[1], max[1]], [1, 3]);
     c.solid(&K.slab, [min[0], 4, min[1]], [max[0], 4, max[1]]);
@@ -1410,7 +1389,6 @@ fn meeting_point_2(c: &mut Canvas, v: Village) {
     }
 }
 
-/// A ring of slabs at `top` on four wall posts.
 fn stall(c: &mut Canvas, min: [i32; 2], max: [i32; 2], top: i32) {
     c.posts(
         &K.stone_wall,

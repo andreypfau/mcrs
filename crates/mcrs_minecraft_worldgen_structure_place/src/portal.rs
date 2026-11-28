@@ -32,8 +32,6 @@ const NETHERRACK_BY_DISTANCE: [f32; 14] = [
 const DRIP_CAP: i32 = 8;
 const MAX_Y_DIFF: i32 = 3;
 
-/// One structure's tables: a processor chain per piece shape its setups can
-/// yield, and the blocks the netherrack spread writes and tests.
 #[derive(Clone, Debug)]
 pub struct RuinedPortalBlocks {
     chains: Vec<(PortalPlacement, PortalProperties, CompiledChain)>,
@@ -41,8 +39,6 @@ pub struct RuinedPortalBlocks {
     magma: VoxelId,
     obsidian: VoxelId,
     persistent_jungle_leaves: VoxelId,
-    /// Indexed like `Direction::HORIZONTAL`: the vine hanging on the face that
-    /// looks back at the block in that direction.
     vine_facing: [VoxelId; 4],
     vines: StateMask,
     features_cannot_replace: StateMask,
@@ -52,7 +48,7 @@ pub struct RuinedPortalBlocks {
 impl RuinedPortalBlocks {
     pub fn compile(
         setups: &[RuinedPortalSetup],
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         features_cannot_replace: &KeySet<Block>,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
@@ -120,7 +116,6 @@ impl RuinedPortalBlocks {
     }
 }
 
-/// `RuinedPortalPiece.makeSettings`' processor list.
 fn processors(
     placement: PortalPlacement,
     p: &PortalProperties,
@@ -177,13 +172,12 @@ fn processors(
     chain
 }
 
-/// `RuinedPortalPiece.postProcess`: nothing unless the column holds the box
-/// centre, then the whole template from that column, netherrack spread within
-/// fourteen blocks of the centre, drip columns under the portal, and vines or
-/// leaves over the box.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the portal's blocks, piece and template, the volume, the two lists the placement fills, the column's reference and clip, and the random source"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's placement"
+    )
 )]
 pub fn place_ruined_portal<W: WorldGenVolume>(
     b: &RuinedPortalBlocks,

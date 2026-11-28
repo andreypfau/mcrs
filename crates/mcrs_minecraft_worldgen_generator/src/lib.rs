@@ -2,7 +2,6 @@
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::panic,
-    clippy::unwrap_used,
     reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
 )]
 #![cfg_attr(
@@ -16,9 +15,11 @@
 
 use crate::biome_upscale::upscale_biomes;
 use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
+use crate::probe_lattice::ProbeLattice;
+use crate::structures::index::EndBiomes;
 use crate::task::CancellationToken;
 use glam::IVec3;
-use mcrs_minecraft_biome::climate::TargetPoint;
+use mcrs_minecraft_biome::registry_keys::BIOME;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed};
 use mcrs_minecraft_block::block_keys::Block;
@@ -34,44 +35,31 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_resource::NarrowError;
 use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
+use mcrs_minecraft_worldgen_density::aquifer_cells::AquiferCells;
 use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
+use mcrs_minecraft_worldgen_density::column_bound::ColumnBoundScratch;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
-    CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
+    FINAL_DENSITY, NoiseRouter, TEMPERATURE, VEGETATION,
 };
-use mcrs_voxel::BlockStateId;
+use mcrs_minecraft_worldgen_density::router_key::RouterKey;
+use mcrs_minecraft_worldgen_density::surface_levels::SurfaceLevels;
+use mcrs_voxel::{BlockStateId, ColumnPos};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// The `interpolated` wrapper inputs at every cell corner of a whole chunk
-/// column, laid out one `volume`-shaped row per wrapper.
 struct CellLattice {
     volume: SampleGrid,
     cell: IVec3,
+    cell_rows: i32,
     values: Vec<f32>,
     width: usize,
 }
 
-/// The lattice columns recently produced, so a column reads the two planes it
-/// shares with the neighbours before it instead of evaluating them again.
-///
-/// A node's value is a function of the node and the router alone, never of the
-/// volume it was asked about as part of, so the shared plane is the same plane
-/// (`docs/worldgen.md` §4, L3). A column produces 5 x 49 x 5 nodes and shares
-/// its low planes in x and z, which is nine of the twenty-five node columns:
-/// what stays is a 4 x 49 x 4 evaluation, 64% of the work.
-///
-/// Two generations rather than one map: the useful life of a column is until
-/// the neighbours past it have been filled, and rotating keeps at least
-/// `KEPT_COLUMNS` of the most recent without ever growing without bound. A
-/// worker that jumps between distant columns misses and pays what it paid
-/// before.
 #[derive(Default)]
 struct LatticePlanes {
-    /// Which router these belong to. One worker fills columns for every
-    /// dimension, and a node's value differs by seed and by graph.
-    owner: Option<(usize, u64)>,
+    owner: Option<RouterKey>,
     current: HashMap<i64, Box<[f32]>>,
     previous: HashMap<i64, Box<[f32]>>,
 }
@@ -80,7 +68,7 @@ const KEPT_COLUMNS: usize = 2048;
 
 impl LatticePlanes {
     fn retarget(&mut self, router: &NoiseRouter) {
-        let owner = (std::ptr::from_ref(router) as usize, router.world_seed);
+        let owner = router.key();
         if self.owner != Some(owner) {
             self.owner = Some(owner);
             self.current.clear();
@@ -106,10 +94,9 @@ impl LatticePlanes {
 
 thread_local! {
     static LATTICE_PLANES: RefCell<LatticePlanes> = RefCell::new(LatticePlanes::default());
+    static SURFACE_LEVELS: RefCell<SurfaceLevels> = RefCell::new(SurfaceLevels::default());
 }
 
-/// The key one node column answers to. Node coordinates are block coordinates,
-/// which is what makes two columns agree on the plane between them.
 fn plane_key(node_x: i32, node_z: i32) -> i64 {
     (i64::from(node_x) << 32) | i64::from(node_z as u32)
 }
@@ -117,24 +104,19 @@ fn plane_key(node_x: i32, node_z: i32) -> i64 {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum CellFill {
     Solid,
-    /// Empty under one fluid status: its fluid below its level, air above.
     Uniform(FluidStatus),
     Mixed,
 }
 
 impl CellLattice {
-    /// `None` for a router with no single cell lattice, or one whose cells do
-    /// not tile a section; such a chunk is filled block by block throughout.
     fn fill(
         noise_router: &NoiseRouter,
         block_x: i32,
         block_z: i32,
-        ws: &mut Workspace,
+        beard: Option<&Beard>,
+        fill: &mut FillBuffers,
     ) -> Option<Self> {
         let cell = noise_router.cell_size()?;
-        // Sections must tile into whole cells, and the lattice must start on
-        // one, or the eight values below would not be a cell's corners and the
-        // interval bound over them would not hold.
         if 16 % cell.x != 0 || 16 % cell.y != 0 || 16 % cell.z != 0 {
             return None;
         }
@@ -142,61 +124,142 @@ impl CellLattice {
         if noise_router.noise.min_y % 16 != 0 || height % 16 != 0 {
             return None;
         }
-        let volume = SampleGrid::new(
+        let full = SampleGrid::new(
             IVec3::new(16 / cell.x + 1, height / cell.y + 1, 16 / cell.z + 1),
             IVec3::new(block_x, noise_router.noise.min_y, block_z),
             cell,
         );
-        let inputs = noise_router.cell_inputs();
-        let width = inputs.len();
-        let rows = volume.size().y as usize;
-        let (nx, nz) = (volume.size().x, volume.size().z);
-        let mut values = vec![0.0f32; width * volume.len()];
-
-        // The node columns a neighbour already produced: the whole low plane in
-        // x, and the low plane in z above it.
-        let borrowed = (0..nz)
-            .map(|z| (0, z))
-            .chain((1..nx).map(|x| (x, 0)))
-            .collect::<Vec<_>>();
-        let shared = LATTICE_PLANES.with_borrow_mut(|planes| {
+        let cell_rows = full.size().y - 1;
+        let width = noise_router.cell_inputs().len();
+        let hint = LATTICE_PLANES.with_borrow_mut(|planes| {
             planes.retarget(noise_router);
-            borrowed.iter().all(|&(x, z)| {
-                let Some(column) = planes.get(plane_key(volume.block_x(x), volume.block_z(z)))
-                else {
-                    return false;
-                };
-                for k in 0..width {
-                    let at = k * volume.len() + volume.index_unchecked(x, 0, z);
-                    values[at..at + rows].copy_from_slice(&column[k * rows..(k + 1) * rows]);
-                }
-                true
+            borrowed_columns(&full)
+                .filter_map(|(x, z)| planes.get(plane_key(full.block_x(x), full.block_z(z))))
+                .filter_map(|column| column.len().checked_div(width))
+                .max()
+                .map(|held| held as i32 - 1)
+        });
+        let first_air =
+            noise_router.final_density_first_air_row(&mut fill.ws, &full, hint, &mut fill.columns);
+        let bearded = beard.and_then(|beard| {
+            (first_air..cell_rows).rev().find(|&cell_y| {
+                (0..full.size().z - 1).any(|cell_z| {
+                    (0..full.size().x - 1).any(|cell_x| {
+                        let world = IVec3::new(
+                            full.block_x(cell_x),
+                            full.block_y(cell_y),
+                            full.block_z(cell_z),
+                        );
+                        beard.intersects(&SampleGrid::dense(cell, world))
+                    })
+                })
             })
         });
-
-        if shared {
-            let inner = SampleGrid::new(
-                IVec3::new(nx - 1, volume.size().y, nz - 1),
-                volume.min_block() + IVec3::new(cell.x, 0, cell.z),
+        let rows = bearded.map_or(first_air, |cell_y| cell_y + 1) + 1;
+        let mut lattice = Self {
+            volume: SampleGrid::new(
+                IVec3::new(full.size().x, rows.min(full.size().y), full.size().z),
+                full.min_block(),
                 cell,
-            );
-            let mut inner_values = vec![0.0f32; width * inner.len()];
-            noise_router.fill_nodes(ws, &inner, inputs, &mut inner_values);
-            for z in 0..nz - 1 {
-                for x in 0..nx - 1 {
-                    for k in 0..width {
-                        let from = k * inner.len() + inner.index_unchecked(x, 0, z);
-                        let to = k * volume.len() + volume.index_unchecked(x + 1, 0, z + 1);
-                        values[to..to + rows].copy_from_slice(&inner_values[from..from + rows]);
-                    }
+            ),
+            cell,
+            cell_rows,
+            values: Vec::new(),
+            width,
+        };
+        lattice.compute(noise_router, fill);
+        Some(lattice)
+    }
+
+    fn holds(&self, cell_y: i32) -> bool {
+        cell_y + 1 < self.volume.size().y
+    }
+
+    fn extend(&mut self, noise_router: &NoiseRouter, fill: &mut FillBuffers) {
+        self.volume = SampleGrid::new(
+            IVec3::new(
+                self.volume.size().x,
+                self.cell_rows + 1,
+                self.volume.size().z,
+            ),
+            self.volume.min_block(),
+            self.cell,
+        );
+        self.compute(noise_router, fill);
+    }
+
+    fn compute(&mut self, noise_router: &NoiseRouter, fill: &mut FillBuffers) {
+        let volume = self.volume;
+        let FillBuffers {
+            ws,
+            columns,
+            block_values,
+            ..
+        } = fill;
+        let width = self.width;
+        let rows = volume.size().y as usize;
+        let (nx, nz) = (volume.size().x, volume.size().z);
+        let values = &mut self.values;
+        values.clear();
+        values.resize(width * volume.len(), 0.0);
+
+        let borrowed = borrowed_columns(&volume).collect::<Vec<_>>();
+        let shared = LATTICE_PLANES.with_borrow_mut(|planes| {
+            planes.retarget(noise_router);
+            let held = borrowed.iter().try_fold(rows, |low, &(x, z)| {
+                let column = planes.get(plane_key(volume.block_x(x), volume.block_z(z)))?;
+                Some(low.min(column.len().checked_div(width).unwrap_or(rows)))
+            })?;
+            for &(x, z) in &borrowed {
+                let column = planes.get(plane_key(volume.block_x(x), volume.block_z(z)))?;
+                let stride = column.len().checked_div(width).unwrap_or(rows);
+                for k in 0..width {
+                    let at = k * volume.len() + volume.index_unchecked(x, 0, z);
+                    let source = column.get(k * stride..k * stride + held)?;
+                    values.get_mut(at..at + held)?.copy_from_slice(source);
                 }
             }
-        } else {
-            noise_router.fill_nodes(ws, &volume, inputs, &mut values);
+            Some(held)
+        });
+        let filled = shared.and_then(|held| {
+            let size_y = volume.size().y;
+            let lattice = LatticeBlocks {
+                noise_router,
+                volume,
+                width,
+                columns,
+            };
+            lattice.fill(
+                ws,
+                block_values,
+                IVec3::new(1, 0, 1),
+                IVec3::new(nx - 1, size_y, nz - 1),
+                values,
+            )?;
+            let held = held as i32;
+            if held < size_y {
+                let missing = size_y - held;
+                lattice.fill(
+                    ws,
+                    block_values,
+                    IVec3::new(0, held, 0),
+                    IVec3::new(1, missing, nz),
+                    values,
+                )?;
+                lattice.fill(
+                    ws,
+                    block_values,
+                    IVec3::new(1, held, 0),
+                    IVec3::new(nx - 1, missing, 1),
+                    values,
+                )?;
+            }
+            Some(())
+        });
+        if filled.is_none() {
+            noise_router.fill_cell_inputs(ws, &volume, columns, values);
         }
 
-        // The high planes, which the neighbours after this column read as their
-        // own low ones.
         let mut column = vec![0.0f32; width * rows];
         LATTICE_PLANES.with_borrow_mut(|planes| {
             for (x, z) in (0..nz)
@@ -211,13 +274,7 @@ impl CellLattice {
             }
         });
 
-        noise_router.pin_cell_lattice(ws, &volume, &values);
-        Some(Self {
-            volume,
-            cell,
-            values,
-            width,
-        })
+        noise_router.pin_cell_lattice(ws, &volume, values);
     }
 
     fn classify(
@@ -227,12 +284,21 @@ impl CellLattice {
         fluid: &mut FluidField<'_>,
         fill: &mut FillBuffers,
     ) -> CellFill {
-        corner_bounds(&self.values, &self.volume, at, &mut fill.corners);
+        if !self.holds(at.y) {
+            return self.settle(at, fluid);
+        }
         let min = IVec3::new(
             self.volume.block_x(at.x),
             self.volume.block_y(at.y),
             self.volume.block_z(at.z),
         );
+        let air = noise_router
+            .final_density_chain_bound(&self.values, &self.volume, at, min, min + self.cell - 1)
+            .filter(|chain| chain.max() < -CELL_BOUNDS_SLACK);
+        if let Some(chain) = air {
+            return self.verdict(chain, at, fluid);
+        }
+        corner_bounds(&self.values, &self.volume, at, &mut fill.corners);
         let Some(bounds) = noise_router.final_density_cell_bounds(
             &fill.corners,
             min,
@@ -246,10 +312,6 @@ impl CellLattice {
             settled => return settled,
         }
 
-        // The hull bounds the closed cell, and the blocks stop one lattice step
-        // short of its far face. Asking again over the range they do reach is
-        // exact and settles cells the hull leaves open; it runs only here, on
-        // the few per column the first pass could not answer.
         sampled_bounds(&self.values, &self.volume, at, self.cell, &mut fill.corners);
         let Some(bounds) = noise_router.final_density_cell_bounds(
             &fill.corners,
@@ -262,45 +324,89 @@ impl CellLattice {
         self.verdict(bounds, at, fluid)
     }
 
-    /// A void cell is settled only where the fluid field is settled over it:
-    /// the barrier adds to the block's density, not to the cell's bound.
     fn verdict(&self, bounds: Interval, at: IVec3, fluid: &mut FluidField<'_>) -> CellFill {
         if bounds.min() > CELL_BOUNDS_SLACK {
             return CellFill::Solid;
         }
         if bounds.max() < -CELL_BOUNDS_SLACK {
-            let min = IVec3::new(
-                self.volume.block_x(at.x),
-                self.volume.block_y(at.y),
-                self.volume.block_z(at.z),
-            );
-            return match fluid.settle(min, min + self.cell - 1) {
-                Some(status) => CellFill::Uniform(status),
-                None => CellFill::Mixed,
-            };
+            return self.settle(at, fluid);
         }
         CellFill::Mixed
     }
+
+    fn settle(&self, at: IVec3, fluid: &mut FluidField<'_>) -> CellFill {
+        let min = IVec3::new(
+            self.volume.block_x(at.x),
+            self.volume.block_y(at.y),
+            self.volume.block_z(at.z),
+        );
+        match fluid.settle(min, min + self.cell - 1) {
+            Some(status) => CellFill::Uniform(status),
+            None => CellFill::Mixed,
+        }
+    }
 }
 
-/// A strip whose blocks are all air.
+fn borrowed_columns(volume: &SampleGrid) -> impl Iterator<Item = (i32, i32)> {
+    let (nx, nz) = (volume.size().x, volume.size().z);
+    (0..nz).map(|z| (0, z)).chain((1..nx).map(|x| (x, 0)))
+}
+
+struct LatticeBlocks<'a> {
+    noise_router: &'a NoiseRouter,
+    volume: SampleGrid,
+    width: usize,
+    columns: &'a ColumnBoundScratch,
+}
+
+impl LatticeBlocks<'_> {
+    fn fill(
+        &self,
+        ws: &mut Workspace,
+        block_values: &mut Vec<f32>,
+        origin: IVec3,
+        size: IVec3,
+        values: &mut [f32],
+    ) -> Option<()> {
+        let volume = &self.volume;
+        let block = SampleGrid::new(
+            size,
+            IVec3::new(
+                volume.block_x(origin.x),
+                volume.block_y(origin.y),
+                volume.block_z(origin.z),
+            ),
+            volume.step_block(),
+        );
+        block_values.clear();
+        block_values.resize(self.width * block.len(), 0.0);
+        self.noise_router
+            .fill_cell_inputs(ws, &block, self.columns, block_values);
+        let rows = size.y as usize;
+        for z in 0..size.z {
+            for x in 0..size.x {
+                for k in 0..self.width {
+                    let from = k * block.len() + block.index_unchecked(x, 0, z);
+                    let to = k * volume.len()
+                        + volume.index_unchecked(origin.x + x, origin.y, origin.z + z);
+                    let source = block_values.get(from..from + rows)?;
+                    values.get_mut(to..to + rows)?.copy_from_slice(source);
+                }
+            }
+        }
+        Some(())
+    }
+}
+
 pub const NO_TOP: i32 = i32::MIN;
 
-/// What one dense fill of a column leaves behind besides the blocks themselves.
 pub struct FilledColumn<'a> {
     pub biomes: Vec<BiomePalette>,
-    /// Highest non-air block per strip, indexed `z * 16 + x`, `NO_TOP` where
-    /// the strip holds none.
     pub tops: [i32; 256],
-    /// Whether the material rules run for the column: a multi-noise source
-    /// with a table and a fixed source, never a Beta column.
     pub material_surface: bool,
-    /// The fluid field over the column, for the stages after the fill that
-    /// still ask it.
     pub fluid: FluidField<'a>,
 }
 
-/// Buffers every fill in a chunk column reuses.
 #[derive(Default)]
 struct FillBuffers {
     ws: Workspace,
@@ -308,19 +414,16 @@ struct FillBuffers {
     barrier: Vec<f32>,
     corners: Vec<Interval>,
     cell_terms: Vec<Interval>,
+    columns: ColumnBoundScratch,
+    block_values: Vec<f32>,
 }
 
-/// Place `final_density` over a whole chunk column.
-///
-/// The corner lattice is the pass-through case of the fill — every
-/// `interpolated` wrapper hands its input straight back — so one fill over the
-/// column settles most cells outright from interval arithmetic over their eight
-/// corners, and only the rest are filled block by block.
-///
-/// Returns `false` if the column was cancelled part-way.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the column and its block position, the noise router, the tops and fluid the fill writes, the beard and the cancel token of one column fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column fill"
+    )
 )]
 fn fill_column(
     column: &ColumnBlocks,
@@ -335,7 +438,8 @@ fn fill_column(
     let default_block = noise_router.default_block_state;
     let mut fill = FillBuffers::default();
 
-    let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.ws) else {
+    let Some(mut lattice) = CellLattice::fill(noise_router, block_x, block_z, beard, &mut fill)
+    else {
         return fill_column_dense(
             column,
             block_x,
@@ -357,7 +461,7 @@ fn fill_column(
             return false;
         }
         for cell_x in 0..lattice.volume.size().x - 1 {
-            for cell_y in (0..lattice.volume.size().y - 1).rev() {
+            for cell_y in (0..lattice.cell_rows).rev() {
                 let at = IVec3::new(cell_x, cell_y, cell_z);
                 let world = IVec3::new(
                     lattice.volume.block_x(cell_x),
@@ -369,13 +473,14 @@ fn fill_column(
                 };
                 let base = IVec3::new(cell_x * cell.x, world.y.rem_euclid(16), cell_z * cell.z);
                 let grid = SampleGrid::dense(cell, world);
-                // The interval bound knows nothing of the beard, which is exactly
-                // zero only outside its affected box.
                 let verdict = if beard.is_some_and(|beard| beard.intersects(&grid)) {
                     CellFill::Mixed
                 } else {
                     lattice.classify(noise_router, at, fluid, &mut fill)
                 };
+                if verdict == CellFill::Mixed && !lattice.holds(cell_y) {
+                    lattice.extend(noise_router, &mut fill);
+                }
                 match verdict {
                     CellFill::Solid => {
                         fill_cell_box(column, index, base, cell, default_block);
@@ -412,10 +517,12 @@ fn fill_column(
     true
 }
 
-/// The block-by-block fallback for a router whose cells do not tile a section.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the column and its block position, the noise router, the tops and fluid the fill writes, the beard, the reused buffers and the cancel token of one dense column fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one dense column fill"
+    )
 )]
 fn fill_column_dense(
     column: &ColumnBlocks,
@@ -457,9 +564,6 @@ fn fill_column_dense(
     true
 }
 
-/// Settle every strip a whole-class cell covers at the highest block its box
-/// actually reaches, which for a sea cell is one below sea level rather than
-/// the cell top.
 fn record_tops(tops: &mut [i32; 256], base: IVec3, cell: IVec3, top: i32) {
     for z in base.z..base.z + cell.z {
         for x in base.x..base.x + cell.x {
@@ -482,9 +586,12 @@ fn fill_cell_box(column: &ColumnBlocks, index: usize, base: IVec3, cell: IVec3, 
     );
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the column and the sampled volume with its index and origin, the noise router, the tops, fluid and beard, and the buffers one block fill reuses"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one block fill"
+    )
 )]
 fn fill_blocks(
     column: &ColumnBlocks,
@@ -507,27 +614,32 @@ fn fill_blocks(
     density.clear();
     density.resize(volume.len(), 0.0);
     noise_router
-        .program
+        .program()
         .fill(ws, volume, FINAL_DENSITY, density);
     if let Some(beard) = beard {
         beard.fill(volume, density);
     }
     let mut barrier_at = volume_barrier(noise_router, ws, volume, barrier);
+    let min = volume.min_block();
+    let settled = fluid.settle(min, min + volume.size() - 1);
     for z in 0..volume.size().z {
         for x in 0..volume.size().x {
             for y in (0..volume.size().y).rev() {
                 let value = density[volume.index_unchecked(x, y, z)];
                 let (px, py, pz) = (origin.x + x, origin.y + y, origin.z + z);
                 let world = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
-                let state = column_block(
-                    default_block,
-                    value,
-                    fluid,
-                    world.x,
-                    world.y,
-                    world.z,
-                    &mut barrier_at,
-                );
+                let state = match settled {
+                    Some(status) if value <= 0.0 => status.at(world.y),
+                    _ => column_block(
+                        default_block,
+                        value,
+                        fluid,
+                        world.x,
+                        world.y,
+                        world.z,
+                        &mut barrier_at,
+                    ),
+                };
                 if state != VoxelId(0) {
                     column.set_in_section(index, px, py, pz, state);
                     let slot = &mut tops[(pz * 16 + px) as usize];
@@ -538,9 +650,6 @@ fn fill_blocks(
     }
 }
 
-/// The barrier noise over the whole box, sampled on the first block whose
-/// pressure asks for it; the shell asks in runs, one point at a time would
-/// pay the fill's setup per block.
 fn volume_barrier<'a>(
     noise_router: &'a NoiseRouter,
     ws: &'a mut Workspace,
@@ -548,12 +657,12 @@ fn volume_barrier<'a>(
     barrier: &'a mut Vec<f32>,
 ) -> impl FnMut(i32, i32, i32) -> f64 + 'a {
     barrier.clear();
-    let barrier_root = noise_router.aquifer.as_ref().map(|aquifer| aquifer.barrier);
+    let barrier_root = noise_router.aquifer().map(|aquifer| aquifer.barrier);
     move |bx: i32, by: i32, bz: i32| {
         if barrier.is_empty() {
             barrier.resize(volume.len(), 0.0);
             let root = barrier_root.expect("only a field with a barrier asks for it");
-            noise_router.program.fill(ws, volume, root, barrier);
+            noise_router.program().fill(ws, volume, root, barrier);
         }
         let at = volume
             .index_of_block(bx, by, bz)
@@ -562,7 +671,6 @@ fn volume_barrier<'a>(
     }
 }
 
-/// The block the terrain fill places at one position: `VoxelId(0)` is air.
 fn column_block(
     default_block: VoxelId,
     density: f32,
@@ -570,7 +678,7 @@ fn column_block(
     x: i32,
     y: i32,
     z: i32,
-    barrier: &mut dyn FnMut(i32, i32, i32) -> f64,
+    barrier: &mut impl FnMut(i32, i32, i32) -> f64,
 ) -> VoxelId {
     if density > 0.0 {
         return default_block;
@@ -589,8 +697,6 @@ pub fn heightmap_kind(name: HeightmapName) -> HeightmapKinds {
     }
 }
 
-/// What the unfilled terrain column answers a heightmap with: any block for
-/// the surface maps, solid terrain alone for every other, fluids never.
 pub fn first_free_kind(name: HeightmapName) -> HeightmapKinds {
     match name {
         HeightmapName::WorldSurfaceWg | HeightmapName::WorldSurface => HeightmapKinds::SURFACE,
@@ -598,16 +704,17 @@ pub fn first_free_kind(name: HeightmapName) -> HeightmapKinds {
     }
 }
 
-/// One above the topmost block of the unfilled terrain column at `(x, z)`
-/// satisfying `kind`, over the noise range clipped to the accessor range, or
-/// the floor of that range when no block does.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the noise router and its workspace, the predicates and kind of the heightmap, the column, and the accessor's bottom and height of one height query"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one height query"
+    )
 )]
 pub fn base_height(
     router: &NoiseRouter,
     ws: &mut Workspace,
+    lattice: &mut ProbeLattice,
     predicates: &HeightmapPredicates,
     kind: HeightmapKinds,
     x: i32,
@@ -615,18 +722,17 @@ pub fn base_height(
     accessor_min_y: i32,
     accessor_height: i32,
 ) -> i32 {
-    let (min_y, column) = base_column(router, ws, x, z, accessor_min_y, accessor_height);
+    let (min_y, column) = base_column(router, ws, lattice, x, z, accessor_min_y, accessor_height);
     column
         .iter()
         .rposition(|state| predicates.get(*state).contains(kind))
         .map_or(min_y, |index| min_y + index as i32 + 1)
 }
 
-/// `getBaseColumn`: the unfilled terrain column at `(x, z)` over the noise
-/// range clipped to the accessor range, bottom up from the returned floor.
 pub fn base_column(
     router: &NoiseRouter,
     ws: &mut Workspace,
+    lattice: &mut ProbeLattice,
     x: i32,
     z: i32,
     accessor_min_y: i32,
@@ -641,14 +747,17 @@ pub fn base_column(
     }
     let volume = SampleGrid::dense(IVec3::new(1, height, 1), IVec3::new(x, min_y, z));
     let mut density = vec![0.0f32; volume.len()];
+    lattice.pin(router, ws, x, z);
     router
-        .program
+        .program()
         .fill(ws, &volume, FINAL_DENSITY, &mut density);
-    let mut fluid = FluidField::new(
-        router,
+    let (min, max) = (
         IVec3::new(x, min_y, z),
         IVec3::new(x, min_y + height - 1, z),
     );
+    let mut cells = AquiferCells::default();
+    let mut fluid = SURFACE_LEVELS
+        .with_borrow_mut(|levels| FluidField::new(router, levels, &mut cells, min, max));
     let mut barrier_buffer = Vec::new();
     let mut barrier_at = volume_barrier(router, ws, &volume, &mut barrier_buffer);
     let mut column = vec![VoxelId(0); height as usize];
@@ -663,11 +772,10 @@ pub fn base_column(
             &mut barrier_at,
         );
     }
+    SURFACE_LEVELS.with_borrow_mut(|levels| fluid.keep_surface_levels(levels));
     (min_y, column)
 }
 
-/// What a column's biomes are read from, every biome id already narrowed to
-/// the byte a palette stores.
 #[derive(Clone, Default)]
 pub enum ColumnBiomes {
     #[default]
@@ -675,6 +783,7 @@ pub enum ColumnBiomes {
     MultiNoise(Arc<MultiNoiseBiomeTable>),
     Fixed(u8),
     Beta(BetaBiomes),
+    TheEnd(EndBiomes<u8>),
 }
 
 #[derive(Clone)]
@@ -691,11 +800,10 @@ impl BetaBiomes {
 }
 
 impl ColumnBiomes {
-    /// A multi-noise source answers through `multi_noise`, and with no table
-    /// it answers nothing.
     pub fn new(
         source: Option<&BiomeSource>,
         multi_noise: Option<Arc<MultiNoiseBiomeTable>>,
+        end: Option<EndBiomes>,
     ) -> Result<Self, NarrowError> {
         Ok(match source {
             Some(BiomeSource::MultiNoise(_)) => multi_noise.map_or(Self::None, Self::MultiNoise),
@@ -713,42 +821,61 @@ impl ColumnBiomes {
                     lookup: Arc::clone(lookup),
                 })
             }
+            Some(BiomeSource::TheEnd) => match end {
+                Some(end) => Self::TheEnd(end.try_map(narrow_biome_number)?),
+                None => Self::None,
+            },
             _ => Self::None,
         })
     }
 }
 
-/// One `BiomePalette` per section of the column, empty when no source can
-/// answer for the position.
-///
-/// Every source stores block-resolution containers: a quart grid is upscaled
-/// with the game's zoom, and a fixed source is one value per section.
+fn narrow_biome_number(number: u16) -> Result<u8, NarrowError> {
+    u8::try_from(number).map_err(|_| NarrowError {
+        registry: BIOME.location().to_string(),
+        id: number,
+        bits: u8::BITS,
+    })
+}
+
 fn column_biome_palettes(
     noise_router: &NoiseRouter,
     biomes: &ColumnBiomes,
+    climate: Option<&ClimateBox>,
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
 ) -> (Vec<BiomePalette>, bool) {
     match biomes {
-        ColumnBiomes::MultiNoise(table) => (
-            multi_noise_palettes(noise_router, table, block_x, block_z, y_sections),
-            true,
-        ),
+        ColumnBiomes::MultiNoise(table) => {
+            let palettes =
+                multi_noise_palettes(noise_router, table, climate, block_x, block_z, y_sections);
+            (palettes, true)
+        }
         ColumnBiomes::Fixed(biome) => (
             vec![BiomePalette::homogeneous(*biome); y_sections.len()],
             true,
         ),
         ColumnBiomes::Beta(beta) => {
             let grid = beta_biome_grid(noise_router, beta, block_x, block_z);
-            (upscale_column(&grid, noise_router, y_sections), false)
+            (
+                upscale_column(grid.window(), noise_router, y_sections),
+                false,
+            )
+        }
+        ColumnBiomes::TheEnd(end) => {
+            let palettes = end_biome_grid(noise_router, end, block_x, block_z, y_sections)
+                .map_or_else(Vec::new, |grid| {
+                    upscale_column(grid.window(), noise_router, y_sections)
+                });
+            (palettes, true)
         }
         ColumnBiomes::None => (vec![BiomePalette::default(); y_sections.len()], false),
     }
 }
 
 fn upscale_column(
-    grid: &BiomeGrid,
+    grid: BiomeWindow<'_>,
     noise_router: &NoiseRouter,
     y_sections: &[i32],
 ) -> Vec<BiomePalette> {
@@ -759,70 +886,73 @@ fn upscale_column(
     FIDDLE.with_borrow_mut(|fiddle| upscale_biomes(grid, zoom_seed, y_sections, fiddle))
 }
 
-/// The stored containers of a multi-noise column: the quart grid of
-/// `multi_noise_grid` upscaled to block resolution.
 pub fn multi_noise_palettes(
     noise_router: &NoiseRouter,
     table: &MultiNoiseBiomeTable,
+    climate: Option<&ClimateBox>,
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
 ) -> Vec<BiomePalette> {
-    let Some(grid) = multi_noise_grid(noise_router, table, block_x, block_z, y_sections) else {
-        return Vec::new();
-    };
-    upscale_column(&grid, noise_router, y_sections)
+    let upscale = |window: BiomeWindow<'_>| upscale_column(window, noise_router, y_sections);
+    with_column_window(
+        noise_router,
+        table,
+        climate,
+        block_x,
+        block_z,
+        y_sections,
+        upscale,
+    )
+    .unwrap_or_default()
 }
 
-/// The quart grid of a multi-noise column: its own rows, and one cell of ring
-/// on each horizontal side.
-///
-/// The ring is horizontal: above and below the column a pick reads the edge
-/// row, so the grid holds the column's own rows only.
-///
-/// The density program fills a whole strided volume in one pass, so asking for
-/// the column's cells at once costs a fraction of evaluating them one by one.
 pub fn multi_noise_grid(
     noise_router: &NoiseRouter,
     table: &MultiNoiseBiomeTable,
+    climate: Option<&ClimateBox>,
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
 ) -> Option<BiomeGrid> {
-    let (&first, &last) = (y_sections.first()?, y_sections.last()?);
-    let volume = SampleGrid::new(
-        IVec3::new(6, (last - first + 1) * 4, 6),
-        IVec3::new(block_x - 4, first * 16, block_z - 4),
-        IVec3::splat(4),
-    );
-    let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
-    let points = volume.len();
-    let mut values = vec![0.0f32; roots.len() * points];
-    let mut ws = Workspace::new();
-    noise_router.fill_roots(&mut ws, &volume, &roots, &mut values);
-
-    let mut last = None;
-    let mut ids = Vec::with_capacity(points);
-    for at in 0..points {
-        ids.push(table.biome_at_from(
-            TargetPoint::new(
-                values[at],
-                values[points + at],
-                values[2 * points + at],
-                values[3 * points + at],
-                values[4 * points + at],
-                values[5 * points + at],
-            ),
-            &mut last,
-        )?);
-    }
-
-    Some(BiomeGrid { volume, ids })
+    let copy = |window: BiomeWindow<'_>| window.to_grid();
+    with_column_window(
+        noise_router,
+        table,
+        climate,
+        block_x,
+        block_z,
+        y_sections,
+        copy,
+    )
 }
 
-/// The quart grid of a Beta column: one row, its own sixteen cells and the ring
-/// of twenty around them, each the biome its climate answers at the position
-/// the column owning that cell samples it at.
+fn with_column_window<R>(
+    noise_router: &NoiseRouter,
+    table: &MultiNoiseBiomeTable,
+    climate: Option<&ClimateBox>,
+    block_x: i32,
+    block_z: i32,
+    y_sections: &[i32],
+    lend: impl FnOnce(BiomeWindow<'_>) -> R,
+) -> Option<R> {
+    if (block_x | block_z) & 15 != 0 {
+        return None;
+    }
+    let col = ColumnPos::new(block_x >> 4, block_z >> 4);
+    let (&first, &last) = (y_sections.first()?, y_sections.last()?);
+    let spans_sections = |window: &BiomeWindow<'_>| {
+        let volume = window.volume();
+        volume.min_block().y == first * 16 && volume.size().y == (last - first + 1) * 4
+    };
+    let shared = climate.and_then(|climate| climate.window(col));
+    if let Some(window) = shared.filter(spans_sections) {
+        return Some(lend(window));
+    }
+    let alone = ClimateBox::sample(noise_router, table, [col], y_sections)?;
+    Some(lend(alone.window(col)?))
+}
+
 pub fn beta_biome_grid(
     noise_router: &NoiseRouter,
     beta: &BetaBiomes,
@@ -848,11 +978,6 @@ pub fn beta_biome_grid(
     BiomeGrid { volume, ids }
 }
 
-/// The per-chunk seed Beta derives for its population passes: two odd multipliers
-/// drawn once from the world seed, dotted with the chunk coordinate.
-///
-/// Caves feed it the *neighbouring* chunk they are carving from, ores the chunk
-/// itself, so the coordinate is a parameter rather than the chunk under work.
 pub fn beta_chunk_seed(world_seed: i64, chunk_x: i32, chunk_z: i32) -> i64 {
     let mut rng = LegacyRandom::new(world_seed as u64);
     let x_multiplier = rng.next_java_long() / 2 * 2 + 1;
@@ -863,14 +988,6 @@ pub fn beta_chunk_seed(world_seed: i64, chunk_x: i32, chunk_z: i32) -> i64 {
         ^ world_seed
 }
 
-/// Generate all sections in a column.
-///
-/// `final_density` is filled once over the whole column, then walked as a single
-/// z, x, descending-y sweep over its cells.
-///
-/// A column `cancel` stops part-way returns `None` for every section: one
-/// column-wide fill leaves no section boundary at which a partial result is
-/// meaningful.
 #[cfg_attr(
     feature = "telemetry-tracy",
     tracing::instrument(name = "world::column_gen", skip_all)
@@ -884,13 +1001,16 @@ pub fn generate_column(
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     let mut column = ColumnBlocks::new(y_sections);
+    let mut cells = AquiferCells::default();
     let Some(filled) = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
         y_sections,
         noise_router,
+        &mut cells,
         biomes,
+        None,
         None,
         cancel,
     ) else {
@@ -900,14 +1020,12 @@ pub fn generate_column(
     column.into_sections(&filled.biomes)
 }
 
-/// Fill a column densely from the density graph, for every preset.
-///
-/// Beta is data here like any other preset: `beta.json` describes its terrain as
-/// density functions, so it runs the same graph, the same cell fill and the same
-/// packing as the overworld. `None` means the column was cancelled.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the column and its section position and list, the noise router, the biomes, the beard and the cancel token of one dense fill"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one dense fill"
+    )
 )]
 pub fn fill_column_dense_any<'a>(
     column: &mut ColumnBlocks,
@@ -915,18 +1033,20 @@ pub fn fill_column_dense_any<'a>(
     section_z: i32,
     y_sections: &[i32],
     noise_router: &'a NoiseRouter,
+    cells: &'a mut AquiferCells,
     biomes: &ColumnBiomes,
+    climate: Option<&ClimateBox>,
     beard: Option<&Beard>,
     cancel: &CancellationToken,
 ) -> Option<FilledColumn<'a>> {
     let block_x = section_x * 16;
     let block_z = section_z * 16;
     let (biomes, material_surface) =
-        column_biome_palettes(noise_router, biomes, block_x, block_z, y_sections);
+        column_biome_palettes(noise_router, biomes, climate, block_x, block_z, y_sections);
     column.reset(y_sections);
 
     let mut tops = [NO_TOP; 256];
-    let mut fluid = column_fluid_field(noise_router, block_x, block_z);
+    let mut fluid = column_fluid_field(noise_router, cells, block_x, block_z);
     if !fill_column(
         column,
         block_x,
@@ -939,6 +1059,7 @@ pub fn fill_column_dense_any<'a>(
     ) {
         return None;
     }
+    SURFACE_LEVELS.with_borrow_mut(|levels| fluid.keep_surface_levels(levels));
     Some(FilledColumn {
         biomes,
         tops,
@@ -947,43 +1068,70 @@ pub fn fill_column_dense_any<'a>(
     })
 }
 
-/// The fluid field over one chunk column of the dimension's whole height.
-pub fn column_fluid_field(
-    noise_router: &NoiseRouter,
+pub fn column_fluid_field<'a>(
+    noise_router: &'a NoiseRouter,
+    cells: &'a mut AquiferCells,
     block_x: i32,
     block_z: i32,
-) -> FluidField<'_> {
-    let min_y = noise_router.noise.min_y;
-    FluidField::new(
+) -> FluidField<'a> {
+    let (min, max) = fill_bounds(noise_router, block_x, block_z, block_x, block_z);
+    SURFACE_LEVELS.with_borrow_mut(|levels| FluidField::new(noise_router, levels, cells, min, max))
+}
+
+pub fn cover_fill_group(
+    noise_router: &NoiseRouter,
+    columns: impl IntoIterator<Item = ColumnPos>,
+    cells: &mut AquiferCells,
+) {
+    let mut columns = columns.into_iter();
+    let Some(first) = columns.next() else {
+        return;
+    };
+    let (low, high) = columns.fold((first, first), |(low, high), col| {
+        (
+            ColumnPos::new(low.x.min(col.x), low.z.min(col.z)),
+            ColumnPos::new(high.x.max(col.x), high.z.max(col.z)),
+        )
+    });
+    let (min, max) = fill_bounds(
         noise_router,
-        IVec3::new(block_x, min_y, block_z),
+        low.x * 16,
+        low.z * 16,
+        high.x * 16,
+        high.z * 16,
+    );
+    cells.cover(noise_router, min, max);
+}
+
+fn fill_bounds(
+    noise_router: &NoiseRouter,
+    low_x: i32,
+    low_z: i32,
+    high_x: i32,
+    high_z: i32,
+) -> (IVec3, IVec3) {
+    let min_y = noise_router.noise.min_y;
+    (
+        IVec3::new(low_x, min_y, low_z),
         IVec3::new(
-            block_x + 15,
+            high_x + 15,
             min_y + noise_router.noise.height as i32 - 1,
-            block_z + 15,
+            high_z + 15,
         ),
     )
 }
 
-/// Apply the Beta surface pass to a generated chunk column.
-///
 pub fn beta_surface_rng(chunk_x: i32, chunk_z: i32) -> LegacyRandom {
     LegacyRandom::large_feature_with_salt(0, chunk_x, chunk_z, 0)
 }
 
-/// Ports replaceBlocksForBiome from back2beta with a single per-chunk LegacyRandom
-/// that drives both the surface depth, beach conditions, and the bedrock Y 0-4
-/// probabilistic check — all interleaved in back2beta's exact column iteration order.
-///
-/// The caller seeds `rng` once per chunk with [`beta_surface_rng`].
-/// `rng` must be threaded across section calls so the stream is continuous.
 #[expect(
     clippy::too_many_lines,
-    reason = "one pass over the columns in back2beta's iteration order, interleaving the surface depth, beach and bedrock draws on one random stream"
+    reason = "one pass keeps the draws on one random stream in order"
 )]
 #[expect(
     clippy::excessive_nesting,
-    reason = "branches on back2beta's per-column depth cases inside the one pass, because its surface, beach and bedrock draws interleave on one generator"
+    reason = "the depth cases share one random stream in one pass"
 )]
 pub fn apply_beta_surface(
     column: &ColumnBlocks,
@@ -998,7 +1146,6 @@ pub fn apply_beta_surface(
         return;
     };
 
-    // back2beta's replaceBlocksForBiome reads biomes via getBiomeFromLookup (quantized).
     let BiomeSource::Beta {
         lookup: beta_lookup,
         ..
@@ -1018,20 +1165,6 @@ pub fn apply_beta_surface(
 
     const D0: f64 = 0.03125;
 
-    // Three 16x16 grids, indexed geographically as x * 16 + z. Beta permutes the
-    // axes: world Z goes to the noise's y argument and its own z is pinned to
-    // zero, so the walk is x outer and world Z inner, which is the index order
-    // the arrays want anyway.
-    //
-    //   r: `n.a(r, i*16, jj*16, 0.0, 16, 16, 1, d0, d0, 1.0)`       sand and gravel
-    //   s: `n.a(s, i*16, 109.0134, jj*16, 16, 1, 16, d0, 1.0, d0)`  gravel override
-    //   t: `o.a(t, i*16, jj*16, 0.0, 16, 16, 1, d0*2, d0*2, d0*2)`  surface depth
-    //
-    // r and t go through the grid fill because Beta's reuse of a lattice cell's
-    // corner dots makes that fill depend on the grid and not only on the
-    // position. `s` has ySize 1, so Beta takes the branch that drops the y
-    // offset entirely — the 109.0134 never reaches the lattice — and that branch
-    // is an ordinary function of x and z.
     let (mut r, mut t) = ([0.0f32; 256], [0.0f32; 256]);
     let offset = [block_x as f64, block_z as f64, 0.0];
     beta.beach
@@ -1051,14 +1184,10 @@ pub fn apply_beta_surface(
     let (temperatures, humidities) =
         noise_router.sample_beta_climate_grids(&mut ws, block_x, block_z);
 
-    // back2beta replaceBlocksForBiome: outer loop kk=0..16 is Z, inner ll=0..16 is X.
-    // Noise arrays r/s/t are filled at index x*16+z (geographic) and read at ll*16+kk
-    // = x*16+z — the same geographic index. Climate is sampled at geographic (wx, wz).
     for z_local in 0..16i32 {
         for x_local in 0..16i32 {
             let idx = (x_local * 16 + z_local) as usize;
 
-            // Three RNG draws per column matching Java's Random.nextDouble() exactly.
             let flag = r[idx] as f64 + rng.next_f64() * 0.2 > 0.0;
             let flag1 = s[idx] as f64 + rng.next_f64() * 0.2 > 3.0;
             let i1 = (t[idx] as f64 / 3.0 + 3.0 + rng.next_f64() * 0.25) as i32;
@@ -1071,17 +1200,12 @@ pub fn apply_beta_surface(
                 VoxelId::from(filler_block.number()),
             );
 
-            // j1 in back2beta: depth counter, -1 means "not yet in surface layer".
             let mut j1: i32 = -1;
-            // Mutable top/filler for current Y zone (back2beta: b1, b2).
             let mut b1 = top_block;
             let mut b2 = filler_block;
             let air = VoxelId(0);
 
-            // Sweep from world Y=127 down to 0 (back2beta: k1 = 127..=0).
-            // Bedrock check is interleaved inside this loop.
             for k1 in (0i32..=127).rev() {
-                // Bedrock check (back2beta: k1 <= 0 + this.j.nextInt(5)).
                 if k1 <= rng.next_i32_bound(5) {
                     column.set(x_local, k1, z_local, bedrock);
                 } else {
@@ -1089,7 +1213,7 @@ pub fn apply_beta_surface(
 
                     let current_id = match current_id {
                         Some(id) => id,
-                        None => continue, // section not present — skip
+                        None => continue,
                     };
 
                     if current_id == air {
@@ -1135,8 +1259,6 @@ pub fn apply_beta_surface(
                 }
             }
 
-            // back2beta fillDensityTerrain: if d17 < 0.5 && Y == sea_level-1, replace
-            // water with ice. No RNG consumed — must stay after all bedrock draws.
             if temp < 0.5 {
                 let ice_y = sea_level - 1;
                 if column.get(x_local, ice_y, z_local) == Some(default_fluid) {
@@ -1165,20 +1287,34 @@ fn beta_surface_blocks(
 }
 
 pub mod block_state;
+pub mod dimension_plan;
+mod end_biome_grid;
+mod flat_world;
+pub mod plan_error;
+pub mod world_tables;
+pub mod world_tables_error;
+use end_biome_grid::end_biome_grid;
 pub mod column_blocks;
-pub mod saved;
 pub mod task;
+pub mod template_names;
 pub use column_blocks::ColumnBlocks;
+mod generate_area;
+pub use generate_area::generate_area;
 pub mod beta_caves;
 pub use beta_caves::{BetaCaveBlockIds, apply_beta_carvers};
 pub mod beta_ores;
 pub(crate) mod biome_upscale;
+mod biome_window;
+pub use biome_window::BiomeWindow;
+mod climate_box;
+pub use climate_box::ClimateBox;
 pub mod feature_program;
 pub mod features;
 pub mod flat;
 pub mod ids;
 pub mod modern_carvers;
 pub mod multi_noise_biomes;
+pub mod probe_lattice;
 pub mod routers;
 pub mod stages;
 pub mod staging;

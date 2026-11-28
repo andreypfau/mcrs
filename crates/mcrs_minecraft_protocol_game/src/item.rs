@@ -1,23 +1,8 @@
 pub use crate::trade::{ItemCost, MerchantOffer};
 pub use crate::wire_lookup::WireLookup;
 pub use mcrs_minecraft_item::kind::decode_component_value;
-pub use mcrs_minecraft_item::patch::{decode_delimited_patch, encode_delimited_patch};
-pub use mcrs_minecraft_item::stack::{DelimitedStack, HashedStack};
 pub use mcrs_minecraft_item::*;
 pub use mcrs_minecraft_item::{component, harness, hash_ops, kind, patch, stack};
-
-use mcrs_minecraft_protocol::{Decode, Encode};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
-pub enum ContainerInput {
-    Pickup,
-    QuickMove,
-    Swap,
-    Clone,
-    Throw,
-    QuickCraft,
-    PickupAll,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]

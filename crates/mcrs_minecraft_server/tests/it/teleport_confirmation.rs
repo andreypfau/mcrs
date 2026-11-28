@@ -1,5 +1,3 @@
-//! The rules of `docs/spec/teleport-confirmation.md`, driven by a scripted client.
-
 use bevy_app::Last;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
@@ -29,7 +27,6 @@ fn capture(mut packets: MessageReader<OutboundPlayerPacket>, mut captured: ResMu
     captured.0.extend(packets.read().cloned());
 }
 
-/// A server with one joined player, whose login teleport is pending.
 struct Client {
     server: PlayServer,
     anchor: Entity,
@@ -65,7 +62,6 @@ impl Client {
         client
     }
 
-    /// The packets the dimension sent to the player since the last call.
     fn packets(&mut self) -> Vec<PacketPayload> {
         let session = self.server.session_of(self.anchor).unwrap();
         std::mem::take(&mut self.server.world().resource_mut::<Captured>().0)
@@ -85,7 +81,6 @@ impl Client {
             .collect()
     }
 
-    /// The reason of a disconnect the dimension sent since the last call, as debug text.
     fn disconnect(&mut self) -> Option<String> {
         self.packets().into_iter().find_map(|packet| match packet {
             PacketPayload::Disconnect(reason) => Some(format!("{reason:?}")),
@@ -123,7 +118,6 @@ impl Client {
         );
     }
 
-    /// Sends a move and answers whether it moved the player there.
     fn step_applies(&mut self) -> bool {
         let to = self.position() + DVec3::X;
         self.step(to);
@@ -215,8 +209,6 @@ fn a_move_resends_the_pending_teleport_each_21_ticks() {
     assert_eq!(client.position(), destination, "TP-CONFIRM-MOV-001");
 }
 
-/// This server checks an accept against the destination (deviation D8 of `movement-checks.md`), so
-/// an accept 5 blocks away gets a correction as one 1000 blocks away does.
 #[test]
 fn an_accept_away_from_the_destination_gets_a_correction_each_time() {
     let mut client = Client::join();

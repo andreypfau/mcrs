@@ -1,11 +1,11 @@
-# Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 [package]
 name = "mcrs_minecraft_registry_catalog"
-description = "The entries of every static registry"
+description = "The STATIC_REGISTRIES table: the entry locations of every static registry"
 version.workspace = true
 edition.workspace = true
 
 [lib]
+test = false
 doctest = false
 
 [lints]
@@ -20,21 +20,19 @@ mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_item_stack.workspace = true
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_loot.workspace = true
 mcrs_minecraft_map_decoration.workspace = true
-mcrs_minecraft_menu.workspace = true
+mcrs_minecraft_menu_key.workspace = true
 mcrs_minecraft_particle.workspace = true
 mcrs_minecraft_potion.workspace = true
 mcrs_minecraft_predicate.workspace = true
 mcrs_minecraft_recipe.workspace = true
-mcrs_minecraft_sound.workspace = true
+mcrs_minecraft_sound = { workspace = true, features = ["registry"] }
 mcrs_minecraft_value_provider.workspace = true
-
-[dev-dependencies]
-serde.workspace = true
-serde_json.workspace = true

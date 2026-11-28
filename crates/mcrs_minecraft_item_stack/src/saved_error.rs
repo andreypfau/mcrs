@@ -5,48 +5,29 @@ use crate::BuiltinKey;
 use crate::ComponentType;
 use crate::NameTable;
 
-/// Why the saved form of a stack was not read or not written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SavedError {
-    /// `id` is absent, or is not a string that holds an identifier.
     BadItemId,
-    /// `id` names no item.
     UnknownItem,
-    /// `id` names air. The saved stack has no form for the empty stack.
     AirItem,
-    /// `count` is not a number, or is out of `1..=99` after the conversion to an int.
     BadCount,
-    /// `Slot` is not a byte.
     BadSlot,
-    /// `components` is not a map.
     BadPatch,
-    /// A key of the patch is not an identifier, with or without the removal marker `!`.
     BadKey,
-    /// A key of the patch names no component type.
     UnknownComponentType,
-    /// The value of a removal key `!<type>` is not a map.
     BadRemovalValue,
-    /// An earlier key of the same kind, value or removal, names the same component type.
     RepeatedKey,
-    /// The value of this component type has a tag of the wrong kind, lacks a necessary field,
-    /// holds a string that is not a name of its list, or holds one entry two times.
     BadValue(BuiltinKey),
-    /// A number of this component type is out of the range of its saved form.
     OutOfRange(BuiltinKey),
-    /// The value of this component type names an entry that the table does not have.
     UnknownEntry {
         component: BuiltinKey,
         table: NameTable,
     },
-    /// The stack holds a numeric id that has no name in the table.
     UnnamedId(NameTable),
-    /// The bytes of an undecoded patch entry are not one NBT value, or an NBT value of the input
-    /// has no bytes.
     BadUndecodedBytes,
-    /// The patch holds only the wire form of a component of this type, which has no saved form
-    /// here.
     WireValueOnly(ComponentType),
+    TooDeep,
 }
 
 impl fmt::Display for SavedError {
@@ -94,6 +75,7 @@ impl fmt::Display for SavedError {
                 "the component type {} has only an undecoded wire form",
                 component_type.0
             ),
+            Self::TooDeep => formatter.write_str("the saved form of the stack is nested too deep"),
         }
     }
 }

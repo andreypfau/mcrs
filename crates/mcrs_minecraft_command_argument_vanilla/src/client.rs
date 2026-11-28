@@ -15,25 +15,17 @@ use std::collections::VecDeque;
 const SOUND_EVENT: ResourceLocation<'static> =
     mcrs_minecraft_resource::rl!("minecraft:sound_event");
 
-/// The client tree of the last `commands` packet. The client source holds the
-/// restricted atom, so every node passes; an executable node runs nothing on the client.
 pub type ClientGraph = Graph<ClientArgument, (), ()>;
 
-/// Who makes the suggestions of an argument.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SuggestionType {
-    /// The client suggests from the grammar of the argument.
     OfType,
-    /// The client asks the server.
     AskServer,
-    /// The client suggests the sound events it knows.
     AvailableSounds,
 }
 
 impl From<ResourceLocation<'_>> for SuggestionType {
     fn from(name: ResourceLocation<'_>) -> Self {
-        // Summonable_entities and post_effects ask the server, because the client
-        // holds no summonable entity set and no post effect list yet.
         if name == mcrs_minecraft_resource::rl!("minecraft:available_sounds") {
             SuggestionType::AvailableSounds
         } else {
@@ -42,18 +34,14 @@ impl From<ResourceLocation<'_>> for SuggestionType {
     }
 }
 
-/// An argument of the client tree: the grammar of its parser id, or `None` when the client
-/// lacks that grammar and reads the rest of the line.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ClientArgument {
     pub grammar: Option<VanillaArgument>,
     pub suggestions: SuggestionType,
-    /// The parser id is `minecraft:message`.
     pub message: bool,
 }
 
 impl ClientArgument {
-    /// The argument takes its suggestions from a server request.
     pub fn needs_server<L: Lookup>(&self, lookup: &L) -> bool {
         let Some(grammar) = self.grammar else {
             return true;
@@ -103,19 +91,13 @@ impl<L: VanillaLookup> ArgumentSet<Source<'_, L>> for ClientArgument {
     }
 }
 
-/// Why the client rejects a `commands` packet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TreeError {
-    /// A child or redirect index, or the root index, is out of range.
     Index(usize),
-    /// The root index does not name a root node.
     NotRoot,
-    /// The child links of this node lead back to it.
     ChildCycle(usize),
-    /// A redirect target that no child link reaches.
     Unreachable(usize),
-    /// The graph builder rejects the tree.
     Build(BuildError),
 }
 
@@ -177,7 +159,6 @@ fn argument(
     }
 }
 
-/// The state of a node in the depth-first visit of the child links.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Visit {
     New,
@@ -185,7 +166,6 @@ enum Visit {
     Done,
 }
 
-/// Rejects a packet whose child links form a cycle, with a depth-first visit.
 fn check_child_cycles(nodes: &[CommandNode<'_>]) -> Result<(), TreeError> {
     let len = nodes.len();
     let mut visits = vec![Visit::New; len];
@@ -230,10 +210,6 @@ fn check_child_cycles(nodes: &[CommandNode<'_>]) -> Result<(), TreeError> {
     Ok(())
 }
 
-/// Decodes the tree of a `commands` packet into the client tree. A node that
-/// two parents name is one node with two parents. `registries` are the registries whose
-/// identifiers the client can name statically; an argument of another registry reads as a
-/// type without a grammar.
 pub fn client_tree(
     nodes: &[CommandNode<'_>],
     root: VarInt,

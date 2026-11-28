@@ -1,18 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::hash::Hash;
 
-/// A vertex of the ordering graph: `(step, index, token)`, compared step first,
-/// where `index` counts distinct tokens in order of first encounter. One index
-/// always carries one token, so the token never decides an order.
 type Vertex<T> = (usize, usize, T);
 
-/// Orders every feature the given biomes carry into one list per decoration
-/// step, so that no biome's own list ever runs out of order.
-///
-/// A biome is a list of steps, a step a list of identity tokens: two entries
-/// with the same token are the same feature and share a vertex, and equal
-/// tokens are the caller's statement of identity, not of equal shape. The
-/// error is the token the walk found a cycle through.
 pub fn build_features_per_step<T: Clone + Eq + Hash + Ord>(
     biomes: &[Vec<Vec<T>>],
 ) -> Result<Vec<Vec<T>>, T> {

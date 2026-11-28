@@ -7,8 +7,6 @@ use crate::node_hash::ArrayHash;
 use crate::node_hash::NodeHash;
 use crate::node_serializer::Unhashable;
 
-/// The hash of the array node of the kind that `variant` names, with the elements that `value`
-/// serializes to. The elements go into the checksum as they come.
 pub(crate) fn array_hash<T: Serialize + ?Sized>(
     variant: &str,
     value: &T,

@@ -1,19 +1,30 @@
-// wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames, and
-// `#[derive(Resource)]` walks all of it.
 #![recursion_limit = "256"]
 
 mod arenas;
 mod binds;
+mod cull;
 mod draws;
 mod frame;
 mod frame_view;
 mod gbuffer;
 mod hiz;
+mod improved_transparency;
 mod layer;
+pub mod name_tag;
+mod panorama;
 mod pass;
 mod pipeline;
+mod present;
 mod reconstruct;
+mod render_path;
+#[cfg(test)]
+mod shader_layout;
+#[cfg(test)]
+mod shader_layout_emit;
 mod shaders;
+#[doc(hidden)]
+pub mod shared_bindings;
+mod shared_types;
 mod shared_wgsl;
 mod show;
 pub mod sky;
@@ -22,8 +33,12 @@ mod stats;
 mod terrain;
 mod texture;
 mod timestamps;
+mod transparency_targets;
 mod upload;
 mod views;
+mod words;
+mod world_fog;
+pub mod world_text;
 
 use std::sync::Arc;
 
@@ -37,37 +52,47 @@ use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_resource::{
     BindGroup, BindGroupLayoutDescriptor, CompareFunction, TextureFormat,
 };
+use bevy::render::renderer::{RenderAdapter, RenderDevice};
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 
-use mcrs_minecraft_mesh::STREAMS;
+use render_path::full_path;
+
+use mcrs_minecraft_mesh::DrawKind;
 
 pub use frame::{CameraOrigin, TerrainShade, clip_from_relative};
 pub use frame_view::{FrameView, SIDE_PLANES};
 pub use gbuffer::{DeferredFrame, GBUFFER_FORMATS};
-pub use layer::{LayerGroup, Shape};
+pub use improved_transparency::ImprovedTransparency;
+pub use layer::LayerGroup;
+pub use panorama::{
+    CUBE_FACES, PanoramaDraw, PanoramaImages, PanoramaPass, PanoramaPlugin, PanoramaView,
+};
 pub use pass::draw_layer_group;
-pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
+pub use pipeline::{TERRAIN_PIPELINES, terrain_slot};
+pub use render_path::RenderPath;
+pub use shared_types::{
+    CameraUniform, DrawArgRow, DrawArgs, Params, SectionDesc, SkyUniform, SpriteEntry,
+};
 pub use shared_wgsl::{GBUFFER_ENCODE_WGSL, VISIBILITY_WGSL};
 pub use show::{DepthDisplay, DepthSource};
-pub use stats::{DrawArgs, FrameCounts, VERTICES_PER_QUAD, args_reset};
+pub use stats::{FrameCounts, VERTICES_PER_QUAD, args_reset};
 pub use terrain::Terrain;
 pub use timestamps::{PassSlot, PassTimestamps};
 pub use upload::{Placement, Upload, Uploads};
 pub use views::{DebugView, DebugViews, SelectedView};
+pub use words::Words;
+pub use world_fog::WorldFog;
 
 pub use frame::uniform as uniform_buffer;
 pub use pipeline::common as pipeline_descriptor;
 
-/// The depth buffer runs reverse-Z, so the near plane is at one and a fragment passes when its
-/// depth is the greater. Every pipeline drawing into the view depth must agree on this.
 pub const DEPTH_COMPARE: CompareFunction = CompareFunction::GreaterEqual;
 const _: () = assert!(matches!(CORE_3D_DEPTH_FORMAT, TextureFormat::Depth32Float));
 
 pub const QUAD_BYTES: usize = mcrs_minecraft_mesh::pack::QUAD_WORDS * 4;
 pub const MODEL_BYTES: usize = 4 * 3 * 4;
 pub const FACE_BYTES: usize = mcrs_minecraft_mesh::pack::FACE_WORDS * 4;
-pub(crate) const SECTION_BYTES: usize = size_of::<SectionDesc>();
-const VISIBLE_BYTES: usize = 8;
+pub(crate) const VISIBLE_BYTES: usize = 8;
 
 pub struct Budget {
     pub quads: usize,
@@ -75,25 +100,10 @@ pub struct Budget {
     pub faces: usize,
     pub groups: usize,
     pub sections: usize,
-    /// Bytes copied to the GPU per frame at most.
     pub upload: usize,
-    /// The tint texture is a window of this many blocks a side that the world wraps into, so
-    /// it follows the camera for nothing; it only has to be wider than what is resident.
     pub tint_size: [u32; 2],
 }
 
-/// One row of the section table: where a section sits in the world, how many blocks one of its
-/// samples covers, and where its face attributes begin.
-#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct SectionDesc {
-    pub section: [i32; 3],
-    pub scale: u32,
-    pub face_base: u32,
-}
-
-/// The layers one array gained since the last update, from `first` up to `layers`, as a full
-/// mip chain with level zero first. What was sent before stays where it is on the GPU.
 pub struct AtlasUpdate {
     pub size: u32,
     pub layers: u32,
@@ -112,8 +122,6 @@ pub struct Animation {
 
 pub const STILL: u32 = u32::MAX;
 
-/// What one bake added: layers per atlas, the sprite table from `table_from` on, and every
-/// animation as the registry now lists them.
 pub struct SpriteUpload {
     pub atlases: Vec<AtlasUpdate>,
     pub table_from: u32,
@@ -121,24 +129,15 @@ pub struct SpriteUpload {
     pub animations: Vec<Animation>,
 }
 
-/// One row of the GPU sprite table: the array in the high half-word and the layer in the low,
-/// and the animation index or `STILL`.
-#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct SpriteEntry {
-    pub array_layer: u32,
-    pub animation: u32,
-}
-
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct DrawMask(pub u32);
 
 impl DrawMask {
-    pub(crate) const ALL: u32 = (1 << STREAMS) - 1;
+    pub(crate) const ALL: u32 = (1 << DrawKind::COUNT) - 1;
 
-    fn drawn(&self, stream: u32) -> bool {
-        self.0 & (1 << stream) != 0
+    fn drawn(&self, kind: DrawKind) -> bool {
+        self.0 & (1 << kind.index()) != 0
     }
 }
 
@@ -148,8 +147,6 @@ impl Default for DrawMask {
     }
 }
 
-/// Whether terrain is tested against the last frame's depth pyramid; off, every group the
-/// frustum and the cave graph keep is drawn and the second pass does not exist.
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct Occlusion(pub bool);
@@ -160,8 +157,6 @@ impl Default for Occlusion {
     }
 }
 
-/// Whether the cull tests each quad of a surviving group on its own; off, a group that survives
-/// is drawn whole, which is how a hole the quad tests leave is told from any other.
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct QuadCull(pub bool);
@@ -172,7 +167,16 @@ impl Default for QuadCull {
     }
 }
 
-/// Vanilla's Brightness slider, from 0 (Moody) to 1 (Bright).
+#[derive(Resource, Clone, Copy, Debug, PartialEq, ExtractResource)]
+#[extract_app(RenderApp)]
+pub struct RenderDistance(pub u8);
+
+impl Default for RenderDistance {
+    fn default() -> Self {
+        Self(u8::MAX)
+    }
+}
+
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct Brightness(pub f32);
@@ -183,12 +187,10 @@ impl Default for Brightness {
     }
 }
 
-/// The tick texture animation shows instead of following real time.
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct PinnedTick(pub i64);
 
-/// Group 3 of the lighting pass, from whoever tints block light.
 #[derive(Resource)]
 pub struct LightTint {
     pub layout: BindGroupLayoutDescriptor,
@@ -201,28 +203,46 @@ struct TerrainBudget(Arc<Budget>);
 fn embed_shaders(app: &mut App) {
     use bevy::shader::load_shader_library;
     load_shader_library!(app, "shaders/include/fields.wesl");
+    load_shader_library!(app, "shaders/include/words.wesl");
+    load_shader_library!(app, "shaders/include/section_layout.wesl");
     load_shader_library!(app, "shaders/include/section.wesl");
     load_shader_library!(app, "shaders/include/frame.wesl");
+    load_shader_library!(app, "shaders/include/fog.wesl");
     load_shader_library!(app, "shaders/include/sky.wesl");
+    load_shader_library!(app, "shaders/include/sky_layout.wesl");
     load_shader_library!(app, "shaders/include/quad.wesl");
-    load_shader_library!(app, "shaders/include/lighting.wesl");
+    load_shader_library!(app, "shaders/include/quad_coverage.wesl");
+    load_shader_library!(app, "shaders/include/lightmap.wesl");
+    load_shader_library!(app, "shaders/include/sprites_layout.wesl");
+    load_shader_library!(app, "shaders/include/terrain_layout.wesl");
     load_shader_library!(app, "shaders/include/terrain_bindings.wesl");
+    load_shader_library!(app, "shaders/include/lighting.wesl");
     load_shader_library!(app, "shaders/include/surface.wesl");
     load_shader_library!(app, "shaders/include/finish.wesl");
     load_shader_library!(app, "shaders/include/gbuffer_encode.wesl");
+    load_shader_library!(app, "shaders/include/depth.wesl");
     load_shader_library!(app, "shaders/include/visibility.wesl");
+    load_shader_library!(app, "shaders/include/cull_layout.wesl");
     load_shader_library!(app, "shaders/include/deferred.wesl");
+    load_shader_library!(app, "shaders/include/reconstruct.wesl");
+    load_shader_library!(app, "shaders/include/gbuffer_layout.wesl");
+    load_shader_library!(app, "shaders/include/gbuffer_views_layout.wesl");
+    load_shader_library!(app, "shaders/include/transparency_layout.wesl");
+    load_shader_library!(app, "shaders/include/transparency.wesl");
+    load_shader_library!(app, "shaders/include/hiz_layout.wesl");
+    load_shader_library!(app, "shaders/include/present_layout.wesl");
+    load_shader_library!(app, "shaders/include/show_layout.wesl");
+    load_shader_library!(app, "shaders/include/world_text_layout.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/model.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wesl");
-    bevy::asset::embedded_asset!(app, "shaders/core/hiz.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/core/hiz.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/show.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/lighting_pass.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/gbuffer_views.wesl");
+    bevy::asset::embedded_asset!(app, "shaders/core/present.wesl");
 }
 
-/// The stages the world is drawn in, in order. A system joins one with `.in_set`; systems sharing a
-/// stage run in no fixed order unless they order themselves.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WorldPass {
     Upload,
@@ -230,9 +250,9 @@ pub enum WorldPass {
     Opaque,
     Occlusion,
     OpaqueSecond,
-    /// The entity passes: after the depth pyramid of the full frame, before the lighting.
     Entities,
     Lighting,
+    Overlay,
     Forward,
 }
 
@@ -246,6 +266,7 @@ impl WorldPass {
             Self::OpaqueSecond,
             Self::Entities,
             Self::Lighting,
+            Self::Overlay,
             Self::Forward,
         )
             .chain()
@@ -262,10 +283,15 @@ pub struct TerrainPlugin {
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
         embed_shaders(app);
+        app.add_plugins(world_text::WorldTextPlugin);
+        app.add_plugins(name_tag::NameTagRenderPlugin);
 
         app.init_resource::<CameraOrigin>()
             .init_resource::<Occlusion>()
             .init_resource::<QuadCull>()
+            .init_resource::<RenderDistance>()
+            .init_resource::<WorldFog>()
+            .init_resource::<ImprovedTransparency>()
             .init_resource::<Brightness>()
             .init_resource::<DrawMask>()
             .init_resource::<DebugViews>()
@@ -275,6 +301,9 @@ impl Plugin for TerrainPlugin {
             .add_plugins(ExtractResourcePlugin::<SelectedView>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<QuadCull>::default())
+            .add_plugins(ExtractResourcePlugin::<RenderDistance>::default())
+            .add_plugins(ExtractResourcePlugin::<WorldFog>::default())
+            .add_plugins(ExtractResourcePlugin::<ImprovedTransparency>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
             .add_plugins(ExtractResourcePlugin::<DrawMask>::default())
             .add_plugins(ExtractResourcePlugin::<PinnedTick>::default())
@@ -296,8 +325,9 @@ impl Plugin for TerrainPlugin {
             .add_systems(
                 Render,
                 (
-                    show::prepare_depth_display.in_set(RenderSystems::Prepare),
-                    pass::drop_unused_bins.in_set(RenderSystems::Prepare),
+                    pass::drop_unused_bins
+                        .run_if(pass::has_unused_bins)
+                        .in_set(RenderSystems::Prepare),
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
                     sprites::write_animation_frames.in_set(RenderSystems::Prepare),
                     (frame::write_frame_view, frame::write_camera)
@@ -320,16 +350,19 @@ impl Plugin for TerrainPlugin {
                     pass::upload_frame.in_set(WorldPass::Upload),
                     pass::cull_frame
                         .in_set(WorldPass::Cull)
-                        .run_if(pipeline::frame_ready),
+                        .run_if(pipeline::frame_ready)
+                        .run_if(full_path),
                     pass::draw_gbuffer
                         .in_set(WorldPass::Opaque)
                         .run_if(pipeline::frame_ready),
                     pass::build_occlusion
                         .in_set(WorldPass::Occlusion)
-                        .run_if(pipeline::frame_ready),
+                        .run_if(pipeline::frame_ready)
+                        .run_if(full_path),
                     pass::draw_gbuffer_second
                         .in_set(WorldPass::OpaqueSecond)
-                        .run_if(pipeline::frame_ready),
+                        .run_if(pipeline::frame_ready)
+                        .run_if(full_path),
                     pass::draw_lighting
                         .in_set(WorldPass::Lighting)
                         .run_if(pipeline::frame_ready),
@@ -337,10 +370,12 @@ impl Plugin for TerrainPlugin {
                         .in_set(WorldPass::Forward)
                         .run_if(pipeline::frame_ready)
                         .run_if(pass::draws_forward),
+                    present::present
+                        .in_set(WorldPass::Forward)
+                        .after(pass::draw_forward_deferred)
+                        .run_if(pipeline::frame_ready),
                 ),
             );
-        // Bevy's opaque pass draws nothing here yet still clears and stores colour and depth,
-        // which the world pass then loads back; without it the world pass does the clear.
         if let Err(error) = render_app.remove_systems_in_set(
             Core3d,
             main_opaque_pass_3d,
@@ -351,11 +386,25 @@ impl Plugin for TerrainPlugin {
     }
 
     fn finish(&self, app: &mut App) {
-        let occlusion = app.world().resource::<Occlusion>().0;
+        let world = app.world();
+        let path = match (
+            world.get_resource::<RenderDevice>(),
+            world.get_resource::<RenderAdapter>(),
+        ) {
+            (Some(device), Some(adapter)) => RenderPath::of(device, adapter),
+            _ => {
+                warn!(
+                    "the terrain plugin finished before the renderer: drawing on the minimal path"
+                );
+                RenderPath::Minimal
+            }
+        };
+        let occlusion = world.resource::<Occlusion>().0 && path.is_full();
+        app.insert_resource(path);
         let mut views = app.world_mut().resource_mut::<DebugViews>();
         let deferred = views::DeferredViews::register(&mut views, occlusion);
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app.insert_resource(deferred);
+            render_app.insert_resource(path).insert_resource(deferred);
         }
     }
 }

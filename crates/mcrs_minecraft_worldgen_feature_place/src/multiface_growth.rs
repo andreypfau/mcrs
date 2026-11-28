@@ -11,8 +11,6 @@ use mcrs_voxel::BlockPos;
 
 use crate::tree::trunk::all_shuffled;
 
-/// The growth block's own states, as the six face bits in `Direction.values()`
-/// order, with `waterlogged` selecting the second table.
 #[derive(Clone, Debug)]
 pub struct MultifaceStates {
     pub by_faces: [[VoxelId; 64]; 2],
@@ -39,8 +37,6 @@ impl MultifaceStates {
             .is_some_and(|(faces, _)| faces & face_bit(direction) != 0)
     }
 
-    /// `MultifaceBlock.getStateForPlacement`: a face added to whatever is there,
-    /// waterlogged when it displaces a water source.
     pub fn state_for_placement<W: WorldGenVolume>(
         &self,
         volume: &W,
@@ -51,8 +47,6 @@ impl MultifaceStates {
         if self.has_face(old_state, direction) {
             return None;
         }
-        // `MultifaceBlock.canAttachTo` as the full-collision-cube flag; the upgrade
-        // path is a per-face table over the support and collision boxes at freeze.
         if !volume.holds(&volume.world().sturdy_up, pos + direction.normal()) {
             return None;
         }
@@ -63,19 +57,14 @@ impl MultifaceStates {
     }
 }
 
-/// One `multiface_growth` feature with every name it carries already resolved.
 #[derive(Clone, Debug)]
 pub struct CompiledMultifaceGrowth {
     pub states: MultifaceStates,
-    /// The faces the configuration allows, in the reference's order: the
-    /// ceiling, the floor, then the horizontal plane. Build it with
-    /// [`valid_directions`], since the order is what the shuffle permutes.
     pub valid_directions: Vec<Direction>,
     pub chance_of_spreading: f32,
     pub can_be_placed_on: StateMask,
 }
 
-/// `MultifaceGrowthFeature.validDirections`, whose order the shuffles permute.
 pub fn valid_directions(ceiling: bool, floor: bool, wall: bool) -> Vec<Direction> {
     let mut directions = Vec::with_capacity(6);
     if ceiling {
@@ -89,12 +78,6 @@ pub fn valid_directions(ceiling: bool, floor: bool, wall: bool) -> Vec<Direction
     }
     directions
 }
-///
-/// The reference's search loop never advances its cursor: it re-reads
-/// `origin.relative(searchDirection)` on every one of the `search_range`
-/// rounds. A round that places anything returns at once and a round that does
-/// not draws nothing and writes nothing, so the repetition is unobservable and
-/// `search_range` reaches the world through nothing at all.
 pub fn place_multiface_growth<W: WorldGenVolume>(
     cfg: &CompiledMultifaceGrowth,
     volume: &mut W,
@@ -165,9 +148,6 @@ fn place_growth_if_possible<W: WorldGenVolume>(
     false
 }
 
-/// `MultifaceSpreader.spreadFromFaceTowardRandomDirection`: all six directions
-/// shuffled, whatever the configuration allows, and the first that reaches a
-/// cell it may grow into takes it.
 fn spread_from_face<W: WorldGenVolume>(
     cfg: &CompiledMultifaceGrowth,
     volume: &mut W,
@@ -183,8 +163,6 @@ fn spread_from_face<W: WorldGenVolume>(
     }
 }
 
-/// The three spread types in `DEFAULT_SPREAD_ORDER`, as the cell and the face
-/// each would grow on.
 pub(crate) fn spread_positions(
     pos: BlockPos,
     spread: Direction,
@@ -245,8 +223,6 @@ mod tests {
     const STONE: VoxelId = VoxelId(1);
     const WATER: VoxelId = VoxelId(2);
     const FLOWING: VoxelId = VoxelId(3);
-    /// The growth's states start here: `[waterlogged][faces]`, so a state id is
-    /// `GROWTH + 64 * waterlogged + faces`.
     const GROWTH: u16 = 100;
     const AT: BlockPos = BlockPos::new(0, 40, 0);
 
@@ -267,10 +243,6 @@ mod tests {
         MultifaceStates { by_faces, of_state }
     }
 
-    /// Glow lichen: the ceiling and the walls, never the floor, and half the
-    /// placements spread on.
-    /// Stone holds a growth up; `WATER` is the water block's source and
-    /// `FLOWING` a flowing water block.
     fn cave(volume: FakeVolume) -> FakeVolume {
         let mut volume = volume;
         volume.world.sturdy_up = mask_of([STONE]);
@@ -306,8 +278,6 @@ mod tests {
         assert_eq!(valid_directions(false, true, false), vec![Direction::Down]);
     }
 
-    /// The shuffle of the five valid faces, then a float for the spread, then
-    /// the six shuffled again inside the spreader.
     #[test]
     fn a_growth_on_a_ceiling_shuffles_its_faces_then_spends_the_spread_draws() {
         let cfg = config();
@@ -335,8 +305,6 @@ mod tests {
         );
     }
 
-    /// A cell with nothing to hold on to leaves the world alone, having spent
-    /// its own shuffle and one shuffle for every search direction.
     #[test]
     fn a_growth_with_no_neighbour_writes_nothing_and_spends_the_shuffles() {
         let cfg = config();
@@ -364,7 +332,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// Any water block lets the growth in; only a source waterlogs it.
     #[test]
     fn a_growth_in_water_is_waterlogged_only_by_a_source() {
         for (water, waterlogged) in [(WATER, true), (FLOWING, false)] {
@@ -388,8 +355,6 @@ mod tests {
         }
     }
 
-    /// The spreader never grows along the axis of the face it came from, and it
-    /// takes the first of the three spread types that fits.
     #[test]
     fn a_spread_stays_off_the_axis_of_the_face_it_grew_on() {
         let cfg = config();

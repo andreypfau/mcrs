@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 
 pub const DEDICATED_SERVER_TICK_TIME: ResourceLocation<'static> = rl!("minecraft:dedicated_server_tick_time");

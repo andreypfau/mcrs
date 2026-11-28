@@ -20,15 +20,15 @@ use mcrs_minecraft_environment::{WorldClock, WorldClocks};
 
 use crate::camera::PlayerCamera;
 use crate::vanilla::VanillaAssets;
-use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
+use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::session::session_boundary;
+use mcrs_minecraft_fog::{FogInputs, FogParameters};
 use mcrs_minecraft_model::vanilla_source;
-use mcrs_minecraft_render::sky::{
-    ExtractedSky, SkyDrawsOnly, SkyEffects, SkyRenderPlugin, SkyUniform,
-};
+use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyEffects, SkyRenderPlugin};
+use mcrs_minecraft_render::{RenderDistance, SkyUniform, WorldFog};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
 
-/// Layer 0 is the sun; the moon phases follow in `MoonPhase::ALL` order.
 fn celestial_paths() -> impl Iterator<Item = String> {
     std::iter::once(SUN.to_owned()).chain(MoonPhase::ALL.iter().map(|phase| {
         format!(
@@ -52,7 +52,6 @@ impl SkySources {
     }
 }
 
-/// Exists only once both arrays are assembled.
 #[derive(Resource)]
 pub struct SkyTextures {
     pub celestials: Handle<Image>,
@@ -61,7 +60,6 @@ pub struct SkyTextures {
 
 pub struct SkyPlugin;
 
-/// Vanilla's "Clouds" option. mcrs draws one kind of cloud, so only off and on exist.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Clouds {
     Off,
@@ -80,18 +78,20 @@ impl Plugin for SkyPlugin {
         app.init_resource::<SkyFrame>()
             .init_resource::<PreviousClockTicks>()
             .init_resource::<Clouds>()
+            .init_resource::<WorldFog>()
+            .init_resource::<RenderDistance>()
             .add_plugins(SkyRenderPlugin)
             .add_systems(OnEnter(VanillaAssets::Ready), request_sources)
             .add_systems(
                 Update,
-                assemble_arrays.run_if(resource_exists::<SkySources>),
+                assemble_arrays.run_if(
+                    resource_exists::<SkySources>.and_then(on_message::<AssetEvent<Image>>),
+                ),
             )
             .add_systems(
                 Update,
                 (
-                    clear_sky
-                        .in_set(SessionSet::Clear)
-                        .run_if(entered_configuration),
+                    clear_sky.in_set(SessionSet::Clear).run_if(session_boundary),
                     build_sky_environment
                         .after(SessionSet::Derive)
                         .run_if(resource_exists::<CurrentRegistries>),
@@ -103,9 +103,12 @@ impl Plugin for SkyPlugin {
             )
             .add_systems(
                 PostUpdate,
-                evaluate_sky
-                    .after(TransformSystems::Propagate)
-                    .run_if(resource_exists::<SkyEnvironment>),
+                (
+                    clear_world_fog.run_if(resource_removed::<SkyEnvironment>),
+                    evaluate_sky.run_if(resource_exists::<SkyEnvironment>),
+                )
+                    .chain()
+                    .after(TransformSystems::Propagate),
             );
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app.add_systems(ExtractSchedule, extract_sky);
@@ -113,27 +116,24 @@ impl Plugin for SkyPlugin {
     }
 }
 
-const HORIZON: f32 = 63.0;
+const CLOUD_DISTANCE: u8 = 128;
+
+const OCCLUDER_ANGLES: [f32; 2] = [-1.0, -8.0];
+const OCCLUDER_ANGLES_BELOW_MIN_Y: [f32; 2] = [15.0, 10.0];
 
 const CLOUD_BLOCKS_PER_TICK: f64 = 0.030000001;
 
-/// No attribute carries it: the reference client multiplies the block-light
-/// term by this after the lightmap curve.
 const BLOCK_LIGHT_FACTOR: f32 = 1.4;
 
-/// The widest cloud field the march can wrap is 4096 cells of 12 blocks, so
-/// folding the drift into that span keeps the shader's own wrap intact while
-/// the value stays small enough for `f32` to resolve single blocks.
 const CLOUD_DRIFT_SPAN: f64 = 4096.0 * 12.0;
 
-/// Everything the sky needs that holds for as long as the player stays in one
-/// dimension. Rebuilt whole, never patched.
 #[derive(Resource)]
 pub struct SkyEnvironment {
     attributes: DimensionAttributes,
     layout: SkyLayout,
     statics: SkyStatic,
     clock: Option<Id<mcrs_minecraft_environment::WorldClock>>,
+    min_y: f32,
 }
 
 impl SkyEnvironment {
@@ -161,7 +161,7 @@ impl SkyEnvironment {
     fn scalar(&self, frame: &SkyFrame, field: SkyField) -> f32 {
         match self.value(frame, field) {
             SkyValue::Scalar(scalar) => scalar,
-            SkyValue::Color(packed) => packed as f32,
+            SkyValue::Color(_) => 0.0,
         }
     }
 
@@ -169,11 +169,13 @@ impl SkyEnvironment {
         let color = |field| self.value(frame, field).color();
         let sunrise = color(SkyField::SunriseSunsetColor);
         let cloud = color(SkyField::CloudColor);
+        let [occluder_low, occluder_high] = if frame.camera[1] < self.min_y {
+            OCCLUDER_ANGLES_BELOW_MIN_Y
+        } else {
+            OCCLUDER_ANGLES
+        };
         SkyUniform {
-            disc: rgba(
-                color(SkyField::SkyColor),
-                f32::from(frame.camera[1] < HORIZON),
-            ),
+            disc: raw(color(SkyField::SkyColor), 0.0),
             sunrise: rgba(sunrise, alpha(sunrise)),
             angles: [
                 self.scalar(frame, SkyField::SunAngle).to_radians(),
@@ -181,22 +183,20 @@ impl SkyEnvironment {
                 self.scalar(frame, SkyField::StarAngle).to_radians(),
                 Srgba::gamma_function(self.scalar(frame, SkyField::StarBrightness)),
             ],
-            // Layer 0 of the celestial array is the sun; the phases follow it.
             moon: [
                 1.0 + self.scalar(frame, SkyField::MoonPhase),
                 1.0 - frame.rain,
                 0.0,
                 0.0,
             ],
-            fog: rgba(
-                color(SkyField::FogColor),
-                self.scalar(frame, SkyField::SkyFogEndDistance),
-            ),
+            fog: Vec3::from_array(frame.fog.color)
+                .extend(frame.fog.sky_end)
+                .to_array(),
             cloud_color: rgba(cloud, alpha(cloud)),
             cloud: [
                 self.scalar(frame, SkyField::CloudHeight),
                 drift,
-                self.scalar(frame, SkyField::CloudFogEndDistance),
+                frame.fog.cloud_end,
                 0.0,
             ],
             sky_light: raw(
@@ -205,19 +205,43 @@ impl SkyEnvironment {
             ),
             block_light: raw(color(SkyField::BlockLightTint), BLOCK_LIGHT_FACTOR),
             ambient: raw(color(SkyField::AmbientLightColor), 0.0),
+            occluder: [
+                occluder_low,
+                occluder_high,
+                self.scalar(frame, SkyField::HasSkyOccluder),
+                0.0,
+            ],
         }
     }
 
-    /// The reference clears the frame to the fog colour before the sky disc
-    /// goes down, which is all that shows below the horizon until terrain does.
-    fn fog_color(&self, frame: &SkyFrame) -> Color {
-        let [red, green, blue, _] = rgba(self.value(frame, SkyField::FogColor).color(), 0.0);
-        Color::LinearRgba(LinearRgba::rgb(red, green, blue))
+    fn fog(&self, frame: &SkyFrame, render_distance: u8, view_east: f32) -> FogParameters {
+        let color = |field| self.value(frame, field).color();
+        let sunrise = color(SkyField::SunriseSunsetColor);
+        FogParameters::from_inputs(&FogInputs {
+            fog_color: rgb(color(SkyField::FogColor)).to_array(),
+            sky_color: rgb(color(SkyField::SkyColor)).to_array(),
+            sunrise_color: rgb(sunrise).to_array(),
+            sunrise_alpha: alpha(sunrise),
+            sun_angle: self.scalar(frame, SkyField::SunAngle),
+            fog_start_distance: self.scalar(frame, SkyField::FogStartDistance),
+            fog_end_distance: self.scalar(frame, SkyField::FogEndDistance),
+            sky_fog_end_distance: self.scalar(frame, SkyField::SkyFogEndDistance),
+            cloud_fog_end_distance: self.scalar(frame, SkyField::CloudFogEndDistance),
+            render_distance,
+            cloud_distance: CLOUD_DISTANCE,
+            view_east,
+            rain_level: frame.rain,
+            thunder_level: frame.thunder * frame.rain,
+        })
     }
 }
 
 fn clear_sky(mut commands: Commands) {
     commands.remove_resource::<SkyEnvironment>();
+}
+
+fn clear_world_fog(mut fog: ResMut<WorldFog>) {
+    fog.set_if_neq(WorldFog::default());
 }
 
 fn build_sky_environment(
@@ -253,9 +277,9 @@ fn build_sky_environment(
     attributes.clock_ticks(&clocks, &mut ticks);
     let statics = layout.constants(&attributes, &EnvironmentContext { ticks: &ticks });
 
-    let clock = type_id
-        .and_then(|id| dimension_types.get(id))
-        .and_then(|file| file.default_clock);
+    let file = type_id.and_then(|id| dimension_types.get(id));
+    let clock = file.and_then(|file| file.default_clock);
+    let min_y = file.map_or(f32::MIN, |file| file.min_y as f32);
 
     info!(
         %dimension,
@@ -274,11 +298,10 @@ fn build_sky_environment(
         layout,
         statics,
         clock,
+        min_y,
     });
 }
 
-/// The clock ticks of the sky's dimension before the clocks last advanced: the ticks of the
-/// previous client tick.
 #[derive(Resource, Default)]
 struct PreviousClockTicks(Vec<i64>);
 
@@ -290,7 +313,6 @@ fn record_previous_ticks(
     environment.attributes.clock_ticks(&clocks, &mut previous.0);
 }
 
-/// What a frame reads to place itself between two client ticks.
 #[derive(bevy::ecs::system::SystemParam)]
 struct FrameClocks<'w> {
     clocks: Res<'w, WorldClocks>,
@@ -302,16 +324,17 @@ fn evaluate_sky(
     environment: Res<SkyEnvironment>,
     frame_clocks: FrameClocks,
     weather: Res<WeatherLevel>,
+    render_distance: Res<RenderDistance>,
     camera: Single<&GlobalTransform, With<PlayerCamera>>,
     mut frame: ResMut<SkyFrame>,
-    mut clear: ResMut<ClearColor>,
+    clear: ResMut<ClearColor>,
+    mut world_fog: ResMut<WorldFog>,
     mut ticks: Local<Vec<i64>>,
 ) {
     environment
         .attributes
         .clock_ticks(&frame_clocks.clocks, &mut ticks);
     let previous = &frame_clocks.previous.0;
-    // Before the first tick of a dimension there is no previous tick to move from.
     let previous_ticks: &[i64] = if previous.len() == ticks.len() {
         previous
     } else {
@@ -333,19 +356,42 @@ fn evaluate_sky(
         *weather,
         &mut frame,
     );
-    clear.0 = environment.fog_color(&frame);
+    let fog = environment.fog(&frame, render_distance.0, camera.forward().x);
+    frame
+        .reborrow()
+        .map_unchanged(|frame| &mut frame.fog)
+        .set_if_neq(fog);
+    let [red, green, blue] = fog.color;
+    clear
+        .map_unchanged(|clear| &mut clear.0)
+        .set_if_neq(Color::srgb(red, green, blue));
+    world_fog.set_if_neq(WorldFog {
+        color: fog.color,
+        environmental: fog.environmental,
+        render_distance: fog.render_distance,
+    });
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::ungated_system,
+        reason = "the sky uniform follows the world clocks and the camera on each frame, and the render world must drop the sky on the frame that the main world loses its environment"
+    )
+)]
 fn extract_sky(
     mut commands: Commands,
-    environment: Extract<Option<Res<SkyEnvironment>>>,
-    textures: Extract<Option<Res<SkyTextures>>>,
+    sources: Extract<(Option<Res<SkyEnvironment>>, Option<Res<SkyTextures>>)>,
     frame: Extract<Res<SkyFrame>>,
     clocks: Extract<Res<WorldClocks>>,
     only: Extract<Option<Res<SkyDrawsOnly>>>,
     clouds: Extract<Res<Clouds>>,
+    extracted: Option<ResMut<ExtractedSky>>,
 ) {
-    let (Some(environment), Some(textures)) = (environment.as_ref(), textures.as_ref()) else {
+    let (Some(environment), Some(textures)) = (sources.0.as_ref(), sources.1.as_ref()) else {
+        if extracted.is_some() {
+            commands.remove_resource::<ExtractedSky>();
+        }
         return;
     };
     let mut effects = environment.key().effects;
@@ -355,37 +401,36 @@ fn extract_sky(
     if **clouds == Clouds::Off {
         effects.remove(SkyEffects::CLOUDS);
     }
-    commands.insert_resource(ExtractedSky {
+    let sky = ExtractedSky {
         uniform: environment.uniform(&frame, environment.drift(&clocks)),
         effects,
         celestials: textures.celestials.id(),
         clouds: textures.clouds.id(),
-    });
+    };
+    match extracted {
+        Some(mut extracted) => *extracted = sky,
+        None => commands.insert_resource(sky),
+    }
 }
 
 fn cloud_drift(ticks: f64) -> f32 {
     (ticks * CLOUD_BLOCKS_PER_TICK).rem_euclid(CLOUD_DRIFT_SPAN) as f32
 }
 
-pub(crate) const fn rgb(packed: u32) -> Vec3 {
-    Vec3::new(
-        ((packed >> 16) & 0xff) as f32 / 255.0,
-        ((packed >> 8) & 0xff) as f32 / 255.0,
-        (packed & 0xff) as f32 / 255.0,
-    )
+fn rgb([red, green, blue, _]: [f32; 4]) -> Vec3 {
+    Vec3::new(red, green, blue)
 }
 
-fn rgba(packed: u32, w: f32) -> [f32; 4] {
-    rgb(packed).map(Srgba::gamma_function).extend(w).to_array()
+fn rgba(color: [f32; 4], w: f32) -> [f32; 4] {
+    rgb(color).map(Srgba::gamma_function).extend(w).to_array()
 }
 
-/// The light colours feed vanilla's lightmap, which works on the bytes as they are written.
-fn raw(packed: u32, w: f32) -> [f32; 4] {
-    rgb(packed).extend(w).to_array()
+fn raw(color: [f32; 4], w: f32) -> [f32; 4] {
+    rgb(color).extend(w).to_array()
 }
 
-fn alpha(packed: u32) -> f32 {
-    ((packed >> 24) & 0xff) as f32 / 255.0
+fn alpha([_, _, _, alpha]: [f32; 4]) -> f32 {
+    alpha
 }
 
 fn request_sources(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -411,9 +456,6 @@ fn assemble_arrays(
     sources: Res<SkySources>,
     mut images: ResMut<Assets<Image>>,
     assembled: Option<Res<SkyTextures>>,
-    // `insert_resource` below is deferred, so `assembled` still reads `None` on
-    // the frame after the first build; without this the leftover `Added` events
-    // would build a second pair of arrays and orphan the first.
     mut created: Local<bool>,
     mut commands: Commands,
 ) {
@@ -524,10 +566,6 @@ fn array(
         RenderAssetUsages::RENDER_WORLD,
     );
     array.sampler = ImageSampler::nearest();
-    // Only a stack of layers is an array. A GL backend picks the texture
-    // target from the layer count when it creates the texture, so a one-layer
-    // texture is a plain 2D one there whatever view is asked for, and binding
-    // it against an array in the shader silently samples nothing.
     if handles.len() > 1 {
         array.texture_view_descriptor = Some(TextureViewDescriptor {
             dimension: Some(TextureViewDimension::D2Array),
@@ -589,6 +627,7 @@ mod sky_regression {
     struct Dimension {
         has_skylight: bool,
         has_ceiling: bool,
+        min_y: i32,
         #[serde(default)]
         skybox: Skybox,
         #[serde(default)]
@@ -639,11 +678,10 @@ mod sky_regression {
             layout,
             statics,
             clock: None,
+            min_y: dimension.min_y as f32,
         }
     }
 
-    /// The uniform the attribute system produces at `ticks`, from a camera
-    /// above the horizon in clear weather.
     fn ticks_at(attributes: &DimensionAttributes, ticks: i64) -> Vec<i64> {
         let mut clocks = WorldClocks::default();
         for clock in attributes.clocks() {
@@ -679,15 +717,11 @@ mod sky_regression {
     }
 
     #[test]
-    fn the_dark_disc_is_flagged_only_from_under_the_horizon() {
-        assert_eq!(
-            packed(6000, Vec3::new(0.0, HORIZON + 1.0, 0.0)).disc[3],
-            0.0
-        );
-        assert_eq!(
-            packed(6000, Vec3::new(0.0, HORIZON - 1.0, 0.0)).disc[3],
-            1.0
-        );
+    fn the_occluder_rises_above_the_horizon_only_from_below_the_lowest_block() {
+        for (eye_y, occluder) in [(-64.0, [-1.0, -8.0, 1.0]), (-64.5, [15.0, 10.0, 1.0])] {
+            let packed = packed(6000, Vec3::new(0.0, eye_y, 0.0)).occluder;
+            assert_eq!(packed[..3], occluder, "eye at {eye_y}");
+        }
     }
 
     #[test]

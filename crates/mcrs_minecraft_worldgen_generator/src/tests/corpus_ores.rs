@@ -1,6 +1,3 @@
-//! The corpus's own ore features, compiled the way the freeze compiles them,
-//! and the band their veins land in.
-
 #[cfg(test)]
 use mcrs_voxel::BlockPos;
 #[cfg(test)]
@@ -35,17 +32,8 @@ use super::{biome_registry, build_program, corpus_features, one_step};
 #[cfg(test)]
 use super::{blocks, build_settings_router, fill_context_with, flat_snapshot};
 
-/// The one biome of these tables, so that every ore is carried and the `biome`
-/// placement filter passes wherever the palette says 0. A registry numbers its
-/// entries in name order, so this one has to sort before the three below.
 const BIOME: &str = "minecraft:badlands";
 
-/// Every placed feature of the corpus whose feature is an `ore`, in id order,
-/// and the name of the feature behind each — several placed features share one,
-/// and one is what a count is per.
-///
-/// The order is this test's, not the sort's: a band over counts does not depend
-/// on which order the seeds are drawn in, only on it being fixed.
 pub(super) fn ore_tables() -> (FeatureTables, Vec<String>) {
     let corpus = corpus_features();
 
@@ -74,9 +62,6 @@ pub(super) fn ore_tables() -> (FeatureTables, Vec<String>) {
     (one_step(step, BIOME), named)
 }
 
-/// The one biome the tables carry, at id 0, and the three the surface stage
-/// resolves by name off whatever registry the dimension holds — without them
-/// `SurfaceIds::resolve` panics before a column is ever filled.
 pub(super) fn one_biome_registry() -> Registries {
     biome_registry(&[
         BIOME,
@@ -97,10 +82,6 @@ pub(super) fn ore_program(tables: &FeatureTables) -> FeatureProgram {
 }
 
 #[cfg(test)]
-/// Which rock a band is measured on. The corpus's ore targets are two disjoint
-/// families — the overworld's stone and deepslate replaceables, and the
-/// nether's netherrack — so a single column of one rock would leave half the
-/// features placing nothing.
 #[derive(Clone, Copy, Debug)]
 enum Terrain {
     Overworld,
@@ -116,7 +97,6 @@ impl Terrain {
         }
     }
 
-    /// The block a whole section is made of, or `None` for air.
     fn section(self, section_y: i32) -> Option<&'static str> {
         match self {
             Terrain::Overworld if section_y < 0 => Some("minecraft:deepslate"),
@@ -150,8 +130,6 @@ fn snapshot(col: ColumnPos, y_sections: &Arc<[i32]>, terrain: Terrain) -> Filled
 }
 
 #[cfg(test)]
-/// One column decorated by the whole ore table, counting the veins each feature
-/// placed and the blocks the column and its ring took.
 fn veins_of(
     program: &FeatureProgram,
     named: &[String],
@@ -182,13 +160,13 @@ fn veins_of(
     decorate(
         &program.present(&[0]),
         0..1,
-        &|step, index| program.chain(step, index),
-        &|biome, step, index| program.carries(biome, step, index),
+        |step, index| program.chain(step, index),
+        |biome, step, index| program.carries(biome, step, index),
         &mut region,
         &mut scratch,
         origin,
         seed,
-        &mut |(_, index), region, rng, at, _| {
+        |(_, index), region, rng, at| {
             let Some(Generator::Ore(ore)) = program.generator_at(0, index) else {
                 return false;
             };
@@ -209,7 +187,6 @@ fn veins_of(
 }
 
 #[cfg(test)]
-/// The nine columns every band is measured over: one decoration seed each.
 const UNITS: [ColumnPos; 9] = [
     ColumnPos::new(0, 0),
     ColumnPos::new(1, 0),
@@ -222,19 +199,6 @@ const UNITS: [ColumnPos; 9] = [
     ColumnPos::new(-3, -3),
 ];
 
-/// A regression guard, not a parity claim: the per-column vein count of
-/// every ore feature the corpus ships, over a fixed set of nine columns, and
-/// the blocks one column and its ring take. The bands are what the first run
-/// measured; a change to the placer, the chain or the vein moves them, and the
-/// number to check against the reference is the harness dump, not this.
-///
-/// The overworld block band was re-recorded once, three blocks down: the
-/// region here used to be built without the program, so `isAir` answered from
-/// an empty mask and `discard_chance_on_air_exposure` never discarded anything.
-/// Both bands were re-recorded when the placement stream became the
-/// reference's `WorldgenRandom` rather than a native Xoroshiro source, and
-/// again when the corpus gained the ice-cave ores, which sort first in the
-/// step and so move every other ore's decoration seed.
 #[test]
 fn the_corpus_ore_counts_stay_in_the_band_the_first_run_set() {
     let (tables, named) = ore_tables();

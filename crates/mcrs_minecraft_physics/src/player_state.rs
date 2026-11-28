@@ -1,27 +1,23 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::EntityUuid;
 
 use crate::Body;
 use crate::MotionAttributes;
 use crate::MotionEffects;
-use crate::Pose;
 use crate::QueryEntity;
+use crate::SprintSpeed;
+use mcrs_minecraft_pose::Pose;
 
-/// The state of a player at the start of a tick: the values that one tick reads and writes.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PlayerState {
-    /// The UUID of the profile of the player, its order key.
-    pub key: EntityKey,
+    pub key: EntityUuid,
     pub body: Body,
     pub pose: Pose,
     pub jump_delay: u8,
     pub sprint_timer: u8,
     pub jump_timer: u8,
-    /// The shift key of the previous tick.
     pub shift0: bool,
-    /// The jump key of the previous tick, a press of auto-jump included.
     pub jump0: bool,
-    /// The forward value of the input of the previous tick.
     pub forward0: f32,
     pub sprint0: bool,
     pub flight0: bool,
@@ -29,20 +25,17 @@ pub struct PlayerState {
     pub swimming: bool,
     pub item_use: ItemUse,
     pub attributes: MotionAttributes,
+    pub sprint_speed: SprintSpeed,
     pub effects: MotionEffects,
     pub may_fly: bool,
     pub flight_speed: f32,
-    /// True when the player was inside powder snow in the previous tick.
     pub in_powder_snow0: bool,
 }
 
-/// The item use state of a player.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ItemUse {
     pub using: bool,
-    /// The speed multiplier of the use, `0.2F` by default.
     pub speed_multiplier: f32,
-    /// True when the use permits the sprint state.
     pub permits_sprint: bool,
 }
 
@@ -57,7 +50,6 @@ impl Default for ItemUse {
 }
 
 impl ItemUse {
-    /// True when the use slows the player: it uses an item that does not permit the sprint state.
     #[must_use]
     pub const fn slows(&self) -> bool {
         self.using && !self.permits_sprint
@@ -65,7 +57,6 @@ impl ItemUse {
 }
 
 impl PlayerState {
-    /// A standing player at `position` with the defaults of a new player.
     #[must_use]
     pub fn new(position: DVec3) -> Self {
         Self {
@@ -78,7 +69,6 @@ impl PlayerState {
         }
     }
 
-    /// The player as the entity of a query of colliders.
     pub(crate) fn query_entity(&self) -> QueryEntity {
         QueryEntity {
             key: self.key,

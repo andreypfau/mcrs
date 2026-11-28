@@ -1,6 +1,3 @@
-//! Rules of the clip time, the accumulation of a pose and the scripts that the pose artefact
-//! does not reach.
-
 use glam::Vec3;
 use mcrs_minecraft_entity_animation::{
     ClipLibrary, EntityAnimation, EntityQuery, Pose, PoseBinding, PoseBone, QuerySource, Rig,
@@ -9,7 +6,6 @@ use mcrs_minecraft_entity_model::{BakedGeometry, GeometryFile};
 use mcrs_minecraft_pack_file::ClientEntityFile;
 use mcrs_molang::{ScalarVm, Value};
 
-/// One bone with the rest rotation 20° about X.
 const GEOMETRY: &str = r#"{"format_version": "1.12.0", "minecraft:geometry": [{
     "description": {"identifier": "geometry.test", "texture_width": 16, "texture_height": 16},
     "bones": [{"name": "bone", "pivot": [0, 0, 0], "rotation": [20, 0, 0]}]}]}"#;
@@ -37,8 +33,6 @@ struct Fixture {
 }
 
 impl Fixture {
-    /// A rig of the clips `animations` with the `scripts` object of a client entity. Each clip
-    /// has the short name of the last part of its identifier.
     fn new(scripts: &str, animations: &str) -> Self {
         let mut library = ClipLibrary::new();
         library
@@ -70,8 +64,6 @@ impl Fixture {
         }
     }
 
-    /// The file pose of the bone after a frame at the entity clock `clock`, in ticks: the
-    /// absolute rotation, the position and the scale.
     fn frame(&mut self, clock: f32, baby: bool) -> [Vec3; 3] {
         let inputs = Inputs {
             life_time: clock / 20.0,
@@ -117,7 +109,6 @@ fn weights_add_rotations_multiply_scales_and_this_reads_the_pose_before_the_clip
         }"#,
     );
     let [rotation, _, scale] = fixture.frame(0.0, false);
-    // a adds 0.5 · 10; b reads this = 20 + 5 and adds 50.
     close(rotation, Vec3::new(75.0, 0.0, 0.0));
     close(scale, Vec3::splat((1.0 + (2.0 - 1.0) * 0.5) * 3.0));
 }
@@ -147,11 +138,9 @@ fn catmull_rom_uses_the_end_keyframe_as_its_missing_neighbour() {
             "2": {"post": [0, 0, 0], "lerp_mode": "catmullrom"}}}}}}"#,
     );
     fixture.frame(0.0, false);
-    // p0 = p1 = 0, p2 = 10, p3 = 0 at α = 0.5.
     let [_, first, _] = fixture.frame(10.0, false);
     let expected = 0.5 * (10.0 * 0.5 + 40.0 * 0.25 - 30.0 * 0.125);
     close(first, Vec3::new(expected, 0.0, 0.0));
-    // p0 = 0, p1 = 10, p2 = 0, p3 = p2 = 0 at α = 0.5.
     let [_, second, _] = fixture.frame(30.0, false);
     let expected = 0.5 * (20.0 - 50.0 * 0.25 + 30.0 * 0.125);
     close(second, Vec3::new(expected, 0.0, 0.0));

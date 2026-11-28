@@ -1,49 +1,34 @@
-use std::num::NonZeroU64;
-
 use bevy::prelude::*;
-use bevy::render::render_resource::binding_types::{
-    texture_2d, texture_depth_2d, uniform_buffer_sized,
-};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ViewDepthStencilTexture;
 
-use crate::reconstruct::LIGHTING_UNIFORM_SIZE;
+use crate::pipeline::DeferredPipelines;
+use crate::present::present_bind_group;
+use crate::shared_bindings::gbuffer;
+use crate::shared_types::RECONSTRUCTION_SIZE;
+use crate::terrain::Terrain;
+use crate::transparency_targets::TransparencyTargets;
 use crate::uniform_buffer;
+use crate::{ImprovedTransparency, LightTint};
 
-/// Albedo and occlusion, normal and motion, then emissive, block light, sky light and roughness.
-/// Albedo stays in the bytes vanilla shades, so it is never an sRGB format: the lighting pass
-/// encodes for the target once.
 pub const GBUFFER_FORMATS: [TextureFormat; 3] = [
     TextureFormat::Rgba8Unorm,
     TextureFormat::Rgba16Float,
     TextureFormat::Rgba16Float,
 ];
 
-pub(crate) fn gbuffer_layout() -> BindGroupLayoutDescriptor {
-    BindGroupLayoutDescriptor::new(
-        "deferred gbuffer",
-        &BindGroupLayoutEntries::sequential(
-            ShaderStages::FRAGMENT,
-            (
-                texture_2d(TextureSampleType::Float { filterable: false }),
-                texture_2d(TextureSampleType::Float { filterable: false }),
-                texture_2d(TextureSampleType::Float { filterable: false }),
-                texture_depth_2d(),
-                uniform_buffer_sized(false, NonZeroU64::new(LIGHTING_UNIFORM_SIZE)),
-            ),
-        ),
-    )
-}
+pub(crate) const WORLD_IMAGE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 
-/// Everything the deferred path allocates. Nothing else may hold a clone of these
-/// textures or the bind group, or a resize would not free the ones it replaces.
 #[derive(Resource)]
 pub struct DeferredFrame {
-    /// Albedo and occlusion, normal and motion, then the light, in [`GBUFFER_FORMATS`].
     pub targets: [TextureView; 3],
+    pub(crate) world: TextureView,
+    pub(crate) present: BindGroup,
     pub(crate) lighting: Buffer,
+    nearest: Sampler,
     pub(crate) bind_group: BindGroup,
+    pub(crate) transparency: Option<TransparencyTargets>,
     size: UVec2,
     depth: TextureId,
 }
@@ -52,12 +37,19 @@ impl DeferredFrame {
     fn new(depth: &ViewDepthStencilTexture, device: &RenderDevice, cache: &PipelineCache) -> Self {
         let size = size_of(depth);
         let targets = targets(size, device);
-        let lighting = uniform_buffer("deferred lighting", LIGHTING_UNIFORM_SIZE, device);
-        let bind_group = bind_group(&targets, &lighting, depth, device, cache);
+        let world = world_image(size, device);
+        let present = present_bind_group(&world, device, cache);
+        let lighting = uniform_buffer("deferred lighting", RECONSTRUCTION_SIZE, device);
+        let nearest = nearest_sampler(device);
+        let bind_group = bind_group(&targets, &lighting, &nearest, depth, device, cache);
         Self {
             targets,
+            world,
+            present,
             lighting,
+            nearest,
             bind_group,
+            transparency: None,
             size,
             depth: depth.texture().id(),
         }
@@ -66,6 +58,7 @@ impl DeferredFrame {
     fn fit(
         &mut self,
         depth: &ViewDepthStencilTexture,
+        improved: bool,
         device: &RenderDevice,
         cache: &PipelineCache,
     ) {
@@ -73,11 +66,35 @@ impl DeferredFrame {
         let rebuilt = size != self.size;
         if rebuilt {
             self.targets = targets(size, device);
+            self.world = world_image(size, device);
+            self.present = present_bind_group(&self.world, device, cache);
             self.size = size;
         }
-        if rebuilt || self.depth != depth.texture().id() {
+        let rebound = rebuilt || self.depth != depth.texture().id();
+        if rebound {
             self.depth = depth.texture().id();
-            self.bind_group = bind_group(&self.targets, &self.lighting, depth, device, cache);
+            self.bind_group = bind_group(
+                &self.targets,
+                &self.lighting,
+                &self.nearest,
+                depth,
+                device,
+                cache,
+            );
+        }
+        if !improved {
+            self.transparency = None;
+            return;
+        }
+        if rebound || self.transparency.is_none() {
+            self.transparency = Some(TransparencyTargets::new(
+                &self.targets,
+                &self.lighting,
+                &self.nearest,
+                depth,
+                device,
+                cache,
+            ));
         }
     }
 }
@@ -87,63 +104,94 @@ fn size_of(depth: &ViewDepthStencilTexture) -> UVec2 {
 }
 
 fn targets(size: UVec2, device: &RenderDevice) -> [TextureView; 3] {
-    GBUFFER_FORMATS.map(|format| {
-        device
-            .create_texture(&TextureDescriptor {
-                label: Some("gbuffer"),
-                size: Extent3d {
-                    width: size.x,
-                    height: size.y,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: TextureDimension::D2,
-                format,
-                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-                view_formats: &[],
-            })
-            .create_view(&TextureViewDescriptor::default())
+    GBUFFER_FORMATS
+        .map(|format| attachment("gbuffer", size, format, device).create_view(&default()))
+}
+
+fn world_image(size: UVec2, device: &RenderDevice) -> TextureView {
+    attachment("world image", size, WORLD_IMAGE_FORMAT, device).create_view(&default())
+}
+
+pub(crate) fn attachment(
+    label: &'static str,
+    size: UVec2,
+    format: TextureFormat,
+    device: &RenderDevice,
+) -> Texture {
+    device.create_texture(&TextureDescriptor {
+        label: Some(label),
+        size: Extent3d {
+            width: size.x,
+            height: size.y,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format,
+        usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    })
+}
+
+pub(crate) fn depth_view(depth: &Texture) -> TextureView {
+    depth.create_view(&TextureViewDescriptor {
+        label: Some("gbuffer depth"),
+        aspect: TextureAspect::DepthOnly,
+        ..default()
+    })
+}
+
+pub(crate) fn nearest_sampler(device: &RenderDevice) -> Sampler {
+    device.create_sampler(&SamplerDescriptor {
+        label: Some("depth"),
+        ..SamplerDescriptor::default()
     })
 }
 
 fn bind_group(
     targets: &[TextureView; 3],
     lighting: &Buffer,
+    nearest: &Sampler,
     depth: &ViewDepthStencilTexture,
     device: &RenderDevice,
     cache: &PipelineCache,
 ) -> BindGroup {
-    let depth_view = depth.texture().create_view(&TextureViewDescriptor {
-        label: Some("gbuffer depth"),
-        aspect: TextureAspect::DepthOnly,
-        ..default()
-    });
+    let [albedo_ao, normal_motion, light] = targets;
+    let depth_view = depth_view(depth.texture());
     device.create_bind_group(
         "deferred gbuffer",
-        &cache.get_bind_group_layout(&gbuffer_layout()),
-        &BindGroupEntries::sequential((
-            &targets[0],
-            &targets[1],
-            &targets[2],
-            &depth_view,
-            lighting.as_entire_binding(),
-        )),
+        &cache.get_bind_group_layout(&gbuffer::layout()),
+        &gbuffer::entries(gbuffer::Entries {
+            albedo_ao,
+            normal_motion,
+            light,
+            depth: &depth_view,
+            reconstruction: lighting,
+            nearest,
+        }),
     )
 }
 
 pub(crate) fn fit_deferred_frame(
     mut commands: Commands,
     frame: Option<ResMut<DeferredFrame>>,
-    views: Query<&ViewDepthStencilTexture, With<Camera3d>>,
+    views: Populated<&ViewDepthStencilTexture, With<Camera3d>>,
+    improved: Option<Res<ImprovedTransparency>>,
+    pipelines: Res<DeferredPipelines>,
+    terrain: Option<Res<Terrain>>,
+    tint: Option<Res<LightTint>>,
     device: Res<RenderDevice>,
     cache: Res<PipelineCache>,
 ) {
     let Some(depth) = views.iter().next() else {
         return;
     };
+    let improved = improved.is_some_and(|improved| improved.0)
+        && terrain
+            .is_some_and(|terrain| pipelines.transparency_supported(&terrain, tint.as_deref()));
     match frame {
-        Some(mut frame) => frame.fit(depth, &device, &cache),
+        Some(mut frame) => frame.fit(depth, improved, &device, &cache),
         None => commands.insert_resource(DeferredFrame::new(depth, &device, &cache)),
     }
 }

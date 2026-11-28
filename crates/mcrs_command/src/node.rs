@@ -2,7 +2,6 @@ use crate::node_id::NodeId;
 use crate::node_kind::NodeKind;
 use alloc::vec::Vec;
 
-/// A node of a command tree, over argument set `A`, requirement `R` and handler `H`.
 #[derive(Clone, Debug)]
 pub struct Node<A, R, H> {
     pub(crate) kind: NodeKind<A>,
@@ -20,7 +19,6 @@ impl<A, R, H> Node<A, R, H> {
         &self.kind
     }
 
-    /// The argument type of an argument node.
     pub fn argument(&self) -> Option<&A> {
         match &self.kind {
             NodeKind::Argument { argument, .. } => Some(argument),
@@ -52,14 +50,10 @@ impl<A, R, H> Node<A, R, H> {
         self.redirect
     }
 
-    /// What a redirect does to each source before the target runs; `None` passes the
-    /// sources on unchanged.
     pub fn modifier(&self) -> Option<&H> {
         self.modifier.as_ref()
     }
 
-    /// The modifier maps one source to any number of sources, and an error of one source
-    /// drops only that source.
     pub fn forks(&self) -> bool {
         self.forks
     }

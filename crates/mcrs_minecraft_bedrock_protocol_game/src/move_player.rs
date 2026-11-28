@@ -3,46 +3,28 @@ use alloc::vec::Vec;
 use glam::Vec3;
 use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error, Packet, VarU64};
 
-/// Moves a player: the player of the client, or another player that the client shows.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MovePlayer {
-    /// The runtime id of the player that moves.
     pub runtime_id: VarU64,
-    /// The eye position.
     pub position: Vec3,
-    /// The pitch in degrees.
     pub pitch: f32,
-    /// The yaw in degrees.
     pub yaw: f32,
-    /// The head yaw in degrees.
     pub head_yaw: f32,
-    /// The mode, with the teleport fields when the mode is a teleport.
     pub mode: MoveMode,
-    /// Whether the player stands on the ground.
     pub on_ground: bool,
-    /// The runtime id of the entity that the player rides; 0 when it rides nothing.
     pub ridden_runtime_id: VarU64,
-    /// For the player of the client, the client tick of the last `PlayerAuthInput` that the
-    /// server processed; otherwise 0.
     pub tick: VarU64,
 }
 
-/// The mode of [`MovePlayer`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum MoveMode {
-    /// The movement of another player.
     Normal,
-    /// Moves the player of the client to the position.
     Reset,
-    /// Teleports the player of the client to the position.
     Teleport {
-        /// The cause of the teleport.
         cause: TeleportCause,
-        /// The entity type id of the source; 0 for none.
         source_entity_type: i32,
     },
-    /// Turns the head only.
     HeadRotation,
 }
 
@@ -57,20 +39,14 @@ impl MoveMode {
     }
 }
 
-/// The cause of a [`MoveMode::Teleport`], as an `i32le`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BedrockEncode, BedrockDecode)]
 #[bedrock(tag = i32)]
 #[non_exhaustive]
 pub enum TeleportCause {
-    /// The cause is not known.
     Unknown = 0,
-    /// A projectile.
     Projectile = 1,
-    /// A chorus fruit.
     ChorusFruit = 2,
-    /// A command.
     Command = 3,
-    /// A behaviour.
     Behaviour = 4,
 }
 

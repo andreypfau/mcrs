@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
-# Records the entity physics experiments of docs/spec/entity-physics.md, section 15, from the
-# vanilla dedicated server of the corpus version. The server runs headless; record.py drives it
-# through its console with /summon, /tick step and /data get, and writes one JSON fixture per
-# experiment. Needs MINECRAFT_EULA=true, as tools/vanilla-server/run.sh does.
 set -euo pipefail
 
 fixtures_here=$(cd "$(dirname "$0")" && pwd)
 fixtures_root=$(cd "$fixtures_here/../.." && pwd)
-# shellcheck source=../vanilla-server/run.sh
 source "$fixtures_root/tools/vanilla-server/run.sh"
 
 if [ "${MINECRAFT_EULA:-}" != true ]; then

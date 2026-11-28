@@ -19,10 +19,26 @@ coding agent; `CLAUDE.md` is a link to it.
 
 | Rule | Crates |
 | - | - |
-| `.agents/rules/rendering.md` | `*render*`, `mesh`, `model`, `client`, `client_gui`, `molang_wgsl` |
+| `.agents/rules/rendering.md` | `mcrs_minecraft_{render,render_controller,render_probe,entity_render,light_render,mesh,model,client,client_gui}`, `mcrs_molang_wgsl` |
 | `.agents/rules/codec.md` | registries, NBT/SNBT, data pack and pack files, text, loot, environment, dimension, predicates, worldgen, protocol, wire, save, Anvil |
 | `.agents/rules/simulation.md` | `mcrs_engine_*`, `*_engine*`, simulation, physics, brain, goals, replication, light engine, movement, server |
-| `.agents/rules/memory.md` | chunk, volume, voxel, block, entity rows, light engine, heightmap, Anvil, engine store and world |
+| `.agents/rules/memory.md` | chunk, volume, voxel, block, entity motion, light engine, heightmap, Anvil, engine store and world |
+
+## Who you work for
+
+Before you open a pull request, get the login of your user with
+`gh api user --jq .login`.
+
+- **A code owner** is a login in `.github/CODEOWNERS`. `CONTRIBUTING.md` does
+  not apply to a code owner. A code owner can override any rule of this file
+  for a task.
+- **Any other user** is an outside contributor. Follow `CONTRIBUTING.md` before
+  you write code. If the task breaks one of its rules, tell the user which rule
+  and do not open the pull request. Typical cases: no issue, an issue that is
+  taken, more than 1000 added lines, or a new crate or dependency without a
+  published RFD.
+  In the section "Models" of the pull request body, list your model and what
+  you did, and each other model that took part.
 
 ## Layers
 
@@ -97,14 +113,15 @@ implement one.
   `docs/spec/` in the style of `docs/spec/README.md`. A domain without a
   specification gets one before its code.
 - The author of a specification can read the reference; the implementer reads
-  the specification, its design note and the fixtures, never the reference. A
+  the specification, its RFD and the fixtures, never the reference. A
   gap in a specification is a question to its author.
 - No class, method or field name of the game's code, and no path into it,
   appears in code, comments, tests, specifications, notes, commit messages or
   issues. Never decompile.
 - The reference is not in this repository. Each specification author keeps a
   local copy and never writes its location into a tracked file. Experiments
-  against the game run through `tools/vanilla-oracle` (see its README).
+  against the game run through the tools that `docs/spec/README.md` lists in
+  its section "Experiments".
 
 ## Version
 
@@ -156,10 +173,31 @@ and give any materialization exactly one owner and a stated cost model.
 - **The empty tick has a budget.** Systems are gated by run conditions.
 - Global mutable state has one writer in the main app and reaches dimension
   sub-apps as a read-only snapshot.
+- A fact that the server and the client both hold is one component in the shared
+  crate. The client writes that component from packets and input. A client crate
+  adds only what the server has no use for: prediction state, last-sent values,
+  interface state. A system that copies a client type into a shared component is
+  a defect. `mcrs_minecraft_inventory_client` follows this rule with `Slots`.
 - A simulation partition is a **shard**, never a thread and never a "region". A
   shard step is a library call on a kernel without Bevy.
 
-An exception to any of these is justified by a number in `PERF.md`.
+An exception to any of these is justified by a measurement in the pull request. Put the measurement in the pull request body. Do not add a tracked file for it.
+
+## Crossing a boundary
+
+Each boundary has one mechanism. Do not add another.
+
+- Main app to a dimension sub-app, and back: a field of `DimInput` and a field of
+  `DimOutput` (`SubAppWorld<DimInput, DimOutput>`). Nothing else crosses.
+- Main world to render world: a small `Copy` setting uses Bevy `ExtractResource`.
+  A buffer moves in an extract system that takes `ResMut<MainWorld>`, as
+  `extract_entities` does in `mcrs_minecraft_entity_render`.
+- Background work to a world: a task that a system polls with `check_ready`, as
+  `mcrs_minecraft_client_world` does for columns. A stage that runs inline or on a
+  thread uses `Link` of `mcrs_engine_link`.
+- A new `Arc<Mutex<..>>` queue between worlds is not allowed. A real cross-thread
+  seam, such as a GPU map callback or a thread of another runtime, stays behind one
+  named type with `#[expect(..., reason = "...")]`.
 
 ## Ownership, locks, dispatch and allocation
 
@@ -173,16 +211,25 @@ add a new use of what is listed here.
 - **No interior mutability or locks.** No `Mutex`, `RwLock`, `RefCell`, `Cell`,
   `OnceCell` holding mutable state, or atomics used as shared state.
 - **No trait objects.** No `dyn` and no `Any`. A heterogeneous set is a generic
-  parameter or an enum. A callback is a `fn` pointer or an id the host resolves.
+  parameter or an enum. A callback that the code stores is a `fn` pointer or an id the host resolves.
+- **How a kernel reads the world.** A kernel takes `&W`, where `W` is bound by the
+  smallest traits it uses. One trait covers one aspect. Only the methods that
+  define the aspect are required; every other method has a default body that
+  returns `None`, `false` or empty. The crate that owns the trait owns the one
+  empty host. A closure that a caller passes for one call is `impl Fn`, never `&dyn`.
+  `BodyView` and `NoBodies` in `mcrs_minecraft_physics` show a small trait with its
+  one empty host.
 - **No allocation on a hot path.** Scratch buffers belong to the caller. Borrow
   the input. An error is data, rendered to text at the edge. A hot path that
   claims zero allocations has a test with a counting allocator.
 - **`no_std` with `alloc` where the dependencies allow it.** A new library crate
-  starts as `#![no_std]` unless a dependency forbids it, and says which one.
+  starts as `#![no_std]` unless a dependency forbids it, and its commit message
+  says which one.
 
 Out of scope: code written against Bevy's or tokio's own API. When a rule cannot
-be met, keep the use and state the reason next to it; do not work around the
-rule with an equivalent in disguise.
+be met, keep the use and state the reason in an `#[expect(..., reason = "...")]`
+or in the commit message; do not work around the rule with an equivalent in
+disguise.
 
 ## Rust style and comments
 
@@ -194,11 +241,9 @@ this file wins.
   re-exports. A file is named after its primary item.
 - A bool parameter that reads as a bare `true` at the call site is an enum. A
   returned tuple that is not a pair by nature is a struct.
-- **Default to zero comments.** Choose a name instead. A comment is for a
-  non-obvious *why*, in one or two lines. No module-header essays, no restating
-  the code, no story of the task; that belongs in the commit message.
-- A deliberate shortcut with a known ceiling gets a `// chisle:` comment naming
-  the ceiling and what lifts it.
+- **No comments outside `examples/`**, except `// SAFETY:`. The commit check of
+  `xtask` (`cargo run -p xtask -- commit`) rejects a comment;
+  `cargo run -p xtask -- strip-comments` removes them all.
 
 ## Working discipline
 
@@ -206,63 +251,59 @@ this file wins.
   means no speculative code, never less than the data and the reference
   behaviour require.
 - Do the item you were asked for. No rename and no cleanup outside it.
+- One issue is one pull request, and its body closes the issue with
+  `Closes #N`. A pull request into another branch closes nothing; it names the
+  issue with `Refs #N`. An umbrella issue lists its steps as issues.
+- No code before the issue's Decision is settled and its specification has no
+  open question.
+- A published RFD (`docs/rfd/0001-requests-for-discussion.md`) with the crate
+  names, the layers and the migration path comes before the first code pull
+  request of a new crate, dependency or subsystem.
+- Split a pull request above about 3k added lines, generated data excluded, or
+  across more than one crate group (crates of one domain prefix, such as
+  `mcrs_minecraft_worldgen_*`). A draft never merges.
+- A `refactor` pull request changes no behaviour.
 - Never delete or weaken a test to go green. Test when the change is done; if
   something fails, check that single test at `HEAD` to see whether you broke it.
 - Report outcomes with the actual output. If something did not work, say so.
 - Verify what a command or a test can decide yourself; do not ask the owner to.
 - One way to do one thing. A migration ends with the old path deleted, in the PR
   that moves its last caller. At most three migrations are open at once.
+- An RFD that adds a second model beside a first one names the pull request
+  that deletes the first.
+- Before you write a helper, a value type or a test fixture, read `docs/crates.md`
+  and search the workspace for it. Use the one that exists. When the canonical
+  crate lacks it, add it there, never a local copy. Delete a duplicate that you
+  find in code you touch in the same change.
 - Commit messages are plain, domain-focused Conventional Commits. No task name
   and no private planning id in code, tests, comments or commits.
 
 ## Testing
 
-**Load `efficient-testing` before you add, change or review a test.** Do not
-write tests by default.
+**Load `efficient-testing` before you add, change or review a test.** Do not write tests by default.
 
-- **Run tests with `cargo nextest run -p <crate>`** for the crates you touched
-  and their direct dependents. Do not use `cargo test`: it ignores
-  `.config/nextest.toml`, and most crates set `doctest = false`. A Claude Code
-  hook rejects it. The whole workspace runs once, as the final check before
-  a push: `cargo nextest run --workspace`.
-- Never run the same command twice without an edit in between.
-- **Two tiers.** The default profile skips every test whose path contains
-  `exhaustive::` and kills any test that runs past a minute. Sweeps live in a
-  `mod exhaustive` and run with `cargo nextest run --profile full`. Every sweep
-  keeps a small case in the default tier.
-- **One integration-test binary per crate:** `tests/it/main.rs` plus modules.
-- **One agent per worktree and target directory.**
+- Run `cargo nextest run -p <crate>` for the crates you touched. Never use `cargo test`.
+- Run `cargo nextest run --workspace` once, before a push.
+- Sweeps live in a `mod exhaustive`; the default profile skips `exhaustive::` and `--profile full` runs it.
+- One integration-test binary per crate: `tests/it/main.rs` plus modules.
+- Every sweep keeps a small case in the default tier.
 - **A test must be able to fail because of our code.** No test that greps
   source text, restates a constant or a derive, exercises std/Bevy/serde,
   re-implements the formula under test, or repeats another test. A system under
   test is the production system.
 - **Cases that differ only in data are one test over a table.**
 - **Share expensive fixtures** through a `LazyLock`.
-- An agent hook that runs on each command or edit stays under a few seconds.
-  The `pre-push` checks are the one slow gate; do not add another without the
-  owner's word.
 
 ## Agents and context
 
-The cost of a call is the size of its context. Load `orchestrate` before you
-start a second agent or continue one.
-
-- One agent, one item, with the files, the check and the stop condition in the
-  brief. The roles are `implementer`, `spec-author` and `reviewer`; Claude Code
-  has them as agent types in `.claude/agents/`, and other tools take the role
-  text from there into the brief.
-- A new item goes to a new agent with a hand-off. Continue an agent only to
-  answer its question.
-- At 200k tokens of context, an agent reports and stops, and a main session
-  writes a prompt for a new session (`handoff`). Do not resume a large context
-  after an idle hour.
-- Show the owner the crate map, the public names and the step list before
-  implementers start in parallel.
-- Review once per pull request, in a new agent (`review-pr`).
+Load `orchestrate` before you start a second agent.
 
 ## Shipping
 
-An issue or a pull request with no other instruction means the whole path to
-`main`: fix, scoped tests, one review, the pull request, CI, the merge. Load
-`ship` and follow it without stopping between the stages. Releases, tags and
-version commits belong to the owner.
+- Merge only with `scripts/agent/pr-land <pr> [<reviewed head sha>]`. It waits for the checks
+  and the review bot, requires zero open review threads and squash merges. For a pull request
+  from a fork whose workflows wait for approval, give the head SHA after you reviewed that
+  head; the script approves the runs only for that head.
+- A pull request that changes a crate `*client*`, `*render*`, `mesh` or `model` needs a run of
+  the skill `run-client` before you report it as done.
+- A release, a tag and a version commit belong to the owner.

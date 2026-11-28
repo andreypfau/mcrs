@@ -1,6 +1,9 @@
+use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
-use mcrs_minecraft_network::client::close_connection_later;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_game_mode::{Abilities, PlayerGameMode, PreviousGameMode};
+use mcrs_minecraft_network::client::{ConnectionEnd, close_connection_later};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::Packet;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -10,14 +13,26 @@ use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_registries::{CurrentRegistries, Namer, Registries};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
+use crate::game_mode::PermissionLevel;
+use crate::hardcore_mode::HardcoreMode;
+use crate::health_packets::{NEW_PLAYER_FOOD, NEW_PLAYER_VITALS};
+use crate::local_motion::LocalMotion;
+use crate::local_player::LastSentInput;
+use crate::player::{Player, player_at};
+use crate::player_load::{LoadProgress, PlayerLoad};
+use crate::respawn_screen::RespawnScreen;
+use crate::session::InSession;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
+use mcrs_minecraft_entity_visual::SyncedData;
+use mcrs_minecraft_inventory_file::PlayerItems;
+use mcrs_minecraft_player_holders::restore_holders;
+
 #[derive(Component, Clone, Debug)]
 pub struct JoinedGame {
     pub player_id: i32,
     pub dimensions: Vec<ResourceKeyBuf<Dimension>>,
 }
 
-/// The dimension the player is in. Written only when a login or a respawn
-/// names it, as a whole.
 #[derive(Component, Clone, Debug)]
 pub struct CurrentDimension {
     pub key: ResourceKeyBuf<Dimension>,
@@ -34,16 +49,24 @@ impl CurrentDimension {
 }
 
 pub(crate) fn add_observers(app: &mut App) {
+    app.world_mut().register_system_cached(restore_holders);
     app.add_observer(on_login)
         .add_observer(on_respawn)
         .add_observer(on_set_entity_data);
 }
 
-fn refuse_packet(commands: &mut Commands, connection: Entity, name: &str, error: anyhow::Error) {
+fn refuse_packet(
+    mut commands: Commands<'_, '_>,
+    connection: Entity,
+    name: &str,
+    error: anyhow::Error,
+) {
     close_connection_later(
-        commands,
+        commands.reborrow(),
         connection,
-        format!("the server sent a {name} the client cannot read: {error:#}"),
+        ConnectionEnd::Lost(format!(
+            "the server sent a {name} the client cannot read: {error:#}"
+        )),
     );
 }
 
@@ -60,11 +83,14 @@ fn in_session(registries: Option<&Registries>, spawn: &PlayerSpawnInfo) -> anyho
 fn on_login(
     event: On<Received<ClientboundLogin>>,
     registries: Option<Res<CurrentRegistries>>,
+    players: Query<Entity, With<Player>>,
     mut commands: Commands,
 ) {
     let Some(login) = event.packet() else {
         return;
     };
+    let respawn_screen = RespawnScreen::from_login(&login);
+    let hardcore_mode = HardcoreMode::from_login(&login);
     let session = registries.as_deref().map(|registries| &**registries);
     match in_session(session, &login.player_spawn_info) {
         Ok(()) => {
@@ -75,8 +101,43 @@ fn on_login(
                 },
                 CurrentDimension::of(&login.player_spawn_info),
             ));
+            if let Ok(player) = players.single() {
+                commands
+                    .entity(player)
+                    .insert((respawn_screen, hardcore_mode));
+            } else if players.is_empty() {
+                let mode = login.player_spawn_info.game_mode;
+                let mut player = commands.spawn((
+                    player_at(DVec3::ZERO, 0.0, 0.0),
+                    Abilities::new(mode),
+                    LocalMotion::spawned(mode, DVec3::ZERO),
+                    SyncedData::default(),
+                    LastSentInput::default(),
+                    PermissionLevel::default(),
+                    respawn_screen,
+                    hardcore_mode,
+                    NEW_PLAYER_VITALS,
+                    NEW_PLAYER_FOOD,
+                    InSession(event.entity),
+                    PlayerLoad::Loading(LoadProgress::default()),
+                ));
+                player.insert((
+                    PlayerGameMode(mode),
+                    PreviousGameMode(login.player_spawn_info.prev_game_mode.0),
+                ));
+                if let Some(bases) = mcrs_minecraft_entity::attribute_bases(EntityType::Player) {
+                    player.insert(AttributeInstances::new(bases));
+                }
+                let player = player.id();
+                commands.run_system_cached_with(restore_holders, (player, PlayerItems::default()));
+            }
         }
-        Err(error) => refuse_packet(&mut commands, event.entity, ClientboundLogin::NAME, error),
+        Err(error) => refuse_packet(
+            commands.reborrow(),
+            event.entity,
+            ClientboundLogin::NAME,
+            error,
+        ),
     }
 }
 
@@ -95,7 +156,12 @@ fn on_respawn(
                 .entity(event.entity)
                 .insert(CurrentDimension::of(&respawn.player_spawn_info));
         }
-        Err(error) => refuse_packet(&mut commands, event.entity, ClientboundRespawn::NAME, error),
+        Err(error) => refuse_packet(
+            commands.reborrow(),
+            event.entity,
+            ClientboundRespawn::NAME,
+            error,
+        ),
     }
 }
 
@@ -118,7 +184,7 @@ fn on_set_entity_data(
     };
     if let Err(error) = checked {
         refuse_packet(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             ClientboundSetEntityData::NAME,
             error,
@@ -230,7 +296,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             trigger.raise(
-                &mut self.app.world_mut().commands(),
+                self.app.world_mut().commands(),
                 self.connection,
                 data.into(),
             );
@@ -274,6 +340,22 @@ mod tests {
 
         client.deliver(&respawn(OVERWORLD.into(), dimension_type(4)));
         assert!(client.dropped(), "a type number past the dimension types");
+    }
+
+    #[test]
+    fn the_player_that_the_first_login_spawns_waits_for_the_level() {
+        let mut client = Client::playing(Some(session(0)));
+        client.deliver(&login(7, dimension_type(0)));
+
+        let mut players = client
+            .app
+            .world_mut()
+            .query_filtered::<&PlayerLoad, With<Player>>();
+        assert_eq!(
+            players.single(client.app.world()).ok(),
+            Some(&PlayerLoad::Loading(LoadProgress::default())),
+            "the client reports the player loaded only once the level around it is there"
+        );
     }
 
     #[test]

@@ -1,0 +1,89 @@
+{
+  "target": {
+    "operators": [
+      "invreplaceplyr"
+    ]
+  },
+  "observe": {
+    "inventory": true
+  },
+  "steps": [
+    {
+      "id": "join",
+      "join": "invreplaceplyr"
+    },
+    {
+      "id": "peaceful",
+      "command": {
+        "client": "invreplaceplyr",
+        "line": "difficulty peaceful"
+      }
+    },
+    {
+      "id": "teleport_to_origin",
+      "command": {
+        "client": "invreplaceplyr",
+        "line": "tp @s 0.5 -60 0.5"
+      }
+    },
+    {
+      "id": "survival",
+      "command": {
+        "client": "invreplaceplyr",
+        "line": "gamemode survival"
+      }
+    },
+    {
+      "id": "place_chest",
+      "command": {
+        "client": "invreplaceplyr",
+        "line": "setblock 1 -60 0 chest"
+      }
+    },
+    {
+      "id": "place_barrel",
+      "command": {
+        "client": "invreplaceplyr",
+        "line": "setblock -1 -60 0 barrel"
+      }
+    },
+    {
+      "id": "stone_5_in_p1",
+      "command": {
+        "client": "invreplaceplyr",
+        "line": "item replace entity @s hotbar.1 with stone 5"
+      }
+    },
+    {
+      "id": "open_chest",
+      "use_block": {
+        "client": "invreplaceplyr",
+        "position": [1, -60, 0]
+      }
+    },
+    {
+      "id": "chest_pick_up_p1",
+      "click": {
+        "client": "invreplaceplyr",
+        "slot": 55,
+        "button": 0,
+        "mode": "pickup",
+        "changed_slots": [{ "slot": 55, "stack": null }],
+        "carried": { "item": "minecraft:stone", "count": 5 }
+      }
+    },
+    {
+      "id": "open_barrel_over_chest",
+      "use_block": {
+        "client": "invreplaceplyr",
+        "position": [-1, -60, 0]
+      }
+    },
+    {
+      "id": "close_barrel",
+      "close": {
+        "client": "invreplaceplyr"
+      }
+    }
+  ]
+}

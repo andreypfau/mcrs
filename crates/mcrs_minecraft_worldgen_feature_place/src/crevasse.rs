@@ -189,8 +189,6 @@ fn walk_branch<W: WorldGenVolume>(
     }
 }
 
-/// The highest carvable block with air directly above it, searched over
-/// `range` blocks centred on `center`.
 fn find_surface<W: WorldGenVolume>(
     config: &CompiledCrevasse,
     volume: &W,
@@ -217,8 +215,6 @@ fn neighbours((x, z): (i32, i32)) -> impl Iterator<Item = (i32, i32)> {
     })
 }
 
-/// A column whose surface steps more than one block from any collected
-/// neighbour's is never kept, and never relays the search.
 fn connected_columns(columns: &Columns, origin: BlockPos) -> BTreeSet<(i32, i32)> {
     let is_steep = |key: (i32, i32)| {
         columns.get(&key).is_some_and(|column| {

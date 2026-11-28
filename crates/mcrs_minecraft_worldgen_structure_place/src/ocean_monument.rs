@@ -22,15 +22,13 @@ pub struct OceanMonumentBlocks {
     pub wet_sponge: Oriented,
     pub air: Oriented,
     pub water: Oriented,
-    /// Ice, packed ice, blue ice and water in every state: what a water box
-    /// leaves standing.
     pub fill_keep: StateMask,
     pub replaceable_by_structures: StateMask,
 }
 
 impl OceanMonumentBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let oriented = |block: Block| Oriented::named(world, blocks, block, &[]);
@@ -59,7 +57,6 @@ const SOUTH: Direction = Direction::South;
 const WEST: Direction = Direction::West;
 const EAST: Direction = Direction::East;
 
-/// One child piece's brushes: the blocks, its canvas and the room graph.
 struct Room<'a, 'b, W: WorldGenVolume> {
     b: &'a OceanMonumentBlocks,
     c: PieceCanvas<'b, W>,
@@ -94,8 +91,6 @@ impl<W: WorldGenVolume> Room<'_, '_, W> {
             .is_some_and(|room| room.index / MonumentRoom::GRID_FLOOR > 0)
     }
 
-    /// `generateWaterBox`: air above the sea, water below, over anything but
-    /// the kept blocks; every cell read before it is written.
     fn water_box(&mut self, min: [i32; 3], max: [i32; 3]) {
         let sea_level = self.c.volume.extent().sea_level;
         let [x0, y0, z0] = min;
@@ -117,7 +112,6 @@ impl<W: WorldGenVolume> Room<'_, '_, W> {
         }
     }
 
-    /// `generateBoxOnFillOnly`: the state where still water stands.
     fn box_on_fill_only(&mut self, min: [i32; 3], max: [i32; 3], target: &Oriented) {
         let [x0, y0, z0] = min;
         let [x1, y1, z1] = max;
@@ -153,7 +147,6 @@ impl<W: WorldGenVolume> Room<'_, '_, W> {
         }
     }
 
-    /// `chunkIntersects`: whether the piece-local x/z rectangle meets the clip.
     fn chunk_intersects(&self, x0: i32, z0: i32, x1: i32, z1: i32) -> bool {
         let a = self.c.world_pos(x0, 0, z0);
         let b = self.c.world_pos(x1, 0, z1);
@@ -172,7 +165,6 @@ impl<W: WorldGenVolume> Room<'_, '_, W> {
     }
 }
 
-/// `MonumentBuilding.postProcess` for one column, its children included.
 pub fn paint_ocean_monument<W: WorldGenVolume>(
     b: &OceanMonumentBlocks,
     piece: &OceanMonumentPiece,
@@ -230,7 +222,7 @@ pub fn paint_ocean_monument<W: WorldGenVolume>(
 
 #[expect(
     clippy::too_many_lines,
-    reason = "lays out the monument's wings, core, chambers and pillars as one run of canvas calls in the reference's order, so it reads against it"
+    reason = "one run of canvas calls in the reference's order"
 )]
 fn building<W: WorldGenVolume>(r: &mut Room<'_, '_, W>) {
     let (gray, light, black, lamp) = (r.b.gray, r.b.light, r.b.black, r.b.lamp);
@@ -1060,7 +1052,7 @@ fn penthouse<W: WorldGenVolume>(r: &mut Room<'_, '_, W>, rng: &mut WorldgenRando
 
 #[expect(
     clippy::too_many_lines,
-    reason = "builds the walls, lamps and openings of one room for each design in the reference's order, so each case reads against it"
+    reason = "one case per room design in the reference's order"
 )]
 fn simple_room<W: WorldGenVolume>(
     r: &mut Room<'_, '_, W>,

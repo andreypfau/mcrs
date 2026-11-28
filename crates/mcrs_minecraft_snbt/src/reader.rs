@@ -17,7 +17,6 @@ pub(crate) enum Fail {
 
 pub(crate) type ReadResult<T> = Result<T, Fail>;
 
-/// What an operation and the compound read need to know about a value, whatever the builder.
 #[derive(Clone, Copy)]
 pub(crate) enum Shape<'a> {
     Number { nonzero: bool },
@@ -51,8 +50,6 @@ impl<'a, B: Build> Reader<'a, B> {
         self.input.get(self.pos..).unwrap_or_default()
     }
 
-    /// One tag from the cursor; the error is the first record at the furthest
-    /// position.
     pub(crate) fn read(&mut self) -> Result<(B::Value, Shape<'a>), SnbtError> {
         match self.value(1) {
             Ok(value) => Ok(value),
@@ -88,7 +85,6 @@ impl<'a, B: Build> Reader<'a, B> {
         self.rest().trim_start_matches(is_whitespace).chars().next()
     }
 
-    /// A character token: one code unit of `set`, whose members are joined with `|`.
     pub(crate) fn token(&mut self, set: &'static str) -> ReadResult<char> {
         let start = self.pos;
         self.skip_whitespace();
@@ -147,7 +143,6 @@ impl<'a, B: Build> Reader<'a, B> {
         }
     }
 
-    /// `[ item { ',' item } [ ',' ] ]`.
     fn items(&mut self, mut item: impl FnMut(&mut Self) -> ReadResult<()>) -> ReadResult<()> {
         if self.opt(&mut item)?.is_none() {
             return Ok(());
@@ -436,7 +431,6 @@ fn too_deep(depth: u32, position: usize) -> ReadResult<()> {
     Ok(())
 }
 
-/// Whether the text starts with an escape of a low surrogate, without recording anything.
 fn low_surrogate_follows(rest: &str) -> bool {
     let Some(rest) = rest.strip_prefix('\\') else {
         return false;
@@ -448,7 +442,6 @@ fn low_surrogate_follows(rest: &str) -> bool {
     hex_digits(rest.as_str(), length).is_some_and(is_low_surrogate)
 }
 
-/// The four groups of 32 bits of a UUID in the canonical form.
 fn canonical_uuid(text: StrText<'_>) -> Option<[i32; 4]> {
     const DASHES: [usize; 4] = [8, 13, 18, 23];
     let mut value: u128 = 0;

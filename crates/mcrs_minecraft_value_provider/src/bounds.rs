@@ -7,7 +7,6 @@ use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// A bare number when both bounds agree, else `{min, max}`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct MinMaxBounds<T> {
     pub min: Option<T>,
@@ -32,8 +31,6 @@ impl<T> MinMaxBounds<T> {
     }
 }
 
-/// A bound read from any number, ordered and printed as its boxed Java type
-/// is.
 pub trait Bound: Copy + Serialize {
     fn read<'de, D: Deserializer<'de>>(d: D) -> Result<Self, D::Error>;
     fn compare(self, other: Self) -> Ordering;
@@ -54,8 +51,6 @@ impl Bound for i32 {
     }
 }
 
-/// `-0.0` orders below `0.0` and is not equal to it, unlike the primitive
-/// operators.
 impl Bound for f64 {
     fn read<'de, D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         f64::deserialize(d)
@@ -117,7 +112,7 @@ fn optional_bound<'de, T: Bound, D: Deserializer<'de>>(d: D) -> Result<Option<T>
 impl<'de, T: Bound> Deserialize<'de> for MinMaxBounds<T> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields, bound = "T: Bound")]
+        #[serde(bound = "T: Bound")]
         struct Range<T> {
             #[serde(default, deserialize_with = "optional_bound")]
             min: Option<T>,
@@ -186,6 +181,18 @@ mod tests {
             assert_eq!(serde_json::to_string(&bounds).unwrap(), json);
         }
         assert!(serde_json::from_str::<MinMaxBounds<f64>>(r#"{"min":2,"max":1}"#).is_err());
+    }
+
+    #[test]
+    fn reg_fld_006_bounds_ignore_an_unknown_field() {
+        let bounds: MinMaxBounds<i32> = serde_json::from_str(r#"{"min":1,"zzz":2}"#).unwrap();
+        assert_eq!(
+            bounds,
+            MinMaxBounds {
+                min: Some(1),
+                max: None
+            }
+        );
     }
 
     #[test]

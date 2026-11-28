@@ -2,7 +2,6 @@ use glam::DVec3;
 
 use crate::Axis;
 
-/// An axis-aligned box in f64 world coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Aabb {
     pub min: DVec3,
@@ -15,8 +14,6 @@ impl Aabb {
         Self { min, max }
     }
 
-    /// The box of a body at `position`, the centre of its bottom face. The half width is an f32
-    /// value, widened.
     #[must_use]
     pub fn of_body(position: DVec3, width: f32, height: f32) -> Self {
         let half_width = f64::from(width / 2.0);
@@ -30,8 +27,6 @@ impl Aabb {
         }
     }
 
-    /// Moves one face for each component: a negative component the minimum face, a positive one
-    /// the maximum face.
     #[must_use]
     pub fn expand_towards(self, by: DVec3) -> Self {
         let mut grown = self;
@@ -46,7 +41,6 @@ impl Aabb {
         grown
     }
 
-    /// Grows each face outwards by `amount` on its axis.
     #[must_use]
     pub fn inflate(self, amount: DVec3) -> Self {
         Self {
@@ -83,7 +77,6 @@ impl Aabb {
         axis.of(self.max)
     }
 
-    /// True when the two boxes overlap with a volume that is more than zero.
     #[must_use]
     pub fn intersects(&self, other: &Aabb) -> bool {
         self.min.x < other.max.x

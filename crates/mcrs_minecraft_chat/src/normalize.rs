@@ -2,7 +2,6 @@ use crate::max_input::MAX_INPUT;
 use alloc::string::String;
 use mcrs_command::is_whitespace;
 
-/// The text a send carries, written into `out`.
 pub fn normalize(input: &str, out: &mut String) {
     out.clear();
     let trimmed = input.trim_matches(|c: char| c <= '\u{20}');

@@ -23,8 +23,6 @@ use mcrs_minecraft_worldgen_feature::template::Projection;
 type ProcessorListKey = ResourceKey<'static, StructureProcessorList>;
 type Weight = Bounded<1, 150>;
 
-/// A template named relative to its pool's directory. `numbers` makes one row
-/// stand for the templates `name<lo>` to `name<hi>`, zero-padded to a width.
 #[derive(Clone, Copy)]
 pub struct Template {
     legacy: bool,
@@ -74,8 +72,6 @@ impl Template {
     }
 }
 
-/// A pool whose fallback is `empty`, whose pieces are rigid, sit at the root
-/// and take no processors, until a builder call says otherwise.
 pub struct Pool {
     name: ResourceLocation<'static>,
     fallback: ResourceLocation<'static>,
@@ -175,7 +171,6 @@ impl Pool {
         for (piece, weight) in self.pieces {
             let mut elements = Vec::new();
             self.elements(*piece, &mut elements)?;
-            // `weights_in_range` checks every weight of a table when the crate compiles.
             let weight = Bounded(*weight);
             entries.extend(elements.into_iter().map(|element| (element, weight)));
         }

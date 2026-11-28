@@ -47,7 +47,6 @@ pub enum ItemTableError {
 }
 
 impl ItemDefinitions {
-    /// `items` names the item registry's entries in id order.
     pub fn from_entries(
         items: &[ResourceLocationBuf],
         entries: Vec<ItemEntry>,
@@ -105,7 +104,7 @@ impl ItemDefinitions {
 
     #[expect(
         clippy::len_without_is_empty,
-        reason = "the table is addressed by registry id and nothing asks whether it is empty, so an is_empty method would only add public API"
+        reason = "the table is addressed by registry id and nothing asks whether it is empty"
     )]
     pub fn len(&self) -> usize {
         self.entries.len()

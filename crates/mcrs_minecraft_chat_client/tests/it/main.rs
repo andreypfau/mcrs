@@ -24,7 +24,6 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundCommands;
 use mcrs_minecraft_resource::ResourceLocation;
 use std::borrow::Cow;
 
-/// The players online, and nothing else.
 pub struct Players(pub &'static [&'static str]);
 
 impl Lookup for Players {
@@ -101,7 +100,6 @@ pub fn context<'a>(tree: &'a ClientGraph, source: &'a Source<'a, Players>) -> Co
     }
 }
 
-/// A node of a `commands` packet under construction.
 pub enum Wire {
     Literal(&'static str),
     Argument(

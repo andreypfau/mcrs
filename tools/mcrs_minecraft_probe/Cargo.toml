@@ -1,0 +1,40 @@
+[package]
+name = "mcrs_minecraft_probe"
+description = "Runs one scenario file with scripted clients over TCP against a server and records what each client observes"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+test = false
+doctest = false
+
+[[bin]]
+name = "mcrs_minecraft_probe"
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+mcrs_minecraft_command_tree.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_container_click.workspace = true
+mcrs_minecraft_menu_key.workspace = true
+mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_network.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_snbt.workspace = true
+mcrs_minecraft_sound = { workspace = true, features = ["registry"] }
+mcrs_minecraft_text.workspace = true
+mcrs_voxel.workspace = true
+md-5.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

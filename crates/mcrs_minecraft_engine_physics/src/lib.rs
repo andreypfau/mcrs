@@ -1,37 +1,42 @@
-//! The entity pass of a dimension world in Bevy. The row store of
-//! [`mcrs_minecraft_entity_rows`] is a resource, generic over the mob column that the AI of the
-//! application supplies; systems lend it to the merge point, the freeze and the pass. Items and experience
-//! orbs are rows only, with no ECS entity. Mobs are rows with a cold side table; the
-//! changes of the tick wait in [`MobChanges`] for the systems of [`MobPublish`].
-
-mod block_world;
+mod crowd_damage_type;
+mod crowd_hits;
+mod despawn_expired;
+mod entity_motion_plugin;
 mod entity_physics_plugin;
 mod entity_writes;
-mod mob_damage;
-mod mob_life;
+mod first_looks;
+#[cfg(feature = "testing")]
+mod floor;
+mod mob_body;
+mod mob_changes;
+mod mob_index;
+mod mob_publish;
+mod mob_row;
+mod mob_spawn;
 mod mob_spawn_request;
+mod mob_vitals;
 mod mobs;
+mod physics_tables;
 #[cfg(feature = "testing")]
 mod test_scene;
 
+pub use entity_motion_plugin::EntityMotionPlugin;
 pub use entity_physics_plugin::EntityPhysicsPlugin;
-pub use entity_physics_plugin::ItemStacks;
-pub use entity_physics_plugin::MobPublish;
-pub use entity_physics_plugin::PhysicsTables;
+pub use entity_writes::EntityWrite;
 pub use entity_writes::EntityWrites;
-pub use mob_damage::hurt_mob;
-pub use mob_life::MobChanges;
-pub use mob_life::Spawned;
-pub use mob_life::Struck;
-pub use mob_life::mob_body;
-pub use mob_life::mob_row;
+#[cfg(feature = "testing")]
+pub use floor::FLOOR;
+pub use mob_body::mob_body;
+pub use mob_changes::MobChanges;
+pub use mob_changes::Spawned;
+pub use mob_index::MobIndex;
+pub use mob_publish::MobPublish;
+pub use mob_row::mob_row;
 pub use mob_spawn_request::MobExtras;
 pub use mob_spawn_request::MobSpawnRequest;
 pub use mob_spawn_request::SpawnSetup;
+pub use mob_vitals::mob_vitals;
 pub use mobs::Mob;
-pub use mobs::MobUuids;
-pub use mobs::Mobs;
-#[cfg(feature = "testing")]
-pub use test_scene::FLOOR;
+pub use physics_tables::PhysicsTables;
 #[cfg(feature = "testing")]
 pub use test_scene::TestScene;

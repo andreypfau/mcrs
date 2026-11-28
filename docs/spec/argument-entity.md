@@ -2,17 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
+| Version | see `assets/minecraft/version.json` |
 | Parser id | 6 (`commands-packet.md`, CMDP-ARG-001) |
-
-Source of the version values: `assets/minecraft/version.json`. Source of the parser ids:
-`assets/mcrs/reports/registries.json`, through `commands-packet.md`, CMDP-ARG-001.
 
 This document states the argument type `minecraft:entity`. It states the text that the type
 accepts, the selector that it reads, the errors and their positions, and its suggestions. It
-also states the entities that a selector finds when a command runs. It does not prescribe an
-architecture.
+also states the entities that a selector finds when a command runs.
 
 ## 0. Conventions
 
@@ -45,7 +40,7 @@ architecture.
 
 ### 0.2 Provenance and confidence
 
-The labels of `registry.md`, section 0.3, apply. None of the experiments has been run.
+The labels of `registry.md`, section 0.3, apply.
 
 ### 0.3 The four forms of the argument
 
@@ -609,7 +604,7 @@ type.
 
 ---
 
-## 5. Open questions
+## 5. Unresolved
 
 - ARG-ENT-015: the plain text name of an entity with a custom name that has styles or
   translations. This needs the text specification.

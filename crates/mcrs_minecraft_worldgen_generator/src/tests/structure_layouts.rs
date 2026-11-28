@@ -162,7 +162,7 @@ mod exhaustive {
     #[test]
     #[expect(
         clippy::excessive_nesting,
-        reason = "compares each structure's pieces with the oracle's start, unpacking the pair inline, so a mismatch names the structure and the piece"
+        reason = "a mismatch names the structure and the piece"
     )]
     fn structure_layouts_match_the_oracle() {
         let dump = read_dump();

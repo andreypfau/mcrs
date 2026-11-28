@@ -4,19 +4,12 @@ use crate::planner::Point;
 use crate::view::View;
 use mcrs_minecraft_entity_key::TileKey;
 
-/// The largest tracking range that the muxer honours, in the units of the game. A larger range
-/// from the codec counts as this one, so a bad value cannot make a region of millions of tiles.
 pub(crate) const MAX_RANGE: u32 = 1536;
 
-/// A held ranged subject stays with its viewer until this far past its range, so a subject that
-/// wanders on the edge of the range does not spawn and despawn in each tick.
 const KEEP_MARGIN: f64 = 1.0;
 
-/// A viewer that moves less than this from where the muxer last measured its region keeps the
-/// region, so a walking player does not judge the edge of its range again in each tick.
 pub(crate) const RETRACK_STEP: f64 = 0.5;
 
-/// The distances on X and Z from a viewer to the nearest and to the farthest point of a tile.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct TileReach {
     pub(crate) near: f64,
@@ -41,13 +34,10 @@ impl TileReach {
         }
     }
 
-    /// Whether each subject of the tile with a range of `range` or more pairs, whatever its
-    /// position in the tile.
     pub(crate) fn is_inside(self, range: u32) -> bool {
         self.far <= f64::from(range)
     }
 
-    /// Whether some subject of the tile with a range of at most `range` can pair or stay.
     pub(crate) fn can_reach(self, range: u32) -> bool {
         self.near <= f64::from(range) + KEEP_MARGIN
     }
@@ -58,9 +48,6 @@ struct AxisReach {
     far: f64,
 }
 
-/// Whether a viewer keeps or gains a subject with `range` in a tile at `reach`. `held` says if the
-/// client of the viewer holds the subject now. `distance` gives the distance on X and Z from the
-/// viewer to the subject, and the muxer asks it only for a tile on the edge of the range.
 pub(crate) fn tracks(
     reach: TileReach,
     range: u32,
@@ -81,8 +68,6 @@ pub(crate) fn tracks(
     distance().is_some_and(|distance| distance <= limit)
 }
 
-/// The tiles of the layers of `view` on Y whose nearest point on X and Z is within `range` and
-/// its margin of `point`, each with its reach.
 pub(crate) fn region(
     point: Point,
     view: &View,

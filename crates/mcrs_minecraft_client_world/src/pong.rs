@@ -10,8 +10,6 @@ pub(crate) fn add_observers(app: &mut App) {
     app.add_observer(on_ping);
 }
 
-/// Answers a `ping` with a `pong` of the same id. A server that waits too long for it ends the
-/// session.
 fn on_ping(event: On<Received<ClientboundPing>>, mut connections: Query<&mut ClientConnection>) {
     let (Some(ping), Ok(mut connection)) = (event.packet(), connections.get_mut(event.entity))
     else {

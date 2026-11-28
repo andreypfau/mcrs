@@ -12,7 +12,6 @@ use syn::{
     Token, Type, TypeParamBound, parse_macro_input, parse_quote,
 };
 
-/// Put it above the value's `#[derive]`, which must still see the serde bound it adds.
 #[proc_macro_attribute]
 pub fn registry_value(args: TokenStream, item: TokenStream) -> TokenStream {
     parse_macro_input!(args as syn::parse::Nothing);
@@ -23,12 +22,6 @@ pub fn registry_value(args: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// Reads and writes an enum as one map whose `key` names an entry of the static `registry`, the
-/// way `Codec.dispatch` does: the entry chooses the variant, the rest of the map is its body.
-/// A variant reads the entry of its own name, `#[dispatch(Entry)]` another one and
-/// `#[dispatch(id = "ns:path")]` a name outside the registry. Every entry has a variant or is
-/// listed in `unsupported(..)`, unless `only` refuses the entries left out; `key_last` writes the
-/// key after the body.
 #[proc_macro_attribute]
 pub fn dispatch(args: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
@@ -45,7 +38,6 @@ pub fn derive_resolve(item: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Converts the `Wire` form of a value into its `Resolved` form and back, field by field.
 #[proc_macro_derive(FromWire)]
 pub fn derive_from_wire(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
@@ -54,7 +46,6 @@ pub fn derive_from_wire(item: TokenStream) -> TokenStream {
         .into()
 }
 
-/// One conversion trait between the `Resolved` form and another form of a value.
 struct Form {
     trait_name: &'static str,
     mode: &'static str,
@@ -114,7 +105,6 @@ fn bound_serde(input: &mut DeriveInput) -> Result<()> {
     let mode = mode_param(&input.generics)?;
     if !has_serde_bound(&input.attrs) {
         let bound = serde_bound(&input.data, &[&mode]);
-        // A helper attribute placed before the derive that introduces it is rejected.
         let after_derives = input
             .attrs
             .iter()

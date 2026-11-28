@@ -4,10 +4,6 @@ use crate::batch_subject::{BatchOutput, BatchSubjects};
 use crate::bytecode::{Instr, Program, Reg};
 use crate::math::{self, BinaryFn, UnaryFn};
 
-/// Runs a program for a block of `N` lanes with the bytecode of the scalar VM. Each instruction
-/// is one loop over the lanes. Pure instructions run for every lane; an instruction with an
-/// effect runs only for the lanes of the current mask, so the results and the stores of each
-/// lane are those of a scalar run.
 #[derive(Clone, Debug)]
 pub struct BatchVm<const N: usize> {
     numbers: Vec<[f32; N]>,
@@ -27,7 +23,6 @@ impl<const N: usize> Default for BatchVm<N> {
     }
 }
 
-/// The register file with one register lent mutably and the others shared.
 struct Split<'a, T, const N: usize> {
     before: &'a [[T; N]],
     after: &'a [[T; N]],
@@ -104,7 +99,6 @@ fn binary_column<const N: usize>(
     }
 }
 
-/// Stores `source` in the lanes of `mask`; a lane whose flag is truthy becomes missing.
 fn store_masked<T: Copy, const N: usize>(
     stored: &mut [T; N],
     set: &mut [bool; N],
@@ -143,7 +137,6 @@ impl<const N: usize> BatchVm<N> {
         }
     }
 
-    /// Runs `program` once for each of the first `subjects.lanes` lanes.
     pub fn run(
         &mut self,
         program: &Program,
@@ -156,8 +149,6 @@ impl<const N: usize> BatchVm<N> {
         self.run_masked(program, subjects, &lanes)
     }
 
-    /// Runs `program` once for each lane that `lanes` marks active; `subjects.lanes` is not
-    /// read. An inactive lane keeps its variables, and its result is `0.0` or `0`.
     pub fn run_masked(
         &mut self,
         program: &Program,
@@ -512,7 +503,6 @@ impl<const N: usize> BatchVm<N> {
         }
     }
 
-    /// Ends the run of the active lanes with their results.
     fn finish(&mut self, number: impl Fn(usize) -> f32, bits: Option<&[u64; N]>) {
         for (lane, (((active, alive), out_number), out_bits)) in self
             .mask

@@ -1,14 +1,5 @@
 # Registries and tags: behavioural specification
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-| World version (`DataVersion`) | `5124` |
-| Data pack format | `124.0` |
-
-Source of these values: `assets/minecraft/version.json`.
-
 This document states what a server, a client, a data pack author or a save file
 can observe of the registry and tag system. It does not prescribe an
 architecture. Every rule is stated over data: files, keys, numeric ids, orderings,
@@ -48,11 +39,9 @@ extension of it. The character order that matters is:
 - `design`: an mcrs choice where the documentation and the reference state nothing, or where mcrs selects a different behaviour. The rule states the reason.
 - `unresolved`: not decided. It is collected in section 11.
 
-None of the experiments in this document has been run. Each one is a proposal.
-
 ### 0.4 Artefacts cited
 
-- `assets/minecraft/`: the game's built-in data pack. It is the `data/minecraft` tree of the client jar, written at the root of `assets/minecraft/`. For example, a file the game reads at `data/minecraft/tags/block/logs.json` is stored here as `assets/minecraft/tags/block/logs.json`. The built-in feature packs are under `assets/minecraft/datapacks/<id>/`, each with its own `pack.mcmeta`. `trade_rebalance` also has a `data/` tree; `minecart_improvements` and `redstone_experiments` contain only `pack.mcmeta` (REG-PACK-001 covers a pack without `data/`). The corpus leaves out the entry files of five registries that the client jar does contain (REG-ENTRY-007): `worldgen/biome`, `worldgen/noise`, `worldgen/density_function`, `worldgen/noise_settings` and `worldgen/template_pool`. For those registries, use `names.json` for entry names; the contents are in the jar.
+- `data/minecraft/`: the game's built-in data pack, the `data/minecraft` tree of the client jar. The built-in feature packs are under `data/minecraft/datapacks/<id>/`, each with its own `pack.mcmeta`. `trade_rebalance` also has a `data/` tree; `minecart_improvements` and `redstone_experiments` contain only `pack.mcmeta` (REG-PACK-001 covers a pack without `data/`). The entry files of five registries are not available to the corpus (REG-ENTRY-007): `worldgen/biome`, `worldgen/noise`, `worldgen/density_function`, `worldgen/noise_settings` and `worldgen/template_pool`. For those registries, use `names.json` for entry names.
 - The client jar: the game's own archive. It is cited only where the corpus leaves something out, by its internal path, for example `data/minecraft/worldgen/biome/plains.json`.
 - `assets/mcrs/reports/registries.json`: the game's registry report. It lists every static registry, the numeric id of each entry, and the default entry where there is one.
 - `assets/mcrs/reports/datapack.json`: the game's data pack structure report. For every registry it records `elements` (the registry is loaded from data packs), `tags` (it accepts tag files) and `stable`. For a data-pack registry, `stable: true` means it is reloadable (REG-SET-002). Every static registry is also marked `stable: true`; for them the flag carries no meaning here, since static registries have no entries to reload.
@@ -288,13 +277,13 @@ marker and the clock.
 - **Edge cases:**
   - Two registries whose directories nest do not exist at this version.
   - `data/<ns>/structure/` holds structure templates. It is not the `worldgen/structure` registry.
-  - A pack with no `data/` directory is valid. It contributes no entry and no tag, takes its place in the stack (REG-PACK-002) and, if it has a known-pack identity, is still offered (REG-NET-002). Fixtures: `assets/minecraft/datapacks/minecart_improvements/` and `assets/minecraft/datapacks/redstone_experiments/` hold only `pack.mcmeta`.
+  - A pack with no `data/` directory is valid. It contributes no entry and no tag, takes its place in the stack (REG-PACK-002) and, if it has a known-pack identity, is still offered (REG-NET-002). Fixtures: `data/minecraft/datapacks/minecart_improvements/` and `data/minecraft/datapacks/redstone_experiments/` hold only `pack.mcmeta`.
   - A file named exactly `.json` directly in a registry directory gives the key `<ns>:` with an empty path, which is a valid identifier (REG-ID-001).
   - In a zip pack, entry names are not normalised, so a name with a `..` segment keeps it in the key. A directory pack cannot produce such a name.
 - **Conformance tests:**
-  - `assets/minecraft/loot_table/blocks/` holds entries keyed `minecraft:blocks/<name>`.
-  - `assets/minecraft/tags/block/mineable/` holds tags `#minecraft:mineable/<name>`.
-  - `assets/minecraft/worldgen/placed_feature/` is the registry `minecraft:worldgen/placed_feature`.
+  - `data/minecraft/loot_table/blocks/` holds entries keyed `minecraft:blocks/<name>`.
+  - `data/minecraft/tags/block/mineable/` holds tags `#minecraft:mineable/<name>`.
+  - `data/minecraft/worldgen/placed_feature/` is the registry `minecraft:worldgen/placed_feature`.
 
 Provenance: `source_suggested_black_box_confirmed` (the vanilla data loads with
 these paths, see REG-ENTRY-001). Confidence: high for the layout table. The log
@@ -310,12 +299,12 @@ once zipped. Expected: `Bad.json` is skipped with a log line naming `t` and the 
 - **Inputs:** the `DataPacks` compound of `level.dat` (REG-SAVE-001), the available packs, the command line.
 - **Relevant state:** the available packs:
   - `vanilla`: the built-in pack.
-  - The built-in feature packs: their ids are the directory names under `assets/minecraft/datapacks/`, which are `minecart_improvements`, `redstone_experiments` and `trade_rebalance`.
+  - The built-in feature packs: their ids are the directory names under `data/minecraft/datapacks/`, which are `minecart_improvements`, `redstone_experiments` and `trade_rebalance`.
   - World packs: each directory or zip in the world's `datapacks/` folder, with the id `file/<file name>`. The file name is kept whole, so a directory `a` is `file/a` and a zip `a.zip` is `file/a.zip`. A directory is a pack only if it holds a `pack.mcmeta` file; any file whose name ends in `.zip` is a candidate and is dropped later if its `pack.mcmeta` is missing (REG-PACK-005). Other entries of the folder are ignored with an informational log line.
   - There are no other kinds. The game's dedicated server has exactly these three pack sources; only world packs lack a known-pack identity (REG-NET-002). No pack is required or pinned to a position, so nothing reorders the stack after it is built.
 - **Behavior:**
   - The pack stack is the `Enabled` list in its stored order, after removing ids that are not available. Each removal is logged as a missing data pack.
-  - A pack's format range (REG-PACK-005) plays no part in building the stack on a dedicated server. A pack whose range excludes `124.0` is selected and loaded like any other.
+  - A pack's format range (REG-PACK-005) plays no part in building the stack on a dedicated server. A pack whose range excludes `126.0` is selected and loaded like any other.
   - Index 0 has the lowest priority.
   - An available pack is appended to the end of the stack, and the server logs that it was found, when all of these hold:
     - its id is in neither `Enabled` nor `Disabled`;
@@ -358,7 +347,7 @@ death message prints. Then swap their order in `Enabled` and repeat.
   - A higher-priority file that does not parse does not fall back to the lower file. The entry fails (REG-ERR-001).
   - Identical files in two packs still have exactly one source: the higher pack.
 - **Conformance tests:**
-  - **Fixture:** `assets/minecraft/datapacks/trade_rebalance/data/minecraft/loot_table/chests/ancient_city.json` replaces `assets/minecraft/loot_table/chests/ancient_city.json` when `trade_rebalance` sits above `vanilla`.
+  - **Fixture:** `data/minecraft/datapacks/trade_rebalance/data/minecraft/loot_table/chests/ancient_city.json` replaces `data/minecraft/loot_table/chests/ancient_city.json` when `trade_rebalance` sits above `vanilla`.
   - **Expected:** `minecraft:chests/ancient_city` has the contents of the feature pack's file only.
   - **Second fixture:** `villager_trade/librarian/2/book_emerald.json` exists in both.
 - **Experiment:** enable `trade_rebalance` on a fresh world. Generate loot with `/loot spawn ~ ~ ~ loot minecraft:chests/ancient_city` many times. Only the pools of the feature pack's file appear.
@@ -397,7 +386,7 @@ case; see OQ-07).
 ### REG-PACK-005: `pack.mcmeta`
 
 - **Inputs:** the `pack.mcmeta` file at the root of a pack, parsed as strict JSON (REG-ENTRY-002). Its root must be an object.
-- **Relevant state:** the current data pack format, `124.0` (`data_major`, `data_minor` of `assets/minecraft/version.json`).
+- **Relevant state:** the current data pack format, `126.0` (`data_major`, `data_minor` of `assets/minecraft/version.json`).
 - **Preconditions:** the pack was found as a directory holding `pack.mcmeta` or as a `.zip` file (REG-PACK-002).
 - **Behavior:**
   - **`pack` section** (required):
@@ -422,26 +411,26 @@ case; see OQ-07).
 | `pack` present but its format fields break the rules above | pack available, with only its `description` read and its compatibility unknown; a warning is logged |
 | `description` itself invalid | pack not available; warning naming the pack |
 
-  - **Compatibility:** formats compare by major, then minor. A pack whose `max_format` is below `124.0` is too old; one whose `min_format` is above it is too new; otherwise it is compatible. A dedicated server does not act on this: an incompatible pack is listed, appended and loaded like a compatible one (REG-PACK-002).
+  - **Compatibility:** formats compare by major, then minor. A pack whose `max_format` is below `126.0` is too old; one whose `min_format` is above it is too new; otherwise it is compatible. A dedicated server does not act on this: an incompatible pack is listed, appended and loaded like a compatible one (REG-PACK-002).
   - **`features` section** (optional): `{"enabled": [<feature id>...]}`, the features the pack requests (REG-PACK-002). A feature id the game does not know makes the pack unavailable, with a warning naming the pack. A malformed section has the same outcome.
   - **`filter` section** (optional): REG-PACK-004.
-  - **`overlays` section** (optional): `{"entries": [{"directory": <name>, "min_format": …, "max_format": …}, ...]}`, where `<name>` is over `[-_a-zA-Z0-9.]` and the format fields follow the `pack` rules (with `formats` in place of `supported_formats`, and no `pack_format`). Every entry whose range contains `124.0` is applied: its directory, at the pack root, is read as an additional root of the same pack, so its content files are under `<name>/data/`. Within the pack, the last applicable entry in the list has the highest priority, then the earlier applicable entries in reverse list order, then the base `data/` tree. An entry with no usable format information is skipped with a warning. A malformed section makes the pack unavailable. Metadata, including `filter`, is read only from the pack's own `pack.mcmeta`, never from an overlay.
+  - **`overlays` section** (optional): `{"entries": [{"directory": <name>, "min_format": …, "max_format": …}, ...]}`, where `<name>` is over `[-_a-zA-Z0-9.]` and the format fields follow the `pack` rules (with `formats` in place of `supported_formats`, and no `pack_format`). Every entry whose range contains `126.0` is applied: its directory, at the pack root, is read as an additional root of the same pack, so its content files are under `<name>/data/`. Within the pack, the last applicable entry in the list has the highest priority, then the earlier applicable entries in reverse list order, then the base `data/` tree. An entry with no usable format information is skipped with a warning. A malformed section makes the pack unavailable. Metadata, including `filter`, is read only from the pack's own `pack.mcmeta`, never from an overlay.
   - Fields that the game does not name are ignored, in every section (REG-ENTRY-003).
 - **Ordering constraints:** `pack.mcmeta` is read when packs are discovered, before the stack is built; the `filter` section is read later, when the stack's files are assembled (REG-PACK-004).
 - **Numeric semantics:** a format is a pair (major, minor) of non-negative integers; a bare integer `M` is `(M, 0)` as a minimum and `(M, every minor)` as a maximum.
 - **Postconditions:** a pack that is not available cannot be in the stack. If `level.dat` lists it in `Enabled`, it is dropped as a missing pack (REG-PACK-002).
 - **Edge cases:**
-  - The built-in `vanilla` pack has no `pack.mcmeta` of its own; it behaves as one that declares format `124.0` to `124.*`, the default features, and no filter or overlays.
-  - The shipped feature packs declare `"min_format": 124`, `"max_format": 124` and one feature each (`assets/minecraft/datapacks/*/pack.mcmeta`).
+  - The built-in `vanilla` pack has no `pack.mcmeta` of its own; it behaves as one that declares format `126.0` to `126.*`, the default features, and no filter or overlays.
+  - The shipped feature packs declare `"min_format": 124`, `"max_format": 124` and one feature each (`data/minecraft/datapacks/*/pack.mcmeta`).
 - **Invariants:** whether a pack is available depends only on its own `pack.mcmeta`, never on other packs or on the world.
 - **Conformance tests:**
   - A world pack with `{"pack":{"description":"x","min_format":[100],"max_format":[110]}}` is available and loads, although it is too old.
   - A world pack with `{"pack":{"description":"x","min_format":[124,0]}}` (no `max_format`) is available, and a warning is logged.
   - A world pack with `{"pack":{"description":"x","min_format":124,"max_format":124},"features":{"enabled":["t:none"]}}` is not available.
-  - A world pack whose `overlays` lists `{"directory":"o","min_format":124,"max_format":124}` and that ships `o/data/t/damage_type/x.json` and `data/t/damage_type/x.json`: the entry `t:x` is decoded from the overlay's file.
+  - A world pack whose `overlays` lists `{"directory":"o","min_format":126,"max_format":126}` and that ships `o/data/t/damage_type/x.json` and `data/t/damage_type/x.json`: the entry `t:x` is decoded from the overlay's file.
 
 Provenance: `source_suggested`, except the shipped feature pack fields
-(`black_box_confirmed`, `assets/minecraft/datapacks/*/pack.mcmeta`). Confidence:
+(`black_box_confirmed`, `data/minecraft/datapacks/*/pack.mcmeta`). Kind: semantic. Confidence:
 medium. Experiment: the conformance tests above on a vanilla dedicated server,
 checking the server log and, for the overlay case, the `message_id` of `t:x` in a
 registry data packet captured with an empty negotiated set.
@@ -455,8 +444,8 @@ registry data packet captured with an empty negotiated set.
 - **Inputs:** a winning file at `data/<ns>/<R path>/<p>.json`.
 - **Behavior:** the entry key is `<ns>:<p>`. `<p>` keeps its `/` separators and loses the `.json` suffix.
 - **Conformance tests (shipped data):**
-  - `assets/minecraft/advancement/adventure/arbalistic.json` names its parent as `minecraft:adventure/ol_betsy`, and `assets/minecraft/advancement/adventure/ol_betsy.json` exists.
-  - Enchantments in `assets/minecraft/enchantment/` name `#minecraft:enchantable/armor`, which is the file `assets/minecraft/tags/item/enchantable/armor.json`.
+  - `data/minecraft/advancement/adventure/arbalistic.json` names its parent as `minecraft:adventure/ol_betsy`, and `data/minecraft/advancement/adventure/ol_betsy.json` exists.
+  - Enchantments in `data/minecraft/enchantment/` name `#minecraft:enchantable/armor`, which is the file `data/minecraft/tags/item/enchantable/armor.json`.
   - The enchantment's tag reference must resolve for vanilla to load (REG-REF-002). The advancement's `parent` is a plain identifier, not a checked reference: an advancement whose parent does not exist still loads as an entry, but it and every advancement below it are left out of the advancement tree, and an error listing them is logged. The load does not fail.
 
 Provenance: `source_suggested_black_box_confirmed`. Confidence: high for the key
@@ -503,7 +492,7 @@ The schema of each registry, meaning its fields, types, defaults and numeric
 ranges, is out of scope (§0.6). The following holds for every registry:
 
 - A missing required field, a value of the wrong type, a value out of range, or a string that is not a valid identifier where one is required is an entry error (REG-ERR-001).
-- Fields that the schema does not name are ignored, at any depth of the entry, in every data-pack registry. They are not an error, not a warning, and they do not reach the network form or any other output. This is the game's behaviour and the rule this specification adopts (OQ-05, closed).
+- Fields that the schema does not name are ignored, at any depth of the entry, in every data-pack registry. They are not an error, not a warning, and they do not reach the network form or any other output. This is the game's behaviour and the rule this specification adopts.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: in a pack, copy
 `damage_type/arrow.json` to `t:arrow2` and add `"zzz": 1`. Expected: the server
@@ -591,7 +580,7 @@ Provenance: `source_suggested`. Confidence: medium. The experiment is under REG-
 | `minecraft:worldgen/noise_settings` | 7 |
 | `minecraft:worldgen/template_pool` | 245 |
 
-  and every one of them is attributed to `(minecraft, core, 26.4-snapshot-4)`.
+  and every one of them is attributed to `(minecraft, core, <version id>)`.
 
 Provenance: `black_box_confirmed` for the files and counts (the client jar,
 `data/minecraft/worldgen/{biome,noise,density_function,noise_settings,template_pool}/`,
@@ -617,8 +606,7 @@ negotiated set: `minecraft:plains` carries the pack's value.
   - A damage type file `{"message_id": "a", "exhaustion": "bad", "scaling": "never", "exhaustion": 5.0}` loads, with `exhaustion` 5.0.
   - A tag file `{"values": ["minecraft:stone"], "values": ["minecraft:dirt"]}` gives `[dirt]`.
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: OQ-01's experiment,
-now with the expected outcome `5.0`, plus the conformance cases above.
+Provenance: `source_suggested`. Confidence: medium.
 
 ---
 
@@ -642,9 +630,9 @@ now with the expected outcome `5.0`, plus the conformance cases above.
   - An inline value has no key and no numeric id. It cannot be a tag member and cannot be referenced from anywhere else.
   - On the wire, an inline value is encoded in place and a reference is encoded as its key (REG-NET-005).
 - **Conformance tests (shipped data):**
-  - Key references: `assets/minecraft/worldgen/placed_feature/*.json` (`"feature": "minecraft:…"`).
-  - Inline values: `assets/minecraft/worldgen/feature/forest_flowers.json`. Its `features` list holds an inline placed feature with an inline feature.
-  - Tag sets: `assets/minecraft/enchantment/*.json` (`"supported_items": "#minecraft:enchantable/…"`) and `assets/minecraft/worldgen/structure/*.json` (`"biomes": "#minecraft:has_structure/…"`).
+  - Key references: `data/minecraft/worldgen/placed_feature/*.json` (`"feature": "minecraft:…"`).
+  - Inline values: `data/minecraft/worldgen/feature/forest_flowers.json`. Its `features` list holds an inline placed feature with an inline feature.
+  - Tag sets: `data/minecraft/enchantment/*.json` (`"supported_items": "#minecraft:enchantable/…"`) and `data/minecraft/worldgen/structure/*.json` (`"biomes": "#minecraft:has_structure/…"`).
 
 Provenance: `source_suggested_black_box_confirmed`. Confidence: high.
 
@@ -739,8 +727,7 @@ pick `t:no_such_table` produce nothing.
 | unresolved reference (REG-REF-002) | the load fails | as above |
 | empty registry from REG-SET-004 | the load fails | n/a (stage 1) |
 | registry-wide validation fails (REG-SET-005) | the load fails | n/a (stage 1) |
-| fatal loot validation problem in stage 3 (below) | the load fails | the reload fails |
-| non-fatal loot validation problem (below) | warning logged | warning logged |
+| loot validation problem in stage 3 (below) | the load fails | the reload fails |
 | advancement criterion validation problem | warning logged | warning logged |
 | advancement whose `parent` does not exist (REG-ENTRY-001) | advancement left out of the tree, error logged | same |
 | tag file malformed or schema-invalid | that file is skipped, error logged | same |
@@ -749,25 +736,25 @@ pick `t:no_such_table` produce nothing.
   - "The load fails" means that the server does not start (REG-ERR-003). No partial registry set is used.
   - "The reload fails" means that the server keeps all previous data (REG-ERR-004).
   - A stage 3 entry that fails to decode is not skipped on its own: one broken loot table, recipe or advancement file fails the whole load or reload.
-  - **Loot validation.** After stage 3 loads, every loot table, predicate, item modifier, slot source and context number provider is checked, following references into the others and into tags. Every problem found is logged as a warning naming the path to the problem (the root entry, then each followed reference or tag, field and index). The problems are of two classes:
+  - **Loot validation.** After stage 3 loads, every loot table, predicate, item modifier, slot source and context number provider is checked, following references into the others and into tags. Every problem found is logged with the path to the problem (the root entry, then each followed reference or tag, field and index). Each problem of this table is fatal:
 
-| Problem | Class |
-|---------|-------|
+| Problem | Vanilla class |
+|---------|---------------|
 | an entry refers, directly or through other entries, back to itself | fatal |
 | a tag refers, directly or through other tags or entries, back to an entry being checked | fatal |
 | a part reads a context value that the context it is used in does not provide (for example a block-state condition inside an entity loot table) | non-fatal |
-| a list has fewer elements than the field requires | non-fatal |
-| an alternative of an `alternatives` entry can never be reached, because an earlier alternative always matches | non-fatal |
+| a list has fewer elements than the field requires (the `inputs` of an aggregate number provider is empty) | non-fatal |
+| an alternative of an `alternatives` entry can never be reached, because an earlier alternative has no condition | non-fatal |
 | a composite loot entry has no children | non-fatal |
 
-    If at least one fatal problem was found, the load or reload fails after every problem has been logged. A reference to a loot table, predicate or item modifier that does not exist is not a validation problem; it is an unresolved reference (row above) and fails the load first.
+    If at least one problem was found, the load or reload fails after every problem has been logged. The vanilla server logs the non-fatal problems as warnings and loads. Making them fatal is a `design` choice: the owner decided in issue #72 that every loot issue found at load refuses the load. `loot.md` states the same rule (LOOT-CTX-013, LOOT-CTX-016) and records the difference (LOOT-DEV-100, LOOT-DEV-102). A reference to a loot table, predicate or item modifier that does not exist is not a validation problem; it is an unresolved reference (row above) and fails the load first. A `time_check` with `period` 0 (REG-FLD-715) and an NBT path that LOOT-MOD-047 of `loot-functions.md` does not accept are not validation problems either: each fails the decode of its entry (row "entry fails to decode").
 - **Ordering constraints:**
   - Every entry error in a stage is collected before the stage fails, so one start reports all bad entries of that stage, not only the first.
   - Registry-wide checks (REG-SET-004, REG-SET-005) run only when the stage has no entry, reference or tag error; a report therefore holds errors of one kind or the other, never both.
 - **Conformance tests:**
   - Use two bad damage type files in one pack. One start reports both.
   - A pack with `loot_table/t/a.json` whose only pool entry is `{"type": "minecraft:loot_table", "value": "t:a"}`. Expected: a warning names the recursion and startup fails.
-  - A pack with an entity loot table `t:b` using the condition `minecraft:block_state_property`. Expected: a warning, and the server starts.
+  - A pack with an entity loot table `t:b` using the condition `minecraft:block_state_property`. Expected: the problem is logged, and startup fails. The vanilla server logs a warning and starts.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: as in the
 conformance tests, plus one case for each row.
@@ -824,7 +811,6 @@ in an enabled pack and run `/reload`. The message appears, and
 | a file ignored for an invalid name (REG-PACK-001) | error (directory pack) or warning (zip pack) | the namespace and the path |
 | a tag file skipped (REG-TAG-004) | error | the tag id, the file and the pack id |
 | a tag that failed (REG-TAG-006) | error | the tag id and every missing member, each with the pack id of the file that listed it |
-| a loot validation problem, non-fatal (REG-ERR-001) | warning | the path from the root entry to the problem, and the problem |
 | an advancement criterion problem | warning | the advancement key and the problems |
 | advancements left out of the tree (REG-ENTRY-001) | error | every advancement left out |
 
@@ -864,11 +850,11 @@ test above, plus one world pack for each row, reading the server log.
   - Fields other than `values` and `replace` are ignored. Inside a member object, fields other than `id` and `required` are ignored too: `{"id": "minecraft:stone", "zzz": 1}` is a required element member.
   - A repeated key follows REG-ENTRY-008.
 - **Edge cases:**
-  - `"values": []` is valid. Fixture: `assets/minecraft/tags/damage_type/bypasses_cooldown.json`.
+  - `"values": []` is valid. Fixture: `data/minecraft/tags/damage_type/bypasses_cooldown.json`.
   - A missing `values`, or a member that is not a valid identifier, makes the whole file invalid (REG-TAG-004).
 - **Conformance tests (shipped data):**
-  - Element and tag members: `assets/minecraft/tags/block/logs.json` (three `#` members).
-  - A `replace` file: `assets/minecraft/datapacks/trade_rebalance/data/minecraft/tags/villager_trade/librarian/level_1.json`.
+  - Element and tag members: `data/minecraft/tags/block/logs.json` (three `#` members).
+  - A `replace` file: `data/minecraft/datapacks/trade_rebalance/data/minecraft/tags/villager_trade/librarian/level_1.json`.
 
 Provenance: `source_suggested_black_box_confirmed`. Confidence: high.
 
@@ -878,7 +864,7 @@ A tag is identified by its registry and its id. The id `<ns>:<p>` comes from the
 file path as in REG-ENTRY-001. Tags with the same id in different registries are
 unrelated. Every registry, static or data-pack, can have tags.
 
-Provenance: `source_suggested_black_box_confirmed` (`assets/minecraft/tags/` has
+Provenance: `source_suggested_black_box_confirmed` (`data/minecraft/tags/` has
 tags for static registries such as `block` and for data-pack registries such as
 `damage_type`). Confidence: high.
 
@@ -935,7 +921,7 @@ conformance tests, observed in the update tags packet.
 - **Conformance tests:**
   - **Input:** `#t:x = [c, #t:y, a]` and `#t:y = [b, c, d]`.
   - **Expected:** `#t:x` resolves to `[c, b, d, a]`.
-  - **Shipped case:** `#minecraft:logs` (`assets/minecraft/tags/block/logs.json`) resolves to the members of `#minecraft:logs_that_burn`, then `#minecraft:crimson_stems`, then `#minecraft:warped_stems`, each expanded in its own order.
+  - **Shipped case:** `#minecraft:logs` (`data/minecraft/tags/block/logs.json`) resolves to the members of `#minecraft:logs_that_burn`, then `#minecraft:crimson_stems`, then `#minecraft:warped_stems`, each expanded in its own order.
 - **Experiment:** capture the update tags packet on a vanilla-only server. The block ids listed for `minecraft:logs` must equal that expansion, with the ids taken from `registries.json`.
 
 Provenance: `source_suggested`. Confidence: medium.
@@ -992,14 +978,14 @@ The local rule is a choice of this specification, not a fact about the game.
 
 A tag whose resolved member list is empty exists. A lookup finds it, it matches
 nothing, and the update tags packet sends it with zero members. Fixture:
-`assets/minecraft/tags/damage_type/bypasses_cooldown.json`.
+`data/minecraft/tags/damage_type/bypasses_cooldown.json`.
 
 Provenance: `source_suggested_black_box_confirmed`. Confidence: medium.
 
 ### REG-TAG-009: Data-pack tags are the only tags (short form)
 
 On a server running only the `vanilla` pack, the tags of every registry are
-exactly the tag files of `assets/minecraft/tags/`, resolved. The game defines no
+exactly the tag files of `data/minecraft/tags/`, resolved. The game defines no
 tag from code. The set of tag names per registry is in `names.json` under `tags`.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: on a
@@ -1042,13 +1028,13 @@ vanilla client joining a vanilla server, and check the order.
 | built-in feature pack `<id>` | (`minecraft`, `<id>`, `<version id>`) |
 | any `file/…` or other pack | none (not offered) |
 
-  - `<version id>` is the `id` of `assets/minecraft/version.json`, which is `26.4-snapshot-4`.
+  - `<version id>` is the `id` of `assets/minecraft/version.json`.
   - A pack with no `data/` directory is offered like any other pack with an identity (REG-PACK-001).
 - **Postconditions:** the offered list, and the attribution of every entry it covers (REG-ENTRY-006), come from the pack stack that the stage 1 and stage 2 registries were loaded with at server start. That stack stays fixed for the session: a `/datapack enable` or `disable`, or a `/reload` that finds a new pack, does not change the offer made to clients that join afterwards.
 - **Edge cases:**
   - This postcondition is a deliberate rule of this specification and differs from the game. The game computes the offer from the pack stack of the latest successful reload, while the synced entries and their attribution stay those of the start. With the packs shipped at this version the difference shows only in the `select_known_packs` packet: `trade_rebalance` overrides no entry of a synced registry, so no entry data differs. A pack with an identity that did override a synced entry would make a vanilla client fill that entry from a stack the server did not load it with; the rule above prevents that.
 - **Conformance tests:**
-  - A vanilla-only server offers `[(minecraft, core, 26.4-snapshot-4)]`.
+  - A vanilla-only server offers `[(minecraft, core, <version id>)]`.
   - With the stack `[vanilla, file/x, trade_rebalance]`, the server offers `[core, trade_rebalance]`, both with namespace `minecraft` and the version id.
   - Start with `[vanilla]`, run `/datapack enable "trade_rebalance"`, then join. Expected: the offer is `[core]`.
 
@@ -1362,12 +1348,9 @@ vanilla biome id, and restart. Existing chunks keep their biomes (check with
 
 ---
 
-## 11. Open questions
+## 11. Unresolved
 
-Each question lists the requirement it affects and an experiment that decides it.
 
-- **OQ-01: Duplicate object keys in JSON** (REG-ENTRY-002, REG-TAG-001). **Closed** by REG-ENTRY-008: the last value wins and the file is not malformed. The answer is `source_suggested`; this experiment confirms it.
-  - **Experiment:** a damage type file with `"exhaustion": 0.1` and then `"exhaustion": 5.0`. Start, then capture the registry data packet with the negotiated set empty. Expected: `5.0`. A startup failure or `0.1` would contradict REG-ENTRY-008.
 - **OQ-02: Cycles with only optional edges** (REG-TAG-007). Open for the game's behaviour; REG-TAG-007 fixes a local rule meanwhile.
   - **Question:** with `#t:a = [x, {"id":"#t:b","required":false}]` and `#t:b = [y, {"id":"#t:a","required":false}]`, which tag includes the other, and is the choice stable across restarts and tag names?
   - **Experiment:** repeat with renamed tags (`t:a`/`t:b`, `t:b`/`t:a`, `u:q`/`v:q`), with a three-tag cycle, and with the tags of the cycle defined in different packs, over several restarts, capturing update tags each time. If the results vary, conformance only requires "exactly one includes the other", and the local rule of REG-TAG-007 stays. If they follow a fixed rule, that rule replaces the local one.
@@ -1377,7 +1360,6 @@ Each question lists the requirement it affects and an experiment that decides it
 - **OQ-04: Reload removes a tag that a stage 1 entry references** (REG-RELOAD-001, REG-RELOAD-003, REG-NET-007). Open for the client; REG-RELOAD-003 fixes the server's minimum.
   - **Question:** after `/reload` removes `#minecraft:exclusive_set/armor`, does a newly joining vanilla client, which receives an update tags packet without that tag, fail to load the enchantments that reference it?
   - **Experiment:** start with the tag, then hide it with a filter pack and `/reload`. Join with a new client, and capture the update tags packet and the client outcome. Also, before joining, combine two armor enchantments on an anvil on the server to see whether the old exclusivity still applies.
-- **OQ-05: Unknown fields in entries** (REG-ENTRY-003). **Closed**: unknown fields are ignored in every data-pack registry, as the game ignores them. The experiment under REG-ENTRY-003 confirms it per decoder family.
 - **OQ-06: Order of registry data packets** (REG-NET-004, REG-NET-007).
   - **Question:** does a vanilla client accept the synced registries in a different packet order, or split across several packets?
   - **Experiment:** a scripted server sends the 32 packets in reverse order, and also splits `minecraft:worldgen/biome` into two packets. Observe whether the client joins and whether biome ids match. Whatever the result, a conforming client accepts both (REG-NET-007), and a conforming server sends the order of REG-NET-004 with one packet per registry.

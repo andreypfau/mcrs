@@ -19,15 +19,12 @@ use mcrs_voxel::BlockPos;
 use crate::{block_mask, ignore_blocks, place_positional, state};
 use mcrs_minecraft_block::block_keys::Block;
 
-/// `BlockIgnoreProcessor.STRUCTURE_AND_AIR` as a chain of its own.
 pub fn ignore_structure_and_air(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<CompiledChain, FeatureCompileError> {
     ignore_blocks(blocks, &[Block::StructureBlock, Block::Air])
 }
 
-/// `RandomizableContainer.setBlockEntityLootTable`: the container this run
-/// placed at `pos`, if any, takes the table and a seed from the stream.
 pub fn seed_container_loot<W: WorldGenVolume>(
     volume: &mut W,
     pos: BlockPos,
@@ -51,7 +48,6 @@ pub fn seed_container_loot<W: WorldGenVolume>(
     }
 }
 
-/// `ShipwreckPieces.MARKERS_TO_LOOT`.
 fn shipwreck_loot(
     marker: &str,
 ) -> Option<ResourceKey<'static, mcrs_minecraft_loot::loot::LootTable>> {
@@ -63,11 +59,12 @@ fn shipwreck_loot(
     })
 }
 
-/// `ShipwreckPiece.postProcess` for one column, the piece already at the
-/// height its layout fixed.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the processor chain, template, manifest and piece, the column's reference and clip, the region, the random source and the two lists one column's paint fills"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's paint"
+    )
 )]
 pub fn paint_shipwreck<W: WorldGenVolume>(
     chain: &CompiledChain,
@@ -122,7 +119,7 @@ pub struct IglooBlocks {
 }
 
 impl IglooBlocks {
-    pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
+    pub fn compile(blocks: &impl BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(IglooBlocks {
             chain: ignore_blocks(blocks, &[Block::StructureBlock])?,
             snow_block: state(blocks, Block::SnowBlock, &[])?,
@@ -132,17 +129,12 @@ impl IglooBlocks {
     }
 }
 
-/// `IglooPieces.IglooPiece.postProcess` for one column, the piece already at
-/// the height its layout fixed: the template with its villagers, the chest
-/// under the marker seeded, and over the top's trapdoor a snow block wherever
-/// the shaft's ladder is not.
-///
-/// The trapdoor write is not clipped: the reference writes it from every
-/// chunk the top touches, and a neighbour that never placed the shaft sees
-/// terrain below the trapdoor and writes snow into the entrance column.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the igloo's blocks, template, manifest and piece, the column's reference and clip, the region, the random source and the two lists one column's paint fills"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's paint"
+    )
 )]
 pub fn paint_igloo<W: WorldGenVolume>(
     b: &IglooBlocks,

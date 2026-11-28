@@ -1,5 +1,3 @@
-// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
-
 use mcrs_minecraft_resource::{Registered, RegistryKey, ResourceLocation, rl};
 
 pub const CHAT_TYPE: RegistryKey<crate::chat_type::ChatType> =
@@ -63,7 +61,6 @@ impl Registered for crate::worldgen::world_preset::WorldPreset {
     const REGISTRY: RegistryKey<Self> = WORLD_PRESET;
 }
 
-/// The static registries of this crate, which the catalog does not list.
 pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
     (
         TEST_ENVIRONMENT_DEFINITION_TYPE.location(),

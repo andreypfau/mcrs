@@ -10,28 +10,20 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_value_provider::{FloatProvider, HeightContext};
 
-/// `WorldCarver.getRange()`. It feeds the tunnel length and nothing else; the
-/// source loop's own radius is [`SOURCE_RADIUS`].
 pub const RANGE: i32 = 4;
 
-/// Hardcoded in `generateCarvers`, and deliberately not `RANGE`.
 pub const SOURCE_RADIUS: i32 = 8;
 
 const fn tunnel_length() -> i32 {
     (RANGE * 2 - 1) * 16
 }
 
-/// Whether this carver starts anything in the source chunk. One draw, taken
-/// before any of the per-cave draws, by a carver that has a probability.
 pub fn is_start_chunk<R: Random>(config: &CarverConfig, rng: &mut R) -> bool {
     config
         .probability()
         .is_none_or(|probability| rng.next_f32() <= probability)
 }
 
-/// What the modern carver `index` of the source chunk's biome carves into
-/// `target`: the source's seed, its start draw, then the carver itself.
-/// Answers whether the source started.
 pub fn carve_source_into<T: CarveTarget>(
     config: &CarverConfig,
     index: usize,
@@ -54,16 +46,17 @@ pub fn carve_source_into<T: CarveTarget>(
         CarverConfig::Canyon { .. } => {
             carve_canyon_into(config, context, target, source_x, source_z, &mut rng)
         }
-        // A Beta carver seeds from its own chunk seed and carves one column.
         CarverConfig::BetaCave => return false,
     }
     true
 }
 
-/// `CaveWorldCarver.carve`.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the carver's configuration, the chunk and source positions, the water mask, the carving mask and the random source of one cave carving pass"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one cave carving pass"
+    )
 )]
 pub fn carve_caves<R: Random>(
     config: &CarverConfig,
@@ -159,8 +152,6 @@ pub fn carve_caves_into<T: CarveTarget, R: Random>(
     }
 }
 
-/// `CaveWorldCarver.getThickness`. The bias draws only when it fires, so it is
-/// part of the draw order, not a post-processing step.
 fn sample_thickness<R: Random>(provider: FloatProvider, weird_bias: bool, rng: &mut R) -> f32 {
     let thickness = provider.sample(rng);
     if weird_bias && rng.next_i32_bound(10) == 0 {
@@ -169,11 +160,12 @@ fn sample_thickness<R: Random>(provider: FloatProvider, weird_bias: bool, rng: &
     thickness
 }
 
-/// `CaveWorldCarver.createRoom`: one ellipsoid at the sine table's quarter
-/// turn, offset a block east of the cave's origin.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the target, the room's centre, thickness, vertical scale and shape, which the reference passes as separate values"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "the room centre, the thickness and the vertical scale differ at each call and are not stored together"
+    )
 )]
 fn create_room_into<T: CarveTarget>(
     target: &mut T,
@@ -211,8 +203,6 @@ mod tests {
         }
     }
 
-    /// Every provider constant, so the only draws left are the fixed ones the
-    /// reference takes, and a replay can reproduce them exactly.
     fn constant_cave(count: i32, weird_thickness_bias: bool) -> CarverConfig {
         CarverConfig::Cave {
             probability: 0.15,
@@ -271,9 +261,6 @@ mod tests {
         assert_eq!(rng.next_java_long(), replay.next_java_long());
     }
 
-    /// The entry's draw order, written out the way `CaveWorldCarver.carve`
-    /// takes it. If the carver reordered a draw, or took one the reference does
-    /// not, the two generators would part company here.
     #[test]
     fn the_entry_draws_in_the_reference_order() {
         let config = constant_cave(1, false);
@@ -353,8 +340,6 @@ mod tests {
         assert_eq!(runs(&carved), runs(&replayed));
     }
 
-    /// The bias fires on its own draw and multiplies by two more, so a config
-    /// that enables it consumes strictly more of the stream.
     #[test]
     fn the_weird_thickness_bias_costs_its_own_draws() {
         let mut plain = LegacyRandom::new(77);
@@ -414,10 +399,6 @@ mod tests {
         hash
     }
 
-    /// The trajectory these caves walk is `Mth.sin`'s double index, not Beta's
-    /// `f32` one — the two disagree on roughly one argument in four thousand,
-    /// which is enough to move about a quarter of the tunnels. Nothing else
-    /// pins that choice, so this pins the shape it produces.
     #[test]
     fn the_modern_caves_walk_on_the_modern_sine_index() {
         let config = constant_cave(4, true);

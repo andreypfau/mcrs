@@ -14,7 +14,6 @@ use mcrs_minecraft_engine_item::Equipped;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_item::Request;
-use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
@@ -25,10 +24,9 @@ use crate::fixture::PLAIN;
 use crate::fixture::TABLE;
 use crate::fixture::app;
 use crate::fixture::count;
+use crate::fixture::request_id;
 use crate::fixture::spawn;
 
-/// Holder `a` selects slot 0 and holds `stacks[0]` and `stacks[1]` in slots 0 and 1. Holder `b`
-/// selects slot 1 and holds `stacks[2]` there.
 struct Inventories {
     a: Entity,
     b: Entity,
@@ -124,7 +122,7 @@ const CASES: [Case; 12] = [
                 holder: at.b,
                 index: 1,
             };
-            let request = Request::new(RequestId(1)).swap(left, right);
+            let request = Request::new(request_id(world)).swap(left, right);
             world.commands().entity(at.a).request(request);
         },
         equipped: |at| vec![at.stacks[0], at.stacks[1]],
@@ -206,7 +204,8 @@ struct Custom;
 #[test]
 fn the_projection_runs_in_the_schedule_the_plugin_names() {
     let mut app = App::new();
-    app.add_plugins(ItemPlugin::new(*TABLE).in_schedule(Custom));
+    app.insert_resource(*TABLE)
+        .add_plugins(ItemPlugin::default().in_schedule(Custom));
     let world = app.world_mut();
     let holder = world.spawn((Slots::new(1), Selected(0))).id();
     let stack = spawn(world, ItemStack::new(PLAIN, count(1)));

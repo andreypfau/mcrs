@@ -2,7 +2,6 @@ use alloc::string::String;
 use core::fmt;
 use core::ops::Range;
 
-/// A byte range in the expression text.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Span {
     pub start: u32,
@@ -27,33 +26,20 @@ impl Span {
     }
 }
 
-/// The kind of a load error.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// The text does not match the grammar.
     Syntax,
-    /// The JSON value has a type that a Molang field does not accept.
     Type,
-    /// A `math.` name that the language does not define.
     UnknownFunction,
-    /// A query name that the host does not declare, where that is an error.
     UnknownQuery,
-    /// A resource short name that the resource set does not have.
     UnknownResource,
-    /// A call with a number of arguments that the definition does not allow.
     Arity,
-    /// An assignment to a namespace that cannot be written.
     ReadOnly,
-    /// A name with no namespace that is not a keyword.
     Reserved,
-    /// A path of more than one name after `temp.`.
     TempStruct,
-    /// `break` or `continue` outside a loop, or a resource outside a resource context.
     Misplaced,
-    /// An operand of a type that the operator does not take, known at load.
     StaticType,
-    /// A construct of a later milestone.
     Unsupported,
 }
 
@@ -77,7 +63,6 @@ impl ErrorKind {
     }
 }
 
-/// A load error.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
     pub kind: ErrorKind,
@@ -111,23 +96,17 @@ impl fmt::Display for Diagnostic {
 
 impl core::error::Error for Diagnostic {}
 
-/// The kind of a load warning. The expression still runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum WarningKind {
-    /// A query that the host does not declare; it reads as missing.
     UnknownQuery,
-    /// A query whose declaration does not include the context of use; it reads as missing.
     QueryOutOfContext,
-    /// A versioned value with a `version` below the modern rules.
     OldMolangVersion,
 }
 
-/// A load warning.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Warning {
     pub kind: WarningKind,
     pub span: Span,
-    /// The name that the warning is about, for example the query name.
     pub name: String,
 }

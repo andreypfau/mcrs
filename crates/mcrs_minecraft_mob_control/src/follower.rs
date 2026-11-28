@@ -8,8 +8,6 @@ use crate::BodyFlags;
 use crate::ControlInput;
 use crate::PathEnd;
 
-/// The navigation of a mob with a straight route of one node, its target (PATH-FOL-001 to
-/// PATH-FOL-005). A path search later gives a list of nodes in place of the one node.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Follower {
     applied: Applied,
@@ -26,6 +24,21 @@ struct Route {
     speed_modifier: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Acceptance {
+    Changed,
+    Same,
+    Dropped,
+}
+
+fn acceptance(current: Option<Route>, result: Option<Route>) -> Acceptance {
+    match (current, result) {
+        (_, None) => Acceptance::Dropped,
+        (Some(current), Some(result)) if current.node == result.node => Acceptance::Same,
+        (_, Some(_)) => Acceptance::Changed,
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct StuckCheck {
     tick: u64,
@@ -40,14 +53,12 @@ struct Timeout {
     limit: f64,
 }
 
-/// What the follower gives the move control in one tick.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FollowerStep {
     pub wanted: Option<Wanted>,
     pub ended: Option<PathEnd>,
 }
 
-/// The wanted position of the move control and the speed modifier of the path.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Wanted {
     pub position: DVec3,
@@ -57,53 +68,50 @@ pub struct Wanted {
 const STUCK_TICKS: u64 = 100;
 
 impl Follower {
-    /// The last applied path intent and whether its path runs, for the view of the brain.
     #[must_use]
     pub const fn applied(&self) -> Applied {
         self.applied
     }
 
-    /// The mob has a path that is not done.
     #[must_use]
     pub const fn is_running(&self) -> bool {
         self.route.is_some()
     }
 
-    /// Applies a path intent of a decision; a new path resets the stuck check and the timeout.
     pub fn apply(&mut self, intent: &PathIntent, position: DVec3) {
-        match *intent {
+        let (ticket, route) = match *intent {
             PathIntent::Walk {
                 ticket,
                 target,
                 speed_modifier,
-            } => {
-                self.route = Some(Route {
+            } => (
+                ticket,
+                Some(Route {
                     node: BlockPos::from(target),
                     floor: target.y,
                     speed_modifier,
-                });
-                self.applied = Applied {
-                    ticket,
-                    progress: Progress::Running,
-                };
-                self.stuck = StuckCheck {
-                    tick: self.ticks,
-                    position,
-                };
-                self.timeout = Timeout::default();
-            }
-            PathIntent::Clear { ticket } => {
-                self.route = None;
-                self.applied = Applied {
-                    ticket,
-                    progress: Progress::Ended,
-                };
-            }
+                }),
+            ),
+            PathIntent::Clear { ticket } => (ticket, None),
+        };
+        if acceptance(self.route, route) == Acceptance::Changed {
+            self.stuck = StuckCheck {
+                tick: self.ticks,
+                position,
+            };
+            self.timeout = Timeout::default();
         }
+        self.route = route;
+        self.applied = Applied {
+            ticket,
+            progress: if route.is_some() {
+                Progress::Running
+            } else {
+                Progress::Ended
+            },
+        };
     }
 
-    /// One tick of the follower before the move control: the advance at the node, the stuck
-    /// check and the timeout, then the wanted position.
     pub fn step(&mut self, input: &ControlInput) -> FollowerStep {
         let Some(route) = self.route else {
             return FollowerStep::default();

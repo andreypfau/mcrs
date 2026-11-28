@@ -1,6 +1,3 @@
-//! What differs between the servers: the files a run folder needs, the command line, the
-//! thread knob, the tick metric and the way to stop.
-
 use std::path::Path;
 use std::str::FromStr;
 
@@ -30,11 +27,8 @@ impl FromStr for Target {
     }
 }
 
-/// The game mode a joining player gets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerMode {
-    /// Does not reset the idle time of a pig and is not a target of its look goal, so the client
-    /// of a run has no influence on the pigs.
     Spectator,
     Creative,
 }
@@ -64,7 +58,6 @@ impl PlayerMode {
 pub struct Launch {
     pub command: Vec<String>,
     pub env: Vec<(String, String)>,
-    /// How the thread count was applied, or why it was not.
     pub threads_note: String,
     pub port: u16,
 }
@@ -81,7 +74,6 @@ pub struct LaunchOptions<'a> {
 }
 
 impl Target {
-    /// The server of the shared harness that this one behaves like on its console and log.
     #[must_use]
     pub fn kind(self) -> Kind {
         match self {
@@ -95,7 +87,6 @@ impl Target {
         self.kind().tick_metric()
     }
 
-    /// Whether `tick sprint` ends with a `Sprint completed` answer; Horizon's gives none.
     #[must_use]
     pub fn reports_sprint(self) -> bool {
         self != Target::Horizon
@@ -106,7 +97,6 @@ impl Target {
         self.kind().stop()
     }
 
-    /// Writes the files the server reads at start into the empty folder `dir`.
     pub fn prepare(self, dir: &Path, port: u16, player_mode: PlayerMode) -> anyhow::Result<()> {
         if self == Target::Mcrs {
             return Ok(());
@@ -201,8 +191,6 @@ impl Target {
     }
 }
 
-/// The settings both Java-format servers read. `pause-when-empty-seconds=-1` keeps the no-client
-/// runs ticking; `max-tick-time=-1` keeps the watchdog from stopping a slow tick.
 #[must_use]
 pub fn server_properties(port: u16, player_mode: PlayerMode) -> String {
     let game_mode = player_mode.as_str();

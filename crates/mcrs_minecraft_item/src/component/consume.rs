@@ -18,8 +18,6 @@ use mcrs_minecraft_sound::{Sound, SoundEventValue};
 use mcrs_minecraft_wire::{Decode, Encode, Result, bail};
 use std::io::Write;
 
-/// A ranged float field with vanilla's error wording; the bounds order `-0.0`
-/// below `0.0` and NaN outside every range.
 macro_rules! checked_float {
     ($($vis:vis $name:ident: $value:ident in $min:literal $op:tt $max:expr => $message:literal),* $(,)?) => {$(
         $vis fn $name<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
@@ -41,7 +39,6 @@ checked_float! {
     pub unit_float: v in 0.0 is_ge 1.0 => "Value {v} outside of range [0.0:1.0]",
 }
 
-/// The default is compared by bits, so `-0.0` is still written.
 macro_rules! float_default {
     ($($default:ident / $is:ident = $value:literal),* $(,)?) => {$(
         pub fn $default() -> f32 {
@@ -62,7 +59,6 @@ float_default! {
     consume_seconds_default / is_consume_seconds_default = 1.6f32,
 }
 
-/// The map buffers on read, so the bools inside go through `nbt_flag`.
 #[registry_value]
 #[derive(mcrs_minecraft_registries::FromWire)]
 #[dispatch(registry = crate::consume_effect_type_keys::ConsumeEffectType, key_last)]

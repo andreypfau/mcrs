@@ -12,10 +12,6 @@ use crate::world::lifecycle::column_loading::ColumnLoading;
 use crate::world::lifecycle::coverage::Coverage;
 use crate::world::storage::section::SectionIndex;
 
-/// The reference's `simulation-distance` server property, counted in sections, with a vertical
-/// reach of its own. A section ticks while it is within `horizontal` sections of a player on
-/// both horizontal axes and within `vertical` sections above or below. A vertical reach as tall
-/// as the dimension ticks whole columns, as the reference does.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SimulationDistance {
     pub horizontal: u8,
@@ -23,7 +19,6 @@ pub struct SimulationDistance {
 }
 
 impl Default for SimulationDistance {
-    /// The reference's default across, and every section of the column up and down.
     fn default() -> Self {
         Self {
             horizontal: 10,
@@ -32,7 +27,6 @@ impl Default for SimulationDistance {
     }
 }
 
-/// The box of sections a player simulates around the section they stand in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SimulationArea {
     pub center: SectionPos,
@@ -41,7 +35,6 @@ pub struct SimulationArea {
 }
 
 impl SimulationArea {
-    /// The area that `distance` gives a player who stands in the section `center`.
     #[must_use]
     pub fn around(center: SectionPos, distance: SimulationDistance) -> Self {
         Self {
@@ -51,8 +44,6 @@ impl SimulationArea {
         }
     }
 
-    /// One ring wider every way: the reference runs scheduled ticks one ring past the area in
-    /// which entities and random ticks run.
     fn widened(self) -> Self {
         Self {
             horizontal: self.horizontal.saturating_add(1),
@@ -61,7 +52,6 @@ impl SimulationArea {
         }
     }
 
-    /// The sections of the area that lie within `section_y`.
     fn within(self, section_y: &RangeInclusive<i32>) -> SectionBox {
         let horizontal = i32::from(self.horizontal);
         let vertical = i32::from(self.vertical);
@@ -93,8 +83,6 @@ impl SectionBox {
             && (self.min.z..=self.max.z).contains(&column.z)
     }
 
-    /// The sections of this box outside `other`, in the columns that `owned` owns. It walks
-    /// each column of the box once and only the rows of a column that `other` does not hold.
     fn outside(
         self,
         other: Option<Self>,
@@ -110,7 +98,6 @@ impl SectionBox {
                         min.y..=max.y.min(other.min.y.saturating_sub(1)),
                         min.y.max(other.max.y.saturating_add(1))..=max.y,
                     ),
-                    // The second range is empty.
                     None => (min.y..=max.y, max.y.saturating_add(1)..=max.y),
                 };
                 below
@@ -120,22 +107,14 @@ impl SectionBox {
     }
 }
 
-/// Scheduled ticks and block events run in this section: it is within one ring of a player's
-/// simulation area.
-// Sparse: the marker comes and goes as players move, and each toggle would move a table row.
 #[derive(Component, Clone, Copy, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct BlockTicking;
 
-/// Entities and random ticks run in this section: it is within a player's simulation area.
 #[derive(Component, Clone, Copy, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct EntityTicking;
 
-/// The sections of a dimension that some simulation area covers: of a player of this cell, or
-/// of a player of another cell of the world. Only the sections that the cell owns count. Every
-/// section entity of the dimension carries [`BlockTicking`] and [`EntityTicking`] exactly while
-/// it is covered.
 #[derive(Component, Debug, Default)]
 pub struct SectionSimulation {
     block_ticking: Coverage<SectionPos>,
@@ -163,9 +142,7 @@ impl SectionSimulation {
         self.entity_ticking.contains(pos)
     }
 
-    /// Gives `section`, spawned at `pos`, the markers its position calls for. A section of the
-    /// halo is never covered, so it never gets a marker.
-    pub(crate) fn mark_spawned(&self, section: &mut EntityCommands, pos: SectionPos) {
+    pub(crate) fn mark_spawned(&self, mut section: EntityCommands<'_>, pos: SectionPos) {
         if self.is_block_ticking(pos) {
             section.insert(BlockTicking);
         }
@@ -174,9 +151,6 @@ impl SectionSimulation {
         }
     }
 
-    /// Moves an area from `old` to `new`, either of which may be absent, within the sections
-    /// `section_y` holds and `owned` owns. Only the sections it leaves or enters are touched, and
-    /// each one that starts or stops ticking is passed on.
     fn shift(
         &mut self,
         old: Option<SimulationArea>,
@@ -202,8 +176,6 @@ impl SectionSimulation {
     }
 }
 
-// A move that the dimension's top or bottom clips to the same box, such as a step up or down
-// with a reach taller than the dimension, changes nothing and is not walked.
 fn shift_coverage(
     coverage: &mut Coverage<SectionPos>,
     old: Option<SectionBox>,
@@ -223,7 +195,7 @@ fn shift_coverage(
 }
 
 fn mark(
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     index: &SectionIndex,
     pos: SectionPos,
     ticking: Ticking,
@@ -241,9 +213,6 @@ fn mark(
     };
 }
 
-/// The simulation area a player holds, kept so that exactly this area is handed back. An entity
-/// that is not a player holds one for a player of another cell of the world: its area does not
-/// follow a transform, and it is handed back when the entity goes.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SimulationTicket {
     dim: Entity,
@@ -268,8 +237,8 @@ type Dimensions<'w, 's> = Query<
 >;
 
 fn shift_in(
-    dims: &mut Dimensions,
-    commands: &mut Commands,
+    mut dims: Dimensions<'_, '_>,
+    mut commands: Commands<'_, '_>,
     owned: Option<&OwnedColumns>,
     dim: Entity,
     old: Option<SimulationArea>,
@@ -284,14 +253,14 @@ fn shift_in(
         &loading.section_y,
         owned,
         |pos, ticking, change| {
-            mark(commands, index, pos, ticking, change);
+            mark(commands.reborrow(), index, pos, ticking, change);
         },
     );
 }
 
 pub(crate) fn track_simulation_tickets(
     distance: Res<SimulationDistance>,
-    mut players: Query<
+    mut players: Populated<
         (
             Entity,
             &Transform,
@@ -310,12 +279,17 @@ pub(crate) fn track_simulation_tickets(
             dim: in_dim.0,
             area: SimulationArea::around(SectionPos::from(transform.translation), *distance),
         };
-        follow(&mut dims, &mut commands, owned, player, wanted, held);
+        follow(
+            dims.reborrow(),
+            commands.reborrow(),
+            owned,
+            player,
+            wanted,
+            held,
+        );
     }
 }
 
-/// The simulation area that an entity other than a player holds, such as the ticket of a player
-/// of another cell of the world. The [`SimulationTicket`] of the entity follows it.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HeldSimulationArea(SimulationTicket);
 
@@ -327,7 +301,7 @@ impl HeldSimulationArea {
 }
 
 pub(crate) fn track_held_simulation_areas(
-    mut holders: Query<
+    mut holders: Populated<
         (Entity, &HeldSimulationArea, Option<&mut SimulationTicket>),
         Changed<HeldSimulationArea>,
     >,
@@ -337,21 +311,25 @@ pub(crate) fn track_held_simulation_areas(
 ) {
     let owned = owned.as_deref();
     for (holder, &HeldSimulationArea(wanted), held) in &mut holders {
-        follow(&mut dims, &mut commands, owned, holder, wanted, held);
+        follow(
+            dims.reborrow(),
+            commands.reborrow(),
+            owned,
+            holder,
+            wanted,
+            held,
+        );
     }
 }
 
-/// Moves the ticket of `holder` to `wanted`, through only the sections that it leaves or enters.
 fn follow(
-    dims: &mut Dimensions,
-    commands: &mut Commands,
+    mut dims: Dimensions<'_, '_>,
+    mut commands: Commands<'_, '_>,
     owned: Option<&OwnedColumns>,
     holder: Entity,
     wanted: SimulationTicket,
     held: Option<Mut<SimulationTicket>>,
 ) {
-    // The first area is raised once the ticket lands, so a holder despawned before then holds
-    // nothing that would never be released.
     let Some(mut held) = held else {
         commands.entity(holder).try_insert(wanted);
         return;
@@ -370,25 +348,32 @@ fn follow(
             Some(wanted.area),
         );
     } else {
-        shift_in(dims, commands, owned, old.dim, Some(old.area), None);
+        shift_in(
+            dims.reborrow(),
+            commands.reborrow(),
+            owned,
+            old.dim,
+            Some(old.area),
+            None,
+        );
         shift_in(dims, commands, owned, wanted.dim, None, Some(wanted.area));
     }
-    *held = wanted;
+    held.set_if_neq(wanted);
 }
 
 pub(crate) fn raise_simulation_ticket(
     add: On<Add<SimulationTicket>>,
     held: Query<&SimulationTicket>,
-    mut dims: Dimensions,
+    dims: Dimensions,
     owned: Option<Res<OwnedColumns>>,
-    mut commands: Commands,
+    commands: Commands,
 ) {
     let Ok(held) = held.get(add.event().entity) else {
         return;
     };
     shift_in(
-        &mut dims,
-        &mut commands,
+        dims,
+        commands,
         owned.as_deref(),
         held.dim,
         None,
@@ -399,16 +384,16 @@ pub(crate) fn raise_simulation_ticket(
 pub(crate) fn release_simulation_ticket(
     remove: On<Remove<SimulationTicket>>,
     held: Query<&SimulationTicket>,
-    mut dims: Dimensions,
+    dims: Dimensions,
     owned: Option<Res<OwnedColumns>>,
-    mut commands: Commands,
+    commands: Commands,
 ) {
     let Ok(held) = held.get(remove.event().entity) else {
         return;
     };
     shift_in(
-        &mut dims,
-        &mut commands,
+        dims,
+        commands,
         owned.as_deref(),
         held.dim,
         Some(held.area),
@@ -425,7 +410,6 @@ mod tests {
     use mcrs_voxel::ColumnPos;
     use rustc_hash::FxHashSet;
 
-    /// Within `ring` more than the area's reach on every axis, and within the dimension.
     fn covered(areas: &[Option<SimulationArea>], pos: SectionPos, ring: u32) -> bool {
         (-4..=4).contains(&pos.y)
             && areas.iter().flatten().any(|area| {
@@ -580,11 +564,12 @@ mod tests {
         );
         assert_eq!(markers(&app, SectionPos::new(1, 5, 1), dim), (false, false));
 
+        let mut lowered = *app.world().get::<Transform>(player).expect("transform");
+        lowered.translation.y = -3.0 * 16.0;
         app.world_mut()
             .get_mut::<Transform>(player)
             .expect("transform")
-            .translation
-            .y = -3.0 * 16.0;
+            .set_if_neq(lowered);
         app.world_mut().run_schedule(FixedUpdate);
         assert_eq!(
             markers(&app, deep, dim),

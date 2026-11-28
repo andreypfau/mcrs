@@ -9,12 +9,16 @@ use mcrs_minecraft_assets::packs::PackLayers;
 use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
 use mcrs_minecraft_environment::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_network::browser::target_from_query;
-use mcrs_minecraft_network::client::ClientNetworkPlugin;
+use mcrs_minecraft_network::client::{ClientNetworkPlugin, JoinRequest};
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::config::{Knobs, TerrainLimits};
 use crate::{ClientPlugins, ClientTerrainPlugin, vanilla};
-use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::block_breaking::BlockBreakingPlugin;
+use mcrs_minecraft_client_world::game_mode::GameModePlugin;
+use mcrs_minecraft_client_world::hotbar_sync::HotbarSyncPlugin;
+use mcrs_minecraft_client_world::local_player::LocalPlayerPlugin;
+use mcrs_minecraft_client_world::registries::{ClientRegistriesPlugin, SessionSet};
 use mcrs_minecraft_client_world::{local_player, player};
 
 pub const CANVAS: &str = "#mcrs";
@@ -23,9 +27,6 @@ const BLOB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/web_assets.bin"));
 
 const SPAWN: DVec3 = DVec3::new(0.5, 80.0, 0.5);
 
-/// The browser has no asset folder to point `AssetPlugin` at, so the corpus
-/// baked in by `build.rs` is unpacked into an in-memory tree and registered as
-/// the default source before `AssetPlugin` builds.
 pub fn register_asset_source(app: &mut App) {
     let mut raw = Vec::new();
     flate2::read::DeflateDecoder::new(BLOB)
@@ -63,9 +64,6 @@ fn take(bytes: &[u8]) -> (&[u8], &[u8]) {
     rest.split_at(len)
 }
 
-/// `?server=` is the WebTransport URL and `?cert=` the hex SHA-256 of the
-/// certificate the server minted at startup, which it prints on its own
-/// listening line. There is no discovery endpoint to fetch them from.
 fn server(knobs: &Knobs) -> Option<mcrs_minecraft_network::client::ServerAddress> {
     let (url, hash) = (knobs.server()?, knobs.server_certificate()?);
     match target_from_query(url, hash) {
@@ -77,8 +75,6 @@ fn server(knobs: &Knobs) -> Option<mcrs_minecraft_network::client::ServerAddress
     }
 }
 
-/// The browser has no environment, so the knobs the native binary reads from
-/// `MCRS_*` variables are taken from the query string instead: `?time=6000`.
 fn query_knobs() -> Knobs {
     let Some(entries) = web_sys::window()
         .and_then(|window| window.location().search().ok())
@@ -93,15 +89,12 @@ fn query_knobs() -> Knobs {
         let lowercase = !name.bytes().any(|byte| byte.is_ascii_uppercase());
         (lowercase && !value.is_empty()).then(|| (name.to_ascii_uppercase(), value))
     });
-    Knobs::new(knobs, false)
+    Knobs::new(knobs, false, None)
 }
 
 #[derive(Resource)]
 struct FrozenTicks(i64);
 
-/// The browser entry point. There is no world folder and no save to read, so
-/// the clocks come from the registry, and the world reaches the browser over
-/// WebTransport rather than off disk.
 pub fn run() {
     console_error_panic_hook::set_once();
 
@@ -112,24 +105,23 @@ pub fn run() {
     app.insert_resource(knobs.clone());
     register_asset_source(&mut app);
     vanilla::register(&mut app);
-    app.add_plugins(
-        DefaultPlugins
-            .set(WindowPlugin {
-                primary_window: Some(window()),
-                ..default()
-            })
-            .disable::<bevy::pbr::PbrPlugin>()
-            .disable::<bevy::light::LightPlugin>(),
-    )
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+        primary_window: Some(window()),
+        ..default()
+    }))
     .add_plugins(ClientPlugins(knobs.clone()))
+    .add_plugins((
+        LocalPlayerPlugin,
+        GameModePlugin,
+        BlockBreakingPlugin,
+        HotbarSyncPlugin,
+        ClientRegistriesPlugin::default(),
+    ))
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .insert_resource(WorldClocks::default())
     .insert_resource(AdvanceTime(frozen_at.is_none()))
     .insert_resource(WeatherLevel::default());
 
-    // With no save to seed them, the clocks appear only when the session's
-    // registries arrive, which is later than this, so a frozen time has to be
-    // applied there instead.
     if let Some(ticks) = frozen_at {
         app.insert_resource(FrozenTicks(ticks)).add_systems(
             Update,
@@ -146,28 +138,33 @@ pub fn run() {
     match server(&knobs) {
         Some(server) => {
             app.add_plugins(ClientNetworkPlugin {
+                holds_vanilla_pack: false,
+                play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
+            });
+            let join = JoinRequest {
                 server,
                 username: knobs.username(),
                 profile_id: None,
                 view_distance: knobs.view_distance(),
-                holds_vanilla_pack: false,
-                play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
+            };
+            app.add_systems(Startup, move |mut requests: MessageWriter<JoinRequest>| {
+                requests.write(join.clone());
             });
             app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin::default());
             app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
         }
-        None => warn!(
-            "no ?server=<https url>&cert=<sha-256 hex>: the browser draws sky only. \
-             The server logs both at startup."
-        ),
+        None => {
+            warn!(
+                "no ?server=<https url>&cert=<sha-256 hex>: the browser draws sky only. \
+                 The server logs both at startup."
+            );
+            let (yaw, pitch) = knobs.look_override().unwrap_or((0.0, 0.0));
+            app.world_mut().spawn(player::player_at(SPAWN, yaw, pitch));
+        }
     }
-    let (yaw, pitch) = knobs.look_override().unwrap_or((0.0, 0.0));
-    player::spawn_player(app.world_mut(), SPAWN, yaw, pitch);
     app.run();
 }
 
-/// The browser draws the same columns the native client does, from a smaller
-/// arena: a WebGPU context has far less room than a desktop one.
 const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
     arena_scale: 1,
     groups: 1 << 20,

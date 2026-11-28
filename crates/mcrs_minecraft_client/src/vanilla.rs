@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -7,11 +8,12 @@ use bevy::asset::io::memory::Dir;
 use bevy::image::ImageSampler;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use mcrs_minecraft_client_jar::{self as client_jar, Files, Progress};
+use mcrs_minecraft_client_jar::{self as client_jar, Files, IndexLayer, Progress};
 
-use mcrs_minecraft_client_gui::font::{ASCII_TEXTURE, Font, Span, draw_centered_text};
+use mcrs_minecraft_client_gui::font::{Font, Span, draw_centered_text};
+use mcrs_minecraft_client_gui::font_definition::FontOptions;
+use mcrs_minecraft_client_gui::font_glyph::ImageSource;
 use mcrs_minecraft_client_gui::scene::GuiQuad;
-use mcrs_minecraft_model::atlas::decode_png;
 use mcrs_minecraft_model::resource_set::{ResourceSet, is_resource};
 use mcrs_minecraft_model::vanilla_source::{fill, register_source};
 
@@ -35,8 +37,18 @@ struct Fetch {
     worker: Option<JoinHandle<()>>,
 }
 
-/// Registers the `vanilla` source and starts filling it. Must run before `AssetPlugin` builds.
+#[derive(Resource, Clone, Debug)]
+pub struct AssetObjects(pub String);
+
+impl Default for AssetObjects {
+    fn default() -> Self {
+        Self(client_jar::OBJECTS.to_owned())
+    }
+}
+
 pub fn register(app: &mut App) {
+    let objects = app.world().get_resource::<AssetObjects>().cloned();
+    let objects = objects.unwrap_or_default().0;
     let root = Dir::default();
     register_source(app, root.clone());
     let progress = Arc::<Progress>::default();
@@ -45,13 +57,20 @@ pub fn register(app: &mut App) {
     #[cfg(not(target_family = "wasm"))]
     let worker = Some(spawn(
         root,
+        objects,
         progress.clone(),
         fonts.clone(),
         unpacked.clone(),
     ));
     #[cfg(target_family = "wasm")]
     let worker = {
-        spawn_web(root, progress.clone(), fonts.clone(), unpacked.clone());
+        spawn_web(
+            root,
+            objects,
+            progress.clone(),
+            fonts.clone(),
+            unpacked.clone(),
+        );
         None
     };
     app.insert_resource(Fetch {
@@ -62,11 +81,10 @@ pub fn register(app: &mut App) {
     });
 }
 
-// A dedicated thread rather than the IO pool: a download can block for minutes, and the pool
-// is shared with `ResourceSet::load` and every other asset load.
 #[cfg(not(target_family = "wasm"))]
 fn spawn(
     root: Dir,
+    objects: String,
     progress: Arc<Progress>,
     fonts: Arc<Mutex<Option<Files>>>,
     unpacked: Arc<AtomicBool>,
@@ -74,6 +92,10 @@ fn spawn(
     std::thread::Builder::new()
         .name("client jar".to_owned())
         .spawn(move || {
+            let (sender, font_layer) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let _ = sender.send(client_jar::index_assets(&objects));
+            });
             let resolved = client_jar::resolve(&progress, is_resource, |files| {
                 *fonts.lock().unwrap() = Some(files);
             });
@@ -85,6 +107,10 @@ fn spawn(
                 }
             };
             fill(&root, files);
+            match await_layer(&font_layer, FONT_LAYER_DEADLINE) {
+                Ok(layer) => fill_layer(&root, layer),
+                Err(error) => warn!("the text keeps to the jar's glyphs: {error}"),
+            }
             unpacked.store(true, Ordering::Release);
             if let Some(rest) = rest {
                 rest.finish();
@@ -93,21 +119,49 @@ fn spawn(
         .expect("a thread for the client jar")
 }
 
+#[cfg(not(target_family = "wasm"))]
+const FONT_LAYER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(120);
+
+#[cfg(not(target_family = "wasm"))]
+fn await_layer(
+    layer: &std::sync::mpsc::Receiver<IndexLayer>,
+    deadline: std::time::Duration,
+) -> Result<IndexLayer, String> {
+    use std::sync::mpsc::RecvTimeoutError;
+    match layer.recv_timeout(deadline) {
+        Ok(layer) => Ok(layer),
+        Err(RecvTimeoutError::Timeout) => Err(format!("the font fetch took over {deadline:?}")),
+        Err(RecvTimeoutError::Disconnected) => Err("the font fetch panicked".to_owned()),
+    }
+}
+
 #[cfg(target_family = "wasm")]
 fn spawn_web(
     root: Dir,
+    objects: String,
     progress: Arc<Progress>,
     fonts: Arc<Mutex<Option<Files>>>,
     unpacked: Arc<AtomicBool>,
 ) {
     wasm_bindgen_futures::spawn_local(async move {
-        let files = client_jar::fetch(&progress, is_resource, |files| {
-            *fonts.lock().unwrap() = Some(files);
-        })
+        let (files, layer) = futures_lite::future::zip(
+            client_jar::fetch(&progress, is_resource, |files| {
+                *fonts.lock().unwrap() = Some(files);
+            }),
+            client_jar::index_assets(&objects),
+        )
         .await;
         fill(&root, files);
+        fill_layer(&root, layer);
         unpacked.store(true, Ordering::Release);
     });
+}
+
+fn fill_layer(root: &Dir, layer: IndexLayer) {
+    for failure in &layer.failures {
+        warn!("{} keeps to the jar: {}", failure.path, failure.reason);
+    }
+    fill(root, layer.files);
 }
 
 pub struct VanillaAssetsPlugin;
@@ -141,48 +195,51 @@ fn finish_fetch(mut fetch: ResMut<Fetch>, mut next: ResMut<NextState<VanillaAsse
     }
 }
 
-/// The game's own font, for the loading screen, before the rest of the pack is in.
 #[derive(Resource)]
 struct LoadingFont {
     font: Font,
-    page: Handle<Image>,
+    pages: Vec<(usize, Handle<Image>)>,
 }
 
 fn load_font(fetch: Res<Fetch>, mut images: ResMut<Assets<Image>>, mut commands: Commands) {
     let Some(files) = fetch.fonts.lock().unwrap().take() else {
         return;
     };
-    match font_page(files) {
-        Ok((font, page)) => commands.insert_resource(LoadingFont {
+    match font_pages(files) {
+        Ok((font, pages)) => commands.insert_resource(LoadingFont {
             font,
-            page: images.add(page),
+            pages: pages
+                .into_iter()
+                .map(|(source, page)| (source, images.add(page)))
+                .collect(),
         }),
         Err(error) => warn!("the loading screen stays without text: {error}"),
     }
 }
 
-fn font_page(files: Files) -> Result<(Font, Image), String> {
+fn font_pages(files: Files) -> Result<(Font, Vec<(usize, Image)>), String> {
     let pack: ResourceSet = files.into_iter().collect();
-    let (pixels, width, height) = decode_png(
-        pack.read(ASCII_TEXTURE)
-            .map_err(|error| error.to_string())?,
-        ASCII_TEXTURE,
-    )
-    .map_err(|error| error.to_string())?;
-    let font = Font::load(&pack, &pixels, width, height)?;
-    let mut page = Image::new(
-        Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        pixels,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::default(),
-    );
-    page.sampler = ImageSampler::nearest();
-    Ok((font, page))
+    let font = Font::load(&pack, FontOptions::default())?;
+    let pages = font
+        .bitmap_pages()
+        .map(|(source, page)| {
+            let (width, height) = page.size();
+            let mut image = Image::new(
+                Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                TextureDimension::D2,
+                page.pixels().to_vec(),
+                TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::default(),
+            );
+            image.sampler = ImageSampler::nearest();
+            (source, image)
+        })
+        .collect();
+    Ok((font, pages))
 }
 
 #[derive(Component)]
@@ -272,10 +329,6 @@ impl Rate {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
-)]
 fn draw_progress(
     fetch: Res<Fetch>,
     font: Option<Res<LoadingFont>>,
@@ -284,6 +337,8 @@ fn draw_progress(
     lines: Query<(Entity, &Line)>,
     mut rate: Local<Rate>,
     mut shown: Local<[String; 2]>,
+    mut text: Local<String>,
+    mut glyphs: Local<Vec<GuiQuad>>,
     mut commands: Commands,
 ) {
     let (done, total) = (
@@ -303,29 +358,35 @@ fn draw_progress(
         return;
     };
     for (entity, &line) in &lines {
-        let (text, color) = match line {
+        text.clear();
+        let color = match line {
             Line::Amount => {
-                let mut text = format!(
+                let _ = write!(
+                    text,
                     "{:.1} / {:.1} MB  {:.0}%",
                     done as f64 / 1e6,
                     total as f64 / 1e6,
                     100.0 * fraction
                 );
                 if rate.bytes_per_second > 0.0 {
-                    text += &format!(
+                    let _ = write!(
+                        text,
                         "  {:.1} MB/s  {:.0} s left",
                         rate.bytes_per_second / 1e6,
                         total.saturating_sub(done) as f64 / rate.bytes_per_second
                     );
                 }
-                (text, WHITE)
+                WHITE
             }
-            Line::Status => (fetch.progress.status.lock().unwrap().clone(), GRAY),
+            Line::Status => {
+                text.push_str(&fetch.progress.status.lock().unwrap());
+                GRAY
+            }
         };
-        if shown[line as usize] == text {
+        if shown[line as usize] == *text {
             continue;
         }
-        let mut glyphs = Vec::new();
+        glyphs.clear();
         draw_centered_text(
             &font.font,
             (BAR_WIDTH / TEXT_SCALE) as i32 / 2,
@@ -337,40 +398,45 @@ fn draw_progress(
             .entity(entity)
             .despawn_children()
             .with_children(|row| {
-                for glyph in glyphs {
+                for glyph in glyphs.drain(..) {
                     if let Some(node) = glyph_node(&font, glyph) {
                         row.spawn(node);
                     }
                 }
             });
-        shown[line as usize] = text;
+        shown[line as usize].clone_from(&text);
     }
 }
 
 fn glyph_node(font: &LoadingFont, quad: GuiQuad) -> Option<(Node, ImageNode)> {
     let GuiQuad::Glyph {
-        origin,
-        glyph,
+        pen,
+        image,
         color,
+        weight,
+        ..
     } = quad
     else {
         return None;
     };
-    let cell = font.font.glyph(glyph)?.cell.as_vec2();
-    let size = font.font.cell_size.as_vec2();
+    let ImageSource::Bitmap { source, texels } = image.source else {
+        return None;
+    };
+    let (_, page) = font.pages.iter().find(|(page, _)| *page == source)?;
+    let rect = image.strike(pen, weight);
     let [a, r, g, b] = color.to_be_bytes();
     Some((
         Node {
             position_type: PositionType::Absolute,
-            left: Val::Px(origin.x as f32 * TEXT_SCALE),
-            top: Val::Px(origin.y as f32 * TEXT_SCALE),
-            width: Val::Px(size.x * TEXT_SCALE),
-            height: Val::Px(size.y * TEXT_SCALE),
+            left: Val::Px(rect.min.x * TEXT_SCALE),
+            top: Val::Px(rect.min.y * TEXT_SCALE),
+            width: Val::Px(rect.width() * TEXT_SCALE),
+            height: Val::Px(rect.height() * TEXT_SCALE),
             ..default()
         },
         ImageNode {
-            image: font.page.clone(),
-            rect: Some(Rect::from_corners(cell, cell + size)),
+            image: page.clone(),
+            rect: Some(texels),
             color: Color::srgba_u8(r, g, b, a),
             ..default()
         },
@@ -380,6 +446,20 @@ fn glyph_node(font: &LoadingFont, quad: GuiQuad) -> Option<(Node, ImageNode)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(target_family = "wasm"))]
+    mod layer_deadline {
+        use std::time::Duration;
+
+        use super::*;
+
+        #[test]
+        fn a_silent_fetch_times_out() {
+            let (_sender, receiver) = std::sync::mpsc::channel();
+            let error = await_layer(&receiver, Duration::from_millis(20)).unwrap_err();
+            assert!(error.contains("took over"), "{error}");
+        }
+    }
 
     mod jar {
         use super::*;
@@ -394,11 +474,12 @@ mod tests {
             )
             .unwrap();
 
-            let (font, page) = font_page(delivered.expect("fonts are delivered")).unwrap();
+            let (font, pages) = font_pages(delivered.expect("fonts are delivered")).unwrap();
 
-            assert_eq!(page.width(), 128);
+            assert_eq!(pages.len(), 3);
+            assert!(pages.iter().any(|(_, page)| page.width() == 128));
             for ch in "0123456789./ MB%".chars() {
-                assert!(font.advance(ch, false) > 0, "{ch:?} has no advance");
+                assert!(font.advance(ch, false) > 0.0, "{ch:?} has no advance");
             }
         }
     }

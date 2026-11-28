@@ -32,14 +32,11 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
         "minecraft:dirt"
     ));
 
-    // `#minecraft:planks` is reached only through nested `#tag` entries of
-    // `#minecraft:mineable/axe`.
     assert!(contains(
         &block_tag_keys::MINEABLE_AXE,
         "minecraft:oak_planks"
     ));
 
-    // A block no static registry ever named still lands in its tags.
     assert!(contains(
         &block_tag_keys::MINEABLE_PICKAXE,
         "minecraft:polished_tuff_stairs"
@@ -50,7 +47,6 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
     ));
     assert!(contains(&block_tag_keys::WOOL, "minecraft:magenta_wool"));
 
-    // And a tag no Rust constant names is there, because the pack ships it.
     let stairs = tags
         .id(&TagKeyBuf::from_location(
             ResourceLocationBuf::read("minecraft:stairs").unwrap(),

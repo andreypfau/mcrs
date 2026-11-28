@@ -1,5 +1,3 @@
-#cargo-features = ["codegen-backend"]
-
 [package]
 name = "mcrs"
 version = "0.5.8"
@@ -9,12 +7,13 @@ license = "MIT OR Apache-2.0"
 [[bin]]
 name = "mcrs"
 path = "src/main.rs"
+test = false
 
 [lints]
 workspace = true
 
 [workspace]
-members = ["crates/*", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
+members = ["crates/*", "examples/inventory_bot_click", "examples/inventory_minigame", "examples/inventory_save_viewer", "examples/loot_validate", "examples/player_attributes", "examples/status_ping", "examples/worldgen_preview", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_mcp", "tools/mcrs_minecraft_probe", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
 
 [workspace.package]
 version = "0.5.8"
@@ -27,27 +26,25 @@ equivalent = "1.0.2"
 fixedbitset = "0.5.7"
 hashbrown = "0.16.1"
 fancy-regex = "0.16"
+regex = "1.12"
 derive-where = "1.6.1"
 serde_path_to_error = "0.1.20"
 bevy_ecs = { version = "0.20.1", features = ["debug"] }
 bevy_app = { version = "0.20.1" }
 bevy_math = "0.20.1"
-glam = { version = "0.33.12", default-features = false, features = ["std", "all-types"] }
+glam = { version = "0.33.12", default-features = false, features = ["all-types"] }
 bevy_time = "0.20.1"
 bevy_tasks = "0.20.1"
 bevy_utils = "0.20.1"
-# `file_watcher` cannot compile for wasm; the client re-enables it through
-# `bevy` for non-wasm targets, so a native build still hot-reloads.
 bevy_asset = { version = "0.20.1" }
 bevy_derive = "0.20.1"
 bevy_log = { version = "0.20.1" }
 bevy_reflect = "0.20.1"
 bevy_platform = "0.20.1"
 bevy_state = "0.20.1"
-# Only a floor under bevy_asset's file reads: 0.2.4 can report EOF before the
-# last chunk of a file.
 piper = "0.2.5"
 proc-macro2 = "1.0.103"
+ra_ap_rustc_lexer = { package = "ra-ap-rustc_lexer", version = "0.185.0" }
 syn = "2.0.110"
 quote = "1.0.42"
 bytes = "1"
@@ -62,10 +59,12 @@ bitfield-struct = "0.12.1"
 crc32c = "0.6.8"
 derive_more = "2.0.1"
 flate2 = "1.1.5"
+png = "0.18.1"
 snap = "1.1.1"
 thiserror = "2.0.17"
 unicode_names2 = { version = "3.1.0", default-features = false }
 tracing = "0.1.41"
+ureq = "3.4"
 uuid = "1.18.1"
 rand = "0.10.0-rc.5"
 indexmap = "2.12.0"
@@ -75,16 +74,19 @@ tokio = {  version = "1.48.0", features = ["full"] }
 socket2 = "0.6.5"
 md-5 = "0.11.0-rc.3"
 sha2 = "0.11.0"
+hmac = "0.13.0"
 rand_xoshiro = "0.8.0-rc.0"
 flume = { version = "0.12.0", default-features = false }
 rayon = "1"
 libm = { version = "0.2.16", default-features = false }
 proptest = "1.11.0"
-criterion = "0.7"
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
 bytemuck = "1"
 futures-lite = "2"
 naga = "30"
 wgpu = "30"
+wesl = "0.6"
+wgsl-parse = "0.6"
 
 mcrs_minecraft_wire = { path = "crates/mcrs_minecraft_wire" }
 mcrs_minecraft_wire_macros = { path = "crates/mcrs_minecraft_wire_macros" }
@@ -96,6 +98,7 @@ mcrs_minecraft_bedrock_protocol = { path = "crates/mcrs_minecraft_bedrock_protoc
 mcrs_minecraft_bedrock_protocol_game = { path = "crates/mcrs_minecraft_bedrock_protocol_game" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_minecraft_snbt = { path = "crates/mcrs_minecraft_snbt" }
+mcrs_minecraft_nbt_path = { path = "crates/mcrs_minecraft_nbt_path" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
 mcrs_minecraft_engine_world = { path = "crates/mcrs_minecraft_engine_world" }
 mcrs_minecraft_engine = { path = "crates/mcrs_minecraft_engine" }
@@ -103,10 +106,14 @@ mcrs_minecraft_engine_server = { path = "crates/mcrs_minecraft_engine_server", d
 mcrs_voxel = { path = "crates/mcrs_voxel" }
 mcrs_minecraft_entity_key = { path = "crates/mcrs_minecraft_entity_key" }
 mcrs_minecraft_physics = { path = "crates/mcrs_minecraft_physics" }
+mcrs_minecraft_pose = { path = "crates/mcrs_minecraft_pose" }
+mcrs_minecraft_swing = { path = "crates/mcrs_minecraft_swing" }
 mcrs_minecraft_collision_table = { path = "crates/mcrs_minecraft_collision_table" }
 mcrs_minecraft_engine_physics = { path = "crates/mcrs_minecraft_engine_physics" }
-mcrs_minecraft_engine_mob_replication = { path = "crates/mcrs_minecraft_engine_mob_replication" }
-mcrs_minecraft_entity_rows = { path = "crates/mcrs_minecraft_entity_rows" }
+mcrs_minecraft_engine_damage = { path = "crates/mcrs_minecraft_engine_damage" }
+mcrs_minecraft_engine_entity_motion = { path = "crates/mcrs_minecraft_engine_entity_motion" }
+mcrs_minecraft_engine_entity_motion_replication = { path = "crates/mcrs_minecraft_engine_entity_motion_replication" }
+mcrs_minecraft_engine_mob_attributes = { path = "crates/mcrs_minecraft_engine_mob_attributes" }
 mcrs_minecraft_brain = { path = "crates/mcrs_minecraft_brain" }
 mcrs_minecraft_goals = { path = "crates/mcrs_minecraft_goals" }
 mcrs_minecraft_goal_world = { path = "crates/mcrs_minecraft_goal_world" }
@@ -119,6 +126,7 @@ mcrs_minecraft_replication = { path = "crates/mcrs_minecraft_replication" }
 mcrs_engine_muxer = { path = "crates/mcrs_engine_muxer" }
 mcrs_engine_cell = { path = "crates/mcrs_engine_cell" }
 mcrs_engine_store = { path = "crates/mcrs_engine_store" }
+mcrs_minecraft_region_disk = { path = "crates/mcrs_minecraft_region_disk" }
 mcrs_minecraft_resource = { path = "crates/mcrs_minecraft_resource" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_damage = { path = "crates/mcrs_minecraft_damage" }
@@ -126,6 +134,7 @@ mcrs_minecraft_numeric = { path = "crates/mcrs_minecraft_numeric" }
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
 mcrs_minecraft_registries_derive = { path = "crates/mcrs_minecraft_registries_derive" }
+mcrs_minecraft_static_registry = { path = "crates/mcrs_minecraft_static_registry" }
 mcrs_command = { path = "crates/mcrs_command" }
 mcrs_test_alloc = { path = "crates/mcrs_test_alloc" }
 mcrs_minecraft_command = { path = "crates/mcrs_minecraft_command" }
@@ -145,13 +154,18 @@ mcrs_minecraft_command_vanilla = { path = "crates/mcrs_minecraft_command_vanilla
 mcrs_minecraft_command_world = { path = "crates/mcrs_minecraft_command_world" }
 mcrs_minecraft_console = { path = "crates/mcrs_minecraft_console" }
 mcrs_minecraft_loot = { path = "crates/mcrs_minecraft_loot" }
+mcrs_minecraft_loot_condition = { path = "crates/mcrs_minecraft_loot_condition" }
+mcrs_minecraft_loot_table = { path = "crates/mcrs_minecraft_loot_table" }
 mcrs_minecraft_item_key = { path = "crates/mcrs_minecraft_item_key" }
+mcrs_minecraft_menu_key = { path = "crates/mcrs_minecraft_menu_key" }
 mcrs_minecraft_potion = { path = "crates/mcrs_minecraft_potion" }
 mcrs_minecraft_block_transformer = { path = "crates/mcrs_minecraft_block_transformer" }
 mcrs_minecraft_decorated_pot_pattern = { path = "crates/mcrs_minecraft_decorated_pot_pattern" }
 mcrs_minecraft_banner_pattern = { path = "crates/mcrs_minecraft_banner_pattern" }
 mcrs_minecraft_map_decoration = { path = "crates/mcrs_minecraft_map_decoration" }
-mcrs_minecraft_menu = { path = "crates/mcrs_minecraft_menu" }
+mcrs_minecraft_inventory_menu = { path = "crates/mcrs_minecraft_inventory_menu" }
+mcrs_minecraft_container_click = { path = "crates/mcrs_minecraft_container_click" }
+mcrs_minecraft_menu_geometry = { path = "crates/mcrs_minecraft_menu_geometry" }
 mcrs_minecraft_instrument = { path = "crates/mcrs_minecraft_instrument" }
 mcrs_minecraft_jukebox_song = { path = "crates/mcrs_minecraft_jukebox_song" }
 mcrs_minecraft_painting_variant = { path = "crates/mcrs_minecraft_painting_variant" }
@@ -173,6 +187,7 @@ mcrs_minecraft_lang = { path = "crates/mcrs_minecraft_lang" }
 mcrs_minecraft_text_flatten = { path = "crates/mcrs_minecraft_text_flatten" }
 mcrs_minecraft_server_settings = { path = "crates/mcrs_minecraft_server_settings" }
 mcrs_minecraft_entity = { path = "crates/mcrs_minecraft_entity" }
+mcrs_minecraft_entity_attribute = { path = "crates/mcrs_minecraft_entity_attribute" }
 mcrs_minecraft_entity_model = { path = "crates/mcrs_minecraft_entity_model" }
 mcrs_minecraft_pack_file = { path = "crates/mcrs_minecraft_pack_file" }
 mcrs_minecraft_assets = { path = "crates/mcrs_minecraft_assets" }
@@ -181,26 +196,59 @@ mcrs_minecraft_save = { path = "crates/mcrs_minecraft_save" }
 mcrs_minecraft_engine_registries = { path = "crates/mcrs_minecraft_engine_registries" }
 mcrs_minecraft_environment = { path = "crates/mcrs_minecraft_environment" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
+mcrs_minecraft_block_break = { path = "crates/mcrs_minecraft_block_break" }
+mcrs_minecraft_block_support = { path = "crates/mcrs_minecraft_block_support" }
 mcrs_molang = { path = "crates/mcrs_molang" }
 mcrs_molang_wgsl = { path = "crates/mcrs_molang_wgsl" }
 mcrs_minecraft_entity_animation = { path = "crates/mcrs_minecraft_entity_animation" }
 mcrs_minecraft_render_controller = { path = "crates/mcrs_minecraft_render_controller" }
 mcrs_minecraft_entity_render = { path = "crates/mcrs_minecraft_entity_render" }
+mcrs_minecraft_entity_visual = { path = "crates/mcrs_minecraft_entity_visual" }
 mcrs_minecraft_biome = { path = "crates/mcrs_minecraft_biome" }
 mcrs_minecraft_dimension = { path = "crates/mcrs_minecraft_dimension" }
 mcrs_minecraft_dimension_environment = { path = "crates/mcrs_minecraft_dimension_environment" }
 mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
-mcrs_minecraft_inventory_plan = { path = "crates/mcrs_minecraft_inventory_plan" }
+mcrs_minecraft_item_entity = { path = "crates/mcrs_minecraft_item_entity" }
+mcrs_minecraft_falling_block = { path = "crates/mcrs_minecraft_falling_block" }
+mcrs_minecraft_vanilla_item_entity = { path = "crates/mcrs_minecraft_vanilla_item_entity" }
+mcrs_minecraft_vanilla_falling_block = { path = "crates/mcrs_minecraft_vanilla_falling_block" }
+mcrs_minecraft_vanilla_block_place = { path = "crates/mcrs_minecraft_vanilla_block_place" }
+mcrs_minecraft_vanilla_attributes = { path = "crates/mcrs_minecraft_vanilla_attributes" }
+mcrs_minecraft_vanilla_inventory = { path = "crates/mcrs_minecraft_vanilla_inventory" }
+mcrs_minecraft_vanilla_swing = { path = "crates/mcrs_minecraft_vanilla_swing" }
+mcrs_minecraft_vanilla_player_attack = { path = "crates/mcrs_minecraft_vanilla_player_attack" }
+mcrs_minecraft_vanilla_respawn = { path = "crates/mcrs_minecraft_vanilla_respawn" }
+mcrs_minecraft_vanilla_death = { path = "crates/mcrs_minecraft_vanilla_death" }
+mcrs_minecraft_player_holders = { path = "crates/mcrs_minecraft_player_holders" }
+mcrs_minecraft_inventory_server = { path = "crates/mcrs_minecraft_inventory_server" }
+mcrs_minecraft_inventory_transaction = { path = "crates/mcrs_minecraft_inventory_transaction" }
+mcrs_minecraft_inventory_file = { path = "crates/mcrs_minecraft_inventory_file" }
+mcrs_minecraft_inventory_player = { path = "crates/mcrs_minecraft_inventory_player" }
+mcrs_minecraft_inventory_client_view = { path = "crates/mcrs_minecraft_inventory_client_view" }
+mcrs_minecraft_inventory_client = { path = "crates/mcrs_minecraft_inventory_client" }
+mcrs_minecraft_inventory_click = { path = "crates/mcrs_minecraft_inventory_click" }
+mcrs_minecraft_creative_report = { path = "crates/mcrs_minecraft_creative_report" }
+mcrs_minecraft_creative_content = { path = "crates/mcrs_minecraft_creative_content" }
 mcrs_minecraft_item_stack = { path = "crates/mcrs_minecraft_item_stack" }
 mcrs_minecraft_item_table = { path = "crates/mcrs_minecraft_item_table" }
+mcrs_minecraft_item_tooltip = { path = "crates/mcrs_minecraft_item_tooltip" }
 mcrs_minecraft_engine_item = { path = "crates/mcrs_minecraft_engine_item" }
+mcrs_minecraft_engine_inventory_menu = { path = "crates/mcrs_minecraft_engine_inventory_menu" }
+mcrs_minecraft_engine_inventory_click = { path = "crates/mcrs_minecraft_engine_inventory_click" }
+mcrs_minecraft_engine_attributes = { path = "crates/mcrs_minecraft_engine_attributes" }
+mcrs_minecraft_engine_player_vitals = { path = "crates/mcrs_minecraft_engine_player_vitals" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_client_world = { path = "crates/mcrs_minecraft_client_world" }
+mcrs_minecraft_client_control = { path = "crates/mcrs_minecraft_client_control" }
 mcrs_minecraft_client_entity = { path = "crates/mcrs_minecraft_client_entity" }
 mcrs_minecraft_client_gui = { path = "crates/mcrs_minecraft_client_gui" }
+mcrs_minecraft_client_options = { path = "crates/mcrs_minecraft_client_options" }
+mcrs_minecraft_client_widget = { path = "crates/mcrs_minecraft_client_widget" }
+mcrs_minecraft_fog = { path = "crates/mcrs_minecraft_fog" }
 mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
 mcrs_minecraft_model = { path = "crates/mcrs_minecraft_model" }
+mcrs_minecraft_item_icon = { path = "crates/mcrs_minecraft_item_icon" }
 mcrs_minecraft_model_file = { path = "crates/mcrs_minecraft_model_file" }
 mcrs_minecraft_block_entity_oracle = { path = "tools/mcrs_minecraft_block_entity_oracle" }
 mcrs_minecraft_render = { path = "crates/mcrs_minecraft_render" }
@@ -233,17 +281,18 @@ mcrs_minecraft_simulation = { path = "crates/mcrs_minecraft_simulation" }
 mcrs_minecraft_client_ticks = { path = "tools/mcrs_minecraft_client_ticks" }
 mcrs_minecraft_bench_support = { path = "tools/mcrs_minecraft_bench_support" }
 mcrs_minecraft_fixtures = { path = "tools/mcrs_minecraft_fixtures" }
+mcrs_minecraft_probe = { path = "tools/mcrs_minecraft_probe" }
 wtransport = "0.7.2"
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(getrandom_backend, values("wasm_js"))', 'cfg(web_sys_unstable_apis)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(getrandom_backend, values("wasm_js"))', 'cfg(web_sys_unstable_apis)', 'cfg(mcrs_lint)'] }
 
 [workspace.lints.clippy]
 allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
 too_many_lines = "warn"
 excessive_nesting = "warn"
-too_many_arguments = "warn"
+too_many_arguments = "allow"
 disallowed_types = "warn"
 disallowed_macros = "warn"
 disallowed_methods = "warn"
@@ -255,6 +304,7 @@ unreachable = "deny"
 todo = "deny"
 unimplemented = "deny"
 indexing_slicing = "deny"
+undocumented_unsafe_blocks = "deny"
 type_complexity = "allow"
 
 [dependencies]
@@ -296,133 +346,170 @@ mcrs_minecraft_registries.workspace = true
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
 telemetry-tracy = ["bevy_log/tracing-tracy", "mcrs_minecraft_server/telemetry-tracy"]
-# No other crate registers diagnostic plugins yet. Add propagation lines
-# here when individual crates start exposing their own histograms.
 telemetry-diagnostics = ["dep:bevy_diagnostic"]
 
 [profile.dev]
 opt-level = 0
-# Full debug info dominates compile and link time across a workspace this size.
-# Line tables keep backtraces readable, which is all the tests need.
 debug = "line-tables-only"
 debug-assertions = true
+codegen-backend = "cranelift"
 
-# Line tables in dependencies only grow the test binaries and their link time.
 [profile.dev.package."*"]
 opt-level = 3
+codegen-backend = "llvm"
 debug = false
 
-# Build scripts and proc macros run at compile time, so optimizing them buys
-# build time rather than frame time. `package."*"` does not reach them.
 [profile.dev.build-override]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.release.build-override]
 opt-level = 3
 
-# `package."*"` only covers external dependencies; workspace members inherit
-# [profile.dev] opt-level 0. Both paths a column can arrive by are far too hot
-# for that: generation (density-function evaluation, octave Perlin noise,
-# palette writes) and the read out of the save (zlib, NBT, palette unpacking),
-# so the member crates on either are optimized even in dev builds.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = true
+
 [profile.dev.package."mcrs_minecraft_worldgen"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_anvil"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_nbt"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_snbt"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_protocol"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_protocol_game"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_noise"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_density"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_surface"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_feature"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_feature_place"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_generator"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_carver"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_structure"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_worldgen_structure_place"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_random"]
 opt-level = 3
+codegen-backend = "llvm"
 
-# The light engine runs a frontier relaxation over millions of cells every time
-# a column arrives, so it belongs with the other per-column hot paths.
 [profile.dev.package."mcrs_minecraft_light_engine"]
 opt-level = 3
+codegen-backend = "llvm"
 
-# Edge costs sweep about a hundred thousand cells per region in every oracle
-# case, and the GPU bench builds bricks for every section of a fixture.
 [profile.dev.package."mcrs_minecraft_light_color"]
 opt-level = 3
+codegen-backend = "llvm"
 
-# Every test runs in its own process under nextest, so each one that needs the
-# data pack parses it from scratch; the serde and builder code doing that lives
-# in these crates and costs about a second per test at opt-level 0.
+[profile.dev.package."mcrs_molang"]
+opt-level = 3
+codegen-backend = "llvm"
+
 [profile.dev.package."mcrs_minecraft_block"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_item"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_registries"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_assets"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_core"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_numeric"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_chunk"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_environment"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_biome"]
 opt-level = 3
+codegen-backend = "llvm"
 
 [profile.dev.package."mcrs_minecraft_dimension"]
 opt-level = 3
+codegen-backend = "llvm"
 
-# The level field tests recompute the field from scratch after every change:
-# 0.6 seconds at opt-level 2, 4.7 at opt-level 0.
+[profile.dev.package."mcrs_minecraft_resource"]
+opt-level = 3
+codegen-backend = "llvm"
+
+[profile.dev.package."mcrs_minecraft_datapack"]
+opt-level = 3
+codegen-backend = "llvm"
+
+[profile.dev.package."mcrs_minecraft_fixtures"]
+codegen-backend = "llvm"
+
+[profile.dev.package."mcrs_minecraft_server"]
+codegen-backend = "llvm"
+
+[profile.dev.package."mcrs_test_alloc"]
+opt-level = 3
+codegen-backend = "llvm"
+
 [profile.dev.package."mcrs_minecraft_engine_world"]
 opt-level = 2
+codegen-backend = "llvm"
 
-# The browser bundle is inlined into a single HTML file, so binary size is the
-# dominant cost there in a way it never is for a native build.
 [profile.web]
 inherits = "release"
 opt-level = "s"

@@ -5,15 +5,11 @@ use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 use crate::coordinator::dimension_order;
 
-/// The dimensions that run, in the dimension order. The coordinator owns it, and every world
-/// gets a copy when it changes.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct RunningDimensions(Vec<RunningDimension>);
 
-/// A dimension that runs.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RunningDimension {
-    /// The host entity that labels the world of the dimension.
     pub label: Entity,
     pub key: ResourceKeyBuf<DimensionKey>,
     pub dimension_type: Id<DimensionType>,

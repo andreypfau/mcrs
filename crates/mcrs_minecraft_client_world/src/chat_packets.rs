@@ -1,6 +1,3 @@
-//! The observers of the clientbound packets that feed the chat: the log, the overlay, the
-//! command tree, the suggestions and the player list.
-
 use bevy::prelude::*;
 use mcrs_minecraft_chat_client::Tag;
 use mcrs_minecraft_command::Source;
@@ -11,7 +8,7 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::chat::{CompletionAction, FilterMask};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundCommandSuggestions, ClientboundCommands, ClientboundCustomChatCompletions,
-    ClientboundDisguisedChat, ClientboundLogin, ClientboundPlayerChat, ClientboundPlayerInfoRemove,
+    ClientboundDisguisedChat, ClientboundPlayerChat, ClientboundPlayerInfoRemove,
     ClientboundPlayerInfoUpdate, ClientboundSetActionBarText, ClientboundSystemChatPacket,
 };
 use mcrs_minecraft_protocol_game::text::{Color, IntoText, RawText, Text};
@@ -23,10 +20,6 @@ use crate::chat::{
     OnlinePlayers,
 };
 
-/// The registries whose identifiers the client can name, so their arguments parse on the
-/// client.
-// A fixed list; an argument of another registry reads as a type without a grammar and
-// asks the server. Registry keys that are not static lift it.
 const STATIC_REGISTRIES: [ResourceLocation<'static>; 5] = [
     mcrs_minecraft_biome::registry_keys::BIOME.location(),
     mcrs_minecraft_entity::registry_keys::STRUCTURE.location(),
@@ -34,18 +27,6 @@ const STATIC_REGISTRIES: [ResourceLocation<'static>; 5] = [
     mcrs_minecraft_environment::registry_keys::WORLD_CLOCK.location(),
     mcrs_minecraft_environment::registry_keys::TIMELINE.location(),
 ];
-
-pub(crate) fn on_login(
-    _: On<Received<ClientboundLogin>>,
-    mut chat: ResMut<Chat>,
-    mut players: ResMut<OnlinePlayers>,
-) {
-    chat.log.clear();
-    chat.history.reset();
-    chat.completions.clear();
-    chat.player_chats = 0;
-    players.0.clear();
-}
 
 pub(crate) fn on_commands(
     event: On<Received<ClientboundCommands<'static>>>,
@@ -62,9 +43,9 @@ pub(crate) fn on_commands(
     ) {
         Ok(graph) => tree.0 = graph,
         Err(error) => client::close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
-            format!("the command tree is invalid: {error}"),
+            client::ConnectionEnd::Lost(format!("the command tree is invalid: {error}")),
         ),
     }
 }
@@ -95,9 +76,7 @@ pub(crate) fn on_suggestions(
         .reply(reply.id.0, start, length, &reply.suggestions, &cx);
 }
 
-/// A text the server sent, or `None` when it does not decode, as when the packet around it does
-/// not.
-fn server_text(raw: &RawText<'_>) -> Option<Text> {
+pub(crate) fn server_text(raw: &RawText<'_>) -> Option<Text> {
     raw.to_text().ok()?.map(&ItemHoverMap).ok()
 }
 
@@ -132,7 +111,6 @@ pub(crate) fn on_action_bar(
     }
 }
 
-/// The `chat` decoration of a chat type around a content.
 fn decorate(
     registries: Option<&Registries>,
     chat_type: u32,
@@ -157,13 +135,7 @@ fn decorate(
         })
         .collect::<Vec<_>>();
     let mut text = Text::translate(decoration.translation_key.clone(), arguments);
-    let style = &decoration.style;
-    text.style.color = style.color;
-    text.style.bold = style.bold;
-    text.style.italic = style.italic;
-    text.style.underlined = style.underlined;
-    text.style.strikethrough = style.strikethrough;
-    text.style.obfuscated = style.obfuscated;
+    text.style = decoration.style.formatting();
     text
 }
 
@@ -180,9 +152,9 @@ pub(crate) fn on_player_chat(
     };
     if packet.global_index.0 != chat.player_chats {
         client::close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
-            "multiplayer.disconnect.bad_chat_index".to_owned(),
+            client::ConnectionEnd::Lost("multiplayer.disconnect.bad_chat_index".to_owned()),
         );
         return;
     }
@@ -231,7 +203,6 @@ pub(crate) fn on_player_chat(
     });
 }
 
-/// The body with each hidden code unit as a dark grey `#`.
 fn filtered(body: &str, mask: &FilterMask) -> Text {
     let mut text = Text::text("");
     let mut run = String::new();
@@ -261,7 +232,6 @@ fn filtered(body: &str, mask: &FilterMask) -> Text {
                 flush(&mut run, hidden_run, &mut text);
                 hidden_run = hidden;
             }
-            // A pair split by the mask keeps a lone surrogate, which a `str` cannot hold.
             run.push(match (hidden, hidden_units) {
                 (true, _) => '#',
                 (false, 0) if unit == index => c,

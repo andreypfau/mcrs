@@ -2,8 +2,6 @@ use crate::IntProvider;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
-/// A provider whose whole range must sit inside `[MIN, MAX]`, refused at load
-/// otherwise.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct BoundedIntProvider<const MIN: i32, const MAX: i32>(pub IntProvider);

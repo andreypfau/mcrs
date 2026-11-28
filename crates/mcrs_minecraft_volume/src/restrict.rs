@@ -7,13 +7,10 @@ use crate::access::{Access, Denied, Unavailable, Volume};
 use crate::block::{BlockVolume, BlockVolumeMut};
 use crate::bounds::ColumnLayout;
 
-/// Which rights a holder keeps per section, on top of what the store itself grants.
 pub trait AccessPolicy {
     fn access(&self, section: SectionPos) -> Access;
 }
 
-/// A borrowed volume whose rights are narrowed by a policy: each section's access is the
-/// weaker of the two answers, so a restriction only ever takes rights away.
 pub struct Restricted<V, P> {
     inner: V,
     policy: P,

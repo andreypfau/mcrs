@@ -11,12 +11,9 @@ use mcrs_minecraft_noise::simplex::SimplexNoise;
 
 use super::{Predicate, WorldGenVolume};
 
-/// The reference's `Biome.BIOME_INFO_NOISE`: seeded 2345, no world seed in it,
-/// so every world's flower and dripstone counts follow the same field.
 static BIOME_INFO_NOISE: LazyLock<SimplexNoise> =
     LazyLock::new(|| SimplexNoise::from_random_at_origin(&mut LegacyRandom::new(2345)));
 
-/// A placement modifier with every set it names reduced to a mask.
 pub type Modifier = PlacementModifier<Predicate>;
 
 pub fn biome_info_noise(x: f64, z: f64) -> f64 {
@@ -26,18 +23,18 @@ pub fn biome_info_noise(x: f64, z: f64) -> f64 {
 impl PlacementModifier<Predicate> {
     #[expect(
         clippy::too_many_lines,
-        reason = "one arm per placement modifier, in the reference's declaration order, so each reads against its kind"
+        reason = "one arm per placement modifier, in the reference's declaration order"
     )]
     #[expect(
         clippy::excessive_nesting,
-        reason = "emits the positions of a box in the reference's x, y, z order with the edge and face test inline, so the order of positions matches it"
+        reason = "positions keep the reference's x, y, z order"
     )]
     pub(super) fn apply<W: WorldGenVolume, R: Random>(
         &self,
         volume: &W,
         rng: &mut R,
         origin: BlockPos,
-        carries: &dyn Fn(u16) -> bool,
+        carries: &impl Fn(u16) -> bool,
         out: &mut Vec<BlockPos>,
     ) {
         use PlacementModifier::*;
@@ -234,8 +231,6 @@ impl PlacementModifier<Predicate> {
     }
 }
 
-/// `CountOnEveryLayerPlacement.findOnGroundYPosition`: the first solid top face
-/// below the start that is the `layer`-th one down. Empty is air, water or lava.
 fn on_ground_y<W: WorldGenVolume>(
     volume: &W,
     x: i32,

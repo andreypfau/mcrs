@@ -1,7 +1,3 @@
-//! A player that walks from one cell of a world into another. It moves at the end of a tick and
-//! arrives at the start of the next one with its session and its wire id, so neither its client
-//! nor its viewers see it leave.
-
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::With;
@@ -20,30 +16,25 @@ use crate::departure::{Carriable, CarriedPlayer};
 use crate::dimension_change::DimensionChangeError;
 use crate::hot_ticket;
 use crate::hot_ticket::{CellCrossing, HotTicket, RemoteTicket, RemoteTickets};
+use crate::loaded_client::UnloadedClient;
+use crate::persisted_registry::CaptureCause;
 use crate::player_dimension_change;
 use crate::replicated::Replicated;
 
-/// A player that left its cell at the end of a tick for the cell that owns the column it stands
-/// in.
 #[derive(Clone, Debug)]
 pub struct Crossing {
     pub(crate) session: PlayerSession,
     pub(crate) carried: CarriedPlayer,
     pub(crate) replicated: Option<Replicated>,
+    pub(crate) unloaded: Option<UnloadedClient>,
     pub(crate) view: SentChunkView,
     pub(crate) ticket: Option<HotTicket>,
 }
 
-/// On a player that arrived from another cell in this tick, with the transform it arrived
-/// with: its viewers saw that pose already, so it publishes no move unless it moves again.
 #[derive(Component, Clone, Copy, Debug)]
 #[component(storage = "SparseSet")]
 pub struct CrossedAt(pub(crate) Transform);
 
-/// Lets go of each player that stands in a column that this cell does not own, into
-/// `crossings`. The cell keeps the hot ticket of the player as a remote ticket, as the other
-/// cells do, so the columns around the player stay hot in every cell. A player that cannot be
-/// carried stays where it is.
 pub(crate) fn cross_players(world: &mut World, crossings: &mut Vec<Crossing>) {
     let Some(owned) = world.get_resource::<OwnedColumns>().copied() else {
         return;
@@ -70,7 +61,7 @@ fn cross(world: &mut World, player: Entity) -> Result<Crossing, DimensionChangeE
         return Err(DimensionChangeError::NoPlayer);
     };
     leaving.insert(CellCrossing);
-    let carried = match CarriedPlayer::take(&mut leaving) {
+    let carried = match CarriedPlayer::take(&mut leaving, CaptureCause::CellCrossing) {
         Ok(carried) => carried,
         Err(error) => {
             leaving.remove::<CellCrossing>();
@@ -78,6 +69,7 @@ fn cross(world: &mut World, player: Entity) -> Result<Crossing, DimensionChangeE
         }
     };
     let replicated = leaving.take::<Replicated>();
+    let unloaded = leaving.take::<UnloadedClient>();
     let view = leaving.take::<SentChunkView>().unwrap_or_default();
     let ticket = leaving.take::<HotTicket>();
     world.despawn(player);
@@ -88,14 +80,12 @@ fn cross(world: &mut World, player: Entity) -> Result<Crossing, DimensionChangeE
         session,
         carried,
         replicated,
+        unloaded,
         view,
         ticket,
     })
 }
 
-/// Spawns the player of `crossing` where it stood, with what its viewers and its client know
-/// of it. Its remote ticket here becomes its own, and so does its simulation area, so its
-/// sections tick on with no tick between.
 pub(crate) fn arrive(
     world: &mut World,
     crossing: Crossing,
@@ -104,16 +94,25 @@ pub(crate) fn arrive(
         session,
         carried,
         replicated,
+        unloaded,
         view,
         ticket,
     } = crossing;
-    let transform = carried.transform;
+    let transform = carried.transform();
     let player = player_dimension_change::place(world, session, transform, carried, view)?;
     release_remote(world, session);
     let mut arrived = world.entity_mut(player);
     let Some(&InDimension(dimension)) = arrived.get::<InDimension>() else {
         return Err(DimensionChangeError::NoDimension);
     };
+    match unloaded {
+        Some(unloaded) => {
+            arrived.insert(unloaded);
+        }
+        None => {
+            arrived.remove::<UnloadedClient>();
+        }
+    }
     if let Some(replicated) = replicated {
         arrived.insert((replicated, CrossedAt(transform)));
     }
@@ -126,8 +125,6 @@ pub(crate) fn arrive(
     Ok(player)
 }
 
-/// Holds `ticket` for the player of `session` of another cell, or lets its ticket go. A player
-/// of this cell keeps its own ticket.
 pub(crate) fn update_remote(world: &mut World, session: PlayerSession, ticket: Option<HotTicket>) {
     let own = world
         .get_resource::<DimPlayerIndex>()
@@ -151,7 +148,6 @@ fn hold_remote(world: &mut World, session: PlayerSession, ticket: HotTicket) {
     let Ok(dimension) = player_dimension_change::own_dimension(world) else {
         return;
     };
-    // The ticket goes in with the area it holds, so the area ticks at once.
     let holder = world
         .spawn((
             RemoteTicket,
@@ -172,5 +168,98 @@ fn release_remote(world: &mut World, session: PlayerSession) {
         .and_then(|mut tickets| tickets.0.remove(&session));
     if let Some(holder) = held {
         world.despawn(holder);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_app::App;
+    use mcrs_minecraft_engine_world::entity::player::Player;
+    use mcrs_minecraft_engine_world::world::dimension::Dimension;
+    use mcrs_minecraft_entity_key::EntityUuid;
+    use mcrs_minecraft_game_mode::PlayerGameMode;
+    use mcrs_minecraft_protocol::uuid::Uuid;
+    use mcrs_minecraft_swing::{SwingModifiers, SwingTracker};
+
+    use crate::ability::{PlayerFlying, PlayerOpLevel};
+    use crate::loaded_client::LoadedClientPlugin;
+    use crate::persistence::PlayerPersistencePlugin;
+    use crate::persistence::tests::profile;
+    use crate::swing::{PlayerSwing, PlayerSwingPlugin};
+    use crate::teleport::TeleportState;
+
+    fn test_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((
+            PlayerPersistencePlugin,
+            LoadedClientPlugin,
+            PlayerSwingPlugin,
+        ));
+        app.world_mut().spawn(Dimension);
+        app
+    }
+
+    fn spawn_crossing_player(world: &mut World, session: PlayerSession) -> Entity {
+        world
+            .spawn((
+                Player,
+                Owner(session),
+                EntityUuid(Uuid::nil()),
+                Transform::default(),
+                PlayerGameMode::default(),
+                PlayerFlying(false),
+                PlayerOpLevel(1),
+                TeleportState::default(),
+                profile(),
+            ))
+            .id()
+    }
+
+    #[test]
+    fn cell_crossing_preserves_loaded_state_and_swing_cooldown() {
+        let mut app = test_app();
+        let mut tracker = SwingTracker::default();
+        tracker.try_start(40, 10, SwingModifiers::default());
+        let expected_swing = PlayerSwing(tracker);
+
+        let loaded_player = spawn_crossing_player(app.world_mut(), PlayerSession(1));
+        app.world_mut()
+            .entity_mut(loaded_player)
+            .remove::<UnloadedClient>()
+            .insert(expected_swing);
+        let crossing = cross(app.world_mut(), loaded_player).expect("loaded player crosses");
+        let arrived_loaded = arrive(app.world_mut(), crossing).expect("loaded player arrives");
+        assert!(
+            app.world().get::<UnloadedClient>(arrived_loaded).is_none(),
+            "loaded client stays loaded across same-dimension cell crossing"
+        );
+        assert_eq!(
+            app.world().get::<PlayerSwing>(arrived_loaded),
+            Some(&expected_swing),
+            "active swing cooldown survives same-dimension cell crossing"
+        );
+
+        let waiting_player = spawn_crossing_player(app.world_mut(), PlayerSession(2));
+        {
+            let mut waiting = app
+                .world_mut()
+                .get_mut::<UnloadedClient>(waiting_player)
+                .expect("waiting player starts unloaded");
+            for _ in 0..25 {
+                assert!(!waiting.tick());
+            }
+        }
+        let expected_waiting = *app
+            .world()
+            .get::<UnloadedClient>(waiting_player)
+            .expect("waiting state");
+        let crossing = cross(app.world_mut(), waiting_player).expect("waiting player crosses");
+        let arrived_waiting = arrive(app.world_mut(), crossing).expect("waiting player arrives");
+        assert_eq!(
+            app.world().get::<UnloadedClient>(arrived_waiting),
+            Some(&expected_waiting),
+            "in-progress client load timer survives cell crossing without resetting"
+        );
     }
 }

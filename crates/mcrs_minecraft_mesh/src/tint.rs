@@ -1,5 +1,3 @@
-/// What a face's colour is multiplied by: nothing, one of the biome colour maps sampled where
-/// the face stands, or a colour fixed by the block state.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum Tint {
     #[default]
@@ -11,7 +9,6 @@ pub enum Tint {
     Fixed(u8),
 }
 
-/// The biome colour maps, in the order of their layers in the tint texture.
 pub const BIOME_TINTS: [Tint; 4] = [Tint::Grass, Tint::Foliage, Tint::DryFoliage, Tint::Water];
 
 const SPRUCE_LEAVES: u8 = 0;
@@ -24,7 +21,6 @@ const REDSTONE: u8 = STEM + STEM_AGES;
 const REDSTONE_POWERS: u8 = 16;
 const DYE: u8 = REDSTONE + REDSTONE_POWERS;
 
-/// The texture tint of each dye, by dye id: what a banner's base layer is multiplied by.
 const DYE_COLORS: [u32; 16] = [
     0xf9fffe, 0xf9801d, 0xc74ebd, 0x3ab3da, 0xfed83d, 0x80c71f, 0xf38baa, 0x474f52, 0x9d9d97,
     0x169c9c, 0x8932b8, 0x3c44aa, 0x835432, 0x5e7c16, 0xb02e26, 0x1d1d21,
@@ -57,7 +53,6 @@ impl Tint {
         Tint::Fixed(REDSTONE + power.min(REDSTONE_POWERS - 1))
     }
 
-    /// The colour of the dye with this id, white past the sixteen.
     pub fn dye(id: u8) -> Tint {
         Tint::Fixed(
             DYE + if (id as usize) < DYE_COLORS.len() {
@@ -68,7 +63,6 @@ impl Tint {
         )
     }
 
-    /// The number the shader reads: 0 for none, then the biome maps, then the fixed colours.
     pub const fn index(self) -> u32 {
         match self {
             Tint::None => 0,
@@ -81,7 +75,6 @@ impl Tint {
     }
 }
 
-/// The fixed colours as `0xRRGGBB`, indexed like `Tint::Fixed`.
 pub fn fixed_colors() -> [u32; FIXED_TINTS] {
     std::array::from_fn(|index| fixed_color(index as u8))
 }

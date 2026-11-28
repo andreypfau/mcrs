@@ -4,10 +4,8 @@ use mcrs_minecraft_numeric as numeric;
 use crate::Orientation;
 use crate::PlayerState;
 
-/// Degrees to radians in f64, as the teleport computes them.
 const RADIANS_PER_DEGREE: f64 = 0.017453292519943295;
 
-/// A `player_position` packet: the changes and the flags that make each one relative.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Teleport {
     pub position: DVec3,
@@ -18,7 +16,6 @@ pub struct Teleport {
 }
 
 bitflags::bitflags! {
-    /// The values of a teleport that add to the current value.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
     pub struct Relative: u16 {
         const X = 1 << 0;
@@ -29,13 +26,10 @@ bitflags::bitflags! {
         const VELOCITY_X = 1 << 5;
         const VELOCITY_Y = 1 << 6;
         const VELOCITY_Z = 1 << 7;
-        /// Rotate the velocity by the change of the rotation before the velocity change.
         const ROTATE_VELOCITY = 1 << 8;
     }
 }
 
-/// Applies a teleport to the state and the rotation of a player. The flags, the supporting block
-/// and the fall distance stay.
 pub fn apply_teleport(state: &mut PlayerState, rotation: &mut Orientation, packet: &Teleport) {
     let relative = packet.relative;
     let pick = |flag: Relative, current: f64, change: f64| {
@@ -94,7 +88,6 @@ pub fn apply_teleport(state: &mut PlayerState, rotation: &mut Orientation, packe
     rotation.pitch = pitch;
 }
 
-/// `f32(α × 0.017453292519943295)` of an f32 angle in degrees, widened.
 fn radians(degrees: f32) -> f64 {
     f64::from((f64::from(degrees) * RADIANS_PER_DEGREE) as f32)
 }

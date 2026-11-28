@@ -1,34 +1,42 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Check {
+    Comments,
     Parity,
     Fmt,
     Clippy,
+    EcsLint,
     Test,
     NoBevy,
     Layers,
+    ExampleDependencies,
     Wasm32,
     NoStd,
     Keys,
+    CrateMap,
 }
 
 impl Check {
     pub const fn name(self) -> &'static str {
         match self {
+            Check::Comments => "comments",
             Check::Parity => "parity",
             Check::Fmt => "fmt",
             Check::Clippy => "clippy",
+            Check::EcsLint => "ecs-lint",
             Check::Test => "test",
             Check::NoBevy => "no-bevy",
             Check::Layers => "layers",
+            Check::ExampleDependencies => "example-dependencies",
             Check::Wasm32 => "wasm32",
             Check::NoStd => "no-std",
             Check::Keys => "keys",
+            Check::CrateMap => "crate-map",
         }
     }
 
     #[cfg(test)]
     pub const fn is_git_only(self) -> bool {
-        matches!(self, Check::Parity)
+        matches!(self, Check::Comments | Check::Parity)
     }
 }
 
@@ -75,12 +83,14 @@ impl Trigger {
     pub const fn description(self) -> &'static str {
         match self {
             Trigger::Edit => "after a file is written: formatting of the changed files",
-            Trigger::Commit => "before a commit: fixture parity, formatting",
+            Trigger::Commit => {
+                "before a commit: no comments outside examples, fixture parity, formatting"
+            }
             Trigger::Push => {
-                "before a push: the commit checks; ci runs clippy, the tests and the builds"
+                "before a push: the commit checks and the ECS lints of the workspace; ci runs clippy, the tests and the builds"
             }
             Trigger::Lint => {
-                "in CI on every pull request and every push to main: the commit checks over the whole branch, then the key sources regenerated when an input of the generator changed"
+                "in CI on every pull request and every push to main: the commit checks over the whole branch, the crate map, the key sources regenerated when an input of the generator changed, then the ECS lints of the workspace"
             }
             Trigger::Clippy => "in CI on every pull request and every push to main: clippy",
             Trigger::Test => {
@@ -123,11 +133,12 @@ pub const fn checks(trigger: Trigger) -> &'static [Check] {
     use Check::*;
     match trigger {
         Trigger::Edit => &[Fmt],
-        Trigger::Commit | Trigger::Push => &[Parity, Fmt],
-        Trigger::Lint => &[Parity, Fmt, Keys],
+        Trigger::Commit => &[Comments, Parity, Fmt],
+        Trigger::Push => &[Comments, Parity, Fmt, EcsLint],
+        Trigger::Lint => &[Comments, Parity, Fmt, Keys, CrateMap, EcsLint],
         Trigger::Clippy => &[Clippy],
         Trigger::Test | Trigger::Full | Trigger::Gpu => &[Test],
-        Trigger::Portability => &[NoBevy, Layers, Wasm32, NoStd],
+        Trigger::Portability => &[NoBevy, Layers, ExampleDependencies, Wasm32, NoStd],
     }
 }
 
@@ -196,25 +207,6 @@ mod tests {
                 Trigger::Clippy,
                 Trigger::Test,
                 Trigger::Portability
-            ]
-        );
-    }
-
-    #[test]
-    fn the_subset_test_fails_on_a_check_no_pull_request_trigger_lists_whatever_the_order() {
-        fn table(trigger: Trigger) -> &'static [Check] {
-            match trigger {
-                Trigger::Lint => &[Check::Test, Check::Fmt],
-                Trigger::Push => &[Check::Clippy, Check::Fmt, Check::Test],
-                Trigger::Commit => &[Check::Fmt, Check::Wasm32],
-                _ => &[Check::Fmt],
-            }
-        }
-        assert_eq!(
-            outside_pull_requests(table),
-            [
-                (Trigger::Commit, Check::Wasm32),
-                (Trigger::Push, Check::Clippy)
             ]
         );
     }

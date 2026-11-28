@@ -1,7 +1,5 @@
 use serde_json::{Map, Value};
 
-/// Parses JSON with the extensions that pack files use: a byte order mark, `//` and `/* */`
-/// comments, and a trailing comma before `]` or `}`.
 pub fn parse(text: &str) -> serde_json::Result<Value> {
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     serde_json::from_str(&drop_trailing_commas(&drop_comments(text)))
@@ -73,7 +71,6 @@ pub struct Member<'value> {
     pub value: &'value Value,
 }
 
-/// The members of an object in key order, and none for any other value.
 pub fn members(value: &Value) -> impl Iterator<Item = Member<'_>> {
     value
         .as_object()

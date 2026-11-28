@@ -22,23 +22,28 @@ fn record(size: usize) {
     let _ = LARGEST_REQUEST.try_with(|largest| largest.set(largest.get().max(size)));
 }
 
+// SAFETY: each method forwards to `System` with the arguments it received.
 unsafe impl GlobalAlloc for RecordingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         record(layout.size());
+        // SAFETY: the caller upholds the contract of `GlobalAlloc::alloc`.
         unsafe { System.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         record(layout.size());
+        // SAFETY: the caller upholds the contract of `GlobalAlloc::alloc_zeroed`.
         unsafe { System.alloc_zeroed(layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         record(new_size);
+        // SAFETY: the caller upholds the contract of `GlobalAlloc::realloc`.
         unsafe { System.realloc(ptr, layout, new_size) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        // SAFETY: the caller upholds the contract of `GlobalAlloc::dealloc`.
         unsafe { System.dealloc(ptr, layout) }
     }
 }
@@ -46,8 +51,7 @@ unsafe impl GlobalAlloc for RecordingAllocator {
 #[global_allocator]
 static ALLOCATOR: RecordingAllocator = RecordingAllocator;
 
-/// The largest single request the calling thread made while `read` ran.
-fn largest_request<T>(read: impl FnOnce() -> T) -> (T, usize) {
+pub(crate) fn largest_request<T>(read: impl FnOnce() -> T) -> (T, usize) {
     LARGEST_REQUEST.with(|largest| largest.set(0));
     let value = read();
     (value, LARGEST_REQUEST.with(Cell::get))
@@ -55,7 +59,6 @@ fn largest_request<T>(read: impl FnOnce() -> T) -> (T, usize) {
 
 const A_MEGABYTE: usize = 1 << 20;
 
-/// The payload an array or a list declares, cut off after `present` elements.
 fn truncated(tag: u8, declared: i32, present: &[u8]) -> Vec<u8> {
     let mut bytes = Vec::new();
     if tag == LIST_ID {
@@ -66,8 +69,6 @@ fn truncated(tag: u8, declared: i32, present: &[u8]) -> Vec<u8> {
     bytes
 }
 
-/// A named root compound whose only field `data` carries `payload`, with the
-/// closing tag left off: the input ends inside the field.
 fn chunk_like(tag: u8, payload: &[u8]) -> Vec<u8> {
     let mut bytes = vec![COMPOUND_ID, 0, 0, tag, 0, 4];
     bytes.extend_from_slice(b"data");
@@ -214,8 +215,6 @@ fn an_array_longer_than_one_read_step_comes_back_whole() {
     assert_eq!(read.unwrap(), NbtTag::ByteArray(payload.into()));
 }
 
-/// Counts the calls that reach the input: the work a read does, measured
-/// without a clock.
 struct Counted<'a> {
     input: Cursor<&'a [u8]>,
     calls: &'a Cell<usize>,
@@ -253,7 +252,6 @@ fn list_of(element: u8, declared: i32, present: &[u8]) -> Vec<u8> {
     bytes
 }
 
-/// A named root compound holding `fields` in order, closed.
 fn root(fields: &[(u8, &str, &[u8])]) -> Vec<u8> {
     let mut bytes = vec![COMPOUND_ID, 0, 0];
     for (tag, name, payload) in fields {
@@ -266,7 +264,6 @@ fn root(fields: &[(u8, &str, &[u8])]) -> Vec<u8> {
     bytes
 }
 
-/// Reads `kept` and passes over every other field.
 #[derive(Deserialize, Debug)]
 struct Kept {
     kept: i32,
@@ -422,7 +419,7 @@ impl<'de> Deserialize<'de> for PayloadLength {
 }
 
 #[test]
-fn an_array_read_with_its_kind_goes_to_the_input_once_a_step_and_not_once_an_element() {
+fn array_read_goes_to_the_input_once_per_step_not_per_element() {
     #[derive(Deserialize)]
     struct Measured {
         data: PayloadLength,

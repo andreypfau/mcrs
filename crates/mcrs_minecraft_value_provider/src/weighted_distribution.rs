@@ -2,7 +2,6 @@ use crate::Weighted;
 use mcrs_minecraft_random::Random;
 use serde::{Deserialize, Serialize};
 
-/// The entries of a `WeightedList`, whose weights sum above zero.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(
     try_from = "Vec<Weighted<T>>",
@@ -54,8 +53,6 @@ impl<T> From<WeightedDistribution<T>> for Vec<Weighted<T>> {
     }
 }
 
-/// One `nextInt(total)` draw walked through the weights in list order; a total
-/// of zero draws nothing.
 pub fn pick_weighted_by<'a, T: 'a, R: Random>(
     items: impl IntoIterator<Item = &'a T, IntoIter: Clone>,
     weight: impl Fn(&T) -> i32,

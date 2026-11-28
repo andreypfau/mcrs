@@ -1,15 +1,13 @@
 use mcrs_minecraft_numeric as numeric;
 
-/// The bounds a value can take. Only ever widened: a bound narrower than the
-/// truth would let the optimiser delete a reachable branch.
+use crate::jmath;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Interval {
     min: f32,
     max: f32,
 }
 
-/// NaI compares equal to itself so that structurally identical stack entries
-/// still deduplicate.
 impl PartialEq for Interval {
     fn eq(&self, other: &Self) -> bool {
         (self.min == other.min && self.max == other.max) || (self.is_nai() && other.is_nai())
@@ -17,8 +15,6 @@ impl PartialEq for Interval {
 }
 
 impl Interval {
-    /// "Not an Interval": nothing is known. Every ordering test against NaN is
-    /// false, so a node carrying it survives every elimination the optimiser makes.
     pub const NAI: Self = Self {
         min: f32::NAN,
         max: f32::NAN,
@@ -29,8 +25,6 @@ impl Interval {
         max: f32::INFINITY,
     };
 
-    /// The reference throws on an inverted or NaN pair. Nothing downstream can
-    /// act on an inverted interval soundly, so it degrades to NaI instead.
     pub fn of(min: f32, max: f32) -> Self {
         if min.is_nan() || max.is_nan() || max < min {
             debug_assert!(false, "invalid interval [{min}; {max}]");
@@ -104,8 +98,6 @@ impl Interval {
         }
     }
 
-    /// Zero times an infinite bound is zero here, not NaN: an endpoint pinned to
-    /// zero contributes nothing however far the other side reaches.
     fn mul_bound(left: f32, right: f32) -> f32 {
         if left != 0.0 && right != 0.0 {
             left * right
@@ -313,9 +305,6 @@ impl Interval {
         }
     }
 
-    /// A negative base only yields a real value at integer exponents, so the
-    /// hull is taken over the integers the exponent spans — and over their
-    /// neighbours, because consecutive integers alternate in sign.
     fn negative_base_pow(base: f32, exponent: Self) -> Self {
         let exponent_min_int = exponent.min.ceil();
         let exponent_max_int = exponent.max.floor();
@@ -353,8 +342,19 @@ impl Interval {
             return Self::NAI;
         }
         if first.is_finite() && second.is_finite() {
-            let bound = |a: f32| first + Self::mul_bound(a, second - first);
-            return Self::encapsulating(bound(alpha.min), bound(alpha.max));
+            let bound = |a: f32| {
+                if a == 0.0 {
+                    first
+                } else {
+                    jmath::lerp(a, first, second)
+                }
+            };
+            let hull = Self::encapsulating(bound(alpha.min), bound(alpha.max));
+            return if alpha.contains(1.0) {
+                hull.union_value(second)
+            } else {
+                hull
+            };
         }
         if first == second {
             return Self::exact(first);
@@ -426,13 +426,12 @@ impl std::ops::Div for Interval {
 #[cfg(test)]
 mod test {
     use super::Interval;
+    use super::jmath;
 
     fn bounds(interval: Interval) -> (f32, f32) {
         (interval.min(), interval.max())
     }
 
-    /// The two-corner shortcut this replaced answered -2 for the upper bound,
-    /// excluding the reachable value 1 * -1.
     #[test]
     fn multiplication_takes_the_hull_of_all_four_corners() {
         let product = Interval::of(1.0, 2.0) * Interval::of(-3.0, -1.0);
@@ -496,6 +495,33 @@ mod test {
             Interval::exact(f32::INFINITY),
         );
         assert_eq!(bounds(interpolated), (0.0, f32::INFINITY));
+    }
+
+    #[test]
+    fn a_lerp_bound_holds_every_value_the_sampler_returns() {
+        let cases = [
+            (Interval::exact(1.0), 16_777_216.0, 0.25),
+            (Interval::of(0.5, 1.0), 16_777_216.0, 0.25),
+            (Interval::of(0.0, 0.5), 0.25, 16_777_216.0),
+            (Interval::of(0.3, 0.7), -0.524_070_74, 0.088_458_45),
+            (Interval::of(0.1, 0.9), 1.0e-7, 3.0e38),
+        ];
+        for (alpha, first, second) in cases {
+            let bound = Interval::lerp(alpha, Interval::exact(first), Interval::exact(second));
+            let steps = 64_u16;
+            for step in 0..=steps {
+                let fraction = f32::from(step) / f32::from(steps);
+                let point = alpha.min() + fraction * (alpha.max() - alpha.min());
+                for at in [point, alpha.min(), alpha.max()] {
+                    let value = jmath::sampler_lerp(at, first, second);
+                    assert!(
+                        bound.contains(value),
+                        "lerp({at}, {first}, {second}) = {value} lies outside {:?}",
+                        bounds(bound)
+                    );
+                }
+            }
+        }
     }
 
     #[test]

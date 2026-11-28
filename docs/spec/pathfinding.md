@@ -1,10 +1,5 @@
 # Pathfinding: the ground path search and the path follower
 
-| Field | Value |
-|-------|-------|
-| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
-| Protocol version | `1073742169` |
-
 This document states how a mob that walks finds a path and follows it. It states the path types of
 the blocks, the malus of each path type, the rules of the ground node evaluator, the path search,
 the navigation requests and the path follower. It also states the move control, which changes a
@@ -16,7 +11,7 @@ Thus no rule of this document is of the kind "client agreement". The rules are o
 server selects a clean rule in place of an accident of the reference.
 
 `entity-ai-timing.md` states when the parts of this document run, with the prefix `AIT`. This
-document states what they compute. `gold-farm.md`, step G4, is the reason for this document.
+document states what they compute.
 
 ## 0. Conventions
 
@@ -82,12 +77,12 @@ document states what they compute. `gold-farm.md`, step G4, is the reason for th
 
 ### 0.2 Provenance
 
-- `black_box_confirmed`: shown by a captured result in section 16.
+- `black_box_confirmed`: shown by an experiment against a vanilla server.
 - `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
-  with a captured result in section 16.
-- `source_suggested`: taken from the reference implementation, with no captured result. The
-  confidence is at most medium. Section 15 attaches an experiment.
-- `design`: a rule of this server's own design. A test of section 15.2 confirms it.
+  with an experiment.
+- `source_suggested`: taken from the reference implementation, with no experiment. The
+  confidence is at most medium.
+- `design`: a rule of this server's own design.
 - `unresolved`: not decided. Section 14 collects these items.
 
 Each rule states its kind and its confidence, for example
@@ -144,9 +139,6 @@ These subjects are out of scope:
   `pathfinding/sticky`, `pathfinding/avoid_in_air`, `pathfinding/damage_cautious`, `fire`,
   `campfires`, `fences`, `walls`, `doors`, `cauldrons` and `air`. In `26.4-snapshot-7`,
   `pathfinding/drop_down` holds `#trapdoors`, `lily_pad` and `big_dripleaf`.
-- The corpus does not give the flag "pathfindable on land", the door kind or the legacy solid flag
-  of a state. Section 12.3 states the component that the corpus must add.
-
 ## 1. Path types
 
 **PATH-TYP-001** (`source_suggested`, semantic, confidence: medium). These are the path types,
@@ -182,12 +174,12 @@ state is the first match of this list:
    - the block is in the tag `fire`;
    - the block is `lava`, `magma_block` or `lava_cauldron`;
    - the block is in the tag `campfires` and the state has `lit=true`.
-4. A door state (the door kind of section 12.3 is not `none`) gives `DOOR_OPEN` when it has
+4. A door state (the door kind is not `none`) gives `DOOR_OPEN` when it has
    `open=true`. Else it gives `DOOR_IRON_CLOSED` when the door kind is `not_by_hand`, and
    `DOOR_WOOD_CLOSED` when the door kind is `by_hand`.
 5. A state of a block in the tag `fences` or in the tag `walls` gives `FENCE`. A state of a block in
    the tag `fence_gates` with `open=false` also gives `FENCE` (PATH-DEV-005).
-6. A state that is not pathfindable on land (section 12.3) gives `BLOCKED`.
+6. A state that is not pathfindable on land gives `BLOCKED`.
 7. A state whose fluid is `minecraft:water` gives `WATER`.
 8. Each other state gives `OPEN`.
 
@@ -272,7 +264,7 @@ The values of the entity types are data. This table holds the types that the gol
 | `zombified_piglin` | `LAVA` | 8 |
 
 A zombified piglin keeps the default malus 16 of `FIRE`, although it does not take fire damage.
-E-V3 confirms this: a zombified piglin takes a detour of 16 blocks on stone in place of 10 blocks
+An experiment confirms this: a zombified piglin takes a detour of 16 blocks on stone in place of 10 blocks
 on magma.
 
 **PATH-MAL-002** (`source_suggested`, semantic, confidence: medium). A mob type that a later
@@ -386,7 +378,7 @@ of the column `(x, y, z)` with the jump size `j`, the floor level `hn`, the side
       `(x, y, z)`, with the path type `t`, the default malus of `t`, and the closed mark.
 
 Thus a node over an open trapdoor (`ON_TOP_OF_DROP_DOWN`) and a node in an open trapdoor
-(`DROP_DOWN`) are floors with the malus 0. The evaluator does not try a fall from them. E-V2
+(`DROP_DOWN`) are floors with the malus 0. The evaluator does not try a fall from them. An experiment
 confirms that the path of a zombified piglin goes into the cell of an open trapdoor.
 
 **PATH-NOD-006** (`source_suggested`, semantic, confidence: medium). The step up from a probe of
@@ -435,9 +427,9 @@ health (step G2) and attack targets (step G5) do not exist yet. With an attack t
 limit is `floor(k + 3.0F)`, in f32. Here `k = int(health - max_health × 0.33F) - (3 - d) × 4`, and `k = 0` when this is
 negative. `d` is 0 for peaceful, 1 for easy, 2 for normal and 3 for hard. `int` truncates to zero.
 
-E-V4 confirms the limit: a zombified piglin with no target walks off a ledge of 3 blocks to its
-target. With 4 blocks, it stops at the ledge. P3 confirms the limit with an attack target and the
-health 20: 16 on hard, 12 on normal and 8 on easy.
+An experiment confirms the limit: a zombified piglin with no target walks off a ledge of 3 blocks to its
+target. With 4 blocks, it stops at the ledge. An experiment with an attack target and the
+health 20 confirms the limit: 16 on hard, 12 on normal and 8 on easy.
 
 **PATH-NOD-009** (`source_suggested`, semantic, confidence: medium). A collision test of a box in
 the evaluator uses the block colliders of PHY-SHP and the world border. It does not use entity
@@ -464,7 +456,7 @@ has these limits:
 
 The follow range of a zombified piglin is not constant. Its base value is 35. A spawn adds a random
 bonus to the base, and on a high local difficulty a second bonus can multiply the value by 2 to
-2.5 (`natural-spawning.md`). E-V1 gives the values in the farm: from 31.1 to 94.3, so `B` is from
+2.5 (`natural-spawning.md`). An experiment gives the values in the farm: from 31.1 to 94.3, so `B` is from
 498 to 1508. Only 1 % of the piglins have `B = 560`.
 
 **PATH-SRC-002** (`source_suggested`, semantic, confidence: medium). A search keeps one node for each
@@ -550,13 +542,14 @@ ground does these steps:
    on-ground flag is true, it is in a liquid, or it is a passenger.
 3. If the navigation has a path that is not done, and its target is in the set of targets, give
    that path.
-4. Else run the search in the search region (PATH-REQ-003). When the result is a path, the
-   navigation stores its target and the reach range, and resets the timeout of PATH-FOL-004.
+4. Else run the search in the search region (PATH-REQ-003). The result holds its target and the
+   reach range of the request. The search does not change the navigation; PATH-REQ-004 applies the
+   result. PATH-DEV-006 records the reference.
 
 A request for a point `(x, y, z)` uses the block position of the point and the reach range 1, unless
 the request names a reach range.
 
-Thus a mob that is not on the ground gets no path. A goal must ask again later. In E-V2 the turtle
+Thus a mob that is not on the ground gets no path. A goal must ask again later. In an experiment the turtle
 egg goal asks again after 40 ticks, so the summoned piglin starts to walk at tick 40.
 
 **PATH-REQ-002** (`source_suggested`, semantic, confidence: medium). A ground navigation adjusts a
@@ -566,9 +559,9 @@ block target `p` in this way, unless the mob can path to targets below the surfa
    above the lowest `y`, the target is the block above it. Stop.
 2. Else (all air down to the lowest `y`), go up from `p.y + 1` while the block is air, up to the
    highest `y`. Let `p` be the first position that is not air.
-3. If `p` does not have the legacy solid flag (section 12.3), the target is `p`.
-4. Else go up from `p.y + 1` while the block has the legacy solid flag. The target is the first
-   position without it.
+3. If `p` is not solid (`block-support.md`, SUP-SOLID-001), the target is `p`.
+4. Else go up from `p.y + 1` while the block is solid. The target is the first
+   position that is not solid.
 
 **PATH-REQ-003** (`source_suggested`, semantic, confidence: medium). The search region of a request
 is the set of block columns of the chunks that intersect the square from `s - r` to `s + r` on the
@@ -589,15 +582,22 @@ from a request in this way:
      path.
 
    A result of no path includes each early stop of PATH-REQ-001, steps 1 and 2.
-2. The path changes when its list of node positions differs from the current path.
-3. If the new path is done (its next node index is the node count, also for 0 nodes), stop.
-4. Apply the cauldron rule to each node in order: when the node is at a block of the tag
-   `cauldrons`, compare its old `y` with the `y` of the next node. Move the node up by 1. When the old
-   `y` is not less than the `y` of the next node, the next node also takes the `y` of the moved
-   node.
-5. Store the speed modifier. When the path changed, reset the stuck check of PATH-FOL-003.
+2. If the result comes from a search, apply the cauldron rule to each node in order: when the
+   node is at a block of the tag `cauldrons`, compare its old `y` with the `y` of the next node.
+   Move the node up by 1. When the old `y` is not less than the `y` of the next node, the next
+   node also takes the `y` of the moved node. A request that gives the current path
+   (PATH-REQ-001, step 3) skips this step.
+3. If the result is done (its next node index is the node count, also for 0 nodes), the navigation
+   drops its path. Stop.
+4. The path changes when the navigation has no unfinished path, or when the node positions of the
+   result differ from those of the current path. When the path changes, the result becomes the
+   path. Then reset the stuck check (PATH-FOL-003) and the timeout (PATH-FOL-004), and clear the
+   stuck state (AIT-VAN-012).
+5. Store the target and the reach range of the result, and the speed modifier.
 
-A request that gives the current path (step 3 of PATH-REQ-001) keeps the next node index.
+A request that gives the current path (step 3 of PATH-REQ-001) keeps the next node index. A search
+result with the node positions of the current unfinished path also keeps it. PATH-DEV-007 records
+the reference.
 
 A goal that follows an entity asks again on its own timer, so a failed request does not stop the
 mob on its current path. `mob-goals.md`, E-G3, shows a failed request for an entity: a summoned
@@ -609,7 +609,7 @@ search runs on the snapshot of the issue tick, and PATH-REQ-004 applies the resu
 application tick. A navigation has at most one pending request. A new request of a later issue
 tick replaces a pending request; the result of the replaced request is dropped. Until the
 application, the follower uses the current path. The storage of the target, the reach range and
-the timeout reset of PATH-REQ-001 step 4 occur at the application.
+the resets of PATH-REQ-004 occur at the application.
 
 ## 6. The path follower
 
@@ -665,31 +665,47 @@ advance. When the tick count of the follower minus the tick of the last check is
 
 A reset of the stuck check sets the tick of the last check to the current tick count and its
 position to the temporary position. An advance resets the check, so the check fires only after 101
-ticks with no advance. A zombified piglin with the mob speed 0.23 has `D = 1.3225`.
+ticks with no advance. A zombified piglin with the mob speed 0.23 has `D = 1.3225`. When `s` is 0,
+`D` is 0, and the check never drops the path.
 
 **PATH-FOL-004** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The timeout check runs after
 the stuck check, while the path is not done. It uses the game time `T`:
 
 1. If the next node is the node of the last check, add `T` minus the time of the last check to the
    timer.
-2. Else the next node becomes the node of the last check. Let `d` be the distance, in f64, from the
-   temporary position to the bottom centre of that node. The limit becomes `d / s × 20` when the mob
-   speed `s` is more than 0, else 0.
+2. Else the next node becomes the node of the last check, and the timer becomes 0. Let `d` be the
+   distance, in f64, from the temporary position to the bottom centre of that node. The limit
+   becomes `d / s × 20` when the mob speed `s` is more than 0, else 0.
 3. If the limit is more than 0 and the timer is more than 3 times the limit, the navigation drops
    its path and resets the timeout.
 4. The time of the last check becomes `T`.
 
-A reset of the timeout sets the node of the last check to `(0, 0, 0)`, the timer to 0 and the limit
-to 0. Only a new path from a request and a timeout reset it. Thus the timer counts the ticks of the
-whole path, and a long path can time out at a node far from its start. This server keeps this
-reference behaviour. P4 confirms it: a piglin that walks through cobwebs loses its input for 1 or 2
-ticks about each 316 ticks of one path.
+A reset of the timeout clears the node of the last check and sets the timer and the limit to 0.
+The acceptance of a changed path (PATH-REQ-004) and a timeout reset it. Thus the timer counts the
+ticks with one next node, and a path times out only at a node that the mob does not reach in 3
+times its expected time. A slow mob on a long path keeps its path: in a scene with cobwebs each node
+takes about 50 ticks, and 3 times the limit is about 310 ticks. PATH-DEV-008 records the reference.
 
 **PATH-FOL-005** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The wanted
 position is `(px, gy, pz)`, where `(px, py, pz)` is the point of the next node. `gy` is `py` when the
 block below the block position of the point is air. Else `gy` is the floor level of that block
 position (PATH-NOD-002, without the fluid case). The follower gives the wanted position and the
 speed modifier of the navigation to the move control.
+
+**PATH-FOL-006** (`design`, semantic, confidence: medium). The stuck window is two values of the
+navigation: the start tick and the start position. Only three events write them: the acceptance of
+a changed path (PATH-REQ-004, step 4), an advance, and a stuck check. A request that gives the
+current path (PATH-REQ-001, step 3) writes no value of the follower. A recompute is a request, so
+it starts a window only when its path changes. The navigation compares node positions only for the
+result of a search, never in each tick. The follower can skip the ticks of a resting row
+(PATH-DET-006). This does not change a result: a path after a rest is a changed path, so its
+acceptance starts a window.
+
+The stuck state of AIT-VAN-012 is not a separate flag. It is the end reason of the last path: the
+reason is "stuck" after a failed stuck check, and the acceptance of a changed path clears the
+reason. A brain reads the reason when its walk ends. The acceptance is a function of the current
+path and the result. It gives one of three outcomes: changed, same or dropped. Only the outcome
+"changed" writes the stuck window and the timeout.
 
 ## 7. The move control and the jump control
 
@@ -703,7 +719,7 @@ step of its operation:
   the attribute `movement_speed`, in f64. When the on-ground flag is true, or the mob is in a liquid
   that affects it, the operation becomes `wait`.
 - `wait`: set the forward input to 0.
-- `strafe`: a goal sets it. `mob-goals.md` reserves it for the ranged goals (section 6.5).
+- `strafe`: a goal sets it. `mob-goals.md` reserves it for the ranged goals.
 
 A set of the mob speed also sets the forward input to the same value.
 
@@ -727,7 +743,7 @@ A set of the mob speed also sets the forward input to the same value.
 
    A jump calls the jump control and sets the operation to `jump`.
 
-E-V2 confirms step 5: an open trapdoor is not in the tag `doors`. Thus a piglin that walks into the
+An experiment confirms step 5: an open trapdoor is not in the tag `doors`. Thus a piglin that walks into the
 cell of an open trapdoor jumps in that cell before it falls.
 
 **PATH-MOV-003** (`source_suggested`, semantic, confidence: medium). In the reference, the AI step
@@ -758,7 +774,7 @@ PHY-ORD-002.
 
 A zombified piglin with the speed modifier 1 and `movement_speed` 0.23 sets the speed and the
 forward input to 0.23. On a block with the friction `0.6F`, it walks at about 0.1165 blocks in each
-tick. E-V2 measures 0.1165.
+tick. An experiment measures 0.1165.
 
 ## 8. The recompute of a path
 
@@ -777,12 +793,16 @@ recompute for a navigating mob. The trigger needs all these conditions:
 1. If the tick of the recompute minus the tick of the last recompute is 20 or less, or the mob
    cannot update a path, the recompute waits. Stop. The follower tries it again in each tick
    (PATH-FOL-001).
-2. Else, if the navigation has a stored target, drop the path. Request a new path to the stored
-   target with the stored reach range (PATH-REQ-001). The navigation takes the result, also when it
-   is no path. The tick of the last recompute becomes the current tick. The recompute no longer
-   waits.
+2. Else run a search to the stored target with the stored reach range and the speed modifier of
+   the navigation (PATH-REQ-001, steps 1, 2 and 4). Step 1 adjusts the stored target again, so a
+   block change below the target can move it. Accept the result as PATH-REQ-004 states for a
+   request of a set of block targets: no path drops the path. The tick of the last recompute becomes
+   the current tick. The recompute no longer waits.
 
 The tick of the last recompute starts at 0. Each tick of this section is the game time.
+
+The end of the path drops a waiting recompute: the path is done, the follower drops it, or a goal
+stops it. PATH-DEV-009 records the reference.
 
 **PATH-RCP-003** (`design`, semantic, confidence: medium). This server checks the trigger of
 PATH-RCP-001 for the block changes of tick `T` at tick `T + 1`. The block changes are the
@@ -826,7 +846,7 @@ PATH-DEV-002.
 **PATH-DET-004** (`design`, semantic, confidence: high). Before the AI stage of track A exists, the
 engine runs a search in the AI step of the mob, from the snapshot of the issue tick, and applies the
 result at the issue tick plus 1. This is the mode `AiDelay::Fixed(1)` for searches only. Thus the
-tests of section 12 do not change when the AI stage replaces this runner. In the exact-parity mode,
+tests do not change when the AI stage replaces this runner. In the exact-parity mode,
 the search applies at once (AIT-LAG-011).
 
 **PATH-DET-005** (`design`, semantic, confidence: high). The navigation of a mob lives in its tile,
@@ -854,10 +874,7 @@ on one core of the reference machine (Apple M4 Max), with warm tables:
 | a search that pops 1508 nodes | ≤ 650 µs |
 | the farm search from the edge of a layer to its centre | ≤ 100 µs |
 
-`physics-architecture.md`, section 12.1, budgets 100 µs for a mean search. In the gold farm, about
-13 piglins stand on the platforms and each asks for a path at most a few times in 200 ticks
-(`mob-goals.md`). Thus the searches of the farm cost less than 0.1 ms in each tick. A server with
-many more mobs scales with the request rate, not with the mob count.
+A server with many mobs scales with the request rate, not with the mob count.
 
 **PATH-PRF-002** (`design`, semantic, confidence: high). The implementation must keep these tables
 and caches:
@@ -894,124 +911,6 @@ the same list of nodes, bit for bit in each f32 field.
 
 **PATH-INV-002** (`design`, semantic, confidence: high). Each node of a path is in the search region.
 Each step from one node to the next is a neighbour of PATH-NOD-004.
-
-## 12. Implementation
-
-### 12.1 Order of work
-
-1. Corpus: add the component `mcrs:navigation` of section 12.3 to the block definition dumper of
-   `tools/vanilla-oracle`, add it to the corpus schema, and recapture the corpus with
-   `mcrs_minecraft_update`. `Components` in `schema.rs` denies unknown fields, so the schema change
-   and the recaptured corpus land in one commit. Add the dump P2 in the same step.
-2. Kernel: a new crate `mcrs_minecraft_pathfind`, without Bevy. It holds the `PathTypeTable`
-   (PATH-PRF-002), the block and mob path types, the evaluator, the search and the heap (sections 1
-   to 4). It also holds the follower and the move control as pure functions of the navigation and
-   the row (sections 6 and 7), with their unit tests. It reads blocks through `CollisionWorld` and
-   tests boxes with `query::intersects` and `NoBodies`. It reuses `mcrs_minecraft_core::mth::atan2`
-   and `wrap_degrees`, and `block_at` of `mcrs_minecraft_physics`. Add the crate to the list of
-   packages without Bevy in `xtask/src/checks.rs`.
-3. Engine: in `mcrs_minecraft_engine_physics`, the navigation store of PATH-DET-005, the call of the
-   guidance before `tick_entity` (PATH-MOV-004), the rest rule of PATH-DET-006, the runner of
-   PATH-DET-004 and the recompute check of PATH-RCP-003. This step is only the connection of the
-   kernel functions.
-4. The scripted target and the exit test of section 12.2.
-
-### 12.2 Exit test
-
-The exit criterion of step G4 in `gold-farm.md` is: a piglin at the edge of a platform walks to the
-centre and falls into a shaft. Until step G5 gives the goals, a scripted target makes the requests.
-
-The scripted target asks for a path to the block `(-317, 198, -609)` with the reach range 1 and the
-speed modifier 1. It asks in the first tick of the mob, and again each 40 ticks while the navigation
-has no path or its path is done. This is the request of the turtle egg goal of E-V2.
-
-The test runs on an `EntityRows` and `Pass` scene, in the form of `test_scene.rs`, and does not
-need step G1. The piglin row uses these constants: the walker category, width 0.6, height 1.95,
-step height 0.6, `movement_speed` 0.23, `jump_strength` 0.42 and the gravity of the walker. The
-navigation of the test stores `L = 70.629`, the follow range of the piglin of E-V2.
-
-The blocks come from a fixture that is checked in: `crates/mcrs_minecraft_pathfind/tests/fixtures/
-gold_farm_layer.txt`. A tool test with `#[ignore]` writes it with `mcrs_minecraft_anvil` from
-`~/mc-worlds/upgraded/hermitcraft10`, region `dimensions/minecraft/the_nether/region/r.-1.-2.mca`.
-The fixture holds one line for each block that is not air, as `x y z` and the block state with its
-properties, in the box from `(-326, 196, -620)` to `(-308, 201, -598)`. It also holds the two shaft
-columns `(-317, -610)` and `(-317, -608)` from `y = 174` to 195. This extract has about 1000 lines of
-the build. It is not a save file: `gold-farm.md`, section 5.1, forbids only the commit of world data.
-
-The tick 0 of E-V2 is the first game tick after the summon, or the tick after it, because the
-capture read the game time over RCON. The comparison does not depend on that offset. The test
-passes when all these conditions are true:
-
-1. A zombified piglin that is summoned at `(-323.5, 199, -609.5)` goes through the block positions of
-   the first E-V2 table to tick 122, in the same order. A change of `y` only is a change of the
-   block position.
-2. Its first move (the change at tick 45 in E-V2) occurs within 2 ticks of tick 45.
-3. The interval between two neighbouring changes is within 1 tick of the interval in the E-V2 table.
-4. It has a `y` below 198 in the shaft cell `(-317, -610)` within 130 ticks of the summon.
-5. A second run from `(-316.5, 199, -602.5)`, with `L = 35.337`, meets conditions 1 to 3 for the
-   second table of E-V2, to tick 97.
-
-The fixtures `e_v2_west.txt` and `e_v2_north.txt` of section 16 give the position of each tick.
-After the test aligns its tick of the first move with the fixture, it compares each position with the
-tolerance of PHY-DEV-001. The search of the first tick also must give the node list of
-`vanilla_paths.json` for that start, with the same `f` of each node, bit for bit.
-
-### 12.3 Data tables
-
-| Data | Source | Note |
-|------|--------|------|
-| path types, numbers and default maluses | PATH-TYP-001 | a constant table |
-| the tags of PATH-TYP-002 and PATH-MOV-002 | the data pack; keys in `mcrs_minecraft_block::block_tag_keys` | the keys exist |
-| collision shapes, fluids, the properties `open`, `lit` and `facing` | block definition corpus | exists |
-| pathfindable on land, door kind, legacy solid flag | new corpus component `mcrs:navigation` | see below |
-| malus table of each entity type | PATH-MAL-001 | data of the entity type |
-| dimensions, step height, `movement_speed`, `follow_range` | the entity type table and the attributes (step G1) | the follow range of a spawned mob also needs the spawn bonuses of `natural-spawning.md` |
-| `m` of PATH-SRC-001 for each entity type | AIT-VAN-014 | 16 for a zombified piglin |
-| the state path type of each state with the vanilla tags | dump P2 | test data only |
-
-The component `mcrs:navigation` is a JSON object with three fields. The dumper writes it for each
-state, with its real values. Like the other components, it is in the components of the block when
-all states have the same value, else in the permutations.
-
-```json
-"mcrs:navigation": {"pathfindable_land": true, "door": "none", "legacy_solid": false}
-```
-
-- `pathfindable_land`: the value of the reference for the computation type `LAND`, for the state,
-  in an empty level at the block position `(0, 0, 0)`. The reference gives a default from the
-  collision shape and overrides it in 55 block classes, so a dump is the only exact source. The
-  value does not depend on the position.
-- `door`: `"none"`, `"by_hand"` or `"not_by_hand"`. Only a door block has a value other than
-  `"none"`. In `26.4-snapshot-7`, only `iron_door` is `"not_by_hand"`.
-- `legacy_solid`: the legacy solid flag of the state.
-
-The flags for water and for air have no consumer in step G4, so the component does not hold them.
-A fence gate uses the existing flag `FENCE_GATE` of `CollisionTable`, which the tag `fence_gates`
-gives (PATH-DEV-005).
-
-The dump P2 is `crates/mcrs_minecraft_pathfind/tests/fixtures/state_path_types.json`: a JSON
-array, with one path type name of PATH-TYP-001 for each state id, in the order of the state ids.
-
-### 12.4 Tests to write
-
-Each test checks one behaviour that a regression can break. Load the skill `efficient-testing`
-before the tests are written.
-
-| Test | Rules | Kind |
-|------|-------|------|
-| The state path types of each corpus state with the vanilla tags equal the values of a dump of the reference (P2). | PATH-TYP-002 | fixture, all states |
-| A table of scenes with the expected block path type and mob path type: air over magma, over an open trapdoor, in an open trapdoor, next to a cactus, next to water, a closed fence gate, a rail. | PATH-TYP-003, PATH-TYP-004 | unit |
-| The magma detour of E-V3: the search picks the stone detour; with stone in place of magma, it picks the straight route. | PATH-MAL-001, PATH-SRC-003 | scene |
-| The ledge of E-V4: a drop of 3 gives a reached path; a drop of 4 gives a partial path that ends at the ledge. | PATH-NOD-008, PATH-SRC-004 | scene |
-| The budget: a search in an open field with an unreachable target pops exactly `B - 1` nodes for `L` = 35 and for `L` = 94.274. | PATH-SRC-001 | unit |
-| Each search of `vanilla_paths.json` (section 16) gives the same node list, the same `f`, malus and path type of each node, and the same open set and closed set, bit for bit. | PATH-TYP-003, PATH-TYP-004, PATH-SRC-003, PATH-SRC-004, PATH-SRC-005 | fixture |
-| The follower advances at `|dx| < 0.45` and not at 0.45, for the width 0.6. | PATH-FOL-002 | unit |
-| The stuck check drops a path after 101 ticks against a wall, not after 100. | PATH-FOL-003 | unit |
-| A block change on the path at a distance less than `R` from `M` triggers one recompute, and a second change in the next 20 ticks waits. | PATH-RCP-001, PATH-RCP-002 | unit |
-| The same scene with 1 and 8 threads gives the same paths and the same world hash in each tick. Reuse the harness of `tests/pass.rs`. | PATH-DET-001, PATH-DET-005 | determinism |
-| The exit test of section 12.2. | all | scene |
-| The guidance and `tick_entity` give the same position and velocity, bit for bit, as a test model of PHY-ORD-002 that sets the input in step 4, over 200 ticks of E-V2. | PATH-MOV-003, PATH-MOV-004 | unit |
-| A benchmark of the farm search and of a 1508-node search against PATH-PRF-001. | PATH-PRF-001 | criterion |
 
 ## 13. Intentional deviations
 
@@ -1068,19 +967,63 @@ only where the reference depends on an order that is not part of the world, or o
   block. A data pack that changes the tag changes the path types of this server only.
 - **Test:** a differential test uses the vanilla tag `fence_gates`.
 
+### PATH-DEV-006: A search does not change the navigation
+
+- **Rule:** PATH-REQ-001, step 4; PATH-REQ-004, step 4.
+- **Reference:** each search that gives a path stores its target and reach range, resets the
+  timeout and clears the stuck state, also when no request accepts the path. A goal that only tests
+  whether a path exists thus changes the running path: its timeout starts again, and a later
+  recompute goes to the target of the test.
+- **Visible to the client:** rarely. A mob can recompute toward a target that it did not walk to,
+  or keep a path past its vanilla timeout.
+- **Test:** a differential test does not run a goal that tests a path while another path runs.
+
+### PATH-DEV-007: The cauldron rule applies once to a search result
+
+- **Rule:** PATH-REQ-004, steps 2 to 4.
+- **Reference:** the rule changes the stored path at each request, also when the path does not
+  change. A node in a column of cauldrons moves up by 1 more block at each request. The stored path
+  holds the moved nodes, so a new search for the same route through a cauldron differs from it and
+  starts the stuck window again. A search with the node positions of a done current path keeps the
+  done path, so the mob does not walk it again.
+- **Visible to the client:** rarely, near cauldrons, or when a mob asks for the path that it just
+  finished.
+- **Test:** a differential test does not put cauldrons on a path.
+
+### PATH-DEV-008: The timeout counts the ticks of one node
+
+- **Rule:** PATH-FOL-004.
+- **Reference:** the timer is not reset at a new next node, so it counts the ticks of the whole
+  path, and the limit of the current node ends the path. The reset node is the block position
+  `(0, 0, 0)`; when that is the next node, the timer adds the time since the last check before the
+  reset, and the limit stays 0, so that node does not time out. An experiment shows the result: a piglin
+  that walks through cobwebs stops for 1 or 2 ticks about each 316 ticks of one path.
+- **Visible to the client:** yes. A slow mob on a long path stops for 1 or 2 ticks at intervals.
+- **Test:** a differential test ignores a stop of 1 or 2 ticks that a timeout explains.
+
+### PATH-DEV-009: A recompute is a request of the running path
+
+- **Rule:** PATH-RCP-002.
+- **Reference:** the recompute assigns the search result as the path without the acceptance: no
+  cauldron rule, no reset of the stuck check. A waiting recompute also runs after the path is done
+  or dropped, and gives the mob a path again.
+- **Visible to the client:** rarely. A vanilla mob can walk again after its goal stopped it, when
+  a block changed near its path less than 20 ticks before.
+- **Test:** a differential test does not change blocks near a path in the 20 ticks before the path
+  ends.
+
 ### Known vanilla quirks
 
 This server keeps these behaviours of the reference. A test must not report them as defects.
 
-- A fire-immune zombified piglin avoids magma with the malus 16 (E-V3).
+- A fire-immune zombified piglin avoids magma with the malus 16 (an experiment confirms it).
 - Each trapdoor state is `DROP_DOWN`, also a closed trapdoor (PATH-TYP-002).
-- A mob jumps in the cell of an open trapdoor (PATH-MOV-002, E-V2).
+- A mob jumps in the cell of an open trapdoor (PATH-MOV-002).
 - A search pops one node less than the budget (PATH-SRC-001).
 - The walked distance of a node changes also when the search does not accept the node
   (PATH-SRC-003).
 - A fall that is too deep marks the node at the limit as `BLOCKED`, also when the search accepted
   that node from another side before (PATH-NOD-008).
-- The timeout timer counts the ticks of the whole path (PATH-FOL-004).
 - A mob that is not on the ground gets no path (PATH-REQ-001).
 
 ## 14. Unresolved
@@ -1089,172 +1032,8 @@ This server keeps these behaviours of the reference. A test must not report them
   state them in `natural-spawning.md`: a bonus of the base by a factor `1 + t`, with `t` from a
   triangle distribution of width 0.11485 around 0, and a second factor `1 + u` when `u = r × 1.5 ×
   m` is more than 1. Here `r` is a random value in `[0, 1)` and `m` is the special multiplier of the
-  local difficulty. E-V1 is consistent with this rule.
-- **U2**: closed. The fixtures of section 16 hold the position of each tick in f64, without a gap,
-  for E-V2 to E-V4 and P4.
-- **U3**: the cost targets of PATH-PRF-001 come from no measurement of this server. The benchmark of
-  section 12.4 must confirm them.
-- **U4**: `physics-architecture.md`, section 15, question 65: the version of the path type table
-  for each snapshot. Step G4 does not need it (PATH-PRF-002). Track A decides it.
-
-## 15. Experiments
-
-### 15.1 Experiments with a vanilla server
-
-Use the vanilla dedicated server of the game version, with `difficulty=hard`,
-`pause-when-empty-seconds=-1`, `spawn-monsters=false` and RCON on. The scene of E-V1 to E-V4 is a copy
-of the upgraded save of `gold-farm.md`: `level.dat`, the files `game_rules.dat`, `world_clocks.dat`,
-`world_gen_settings.dat` and `weather.dat`, and the nether region `r.-1.-2.mca` with its `data`
-directory. Force-load the chunks of the farm with `/forceload add -333 -627 -301 -566` in the
-nether. Read the blocks with `/execute if block`. Track a mob with `/tick rate 4` and read its `Pos`
-and the game time in each tick over RCON.
-
-| Experiment | Steps | Rules | Status |
-|------------|-------|-------|--------|
-| E-V1 | Summon 400 zombified piglins at `(-320, 253, -600)` with no data. Read the value of `follow_range` of each piglin. | PATH-SRC-001, U1 | done |
-| E-V2 | Summon one zombified piglin at `(-323.5, 199, -609.5)`, and in a second run at `(-316.5, 199, -602.5)`. Record its block column and position in each tick for 200 ticks. Repeat the first run. | PATH-NOD-005, PATH-MOV-002, PATH-MOV-003, PATH-REQ-001, PATH-FOL-001 | done |
-| E-V3 | Build a closed glass box at `y` 139 to 141, `x` -330 to -316, `z` -638 to -630, with air at `y` 142. Make a straight corridor of 11 blocks at `z` -634 with a magma floor in the 9 inner cells, and a detour of 17 blocks with a stone floor through `z` -637. Put a turtle egg at the end. Summon a piglin at the start. Repeat with stone in place of the magma. | PATH-MAL-001 | done |
-| E-V4 | Build a corridor at `y` 134 that ends at a pit. Put a turtle egg on the floor of the pit, 3 blocks below the corridor floor, and in a second run 4 blocks below. Summon a piglin at the far end of the corridor. | PATH-NOD-008, PATH-SRC-004 | done |
-| P1 | Connect the path client below as the operator `g4cap`, in spectator mode near the scene. Repeat E-V2 to E-V4 and record each path value with its open set and closed set. | PATH-TYP-003, PATH-TYP-004, PATH-SRC-003, PATH-SRC-004, PATH-SRC-005 | done |
-| P2 | Add a dump of the state path type of each state, with the vanilla tags, to the data source set of `tools/vanilla-oracle`. | PATH-TYP-002 | planned with section 12.1, step 1, because it is code of the oracle |
-| P3 | In a glass box, make a corridor at `y` 150 that ends at a pit `h` blocks deep, with a pig with `NoAI:1b` on the pit floor. Summon a zombified piglin at the far end with `{AngerTime:6000,angry_at:<UUID of the pig>}`, so the pig is its attack target. Use each of hard, normal and easy, with `h` at the limit and 1 more. Record for 30 s whether it drops. | PATH-NOD-008 | done |
-| P4 | Make a corridor of 30 blocks at `y` 150 on stone, with cobwebs in the cells `x` -332 to -312. Summon an angry zombified piglin with a pig target 29 blocks away, as in P3. Record the position in each tick for 900 ticks. Repeat with air in place of the cobwebs. | PATH-FOL-004 | done |
-
-The vanilla client cannot send the debug subscription request, so P1 uses a small client of the
-protocol outside the repository. A tool of the repository that repeats P1 must do these steps:
-
-1. Log in offline with compression off (`network-compression-threshold=-1`).
-2. In the configuration, answer `select_known_packs` with the packs of the server, `keep_alive` and
-   `ping`, then `finish_configuration`.
-3. In the play state, answer `keep_alive`, `ping` and `chunk_batch_finished`. After `login`, send
-   `debug_subscription_request` with the one id of `entity_paths` in the registry
-   `debug_subscription` (5 in `26.4-snapshot-7`).
-4. Decode each `debug/entity_value` of that id: the entity id, the subscription id, a present flag,
-   then the path value. The path value is: a flag "reached", an i32 next node index, a block
-   position, the node list, the open set, the closed set and the target set, then an f32 and a
-   variable integer of the follower. Each list is a count and nodes. A node is three i32
-   coordinates, the f32 walked distance, the f32 malus, the closed flag, the path type number and
-   the f32 `f`.
-
-The server sends a path value only to an operator, and only for a search that ran while the
-subscription existed.
-
-### 15.2 Tests for this server
-
-The tests of section 12.4 confirm the `design` rules: PATH-DET-001 by the thread test, PATH-INV-001
-and PATH-INV-002 by the search tests, and PATH-PRF-001 by the benchmark.
-
-## 16. Captured results
-
-The results come from a vanilla dedicated server of `26.4-snapshot-7` on 2026-11-08, with the
-scene of section 15.1.
-
-The raw captures are outside the repository: each path value of P1 with its nodes, its open set and
-its closed set, and the position of each tick of E-V2 to E-V4 and P4. A test that needs them adds
-only the part that it checks, as a fixture of `mcrs_minecraft_fixtures`.
-
-The captures of the second session repeat the block positions and the ticks of E-V2 to E-V4 below
-exactly, with a spectator operator near the scene.
-
-**P1**, the searches. The `f` of each of the 74 path nodes is equal, bit for bit, to the value of
-PATH-SRC-003: `g` adds the f32 distance and the malus of each node, and `h` is the f32 distance to
-the target times `1.5F`, except at the start node.
-
-| Experiment | Reached | Path nodes | Open set | Closed set | End node |
-|------------|---------|------------|----------|------------|----------|
-| E-V2, west start | yes | 10 | 22 | 83 | `(-317, 197, -609)` |
-| E-V2, north start | yes | 7 | 16 | 49 | `(-317, 197, -609)` |
-| E-V3, magma | yes | 17 | 1 | 17 | `(-318, 140, -634)` |
-| E-V3, stone | yes | 11 | 1 | 10 | `(-318, 140, -634)` |
-| E-V4, drop 3 | yes | 11 | 8 | 10 | `(-320, 131, -632)` |
-| E-V4, drop 4 | no | 7 | 0 | 7 | `(-324, 134, -632)` |
-
-The path of the west start goes over 8 nodes of `FIRE` with the malus 16. Its 9th node is the shaft
-cell `(-317, 199, -610)` with `DROP_DOWN` and the malus 0, and its end is the egg cell, which is
-`WALKABLE`. Thus the target of the search is `(-317, 198, -609)`, and the reach range 1 accepts the
-egg cell below it. In E-V3, the nodes next to the magma corridor are `FIRE_IN_NEIGHBOR` with the
-malus 8, because a magma block is a diagonal neighbour one block down (PATH-TYP-003, step 3). After
-a piglin lands on the honey, its new search gives a partial path of 5 nodes in the chamber.
-
-**P3**, a zombified piglin with a pig as its attack target and the health 20:
-
-| Difficulty | Fall limit | Drop at the limit | Drop 1 block more |
-|------------|------------|-------------------|-------------------|
-| hard | 16 | drops (16) | stops at the ledge (17) |
-| normal | 12 | drops (12) | stops at the ledge (13) |
-| easy | 8 | drops (8) | does not drop in 30 s (9) |
-
-The start of the melee goal took more than 12 s in some runs. That timing belongs to
-`mob-goals.md`.
-
-**P4**, the timeout. In the cobwebs the piglin moves `0.0196` blocks in each tick from tick 21. The
-move is 0 in the ticks 337 and 338, and in the tick 654: the timeout drops the path, and the melee
-goal asks for a new path. The intervals are 316 and 317 ticks of one path. A limit for each node
-would not end a path here, because each node takes about 50 ticks and the limit of a node is about
-310 ticks. On air, the piglin walks the 29 blocks in about 170 ticks with no stop.
-
-**E-V1**, 400 summons in the farm on the difficulty hard:
-
-| Group | Count | Smallest | Largest | Mean |
-|-------|-------|----------|---------|------|
-| follow range with only the first bonus | 276 | 31.134 | 38.315 | 34.855 |
-| follow range with both bonuses | 124 | 62.533 | 94.274 | — |
-| node budget `floor(16 × L)` | 400 | 498 | 1508 | — |
-
-Of the 400 piglins, 4 have the budget 560. The share with both bonuses is 31 %. This agrees with
-the chance `1/3` of `u > 1` at the special multiplier 1.
-
-**E-V2**, the block position of the piglin from `(-323.5, 199, -609.5)`, follow range 70.629. The tick
-counts from the first recorded tick. Two runs gave the same table.
-
-| Tick | Block position | `x` | `y` | `z` |
-|------|----------------|-----|-----|-----|
-| 0 | `(-324, 199, -610)` | -323.5 | 199.0 | -609.5 |
-| 45 | `(-323, 199, -610)` | -322.937 | 199.0 | -609.5 |
-| 54 | `(-322, 199, -610)` | -321.892 | 199.0 | -609.5 |
-| 62 | `(-321, 199, -610)` | -320.96 | 199.0 | -609.5 |
-| 71 | `(-320, 199, -610)` | -319.911 | 199.0 | -609.5 |
-| 80 | `(-320, 199, -611)` | -319.052 | 199.0 | -610.055 |
-| 81 | `(-319, 199, -611)` | -318.961 | 199.0 | -610.128 |
-| 90 | `(-318, 199, -611)` | -317.981 | 199.0 | -610.427 |
-| 99 | `(-317, 199, -611)` | -316.936 | 199.0 | -610.483 |
-| 107 | `(-317, 199, -610)` | -316.575 | 199.0 | -609.969 |
-| 113 | `(-317, 200, -610)` | -316.498 | 200.001 | -609.488 |
-| 119 | `(-317, 199, -610)` | -316.471 | 199.797 | -609.488 |
-| 122 | `(-317, 198, -610)` | -316.461 | 198.676 | -609.488 |
-| 144 | `(-317, 174, -610)` | -316.459 | 174.938 | -609.012 |
-
-The piglin does not move until tick 40, because its first request fails before it is on the ground
-(PATH-REQ-001). From tick 45 to 71 it moves 0.1165 blocks in each tick. It enters the shaft cell from
-the south side and jumps in the cell of the open trapdoor (tick 113). It lands on the honey at
-`y = 174.9375`.
-
-The second start, `(-316.5, 199, -602.5)`, follow range 35.337. A change of `y` only counts as a
-change of the block position, in both tables.
-
-| Tick | Block position | `x` | `y` | `z` |
-|------|----------------|-----|-----|-----|
-| 0 | `(-317, 199, -603)` | -316.5 | 199.0 | -602.5 |
-| 46 | `(-317, 199, -604)` | -316.436 | 199.0 | -603.06 |
-| 55 | `(-317, 199, -605)` | -316.476 | 199.0 | -604.103 |
-| 63 | `(-317, 199, -606)` | -316.485 | 199.0 | -605.035 |
-| 72 | `(-317, 199, -607)` | -316.492 | 199.0 | -606.083 |
-| 80 | `(-317, 199, -608)` | -316.495 | 199.0 | -607.015 |
-| 86 | `(-317, 200, -608)` | -316.496 | 200.001 | -607.512 |
-| 92 | `(-317, 199, -608)` | -316.496 | 199.797 | -607.512 |
-| 95 | `(-317, 198, -608)` | -316.496 | 198.676 | -607.512 |
-| 97 | `(-317, 197, -608)` | -316.496 | 197.58 | -607.512 |
-
-**E-V3**, the route of the piglin from `(-327.5, 140, -633.5)`:
-
-| Floor of the straight corridor | Route | Ticks to the egg |
-|--------------------------------|-------|------------------|
-| `magma_block` | north to `z = -637`, east 10 blocks, south to `z = -634` | 175 |
-| `stone` | straight east along `z = -634` | 122 |
-
-**E-V4**, the piglin from `(-329.5, 134, -631.5)`:
-
-| Drop to the floor of the egg | Result |
-|------------------------------|--------|
-| 3 blocks | it walks off the ledge at tick 96 and reaches the egg cell at tick 126 |
-| 4 blocks | it stops at `x = -323.794`, in the last corridor cell, and stays there to tick 199 |
+  local difficulty.
+- **U5**: no rule states the sun rule of a ground navigation. A mob that avoids the sun, and that is
+  not under the open sky, cuts its path before the first node under the open sky. The reference
+  applies this rule at each request, as it does the cauldron rule (PATH-DEV-007). A goal sets the
+  flag. The rule and its place in PATH-REQ-004 need an experiment.

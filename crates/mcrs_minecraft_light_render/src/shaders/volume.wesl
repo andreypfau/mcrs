@@ -19,8 +19,6 @@ const BRICK_SIDE: u32 = 18u;
 const SECTION_SIDE: f32 = 16.0;
 const NEUTRAL: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 1.0);
 
-/// RGB is the coloured types' share of the light, A the default type's. Outside the coloured
-/// radius, outside the dimension and where colour is not ready it is `NEUTRAL`.
 fn volume_tint(relative: vec3<f32>, normal: vec3<f32>) -> vec4<f32> {
     let p = relative + 0.5 * normal;
     let step = vec3<i32>(floor(p / SECTION_SIDE));
@@ -64,8 +62,6 @@ fn finish(color: vec3<f32>) -> vec3<f32> {
     return mix(clamped, select(clamped, lifted, top > 0.0), terms.brightness);
 }
 
-/// Levels are in sixteenths. Before its clamp vanilla's lightmap texel is affine in the block
-/// tint, so the tint moves it by `(t - d) * k`; at the default tint that is exactly zero.
 fn tinted_lightmap(block: f32, sky: f32, tint: vec4<f32>) -> vec3<f32> {
     let b = block / 16.0;
     let s = sky / 16.0;

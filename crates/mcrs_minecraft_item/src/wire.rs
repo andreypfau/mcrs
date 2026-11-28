@@ -1,4 +1,3 @@
-/// A newtype over an `i32` or a `codec::Bounded` int, one VarInt on the wire.
 macro_rules! var_int_wire {
     ($($ty:ident),* $(,)?) => {$(
         impl mcrs_minecraft_wire::Encode for $ty {
@@ -16,8 +15,6 @@ macro_rules! var_int_wire {
 }
 pub(crate) use var_int_wire;
 
-/// A field-less enum, its ordinal as one VarInt; out-of-range ids read as the
-/// first variant.
 macro_rules! ordinal_enum_wire {
     ($($ty:ident),* $(,)?) => {$(
         impl mcrs_minecraft_wire::Encode for $ty {

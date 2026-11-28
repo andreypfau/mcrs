@@ -28,21 +28,30 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 11] = [
+const NO_STD_PACKAGES: [&str; 20] = [
     "mcrs_command",
     "mcrs_minecraft_bedrock_wire",
+    "mcrs_minecraft_block_break",
     "mcrs_minecraft_brain",
     "mcrs_minecraft_chat",
+    "mcrs_minecraft_client_widget",
+    "mcrs_minecraft_container_click",
+    "mcrs_minecraft_damage",
     "mcrs_minecraft_entity_key",
+    "mcrs_minecraft_fog",
     "mcrs_minecraft_goal_world",
     "mcrs_minecraft_goals",
-    "mcrs_minecraft_inventory_plan",
+    "mcrs_minecraft_inventory_click",
+    "mcrs_minecraft_inventory_player",
+    "mcrs_minecraft_inventory_transaction",
+    "mcrs_minecraft_pose",
+    "mcrs_minecraft_swing",
     "mcrs_molang",
     "mcrs_molang_wgsl",
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 120] = [
+const NO_BEVY_PACKAGES: [&str; 142] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -58,6 +67,7 @@ const NO_BEVY_PACKAGES: [&str; 120] = [
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
     "mcrs_minecraft_block",
+    "mcrs_minecraft_block_break",
     "mcrs_minecraft_block_entity",
     "mcrs_minecraft_block_predicate",
     "mcrs_minecraft_block_transformer",
@@ -65,12 +75,16 @@ const NO_BEVY_PACKAGES: [&str; 120] = [
     "mcrs_minecraft_chat",
     "mcrs_minecraft_chat_client",
     "mcrs_minecraft_chunk",
+    "mcrs_minecraft_container_click",
+    "mcrs_minecraft_creative_content",
+    "mcrs_minecraft_creative_report",
     "mcrs_minecraft_client_jar",
+    "mcrs_minecraft_client_options",
     "mcrs_minecraft_client_recorder",
+    "mcrs_minecraft_client_widget",
     "mcrs_minecraft_goal_world",
     "mcrs_minecraft_goals",
     "mcrs_minecraft_mob_control",
-    "mcrs_minecraft_server_bench",
     "mcrs_mob_bench",
     "mcrs_minecraft_client_ticks",
     "mcrs_minecraft_collision_table",
@@ -89,33 +103,46 @@ const NO_BEVY_PACKAGES: [&str; 120] = [
     "mcrs_minecraft_enchantment",
     "mcrs_minecraft_entity",
     "mcrs_minecraft_entity_animation",
+    "mcrs_minecraft_entity_attribute",
     "mcrs_minecraft_entity_key",
     "mcrs_minecraft_entity_model",
-    "mcrs_minecraft_entity_rows",
     "mcrs_minecraft_environment",
+    "mcrs_minecraft_falling_block",
     "mcrs_minecraft_fixtures",
+    "mcrs_minecraft_fog",
     "mcrs_minecraft_game_mode",
     "mcrs_minecraft_game_rule",
     "mcrs_minecraft_heightmap",
     "mcrs_minecraft_instrument",
-    "mcrs_minecraft_inventory_plan",
+    "mcrs_minecraft_inventory_click",
+    "mcrs_minecraft_inventory_client_view",
+    "mcrs_minecraft_inventory_file",
+    "mcrs_minecraft_inventory_menu",
+    "mcrs_minecraft_inventory_player",
+    "mcrs_minecraft_inventory_transaction",
     "mcrs_minecraft_item",
+    "mcrs_minecraft_item_entity",
     "mcrs_minecraft_item_key",
     "mcrs_minecraft_item_stack",
     "mcrs_minecraft_item_table",
+    "mcrs_minecraft_item_tooltip",
     "mcrs_minecraft_jukebox_song",
     "mcrs_minecraft_keys",
     "mcrs_minecraft_lang",
     "mcrs_minecraft_light_color",
     "mcrs_minecraft_light_engine",
     "mcrs_minecraft_loot",
+    "mcrs_minecraft_loot_condition",
     "mcrs_minecraft_map_decoration",
-    "mcrs_minecraft_menu",
+    "mcrs_minecraft_mcp",
+    "mcrs_minecraft_menu_geometry",
+    "mcrs_minecraft_menu_key",
     "mcrs_minecraft_mesh",
     "mcrs_minecraft_model_file",
     "mcrs_minecraft_move_predict",
     "mcrs_minecraft_move_validate",
     "mcrs_minecraft_nbt",
+    "mcrs_minecraft_nbt_path",
     "mcrs_minecraft_network",
     "mcrs_minecraft_noise",
     "mcrs_minecraft_pack_file",
@@ -123,7 +150,9 @@ const NO_BEVY_PACKAGES: [&str; 120] = [
     "mcrs_minecraft_numeric",
     "mcrs_minecraft_particle",
     "mcrs_minecraft_physics",
+    "mcrs_minecraft_pose",
     "mcrs_minecraft_potion",
+    "mcrs_minecraft_probe",
     "mcrs_minecraft_predicate",
     "mcrs_minecraft_profile",
     "mcrs_minecraft_protocol",
@@ -139,6 +168,8 @@ const NO_BEVY_PACKAGES: [&str; 120] = [
     "mcrs_minecraft_simulation",
     "mcrs_minecraft_snbt",
     "mcrs_minecraft_sound",
+    "mcrs_minecraft_static_registry",
+    "mcrs_minecraft_swing",
     "mcrs_minecraft_text",
     "mcrs_minecraft_text_bedrock",
     "mcrs_minecraft_text_flatten",
@@ -165,11 +196,13 @@ const NO_BEVY_PACKAGES: [&str; 120] = [
     "mcrs_voxel",
 ];
 
-/// The wire and network layers, which a proxy or a bot takes without any game data.
 const WIRE_LAYER_PACKAGES: [&str; 2] = ["mcrs_minecraft_protocol", "mcrs_minecraft_network"];
 
-/// The crates that bake models from a pack, which a viewer takes without a connection.
-const STANDALONE_BAKE_PACKAGES: [&str; 2] = ["mcrs_minecraft_model", "mcrs_minecraft_model_file"];
+const STANDALONE_BAKE_PACKAGES: [&str; 3] = [
+    "mcrs_minecraft_model",
+    "mcrs_minecraft_model_file",
+    "mcrs_minecraft_item_icon",
+];
 
 const STANDALONE_BAKE_FORBIDDEN: [&str; 7] = [
     "mcrs_minecraft_network",
@@ -179,6 +212,51 @@ const STANDALONE_BAKE_FORBIDDEN: [&str; 7] = [
     "mcrs_minecraft_server",
     "mcrs_minecraft_engine_server",
     "tokio",
+];
+
+const ENTITY_RENDER_PACKAGES: [&str; 2] = [
+    "mcrs_minecraft_entity_render",
+    "mcrs_minecraft_entity_visual",
+];
+
+const ENTITY_RENDER_FORBIDDEN: [&str; 7] = [
+    "mcrs_minecraft_network",
+    "mcrs_minecraft_protocol_game",
+    "mcrs_minecraft_client",
+    "mcrs_minecraft_client_entity",
+    "mcrs_minecraft_client_world",
+    "mcrs_minecraft_server",
+    "mcrs_minecraft_engine_server",
+];
+
+const PROXY_PACKAGES: [&str; 1] = ["mcrs_minecraft_protocol_game"];
+
+const PROXY_FORBIDDEN: [&str; 4] = [
+    "mcrs_minecraft_inventory_click",
+    "mcrs_minecraft_inventory_menu",
+    "mcrs_minecraft_inventory_player",
+    "mcrs_minecraft_inventory_transaction",
+];
+
+const CLIENT_USABLE_PACKAGES: [&str; 3] = [
+    "mcrs_minecraft_engine_item",
+    "mcrs_minecraft_inventory_client",
+    "mcrs_minecraft_player_holders",
+];
+
+const SERVER_ONLY_PACKAGES: [&str; 4] = [
+    "mcrs_minecraft_engine",
+    "mcrs_minecraft_engine_server",
+    "mcrs_minecraft_save",
+    "mcrs_minecraft_server",
+];
+
+const INVENTORY_EDGE_PREFIXES: [&str; 5] = [
+    "mcrs_minecraft_network",
+    "mcrs_minecraft_protocol",
+    "mcrs_minecraft_inventory_click",
+    "mcrs_minecraft_inventory_client",
+    "mcrs_minecraft_inventory_server",
 ];
 
 const GAME_DATA_PACKAGES: [&str; 7] = [
@@ -270,16 +348,27 @@ impl Context {
     }
 
     fn exec(&self, program: &str, args: &[&str]) -> Result<bool, String> {
+        self.exec_in(&self.root, program, args, |_| {})
+    }
+
+    fn exec_in(
+        &self,
+        dir: &Path,
+        program: &str,
+        args: &[&str],
+        configure: impl FnOnce(&mut Command),
+    ) -> Result<bool, String> {
         let shown = format!("{program} {}", args.join(" "));
         println!("$ {}", shown.trim_end());
-        let resolved = if program.contains('/') {
-            self.root.join(program)
+        let mut command = if program.contains('/') {
+            Command::new(self.root.join(program))
         } else {
-            PathBuf::from(program)
+            Command::new(program)
         };
-        Command::new(&resolved)
+        configure(&mut command);
+        command
             .args(args)
-            .current_dir(&self.root)
+            .current_dir(dir)
             .status()
             .map(|status| status.success())
             .map_err(|e| format!("could not run {program}: {e}; install it and put it on PATH"))
@@ -296,6 +385,7 @@ fn verdict(passed: bool, condition: &str, fix: &str) -> Outcome {
 
 pub fn run(ctx: &Context, check: Check) -> Outcome {
     match check {
+        Check::Comments => crate::comments::check(&ctx.root, &ctx.head),
         Check::Parity => parity_check(ctx),
         Check::Fmt => fmt(ctx),
         Check::Keys => keys::check(
@@ -305,9 +395,12 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
             || ctx.exec("cargo", &keys::GENERATE),
         ),
         Check::Clippy => clippy(ctx),
+        Check::EcsLint => ecs_lint(ctx),
         Check::Test => test(ctx),
         Check::NoBevy => no_bevy(ctx),
         Check::Layers => layers(ctx),
+        Check::ExampleDependencies => crate::example_dependencies::check(&ctx.root),
+        Check::CrateMap => crate::crate_map::check(&ctx.root),
         Check::NoStd => build_for(
             ctx,
             "wasm32v1-none",
@@ -321,7 +414,8 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
 
 const OWN_FEATURES: [&str; 2] = ["--config", "resolver.feature-unification=\"selected\""];
 
-const WASM32_CLIENT_FEATURES: [&[&str]; 2] = [&[], &["--no-default-features"]];
+const WASM32_CLIENT_FEATURES: [&[&str]; 3] =
+    [&[], &["--no-default-features"], &["--features", "dev"]];
 
 fn wasm32(ctx: &Context) -> Outcome {
     build_for(
@@ -457,11 +551,62 @@ fn layers(ctx: &Context) -> Outcome {
     for package in STANDALONE_BAKE_PACKAGES {
         linked_forbidden(ctx, package, &STANDALONE_BAKE_FORBIDDEN, &mut linked)?;
     }
+    if !linked.is_empty() {
+        return Err(format!(
+            "a model bake links the network, a client or a server ({}); a viewer bakes from the pack alone",
+            linked.join(", ")
+        ));
+    }
+    for package in PROXY_PACKAGES {
+        linked_forbidden(ctx, package, &PROXY_FORBIDDEN, &mut linked)?;
+    }
+    if !linked.is_empty() {
+        return Err(format!(
+            "the play-state packets link an inventory layout or rules crate ({}); a proxy takes the packets alone, so move the key or value they need to a key or data crate",
+            linked.join(", ")
+        ));
+    }
+    let edge: Vec<String> = ctx
+        .workspace()?
+        .packages
+        .iter()
+        .filter(|package| package.name == "mcrs_minecraft_vanilla_inventory")
+        .flat_map(|package| {
+            package
+                .dependencies
+                .iter()
+                .filter(|dep| dep.kind == Kind::Normal)
+                .filter(|dep| {
+                    INVENTORY_EDGE_PREFIXES
+                        .iter()
+                        .any(|prefix| dep.name.starts_with(prefix))
+                })
+                .map(move |dep| format!("{} on {}", package.name, dep.name))
+        })
+        .collect();
+    if !edge.is_empty() {
+        return Err(format!(
+            "the inventory gameplay depends on the packet edge ({}); move the code that needs it to mcrs_minecraft_inventory_server",
+            edge.join(", ")
+        ));
+    }
+    for package in CLIENT_USABLE_PACKAGES {
+        linked_forbidden(ctx, package, &SERVER_ONLY_PACKAGES, &mut linked)?;
+    }
+    if !linked.is_empty() {
+        return Err(format!(
+            "an inventory crate that a client uses links a server-only crate ({}); move the code that needs it to mcrs_minecraft_vanilla_inventory",
+            linked.join(", ")
+        ));
+    }
+    for package in ENTITY_RENDER_PACKAGES {
+        linked_forbidden(ctx, package, &ENTITY_RENDER_FORBIDDEN, &mut linked)?;
+    }
     if linked.is_empty() {
         Ok(String::new())
     } else {
         Err(format!(
-            "a model bake links the network, a client or a server ({}); a viewer bakes from the pack alone",
+            "an entity renderer crate links the network, the play-state packets, a client or a server ({}); a viewer draws an entity with no connection",
             linked.join(", ")
         ))
     }
@@ -572,6 +717,96 @@ fn clippy(ctx: &Context) -> Outcome {
         ctx.exec("cargo", &args)?,
         "clippy reported diagnostics",
         "resolve the diagnostics above",
+    )?;
+    verdict(
+        ctx.exec(
+            "cargo",
+            &[
+                "clippy",
+                "--workspace",
+                "--all-targets",
+                "--locked",
+                "--features",
+                "mcrs_minecraft_client/dev",
+                "--",
+                "-D",
+                "warnings",
+            ],
+        )?,
+        "clippy reported diagnostics for the client with its dev feature",
+        "resolve the diagnostics above",
+    )
+}
+
+fn ecs_lint(ctx: &Context) -> Outcome {
+    let lints = ctx.root.join("lints");
+    let channel = |dir: &Path| {
+        std::fs::read_to_string(dir.join("rust-toolchain.toml"))
+            .ok()
+            .and_then(|text| {
+                text.lines()
+                    .find_map(|line| line.trim().strip_prefix("channel = ").map(str::to_owned))
+            })
+    };
+    verdict(
+        channel(&ctx.root).is_some() && channel(&ctx.root) == channel(&lints),
+        "rust-toolchain.toml and lints/rust-toolchain.toml name different channels, so the driver would fall back to plain rustc",
+        "set the same channel in both files",
+    )?;
+    let target = lints.join("target");
+    let target = target.to_string_lossy();
+    let own_toolchain = |command: &mut Command| {
+        command.env_remove("RUSTUP_TOOLCHAIN");
+    };
+    let built = ctx.exec_in(&lints, "rustup", &["toolchain", "install"], own_toolchain)?
+        && ctx.exec_in(
+            &lints,
+            "cargo",
+            &["build", "--release", "--locked", "--target-dir", &target],
+            own_toolchain,
+        )?;
+    verdict(
+        built,
+        "the ECS lint driver does not build",
+        "fix the errors above in lints/",
+    )?;
+    verdict(
+        ctx.exec_in(
+            &lints.join("fixture"),
+            "cargo",
+            &[
+                "check",
+                "--all-targets",
+                "--locked",
+                "--config",
+                "build.warnings=\"deny\"",
+            ],
+            own_toolchain,
+        )?,
+        "lints/fixture has a missing or an extra ECS lint",
+        "make the lints of the driver match the expectations of the fixture",
+    )?;
+    verdict(
+        ctx.exec_in(
+            &ctx.root,
+            "cargo",
+            &[
+                "check",
+                "--workspace",
+                "--all-targets",
+                "--locked",
+                "--config",
+                "build.warnings=\"deny\"",
+            ],
+            |command| {
+                command.env(
+                    "RUSTC_WORKSPACE_WRAPPER",
+                    lints.join("target/release/mcrs-lint-driver"),
+                );
+            },
+        )?,
+        "the ECS lints or rustc reported diagnostics",
+        "fix the code, or add an expectation with a reason as docs/ecs-lint.md describes",
     )
 }
 
@@ -718,6 +953,7 @@ mod tests {
                 name: "x".to_owned(),
                 dir: "crates/x".to_owned(),
                 edition: "2024".to_owned(),
+                description: None,
                 dependencies: Vec::new(),
             }],
         };
