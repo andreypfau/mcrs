@@ -1,5 +1,5 @@
 use mcrs_minecraft_resource::ResourceLocationBuf;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use crate::chat_type::ChatType;
 use crate::dimension::DimensionEntry;
@@ -162,34 +162,19 @@ pub fn declarations(
     report: &[u8],
     extra: Vec<Declaration>,
 ) -> Result<Vec<Declaration>, RegistryLoadError> {
-    let mut declarations = Vec::new();
+    let mut fixed = Vec::new();
     for (key, names) in mcrs_minecraft_registry_catalog::STATIC_REGISTRIES
         .iter()
         .chain(crate::registry_keys::STATIC_REGISTRIES)
     {
         let names = names.iter().map(|&name| name.into()).collect();
-        declarations.push(Declaration::fixed((*key).into(), names));
+        fixed.push(Declaration::fixed((*key).into(), names));
     }
-
-    let mut stages = data_registries(report)?;
-    let replaced: BTreeSet<ResourceLocationBuf> = extra
-        .iter()
-        .map(|declaration| declaration.key().clone())
-        .collect();
-    let typed = typed_declarations()
-        .into_iter()
-        .filter(|declaration| !replaced.contains(declaration.key()));
-    for declaration in typed.chain(extra) {
-        declarations.push(match stages.remove(declaration.key()) {
-            Some(stage) => declaration.in_stage(stage),
-            None => declaration,
-        });
-    }
-
-    declarations.extend(
-        stages
-            .into_iter()
-            .map(|(key, stage)| Declaration::names_only(key, stage)),
-    );
-    Ok(declarations)
+    let stages = data_registries(report)?;
+    Ok(Declaration::assemble(
+        fixed,
+        typed_declarations(),
+        extra,
+        stages,
+    ))
 }
