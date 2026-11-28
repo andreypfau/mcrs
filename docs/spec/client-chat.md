@@ -20,15 +20,17 @@ and usage lines.
   corner, and y increases downwards.
 - **Tick**: one client tick. When the tick rate `r` of the server is 20 or more, a tick is 50 ms
   of wall time. When `r` is below 20, a tick is `1000 / r` ms. While the world is frozen and no
-  step runs, a tick is 50 ms (`command-tick.md`).
+  step runs, a tick is 50 ms (`command-tick.md`). A tick also runs while the game is paused. The
+  pause does not change the length of a tick: at the tick rate 10, a tick of the pause is 100 ms.
 - **Local world**: as `client-menu.md`, section 0.1, defines it.
 - **Paused**: the game is paused while all of these conditions are true:
   - the client runs a local world;
   - the world is not open to LAN;
-  - the current screen pauses the game, or an overlay pauses it.
-- **Screen that pauses**: the pause screen and the options screens pause the game. The chat
-  screen, the container screens, the sign and lectern screens, the death screen and the game
-  mode switcher do not pause it.
+  - the current screen pauses the game, or the reload overlay shows (`client-list.md`,
+    section 0.1).
+- **Screen that pauses**: the pause screen, the pause screen with no menu (`client-menu.md`,
+  section 0.1) and the options screens pause the game. The chat screen, the container screens,
+  the sign and lectern screens, the death screen and the game mode switcher do not pause it.
 - **GUI tick**: a counter of the client. It adds 1 in each tick while the game is not paused.
   Only the difference of two values has a meaning. It is not the wall clock.
 - **Chat screen**: the screen with the input box at the bottom and the chat log above it.
@@ -539,7 +541,7 @@ options, send one message and take a screenshot. The background covers x 0 to 33
   - The age `t` of a line is `g − g0`, in GUI ticks. All lines of one message have the same age.
   - When the chat is open, `a` = 1 for each line, and the age has no effect.
   - When the chat is closed, `a` = `clamp(10 · (1 − t / 200), 0, 1)²`.
-  - The age uses the GUI tick, not the wall clock. A frame adds no partial tick to the age.
+  - The age uses the GUI tick (section 0.1). A frame adds no partial tick to the age.
   - The closed chat draws only while no chat screen is open and the HUD is not hidden.
 - **Postconditions:**
   - For `t` ≤ 180, `a` = 1. For `t` from 180 to 200, `a` = `((200 − t) / 20)²`. For
@@ -547,14 +549,10 @@ options, send one message and take a screenshot. The background covers x 0 to 33
     are 9 s and 10 s.
   - The text and the background of a line use `a` with the options `co` and `tbo`, as
     CHAT-LOG-002 states.
-  - While the game is paused, the GUI tick does not change. Each line keeps its alpha, and the
-    fade continues from the same age after the pause.
-  - The pause screen does not pause the game in a world that the client does not run, or in a
-    world that is open to LAN. There, the lines fade behind the pause screen.
+  - While the game is paused, each line keeps its alpha (section 0.1, "Paused" and "GUI
+    tick"). Where the pause screen does not pause the game, the lines fade behind it.
   - The GUI tick continues while the chat is open. When the chat closes, each line gets the
     alpha of its age at that time. A line with `t` ≥ 200 is not drawn after the close.
-  - At a tick rate below 20, a tick is longer, so the fade takes more wall time. A frozen world
-    does not stop the fade.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiments:
 
@@ -769,7 +767,8 @@ Enter keeps the screen open.
     shown message. When it is at least the delay, the client shows the next message of the
     queue.
   - While the game is paused, the client shows no message of the queue. Each tick of the pause
-    adds 50 ms to the time of the last shown message. Thus the pause does not use up the delay.
+    adds the length of that tick (section 0.1, "Tick") to the time of the last shown message.
+    Thus the pause does not use up the delay at any tick rate (CHAT-DEV-003).
   - While messages wait, the chat shows the line `chat.queue` with their number, under the
     newest slot at half the text opacity. A click on it in the open chat shows the next
     message.
@@ -779,7 +778,8 @@ Enter keeps the screen open.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: set the delay to 2
 s. Two players send one message each in the same second. The second message shows 2 s after the
-first.
+first. The item on the pause has the kind deviation (CHAT-DEV-003). At the tick rate 20, it
+agrees with the reference.
 
 ---
 
@@ -810,6 +810,22 @@ first.
   256 code units, so a vanilla server never receives a text that it rejects.
 - **Test:** a differential test of the input box uses only text inside the Basic Multilingual
   Plane.
+
+### CHAT-DEV-003: The pause and the chat delay at a low tick rate
+
+- **Rule:** CHAT-OPT-003, the item on the pause.
+- **Reference:** each tick of the pause adds 50 ms to the time of the last shown message, at
+  each tick rate. When the tick rate `r` is below 20, a tick is `1000 / r` ms. The pause then
+  uses up the fraction `1 − r / 20` of its wall time from the delay. At the tick rate 10, a
+  pause of 10 s uses up 5 s of the delay.
+- **Reason:** a player expects that the pause does not use up the delay. The value 50 ms is the
+  length of a tick only at the tick rate 20 and above.
+- **Visible to the client:** yes, only in a local world with a tick rate below 20, a delay above
+  0 and messages in the queue. After the pause, the next message of the queue shows later than
+  in the reference.
+- **Bug reference:** `none`.
+- **Test:** a differential test of the chat delay pauses the game only at the tick rate 20 or
+  more.
 
 ---
 

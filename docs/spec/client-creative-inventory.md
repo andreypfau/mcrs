@@ -41,6 +41,9 @@ not prescribe an architecture.
   `client-container-screen.md`, section 0.1, defines them. CCI-TIP-001 states the parts that a
   creative tooltip adds.
 - **Creative screen**: the screen of this document.
+- **Figure**: as `client-player-render.md`, section 0.1, defines it. The figure rectangle, the
+  feet point and the eye point are those of `client-player-render.md`, CPR-FIG-001 and
+  CPR-FIG-002.
 - **Enabled features**: the set of feature flag ids that the last `update_enabled_features`
   packet gave (`registry.md`, REG-NET-001).
 - **Operator condition**: true when each of these is true:
@@ -121,7 +124,8 @@ In scope:
 - the scroll, the search and the destroy slot;
 - the result of each click in the creative screen, and the packets that the client sends;
 - the load and the save of a saved hotbar with the toolbar activators of `client-hotbar.md`;
-- the layout of the creative screen as data.
+- the layout of the creative screen as data;
+- where the figure shows in the survival inventory tab, its size and its draw order.
 
 Out of scope:
 
@@ -133,6 +137,8 @@ Out of scope:
   inventory menu: `client-inventory.md`;
 - the draw of a tooltip: `client-tooltip.md`;
 - the edit rules of the search box: `client-edit-box.md`;
+- the model, the skin, the state, the turn to the mouse and the light of the figure:
+  `client-player-render.md`, section 5;
 - the file of the saved hotbars and its format;
 - the status effects that the screen draws beside it.
 
@@ -148,6 +154,8 @@ Out of scope:
 | Container id of the `container_close` at the close | 0 | CCI-OPEN-002 |
 | Drop counter of the client: increment, limit | 20 for each creative drop, 1280 | CCI-SYN-003 |
 | First tab | `minecraft:building_blocks` | CCI-TAB-003 |
+| Figure rectangle | (73, 6) to (105, 49), 32 × 43 GUI units | CCI-LAY-007 |
+| Size of the figure | 20 GUI units for each block | CCI-LAY-007 |
 
 ---
 
@@ -1021,9 +1029,8 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CC
 | `M[45]`, off hand | (35, 20) |
 | destroy slot | (173, 112) |
 
-- **Postconditions:** the screen draws the local player in the box (73, 6) to (105, 49), with the
-  scale 20 and the vertical offset 0.0625. The model
-  follows the mouse position.
+- **Postconditions:** the figure of CCI-LAY-007 is between `M[5]` and `M[6]` on the left and
+  `M[7]` and `M[8]` on the right. No entry area overlaps the figure rectangle.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CCI-EXP-002.
 
@@ -1045,6 +1052,47 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CC
      Else it is `minecraft:container/creative_inventory/scroller_disabled`.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CCI-EXP-006.
+
+### CCI-LAY-007: The figure in the survival inventory tab
+
+- **Inputs:** the selected tab; the mouse position; the frame values of the local player.
+- **Behavior:**
+  1. The creative screen draws the figure only while the survival inventory tab is the selected
+     tab. Each other tab shows no figure.
+  2. The figure rectangle has the left edge `left + 73` and the top edge `top + 6`. It is 32 GUI
+     units wide and 43 GUI units high. CPR-FIG-001, items 2 and 3, apply to this rectangle.
+  3. CPR-FIG-002 applies with two changes:
+     - The centre (`cx`, `cy`) is (`left + 89`, `top + 27.5`), the centre of the figure
+       rectangle of step 2.
+     - One block is 20 GUI units. The factor 20 replaces the factor 30 in items 2 to 4.
+  4. CPR-FIG-003 applies with the eye point of step 3. The divisor 40 of CPR-FIG-003, item 2,
+     does not change.
+  5. CPR-FIG-004 and CPR-FIG-005 apply with no change.
+  6. CPR-FIG-006 applies, with the background of CCI-LAY-001 in the place of the inventory image.
+- **Postconditions:**
+  - The figure rectangle is the black rectangle of the background `tab_inventory.png`
+    (CCI-LAY-001).
+  - The points of the figure have these `y` values:
+
+| Pose | Feet point | Eye point |
+|------|------------|-----------|
+| `standing` | `top + 46.75` | `top + 14.35` |
+| `crouching` | `top + 43.75` | `top + 18.35` |
+
+  - With the mouse at (`left + 89`, `top + 14`), a standing figure has `a` = 0 and `t` = 0.175
+    degrees. With the mouse at (`left + 200`, `top + 14`), `a` is 24.50 degrees.
+  - No tab sprite, no entry area and no visible pixel of a highlight (CCS-LAY-005) is in the
+    figure rectangle. Only the cursor stack and a tooltip cover the figure.
+  - A change from the survival inventory tab to another tab removes the figure in the next
+    frame.
+- **Edge cases:** when the creative flag goes off, the survival inventory screen replaces the
+  creative screen (CCI-OPEN-003). That screen draws the figure by CPR-FIG-001 to CPR-FIG-006.
+
+Provenance: `source_suggested_black_box_confirmed` for the figure rectangle: the black rectangle of
+`assets/minecraft/textures/gui/container/creative_inventory/tab_inventory.png` in the client jar
+is (73, 6) to (105, 49). `source_suggested` for each other step. Kind: layout; semantic for step
+1; deviation for the parts of steps 3 and 5 that `client-player-render.md`, CPR-DEV-005 to
+CPR-DEV-007, name. Confidence: medium. Experiment: CCI-EXP-012.
 
 ---
 
@@ -1310,12 +1358,29 @@ These experiments have not run.
   Expected result: in step 1, the tooltip shows the text of the key `painting.random` in the
   colour `FFAAAAAA` below the name. In step 2, the tooltip shows the effect parts of the stew. In
   step 3, the tooltip shows no effect part.
+- **CCI-EXP-012** (the client frame capture of `tools/vanilla-oracle`). The figure in the survival
+  inventory tab. Rule: CCI-LAY-007.
+  1. Put a stone into `P[9]`. Open the creative screen as a local player that stands still and
+     is not invisible. Use the GUI scale 2.
+  2. Select the survival inventory tab. Put the mouse at (`left + 89`, `top + 14`). Take a frame.
+  3. Put the mouse at (`left + 200`, `top + 14`). Take a frame.
+  4. Left click `M[9]` to take the stone. Put the mouse at (`left + 89`, `top + 30`). Take a
+     frame.
+  5. Select the tab `minecraft:building_blocks`. Take a frame.
+
+  Expected result: in step 2, the figure faces the viewer, and its feet are at `top + 46.75`. No
+  pixel of the figure is outside the figure rectangle. In step 3, the body turns by 24.50 degrees
+  and the head by 49.0 degrees, to the right of the screen. In step 4, the stone is in front of
+  the figure. In step 5, no figure shows.
 
 The tools cannot run some of these experiments yet.
 
 - The input agent of `tools/vanilla-client` sets only the movement keys, the use key and the
   rotation. It cannot press another key, turn the wheel, or click or type in a screen.
-  CCI-EXP-001, CCI-EXP-002 and CCI-EXP-004 to CCI-EXP-011 need such input. CCI-EXP-006 needs
+  CCI-EXP-001, CCI-EXP-002 and CCI-EXP-004 to CCI-EXP-012 need such input. CCI-EXP-006 needs
   the wheel and a drag of the thumb of the scroll bar.
+- The client frame capture of `tools/vanilla-oracle` runs the scenes of `tools/scenes/`. A scene
+  cannot open a screen, select a tab or move the mouse. CCI-EXP-006 and CCI-EXP-012 need these
+  actions.
 - `tools/mcrs_minecraft_client_recorder` records packets. It does not take a frame of the client
   window, and CCI-EXP-002 needs frames.

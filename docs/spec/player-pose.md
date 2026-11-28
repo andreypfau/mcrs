@@ -79,7 +79,8 @@ These subjects are in other documents:
 - the camera at the eye height: `client-camera.md`, CCAM-EYE-001 and CCAM-EYE-002;
 - the walk and the crouch of the player model: `client-player-render.md`, CPR-POSE-002 and
   CPR-POSE-003;
-- the figure in the inventory screen: CPR-FIG-002.
+- the figure in the inventory screen: CPR-FIG-002;
+- the figure in the creative screen: `client-creative-inventory.md`, CCI-LAY-007.
 
 These subjects are out of scope:
 
@@ -350,6 +351,7 @@ server pose, and a client reads the pose of POSE-CLI-001 or POSE-CLI-004.
 | ENV-AIR-002 | server | the air supply under a fluid |
 | ENV-WAL-001 | server | damage in a wall; a sleeping player takes none |
 | CPR-FIG-002 | local client | the figure in the inventory screen |
+| CCI-LAY-007 | local client | the figure in the creative screen |
 
 The reach of an entity interaction also starts at the eye position. The specification of the
 interaction domain states that check. It is not in the scope of this document.

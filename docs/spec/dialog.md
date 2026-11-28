@@ -1039,7 +1039,7 @@ Provenance: source_suggested. Kind: layout. Confidence: medium. Experiment: DLG-
 Provenance: source_suggested. Kind: layout. Confidence: medium. Experiment: DLG-EXP-011.
 
 The rules DLG-CTL-005 to DLG-CTL-008 state only what a dialog needs from a multi-line edit box.
-Section 17 asks which specification states the box itself.
+`client-widget.md`, section 14, states the box itself (WID-MLE-001 to WID-MLE-023).
 
 ### DLG-CTL-005: Multi-line edit box: size and limits
 
@@ -1066,11 +1066,13 @@ Provenance: source_suggested. Kind: layout. Confidence: medium. Experiment: DLG-
   1. Enter inserts a line break.
   2. Typed or pasted text drops each character that chat does not allow (`client-chat.md`).
      It keeps the line breaks.
-  3. Text that would pass `max_length` is cut to the free code units.
-  4. An insert that would pass `max_lines` does not apply.
-  5. The cursor, the selection, the clipboard keys and the cursor keys are as for the one-line
-     edit box (`client-edit-box.md`), over lines.
-  6. Up and Down move the cursor one line, and the box scrolls to show the cursor.
+  3. Text that would pass `max_length` is cut to the free code units (`client-widget.md`,
+     WID-MLE-004).
+  4. An edit that would pass `max_lines` does not apply (WID-MLE-005).
+  5. The cursor, the selection, the clipboard keys and the cursor keys are as
+     `client-widget.md`, WID-MLE-007 to WID-MLE-014, states.
+  6. Up and Down move the cursor one display line (WID-MLE-008), and the box scrolls to show
+     the cursor (WID-MLE-015).
 - **Postconditions:** the control reports its value, with each line break as U+000A.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: DLG-EXP-012.
@@ -1083,10 +1085,12 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   2. The inner padding is 4. The text wraps at `width − 8`.
   3. The text colour is `FFE0E0E0` with a drop shadow. The cursor colour is `FFD0D0D0`.
   4. When the lines are higher than the box, a scrollbar draws right of the box, outside its
-     bounds.
+     bounds (`client-widget.md`, WID-MLE-017).
   5. A counter draws below the box: `gui.multiLineEditBox.character_limit` ("%s/%s") with
      the length of the value and `max_length`. It is right-aligned to the right edge of the box,
      at `y + height + 4`, in the colour `FFA0A0A0`.
+  6. The text, the cursor, the selection and the counter draw as `client-widget.md`,
+     WID-MLE-018 to WID-MLE-022, states.
 - **Postconditions:** the counter is inside the gap of 10 below the box in the body column.
 
 Provenance: source_suggested. Kind: layout. Confidence: medium.
@@ -1218,12 +1222,17 @@ Provenance: source_suggested. Kind: semantic. Confidence: low.
 - **Behavior:**
   1. In the configuration phase, the client shows no world. The current screen is the screen
      of the connection. A dialog has that screen as its previous screen.
-  2. A `custom` click event sends `custom_click_action` in the configuration phase.
-  3. A `run_command` click event sends no command. The client shows the target screen.
-  4. At the start of the play phase, the screen that loads the level replaces an open dialog
+  2. A server can start the configuration phase again from the play phase. Then the client
+     removes the world, and the screen of the reconfiguration replaces each screen, also an open
+     dialog. No action runs. A dialog of this phase has the screen of the reconfiguration as its
+     previous screen.
+  3. A `custom` click event sends `custom_click_action` in the configuration phase.
+  4. A `run_command` click event sends no command. The client shows the target screen.
+  5. At the start of the play phase, the screen that loads the level replaces an open dialog
      (DLG-FLOW-004).
 - **Postconditions:** a server can ask for input before the play phase with a dialog and a
-  `custom` action.
+  `custom` action. A dialog of the configuration phase has the default background with no world
+  (`client-widget.md`, WID-SCR-004): the panorama, the blur and the menu background texture.
 
 Provenance: source_suggested. Kind: deviation: see DLG-DEV-002. Confidence: medium.
 
@@ -1428,7 +1437,7 @@ Provenance: `design`. Kind: wire. Confidence: medium.
 
 ### DLG-DEV-002: A command in the configuration phase applies the after action
 
-- **Rule:** DLG-FLOW-005, step 3.
+- **Rule:** DLG-FLOW-005, step 4.
 - **Reference:** the client sends no command, and the dialog stays.
 - **Reason:** a button that does nothing and keeps the screen looks broken to the player.
 - **Visible to the client:** yes. With `close`, the dialog closes.
@@ -1568,9 +1577,8 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
 1. **A configuration dialog with a registry reference** (DLG-WIRE-002). What does the client do
    when the decode fails: disconnect, or ignore the packet? The same question applies to a
    `show_dialog` action that names a registry entry inside a dialog that DLG-SRV-002 resolves.
-2. **The owner of the multi-line edit box** (DLG-CTL-005 to DLG-CTL-008). Which specification
-   states the cursor keys over wrapped lines, the selection, the draw of the selection and the
-   scroll to the cursor of the multi-line edit box?
+2. **The owner of the multi-line edit box** (DLG-CTL-005 to DLG-CTL-008). Closed:
+   `client-widget.md`, section 14, states the box, in WID-MLE-001 to WID-MLE-023.
 3. **The output of the experiments.** The experiments DLG-EXP-002, DLG-EXP-003, DLG-EXP-006,
    DLG-EXP-009, DLG-EXP-011, DLG-EXP-012, DLG-EXP-017 and DLG-EXP-018 ran. No fixture holds their
    output. The saved logs hold no widget rectangle, screen or caption of the client. Until a
@@ -1649,6 +1657,11 @@ scale 2 (W = 427, H = 240). "Show" means a `show_dialog` from the server.
     - The template values of DLG-ACT-005. The fixture of DLG-EXP-005 shows the tag values only.
     - The decode of `show_dialog` with no quota, and a number past the last entry
       (DLG-WIRE-003). The packet `clear_dialog` in the configuration phase (DLG-WIRE-004).
+26. **The tooltip of an item with no world** (DLG-BODY-002, DLG-SCR-011, section 18). Which lines
+    of the tooltip of a stack does a dialog of the configuration phase not show, because no world
+    and no player exist? Show an `item` body element with a written book, a filled map, a stack
+    with a custom name and a stack with enchantments, in the configuration phase and in the play
+    phase. Compare the tooltip lines.
 
 ---
 
@@ -1691,3 +1704,13 @@ The header needs a one-line text with no maximum width.
 
 Screen features: a screen with a previous screen; Escape that a screen can refuse; a screen
 that the network can replace; a pause flag of a screen; a timer of ticks for a screen.
+
+The network can replace a dialog that is not the current screen. While the warning screen is
+the current screen, a new dialog replaces the dialog that the warning screen returns to, and
+`clear_dialog` removes that dialog (DLG-FLOW-002, DLG-FLOW-003). The warning screen stays the
+current screen in both cases.
+
+A dialog of the configuration phase has no world and no player. It still shows an item, its
+decorations and its tooltip (DLG-BODY-002, DLG-SCR-011). With no world, the tooltip of a stack
+gets no registries of a world, no tick rate of a world and no player. Item 26 of section 17
+asks which tooltip lines this removes.
