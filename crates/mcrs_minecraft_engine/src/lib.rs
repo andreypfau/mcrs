@@ -49,6 +49,7 @@ mod departure;
 pub mod despawn_inbound_player;
 mod dig_rate;
 mod diggers;
+mod dim_inbox_drain;
 pub mod dim_mail;
 mod dim_player_plugin;
 pub mod dim_tick;
@@ -126,6 +127,7 @@ impl Plugin for EnginePlugin {
 pub use autosave::{AutosaveCadence, AutosavePlugin};
 pub use block_break::{BlockBreakSet, eye_position, in_reach, reach};
 pub use consume_inbound_player_spawn::InboundPlayerSpawnSet;
+pub use dim_inbox_drain::DimInboxDrain;
 pub use held_joins::HeldJoins;
 pub use max_health::max_health;
 pub use persistence::{

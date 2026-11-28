@@ -22,7 +22,7 @@ impl Plugin for MinecraftEntityPlugin {
             dispatch_inbound_to_dim
                 .run_if(on_message::<InboundPlayerPacket>)
                 .in_set(InboundDispatch)
-                .after(crate::dim_tick::DimInboxDrain),
+                .after(crate::dim_inbox_drain::DimInboxDrain::After),
         );
     }
 }

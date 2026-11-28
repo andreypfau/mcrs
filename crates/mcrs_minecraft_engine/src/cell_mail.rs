@@ -26,7 +26,7 @@ use crate::column_asks::{ColumnAnswer, ColumnAsk, ColumnHold};
 use crate::column_light::ColdStageLandSet;
 use crate::column_production::ColumnProduction;
 use crate::column_store::{ColumnStoreLink, StoredColumnLandSet};
-use crate::dim_tick::{DimInboxDrain, drain_dim_inbox};
+use crate::dim_inbox_drain::DimInboxDrain;
 use crate::foreign_views::ForeignViews;
 use crate::hot_ticket::{RemoteTickets, TicketMail, TicketUpdate};
 use crate::player_view::PlayerView;
@@ -98,8 +98,7 @@ impl Plugin for CellMailPlugin {
             FixedPreUpdate,
             receive_cell_mail
                 .run_if(inbox_holds_messages)
-                .in_set(DimInboxDrain)
-                .before(drain_dim_inbox),
+                .in_set(DimInboxDrain::Before),
         );
         app.add_systems(
             FixedUpdate,
