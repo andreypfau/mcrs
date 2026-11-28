@@ -1,6 +1,5 @@
 use crate::json_list::{parse_json_list, read_json_list};
-use bevy_app::{App, Plugin};
-use bevy_ecs::prelude::{Commands, Event, On, ResMut, Resource};
+use bevy_ecs::prelude::{Event, Resource};
 use mcrs_minecraft_network::client::offline_player_uuid;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use rustc_hash::FxHashMap;
@@ -34,30 +33,8 @@ pub struct Whitelist {
     path: Option<Arc<Path>>,
 }
 
-pub struct WhitelistHostPlugin;
-
-impl Plugin for WhitelistHostPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<Whitelist>();
-        app.add_observer(apply_whitelist_edit);
-    }
-}
-
 #[derive(Event, Clone, Copy, Debug)]
 pub struct EnforceWhitelist;
-
-fn apply_whitelist_edit(
-    edit: On<EditWhitelist>,
-    mut whitelist: ResMut<Whitelist>,
-    mut commands: Commands,
-) {
-    if whitelist.apply(edit.event()) {
-        whitelist.write_file();
-    }
-    if !matches!(*edit, EditWhitelist::Add(_)) && whitelist.enforces() {
-        commands.trigger(EnforceWhitelist);
-    }
-}
 
 #[derive(Event, Clone, Debug, PartialEq, Eq)]
 pub enum EditWhitelist {

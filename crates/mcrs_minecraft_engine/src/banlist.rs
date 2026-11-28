@@ -1,6 +1,5 @@
 use crate::json_list::{read_json_list, text_or_none};
-use bevy_app::{App, Plugin};
-use bevy_ecs::prelude::{Commands, Event, On, ResMut, Resource};
+use bevy_ecs::prelude::{Event, Resource};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -18,26 +17,8 @@ const EXPIRATION_FORMAT: &[BorrowedFormatItem<'_>] = format_description!(
 );
 pub const BANLIST_FILE: &str = "banned-players.json";
 
-pub struct BanListHostPlugin;
-
-impl Plugin for BanListHostPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<BanList>();
-        app.add_observer(apply_ban_edit);
-    }
-}
-
 #[derive(Event, Clone, Copy, Debug)]
 pub struct EnforceBans;
-
-fn apply_ban_edit(edit: On<EditBans>, mut bans: ResMut<BanList>, mut commands: Commands) {
-    if bans.apply(edit.event()) {
-        bans.write_file();
-        if matches!(*edit, EditBans::Add(_)) {
-            commands.trigger(EnforceBans);
-        }
-    }
-}
 
 #[derive(Event, Clone, Debug)]
 pub enum EditBans {
