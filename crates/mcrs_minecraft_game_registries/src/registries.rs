@@ -38,7 +38,7 @@ use mcrs_minecraft_registries::{Declaration, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
 use serde::Deserialize;
 
-use crate::registry_load::RegistryLoadError;
+use crate::registry_load_error::RegistryLoadError;
 
 macro_rules! spawning_variants {
     ($($file:ident as $value:ident),+ $(,)?) => {

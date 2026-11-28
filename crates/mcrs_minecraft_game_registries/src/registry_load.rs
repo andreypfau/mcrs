@@ -1,8 +1,7 @@
-use std::fmt;
 use std::sync::Arc;
 
 use mcrs_minecraft_datapack::{
-    AvailablePack, Features, Level, PackSelection, PackSource, ReadError, RootPacks, pack_stack,
+    AvailablePack, Features, PackSelection, PackSource, ReadError, RootPacks, pack_stack,
     read_vanilla,
 };
 use mcrs_minecraft_registries::{
@@ -11,40 +10,9 @@ use mcrs_minecraft_registries::{
 
 use crate::packs::DATAPACK_REPORT;
 use crate::registries::declarations;
+pub use crate::registry_load_error::RegistryLoadError;
 
 const FILE_PREFIX: &str = "file/";
-
-#[derive(Debug)]
-pub enum RegistryLoadError {
-    Read(ReadError),
-    Declarations(String),
-    Load(Diagnostics),
-}
-
-impl fmt::Display for RegistryLoadError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RegistryLoadError::Read(error) => write!(f, "cannot read {error}"),
-            RegistryLoadError::Declarations(message) => f.write_str(message),
-            RegistryLoadError::Load(diagnostics) => {
-                let errors = diagnostics.iter().filter(|d| d.level() == Level::Error);
-                write!(f, "registry load failed: {} errors", errors.count())?;
-                for diagnostic in diagnostics.iter() {
-                    write!(f, "\n{:?}: {diagnostic}", diagnostic.level())?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-impl std::error::Error for RegistryLoadError {}
-
-impl From<ReadError> for RegistryLoadError {
-    fn from(error: ReadError) -> Self {
-        RegistryLoadError::Read(error)
-    }
-}
 
 pub fn load_registries(
     source: &dyn PackSource,
