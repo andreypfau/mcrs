@@ -1,8 +1,3 @@
-//! Custom MCRS-namespaced game rules per Issue #669.
-//!
-//! Provides typed game rules for deliberate differences between Java Edition and Bedrock Edition.
-//! Each rule cites its parity list entry and defaults to the canonical Java behavior.
-
 use crate::{GameRuleCategory, GameRuleDefinition, GameRuleValueType};
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
@@ -34,11 +29,7 @@ impl Registered for McrsGameRule {
 }
 
 impl McrsGameRule {
-    /// Returns the category, value type, and requirements for this game rule.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one arm per custom game rule"
-    )]
+    #[expect(clippy::too_many_lines, reason = "one arm per custom game rule")]
     #[must_use]
     pub const fn definition(self) -> &'static GameRuleDefinition {
         match self {
@@ -150,27 +141,60 @@ impl McrsGameRule {
         }
     }
 
-    /// Cites the specification, parity list entry, or reference issue for this deliberate edition difference.
     #[must_use]
     pub const fn parity_citation(self) -> &'static str {
         match self {
-            Self::QuasiConnectivity => "PARITY-REDSTONE-QC: Java quasi-connectivity powered through air block above (#184)",
-            Self::StickyPiston1Tick => "PARITY-REDSTONE-STICKY-DROP: 1-tick pulse causes sticky pistons to spit block (#190)",
-            Self::PistonPushBlockEntities => "PARITY-PISTON-BLOCK-ENTITIES: immovable by pistons in Java, movable in Bedrock (#195)",
-            Self::RedstoneTiming => "PARITY-REDSTONE-TIMING: 0=instantaneous edge repeaters (Java), 1=synchronized ticks (Bedrock) (#460)",
-            Self::AttackChargeDamageScaling => "PARITY-COMBAT-ATTACK-COOLDOWN: 1.9+ weapon charge cooldown scaling (#121)",
-            Self::SaturationBoost => "PARITY-HUNGER-SATURATION-BOOST: fast health regeneration while saturation > 0 (#261)",
-            Self::ExhaustionFromDamage => "PARITY-HUNGER-DAMAGE-EXHAUSTION: damage increases exhaustion in Java (#262)",
-            Self::EatingInPeaceful => "PARITY-HUNGER-PEACEFUL-EAT: allowed in Bedrock even with full hunger (#234)",
-            Self::VoidDepth => "PARITY-DAMAGE-VOID-DEPTH: void damage Y start (-64 Java, -104 Bedrock) (#241)",
-            Self::CreativeVoidDamage => "PARITY-DAMAGE-CREATIVE-VOID: creative players damaged by void in Java, immune in Bedrock (#212)",
-            Self::CreativeKillDamage => "PARITY-DAMAGE-CREATIVE-KILL: /kill command removes creative players (#212)",
-            Self::BabyGrowthPerFeeding => "PARITY-ANIMALS-FEED-GROWTH: percentage age reduction per breeding feed (#225)",
-            Self::MobPassengerControl => "PARITY-ANIMALS-PASSENGER-STEER: passenger steering in boats/vehicles (#228)",
-            Self::ExplorerMapPolicy => "PARITY-EXPLORER-MAP-SEARCH: 0=unexplored only (Java), 1=nearest any (Bedrock) (#100)",
-            Self::AnvilCostFormula => "PARITY-WORKSTATION-ANVIL-COST: 0=exponential prior work penalty capped at 40 (Java), 1=linear capped (Bedrock) (#188)",
-            Self::SnowLayerGravity => "PARITY-SNOW-GRAVITY: snow layers fall with gravity in Bedrock (#184)",
-            Self::SnowLayerMelting => "PARITY-SNOW-GRADUAL-MELTING: gradual layer melting in Bedrock vs complete removal in Java (#184)",
+            Self::QuasiConnectivity => {
+                "PARITY-REDSTONE-QC: Java quasi-connectivity powered through air block above (MCPE-14664)"
+            }
+            Self::StickyPiston1Tick => {
+                "PARITY-REDSTONE-STICKY-DROP: 1-tick pulse causes sticky pistons to spit block (#190)"
+            }
+            Self::PistonPushBlockEntities => {
+                "PARITY-PISTON-BLOCK-ENTITIES: immovable by pistons in Java, movable in Bedrock (MC-164)"
+            }
+            Self::RedstoneTiming => {
+                "PARITY-REDSTONE-TIMING: 0=instantaneous edge repeaters (Java), 1=synchronized ticks (Bedrock) (#460)"
+            }
+            Self::AttackChargeDamageScaling => {
+                "PARITY-COMBAT-ATTACK-COOLDOWN: 1.9+ weapon charge cooldown scaling (#121)"
+            }
+            Self::SaturationBoost => {
+                "PARITY-HUNGER-SATURATION-BOOST: fast health regeneration while saturation > 0 (#261)"
+            }
+            Self::ExhaustionFromDamage => {
+                "PARITY-HUNGER-DAMAGE-EXHAUSTION: damage increases exhaustion in Java (#262)"
+            }
+            Self::EatingInPeaceful => {
+                "PARITY-HUNGER-PEACEFUL-EAT: allowed in Bedrock even with full hunger (MCPE-41217)"
+            }
+            Self::VoidDepth => {
+                "PARITY-DAMAGE-VOID-DEPTH: void damage Y start (-64 Java, -104 Bedrock) (#241)"
+            }
+            Self::CreativeVoidDamage => {
+                "PARITY-DAMAGE-CREATIVE-VOID: creative players damaged by void in Java, immune in Bedrock (#212)"
+            }
+            Self::CreativeKillDamage => {
+                "PARITY-DAMAGE-CREATIVE-KILL: /kill command removes creative players (#212)"
+            }
+            Self::BabyGrowthPerFeeding => {
+                "PARITY-ANIMALS-FEED-GROWTH: percentage age reduction per breeding feed (#225)"
+            }
+            Self::MobPassengerControl => {
+                "PARITY-ANIMALS-PASSENGER-STEER: passenger steering in boats/vehicles (#228)"
+            }
+            Self::ExplorerMapPolicy => {
+                "PARITY-EXPLORER-MAP-SEARCH: 0=unexplored only (Java), 1=nearest any (Bedrock) (#100)"
+            }
+            Self::AnvilCostFormula => {
+                "PARITY-WORKSTATION-ANVIL-COST: 0=exponential prior work penalty capped at 40 (Java), 1=linear capped (Bedrock)"
+            }
+            Self::SnowLayerGravity => {
+                "PARITY-SNOW-GRAVITY: snow layers fall with gravity in Bedrock (#184)"
+            }
+            Self::SnowLayerMelting => {
+                "PARITY-SNOW-GRADUAL-MELTING: gradual layer melting in Bedrock vs complete removal in Java (#184)"
+            }
         }
     }
 }

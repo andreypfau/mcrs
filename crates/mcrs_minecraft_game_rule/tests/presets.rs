@@ -1,6 +1,6 @@
 use mcrs_minecraft_game_rule::{
     AnyGameRule, GameRule, GameRuleCategory, GameRulePreset, GameRuleValueType, GameRuleValues,
-    McrsGameRule,
+    InvalidGameRuleValue, McrsGameRule,
 };
 use mcrs_minecraft_resource::rl;
 
@@ -9,8 +9,14 @@ fn test_preset_parsing_and_names() {
     assert_eq!(GameRulePreset::parse("java"), Some(GameRulePreset::Java));
     assert_eq!(GameRulePreset::parse("Java"), Some(GameRulePreset::Java));
     assert_eq!(GameRulePreset::parse("JAVA"), Some(GameRulePreset::Java));
-    assert_eq!(GameRulePreset::parse("bedrock"), Some(GameRulePreset::Bedrock));
-    assert_eq!(GameRulePreset::parse("Bedrock"), Some(GameRulePreset::Bedrock));
+    assert_eq!(
+        GameRulePreset::parse("bedrock"),
+        Some(GameRulePreset::Bedrock)
+    );
+    assert_eq!(
+        GameRulePreset::parse("Bedrock"),
+        Some(GameRulePreset::Bedrock)
+    );
     assert_eq!(GameRulePreset::parse("unknown"), None);
 
     assert_eq!(GameRulePreset::Java.as_str(), "java");
@@ -29,71 +35,190 @@ fn test_all_mcrs_rules_have_definitions_and_citations() {
             }
         }
         let citation = rule.parity_citation();
-        assert!(!citation.is_empty(), "Citation must not be empty for {rule:?}");
-        assert!(citation.starts_with("PARITY-"), "Citation must cite PARITY list entry for {rule:?}");
+        assert!(
+            !citation.is_empty(),
+            "Citation must not be empty for {rule:?}"
+        );
+        assert!(
+            citation.starts_with("PARITY-"),
+            "Citation must cite PARITY list entry for {rule:?}"
+        );
     }
 }
 
 #[test]
+fn test_parity_citations_name_the_listed_entries() {
+    let cases = [
+        (McrsGameRule::QuasiConnectivity, "MCPE-14664"),
+        (McrsGameRule::PistonPushBlockEntities, "MC-164"),
+        (McrsGameRule::EatingInPeaceful, "MCPE-41217"),
+    ];
+    for (rule, entry) in cases {
+        assert!(
+            rule.parity_citation().contains(entry),
+            "{rule:?} must cite {entry}"
+        );
+    }
+}
+
+#[test]
+fn test_setters_reject_values_outside_the_rule_type() {
+    let mut values = GameRuleValues::default();
+    let timing = AnyGameRule::from(McrsGameRule::RedstoneTiming);
+    let flag = AnyGameRule::from(McrsGameRule::QuasiConnectivity);
+    let height = AnyGameRule::from(GameRule::MaxSnowAccumulationHeight);
+
+    let cases = [
+        (timing, 2),
+        (flag, -1),
+        (flag, 2),
+        (height, 9),
+        (height, -1),
+    ];
+    for (rule, value) in cases {
+        let before = values.get(rule);
+        assert_eq!(
+            values.set(rule, value),
+            Err(InvalidGameRuleValue { rule, value })
+        );
+        assert_eq!(
+            values.get(rule),
+            before,
+            "a rejected write must not change {rule:?}"
+        );
+    }
+
+    assert_eq!(values.set(timing, 1), Ok(()));
+    assert_eq!(values.get(timing), 1);
+    assert_eq!(values.set(height, 8), Ok(()));
+    assert_eq!(values.get(height), 8);
+}
+
+#[test]
 fn test_candidate_rules_differ_between_java_and_bedrock_presets() {
-    // Redstone: QC, sticky piston 1-tick, piston pushing block entities
-    assert_eq!(GameRulePreset::Java.value_of_mcrs(McrsGameRule::QuasiConnectivity), 1);
-    assert_eq!(GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::QuasiConnectivity), 0);
+    assert_eq!(
+        GameRulePreset::Java.value_of_mcrs(McrsGameRule::QuasiConnectivity),
+        1
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::QuasiConnectivity),
+        0
+    );
 
-    assert_eq!(GameRulePreset::Java.value_of_mcrs(McrsGameRule::StickyPiston1Tick), 1);
-    assert_eq!(GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::StickyPiston1Tick), 0);
+    assert_eq!(
+        GameRulePreset::Java.value_of_mcrs(McrsGameRule::StickyPiston1Tick),
+        1
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::StickyPiston1Tick),
+        0
+    );
 
-    assert_eq!(GameRulePreset::Java.value_of_mcrs(McrsGameRule::PistonPushBlockEntities), 0);
-    assert_eq!(GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::PistonPushBlockEntities), 1);
+    assert_eq!(
+        GameRulePreset::Java.value_of_mcrs(McrsGameRule::PistonPushBlockEntities),
+        0
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::PistonPushBlockEntities),
+        1
+    );
 
-    // Combat: attack charge cooldown scaling
-    assert_eq!(GameRulePreset::Java.value_of_mcrs(McrsGameRule::AttackChargeDamageScaling), 1);
-    assert_eq!(GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::AttackChargeDamageScaling), 0);
+    assert_eq!(
+        GameRulePreset::Java.value_of_mcrs(McrsGameRule::AttackChargeDamageScaling),
+        1
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::AttackChargeDamageScaling),
+        0
+    );
 
-    // Hunger: saturation boost, eating in peaceful
-    assert_eq!(GameRulePreset::Java.value_of_mcrs(McrsGameRule::SaturationBoost), 1);
-    assert_eq!(GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::SaturationBoost), 0);
+    assert_eq!(
+        GameRulePreset::Java.value_of_mcrs(McrsGameRule::SaturationBoost),
+        1
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::SaturationBoost),
+        0
+    );
 
-    assert_eq!(GameRulePreset::Java.value_of_mcrs(McrsGameRule::EatingInPeaceful), 0);
-    assert_eq!(GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::EatingInPeaceful), 1);
+    assert_eq!(
+        GameRulePreset::Java.value_of_mcrs(McrsGameRule::EatingInPeaceful),
+        0
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::EatingInPeaceful),
+        1
+    );
 
-    // Damage: void depth and creative immunity
-    assert_eq!(GameRulePreset::Java.value_of_mcrs(McrsGameRule::VoidDepth), -64);
-    assert_eq!(GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::VoidDepth), -104);
+    assert_eq!(
+        GameRulePreset::Java.value_of_mcrs(McrsGameRule::VoidDepth),
+        -64
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::VoidDepth),
+        -104
+    );
 
-    assert_eq!(GameRulePreset::Java.value_of_mcrs(McrsGameRule::CreativeVoidDamage), 1);
-    assert_eq!(GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::CreativeVoidDamage), 0);
+    assert_eq!(
+        GameRulePreset::Java.value_of_mcrs(McrsGameRule::CreativeVoidDamage),
+        1
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::CreativeVoidDamage),
+        0
+    );
 
-    // Snow: gravity and melting
-    assert_eq!(GameRulePreset::Java.value_of_mcrs(McrsGameRule::SnowLayerGravity), 0);
-    assert_eq!(GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::SnowLayerGravity), 1);
+    assert_eq!(
+        GameRulePreset::Java.value_of_mcrs(McrsGameRule::SnowLayerGravity),
+        0
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::SnowLayerGravity),
+        1
+    );
 
-    assert_eq!(GameRulePreset::Java.value_of_mcrs(McrsGameRule::SnowLayerMelting), 0);
-    assert_eq!(GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::SnowLayerMelting), 1);
+    assert_eq!(
+        GameRulePreset::Java.value_of_mcrs(McrsGameRule::SnowLayerMelting),
+        0
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_mcrs(McrsGameRule::SnowLayerMelting),
+        1
+    );
 
-    // Vanilla differences: random tick speed and snow accumulation height
-    assert_eq!(GameRulePreset::Java.value_of_vanilla(GameRule::RandomTickSpeed), 3);
-    assert_eq!(GameRulePreset::Bedrock.value_of_vanilla(GameRule::RandomTickSpeed), 1);
+    assert_eq!(
+        GameRulePreset::Java.value_of_vanilla(GameRule::RandomTickSpeed),
+        3
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_vanilla(GameRule::RandomTickSpeed),
+        1
+    );
 
-    assert_eq!(GameRulePreset::Java.value_of_vanilla(GameRule::MaxSnowAccumulationHeight), 1);
-    assert_eq!(GameRulePreset::Bedrock.value_of_vanilla(GameRule::MaxSnowAccumulationHeight), 8);
+    assert_eq!(
+        GameRulePreset::Java.value_of_vanilla(GameRule::MaxSnowAccumulationHeight),
+        1
+    );
+    assert_eq!(
+        GameRulePreset::Bedrock.value_of_vanilla(GameRule::MaxSnowAccumulationHeight),
+        8
+    );
 }
 
 #[test]
 fn test_game_rule_values_preset_and_independent_mutation() {
     let mut values = GameRuleValues::from_preset(GameRulePreset::Java);
 
-    // Starts Java
     assert!(values.is_on(AnyGameRule::from(McrsGameRule::QuasiConnectivity)));
     assert!(!values.is_on(AnyGameRule::from(McrsGameRule::SnowLayerGravity)));
 
-    // Server operator can turn on snow gravity while keeping Java QC and immovable block entities
-    values.set(AnyGameRule::from(McrsGameRule::SnowLayerGravity), 1);
+    values
+        .set(AnyGameRule::from(McrsGameRule::SnowLayerGravity), 1)
+        .unwrap();
     assert!(values.is_on(AnyGameRule::from(McrsGameRule::SnowLayerGravity)));
     assert!(values.is_on(AnyGameRule::from(McrsGameRule::QuasiConnectivity)));
     assert!(!values.is_on(AnyGameRule::from(McrsGameRule::PistonPushBlockEntities)));
 
-    // Re-applying Bedrock preset resets values to Bedrock defaults
     values.apply_preset(GameRulePreset::Bedrock);
     assert!(!values.is_on(AnyGameRule::from(McrsGameRule::QuasiConnectivity)));
     assert!(values.is_on(AnyGameRule::from(McrsGameRule::PistonPushBlockEntities)));
@@ -109,6 +234,9 @@ fn test_any_game_rule_from_location() {
 
     let mcrs_loc = rl!("mcrs:piston_push_block_entities");
     let any_mcrs = AnyGameRule::from_location(&mcrs_loc).expect("must parse mcrs rule");
-    assert_eq!(any_mcrs, AnyGameRule::Mcrs(McrsGameRule::PistonPushBlockEntities));
+    assert_eq!(
+        any_mcrs,
+        AnyGameRule::Mcrs(McrsGameRule::PistonPushBlockEntities)
+    );
     assert_eq!(any_mcrs.definition().category, GameRuleCategory::Updates);
 }
