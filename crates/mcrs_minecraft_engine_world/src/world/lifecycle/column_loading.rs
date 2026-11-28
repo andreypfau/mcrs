@@ -95,7 +95,7 @@ impl ColumnLoading {
     }
 
     pub fn is_loaded(&self, pos: SectionPos) -> bool {
-        self.section_y.contains(&pos.y) && self.covered.contains(ColumnPos::new(pos.x, pos.z))
+        is_loaded(&self.covered, &self.section_y, pos)
     }
 
     #[must_use]
@@ -134,7 +134,7 @@ impl ColumnLoading {
         }
     }
 
-    pub fn release_pending(&mut self, mut keep: impl FnMut(SectionPos) -> bool) {
+    pub fn cool_and_release(&mut self, mut keep: impl FnMut(SectionPos) -> bool) {
         self.cooling.clear();
         let Self {
             covered,
@@ -142,12 +142,16 @@ impl ColumnLoading {
             pending_release,
             ..
         } = self;
-        pending_release.retain(|&pos| {
-            let loaded =
-                section_y.contains(&pos.y) && covered.contains(ColumnPos::new(pos.x, pos.z));
-            !loaded && keep(pos)
-        });
+        pending_release.retain(|&pos| !is_loaded(covered, section_y, pos) && keep(pos));
     }
+}
+
+fn is_loaded(
+    covered: &Coverage<ColumnPos>,
+    section_y: &RangeInclusive<i32>,
+    pos: SectionPos,
+) -> bool {
+    section_y.contains(&pos.y) && covered.contains(ColumnPos::new(pos.x, pos.z))
 }
 
 fn sections_of(
