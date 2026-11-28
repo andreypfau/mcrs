@@ -14,10 +14,10 @@ use mcrs_minecraft_save::{
 use std::path::PathBuf;
 use tracing::error;
 
+use crate::autosave::{AutosavePlugin, advance_autosave_cadence, autosave_due};
 use crate::background_writer::{BackgroundWriter, WriteJob};
 use crate::coordinator::birth_clock::advance_birth_clock;
 use crate::coordinator::clock::GameTime;
-use crate::persistence::{AutosavePlugin, advance_autosave_cadence, autosave_due};
 use crate::saved_spawn::SavedSpawn;
 use crate::server_edit::Weather;
 

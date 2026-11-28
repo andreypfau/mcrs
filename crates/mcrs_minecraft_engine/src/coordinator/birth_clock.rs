@@ -5,9 +5,7 @@ use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_save::{SaveError, read_birth_clock, read_level_dat};
 use tracing::error;
 
-use crate::persistence::{
-    AUTOSAVE_INTERVAL, AutosavePlugin, advance_autosave_cadence, autosave_due,
-};
+use crate::autosave::{AUTOSAVE_INTERVAL, AutosavePlugin, advance_autosave_cadence, autosave_due};
 use crate::world_state::{WorldStateWrite, WorldStateWriter};
 
 pub struct BirthClockPlugin;

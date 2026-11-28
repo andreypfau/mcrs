@@ -9,6 +9,7 @@ pub mod ability;
 mod advance_digs;
 mod advance_production;
 mod assign_global_entity_id;
+mod autosave;
 mod background_writer;
 pub mod banlist;
 pub mod between_ticks;
@@ -122,13 +123,14 @@ impl Plugin for EnginePlugin {
     }
 }
 
+pub use autosave::{AutosaveCadence, AutosavePlugin};
 pub use block_break::{BlockBreakSet, eye_position, in_reach, reach};
 pub use consume_inbound_player_spawn::InboundPlayerSpawnSet;
 pub use held_joins::HeldJoins;
 pub use max_health::max_health;
 pub use persistence::{
-    AutosaveCadence, AutosavePlugin, PlayerPersistencePlugin, UnreadablePlayerDat,
-    apply_join_snapshot, load_player, save_player, write_player,
+    PlayerPersistencePlugin, UnreadablePlayerDat, apply_join_snapshot, load_player, save_player,
+    write_player,
 };
 pub use player_dimension_change::{check_departure, is_own_dimension};
 pub use player_dimensions::{PlayerBody, PlayerBodyItem, player_dimensions, player_scale};
