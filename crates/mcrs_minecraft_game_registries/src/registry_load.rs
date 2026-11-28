@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mcrs_minecraft_datapack::{PackSource, ReadError, RootPacks, read_vanilla};
+use mcrs_minecraft_datapack::{PackSource, ReadError, RootPacks, SelectedStack, read_vanilla};
 use mcrs_minecraft_registries::{
     ContentPaths, Diagnostic, Diagnostics, Received, Registries, RegistryAdditions,
 };
@@ -22,9 +22,12 @@ pub fn load_registries(
     let packs = RootPacks::read(source)?;
     let declarations = declarations(&source.read(DATAPACK_REPORT)?, extra)?;
 
-    let (stack, found) = packs
+    let SelectedStack {
+        stack,
+        diagnostics: found,
+    } = packs
         .stack(source.standard_packs(), &local_packs, embedded_packs)
-        .map_err(|conflict| RegistryLoadError::Declarations(conflict.to_string()))?;
+        .map_err(RegistryLoadError::Pack)?;
     let mut diagnostics = Diagnostics::default();
     diagnostics.extend(found.into_iter().map(Diagnostic::Pack));
     let content = ContentPaths::new(&declarations);
@@ -152,7 +155,7 @@ pub fn sent_by(registries: &Registries, known: bool) -> Received {
 pub fn registries_declaring(
     declarations: Vec<mcrs_minecraft_registries::Declaration>,
 ) -> Registries {
-    let (stack, _) = RootPacks::vanilla()
+    let SelectedStack { stack, .. } = RootPacks::vanilla()
         .stack(&[], &[], Vec::new())
         .unwrap_or_else(|conflict| panic!("{conflict}"));
     Registries::load(

@@ -20,4 +20,4 @@ impl fmt::Display for PackConflict {
     }
 }
 
-impl std::error::Error for PackConflict {}
+impl core::error::Error for PackConflict {}

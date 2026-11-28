@@ -193,6 +193,11 @@ pub fn insert_entry<V: DataValue>(
     files.insert_value(pack, entry_path(registry.path(), name), Box::new(value));
 }
 
+pub struct DeclarationSources {
+    pub typed: Vec<Declaration>,
+    pub extra: Vec<Declaration>,
+}
+
 pub struct Declaration {
     pub(crate) key: ResourceLocationBuf,
     pub(crate) stage: Stage,
@@ -227,12 +232,30 @@ impl Declaration {
         }
     }
 
+    pub fn key(&self) -> &ResourceLocationBuf {
+        &self.key
+    }
+
+    pub fn stage(&self) -> Stage {
+        self.stage
+    }
+
+    pub fn in_stage(mut self, stage: Stage) -> Self {
+        if !matches!(self.kind, Kind::Fixed) {
+            self.stage = stage;
+        }
+        self
+    }
+}
+
+impl DeclarationSources {
     pub fn assemble(
-        mut declarations: Vec<Declaration>,
-        typed: Vec<Declaration>,
-        extra: Vec<Declaration>,
+        self,
+        fixed: Vec<Declaration>,
         mut stages: BTreeMap<ResourceLocationBuf, Stage>,
     ) -> Vec<Declaration> {
+        let DeclarationSources { typed, extra } = self;
+        let mut declarations = fixed;
         let replaced: BTreeSet<&ResourceLocationBuf> =
             extra.iter().map(|declaration| &declaration.key).collect();
         let kept: Vec<Declaration> = typed
@@ -251,21 +274,6 @@ impl Declaration {
                 .map(|(key, stage)| Declaration::names_only(key, stage)),
         );
         declarations
-    }
-
-    pub fn key(&self) -> &ResourceLocationBuf {
-        &self.key
-    }
-
-    pub fn stage(&self) -> Stage {
-        self.stage
-    }
-
-    pub fn in_stage(mut self, stage: Stage) -> Self {
-        if !matches!(self.kind, Kind::Fixed) {
-            self.stage = stage;
-        }
-        self
     }
 }
 

@@ -7,6 +7,7 @@ mod metadata;
 mod pack;
 mod pack_conflict;
 mod root;
+mod selected_stack;
 mod stack;
 
 pub use diagnostic::{Level, PackDiagnostic};
@@ -20,4 +21,5 @@ pub use root::{
     DirectoryEntry, DirectoryPacks, PACKS_ROOT, PackSource, REPOSITORY_PACKS, ReadError, RootPacks,
     VANILLA_ROOT, below_vanilla_root, read_vanilla,
 };
+pub use selected_stack::SelectedStack;
 pub use stack::pack_stack;
