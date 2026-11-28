@@ -121,6 +121,7 @@ pub use inside_shape::BoxRange;
 pub use inside_shape::InsideBoxes;
 pub use inside_shape::InsideShape;
 pub use keys::Keys;
+pub use living::CORPSE_REMOVAL_TICKS;
 pub use living::Living;
 pub use living::MoveInput;
 pub use living::Steering;

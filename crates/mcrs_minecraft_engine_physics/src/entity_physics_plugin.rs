@@ -30,7 +30,7 @@ use crate::entity_writes::apply_entity_writes;
 use crate::entity_writes::has_writes;
 use crate::mob_changes::MobChanges;
 use crate::mob_changes::clear_mob_changes;
-use crate::mob_changes::has_spawns;
+use crate::mob_changes::has_mob_changes;
 use crate::mob_index::MobIndex;
 use crate::mob_index::forget_mob;
 use crate::mob_spawn::WaitingSpawns;
@@ -101,7 +101,7 @@ impl Plugin for EntityPhysicsPlugin {
         app.add_systems(
             FixedUpdate,
             clear_mob_changes
-                .run_if(has_spawns)
+                .run_if(has_mob_changes)
                 .in_set(TickSet::Project),
         );
     }
