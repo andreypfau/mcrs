@@ -2,6 +2,7 @@ mod area_view;
 mod arguments;
 mod game_data;
 mod image;
+mod outputs;
 
 use std::env;
 use std::fs;
@@ -14,6 +15,7 @@ use crate::area_view::AreaView;
 use crate::arguments::{Arguments, Slice};
 use crate::game_data::GameData;
 use crate::image::Image;
+use crate::outputs::{ClimateGrid, write_climate, write_world};
 
 fn main() -> ExitCode {
     match run() {
@@ -36,16 +38,37 @@ fn run() -> anyhow::Result<()> {
     let data = GameData::load(&arguments)?;
     let (min_x, _) = block_range(arguments.from.x, arguments.to.x).context(AREA_TOO_LARGE)?;
     let (min_z, _) = block_range(arguments.from.z, arguments.to.z).context(AREA_TOO_LARGE)?;
-    let columns = generate_area(&data.fill, arguments.from, arguments.to);
     let chunks = |from: i32, to: i32| u32::try_from(to.saturating_sub(from).saturating_add(1));
+    let width = chunks(arguments.from.x, arguments.to.x)?.saturating_mul(16);
+    let depth = chunks(arguments.from.z, arguments.to.z)?.saturating_mul(16);
+    if let Some(file) = &arguments.climate {
+        let step = u32::try_from(arguments.climate_step)?;
+        let grid = ClimateGrid {
+            x0: min_x,
+            z0: min_z,
+            step: arguments.climate_step,
+            nx: i32::try_from(width.div_ceil(step))?,
+            nz: i32::try_from(depth.div_ceil(step))?,
+        };
+        grid.nx
+            .checked_mul(grid.nz)
+            .and_then(|points| points.checked_mul(6))
+            .context("the climate grid has too many samples, raise --climate-step")?;
+        write_climate(&data, &grid, file)?;
+    }
+    let columns = generate_area(&data.fill, arguments.from, arguments.to);
     let view = AreaView {
         data: &data,
         columns: &columns,
         min_x,
         min_z,
-        width: chunks(arguments.from.x, arguments.to.x)?.saturating_mul(16),
-        depth: chunks(arguments.from.z, arguments.to.z)?.saturating_mul(16),
+        width,
+        depth,
     };
+
+    if let Some(world) = &arguments.world {
+        write_world(&data, &columns, world)?;
+    }
 
     fs::create_dir_all(&arguments.out).with_context(|| arguments.out.display().to_string())?;
     let write = |name: &str, image: &Image| -> anyhow::Result<()> {

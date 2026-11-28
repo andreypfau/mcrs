@@ -26,6 +26,15 @@ The arguments:
 - `--out`: the directory for the images.
 - `--slice`: a vertical slice through the area at `x=<block x>` or
   `z=<block z>`. Repeat it for more slices.
+- `--world`: a directory for the area as Anvil region files,
+  `<dir>/region/r.<x>.<z>.mca`, with blocks, biomes and heightmaps at the
+  status `full`, and no light, entities or `level.dat`. Region files already
+  in the directory are updated: the columns of the area replace theirs and
+  other chunks stay.
+- `--climate`: a file for the six climate signals of the dimension's noise
+  router at sea level (JSON, see below). A dimension without a noise router is
+  an error.
+- `--climate-step`: blocks between two climate samples. The default is 4.
 
 The images, with north at the top:
 
@@ -36,3 +45,8 @@ The images, with north at the top:
   standard output lists each colour with its biome.
 - `slice_x<n>.png`, `slice_z<n>.png`: the map colour of each block from the top
   of the dimension to its bottom.
+
+The climate file holds `x0`, `z0` (the north-west block of the area), `step`,
+`nx`, `nz` and `signals`: `temperature`, `vegetation`, `continentalness`,
+`erosion`, `depth` and `weirdness`, each `nx * nz` values rounded to 4
+decimals, row by row from the north (`z` outer, `x` inner).

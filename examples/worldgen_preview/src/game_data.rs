@@ -29,6 +29,7 @@ use mcrs_minecraft_worldgen_generator::world_tables::{WorldTables, WorldgenInput
 use crate::arguments::Arguments;
 
 pub struct GameData {
+    pub registries: Registries,
     pub blocks: Blocks,
     pub biome_names: Vec<ResourceLocationBuf>,
     pub min_y: i32,
@@ -86,7 +87,8 @@ impl GameData {
             &arguments.dimension,
             &entry.generator,
         )?;
-        let fill = plan.fill_context(dimension_type.min_y, dimension_type.height >> 4);
+        let (min_y, height) = (dimension_type.min_y, dimension_type.height);
+        let fill = plan.fill_context(min_y, height >> 4);
         let biome_names = registries
             .registry::<BiomeFile>()
             .context("the registries hold no biomes")?
@@ -94,10 +96,11 @@ impl GameData {
             .map(|(_, name, _)| name.clone())
             .collect();
         Ok(Self {
+            registries,
             blocks,
             biome_names,
-            min_y: dimension_type.min_y,
-            height: dimension_type.height,
+            min_y,
+            height,
             fill,
         })
     }
