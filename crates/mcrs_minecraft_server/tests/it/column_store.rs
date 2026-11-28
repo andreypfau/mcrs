@@ -16,7 +16,7 @@ use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::SentChunkView;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
-use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
+use mcrs_minecraft_engine_world::loading_rings::LOADING_RINGS;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::column::ColumnIndex;
