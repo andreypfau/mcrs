@@ -1,13 +1,15 @@
 use std::collections::VecDeque;
 use std::vec::Drain;
 
-use crate::stage::Stage;
-use crate::step::Step;
+use flume::Receiver;
+
+use crate::stage::{Stage, Step};
 use crate::tasks::Tasks;
+use crate::waited::Waited;
 
 pub struct InlineEnd<S: Stage> {
-    pub(crate) stage: S,
-    pub(crate) tasks: Tasks<S::TaskOutput>,
+    stage: S,
+    tasks: Tasks<S::TaskOutput>,
     outputs: Vec<S::Output>,
 }
 
@@ -63,6 +65,21 @@ impl<S: Stage> InlineEnd<S> {
             if !self.wait() {
                 return;
             }
+        }
+    }
+
+    pub(crate) fn has_work(&self) -> bool {
+        self.stage.has_work()
+    }
+
+    pub(crate) fn wait_for(&mut self, inputs: &Receiver<S::Input>) -> Waited<S::Input, ()> {
+        match self.tasks.select(inputs) {
+            Waited::Input(input) => Waited::Input(input),
+            Waited::Outcome(outcome) => {
+                self.stage.finish(outcome);
+                Waited::Outcome(())
+            }
+            Waited::Closed => Waited::Closed,
         }
     }
 
