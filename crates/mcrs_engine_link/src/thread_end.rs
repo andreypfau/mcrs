@@ -3,7 +3,6 @@ use flume::{Receiver, SendError, Sender, TryRecvError};
 use crate::inline_end::InlineEnd;
 use crate::reply::Reply;
 use crate::stage::Stage;
-use crate::waited::Waited;
 
 pub(crate) struct ThreadEnd<S: Stage> {
     end: InlineEnd<S>,
@@ -33,12 +32,10 @@ impl<S: Stage> ThreadEnd<S> {
 
     pub(crate) fn run(mut self) {
         loop {
-            if !self.end.has_work() {
-                match self.end.wait_for(&self.inputs) {
-                    Waited::Input(input) => self.receive(input),
-                    Waited::Outcome(()) => {}
-                    Waited::Closed => return,
-                }
+            if !self.end.stage().has_work()
+                && let Some(input) = self.end.wait_for(&self.inputs)
+            {
+                self.receive(input);
             }
             loop {
                 match self.inputs.try_recv() {

@@ -68,18 +68,14 @@ impl<S: Stage> InlineEnd<S> {
         }
     }
 
-    pub(crate) fn has_work(&self) -> bool {
-        self.stage.has_work()
-    }
-
-    pub(crate) fn wait_for(&mut self, inputs: &Receiver<S::Input>) -> Waited<S::Input, ()> {
+    pub(crate) fn wait_for(&mut self, inputs: &Receiver<S::Input>) -> Option<S::Input> {
         match self.tasks.select(inputs) {
-            Waited::Input(input) => Waited::Input(input),
+            Waited::Input(input) => Some(input),
             Waited::Outcome(outcome) => {
                 self.stage.finish(outcome);
-                Waited::Outcome(())
+                None
             }
-            Waited::Closed => Waited::Closed,
+            Waited::Closed => None,
         }
     }
 
