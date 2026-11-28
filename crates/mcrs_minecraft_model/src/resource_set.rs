@@ -11,7 +11,7 @@ use bevy::tasks::futures_lite::StreamExt;
 use crate::block_entity_model::{BlockEntityModels, DATA_DIRECTORY, GEOMETRY_DIRECTORY};
 use crate::vanilla_source::SOURCE;
 use mcrs_minecraft_block::definition::CORPUS_DIRECTORY;
-use mcrs_minecraft_model_file::pack_files::{PackError, PackFiles};
+use mcrs_minecraft_resource_pack::{PackError, PackFiles};
 
 const BLOCK_ENTITY_DIRECTORIES: [&str; 3] = [DATA_DIRECTORY, GEOMETRY_DIRECTORY, CORPUS_DIRECTORY];
 

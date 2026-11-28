@@ -18,8 +18,8 @@ use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerD
 use bevy::math::{IRect, IVec2, UVec2};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels};
 use mcrs_minecraft_model::resource_set::ResourceSet;
+use mcrs_minecraft_resource_pack::{MISSING_SIZE, RgbaImage, missing_pixels};
 use std::collections::HashMap;
 
 pub(crate) const ATLAS_WIDTH: u32 = 512;
@@ -159,9 +159,12 @@ pub fn build_gui_atlas(
     let sprite_scalings = load_widget_images(pack, &mut images);
     for name in GUI_TEXTURES {
         let path = texture_path(name);
-        let (pixels, width, height) =
-            decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
-                .map_err(|error| error.to_string())?;
+        let RgbaImage {
+            rgba: pixels,
+            width,
+            height,
+        } = RgbaImage::decode_png(pack.read(&path).map_err(|error| error.to_string())?)
+            .map_err(|error| format!("cannot decode {path}: {error}"))?;
         match name {
             "misc/enchanted_glint_item" => glint = Some((width, height, pixels)),
             "container/gamemode_switcher" => images.push((
@@ -191,9 +194,12 @@ pub fn build_gui_atlas(
                 extent,
             } => {
                 let path = format!("{}/{}", texture.namespace(), texture.path());
-                let (pixels, width, height) =
-                    decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
-                        .map_err(|error| error.to_string())?;
+                let RgbaImage {
+                    rgba: pixels,
+                    width,
+                    height,
+                } = RgbaImage::decode_png(pack.read(&path).map_err(|error| error.to_string())?)
+                    .map_err(|error| format!("cannot decode {path}: {error}"))?;
                 let extent = extent.min(UVec2::new(width, height));
                 images.push((
                     Packed::Named(region),
@@ -342,12 +348,13 @@ pub(crate) fn load_image(
 ) -> Option<Scaling> {
     let bytes = pack.get(path)?;
     let loaded = scaling.and_then(|scaling| {
-        let image = decode_png(bytes, path).map_err(|error| error.to_string())?;
+        let image = RgbaImage::decode_png(bytes)
+            .map_err(|error| format!("cannot decode {path}: {error}"))?;
         Ok((scaling, image))
     });
     match loaded {
-        Ok((scaling, (pixels, width, height))) => {
-            images.push((Packed::Named(name), pixels, width, height));
+        Ok((scaling, image)) => {
+            images.push((Packed::Named(name), image.rgba, image.width, image.height));
             Some(scaling)
         }
         Err(reason) => {

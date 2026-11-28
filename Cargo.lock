@@ -4433,6 +4433,7 @@ dependencies = [
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
  "mcrs_minecraft_save",
  "mcrs_minecraft_server",
  "mcrs_minecraft_server_settings",
@@ -4577,6 +4578,7 @@ dependencies = [
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
  "mcrs_minecraft_save",
  "mcrs_minecraft_text",
  "mcrs_minecraft_text_flatten",
@@ -5602,6 +5604,7 @@ dependencies = [
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_controller",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
  "mcrs_molang",
  "mcrs_molang_wgsl",
  "naga",
@@ -6403,6 +6406,7 @@ dependencies = [
  "mcrs_minecraft_potion",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_resource_pack",
  "mcrs_molang",
  "mcrs_voxel",
  "serde",
@@ -6416,6 +6420,7 @@ dependencies = [
  "glam",
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_resource_pack",
  "serde",
  "serde_json",
 ]
@@ -6955,6 +6960,13 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_resource_pack"
+version = "0.5.8"
+dependencies = [
+ "png",
 ]
 
 [[package]]

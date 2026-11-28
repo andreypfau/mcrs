@@ -139,6 +139,7 @@ mcrs_minecraft_menu_key.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_lang.workspace = true
 mcrs_minecraft_model = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_resource_pack.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 bytes.workspace = true

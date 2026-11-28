@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use mcrs_minecraft_resource_pack::PackFiles;
+
 use crate::block_state_file::MISSING_MODEL;
 use crate::content_error::{ContentError, ContentErrorKind};
 use crate::model_file::{
     DisplayContext, DisplayTransform, Element, GuiLight, ModelFile, SlotValue, TextureValue,
 };
-use crate::pack_files::PackFiles;
 use crate::resource_id::{full_id, resource_path};
 
 pub const GENERATED_MODEL: &str = "minecraft:builtin/generated";

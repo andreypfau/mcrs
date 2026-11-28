@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-use mcrs_minecraft_model_file::pack_files::PackError;
+use mcrs_minecraft_resource_pack::{PackError, PngError};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -17,10 +17,7 @@ pub enum SpriteError {
     },
     Decode {
         path: String,
-        message: String,
-    },
-    NoPixels {
-        path: String,
+        error: PngError,
     },
     NotInPack {
         path: String,
@@ -66,8 +63,7 @@ impl fmt::Display for SpriteError {
             SpriteError::Animation { path, message } => {
                 write!(f, "cannot parse {path}: {message}")
             }
-            SpriteError::Decode { path, message } => write!(f, "cannot decode {path}: {message}"),
-            SpriteError::NoPixels { path } => write!(f, "{path} decoded without pixel data"),
+            SpriteError::Decode { path, error } => write!(f, "cannot decode {path}: {error}"),
             SpriteError::NotInPack { path } => write!(f, "{path} is not in the resource pack"),
             SpriteError::TooManySprites { id, limit } => {
                 write!(f, "{id} would be sprite {limit}, past what a face can name")

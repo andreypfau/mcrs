@@ -35,6 +35,7 @@ mcrs_minecraft_model_file.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_resource_pack.workspace = true
 mcrs_minecraft_entity_model.workspace = true
 mcrs_minecraft_pack_file.workspace = true
 mcrs_minecraft_render_controller.workspace = true

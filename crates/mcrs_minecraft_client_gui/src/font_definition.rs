@@ -3,9 +3,9 @@ use std::collections::{BTreeMap, HashMap};
 use bevy::log::warn;
 use bevy::math::{Rect, URect, UVec2};
 
-use mcrs_minecraft_model::atlas::decode_png;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_model_file::resource_id::{full_id, split_id};
+use mcrs_minecraft_resource_pack::RgbaImage;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 
@@ -214,14 +214,17 @@ fn resolve(pack: &ResourceSet, id: &str, loading: &mut Vec<String>) -> Result<Ve
             Provider::Bitmap(spec) => {
                 let (namespace, path) = split_id(&spec.file);
                 let texture = format!("{namespace}/textures/{path}");
-                let (pixels, width, height) = decode_png(
-                    pack.read(&texture).map_err(|error| error.to_string())?,
-                    &texture,
-                )
-                .map_err(|error| error.to_string())?;
+                let image =
+                    RgbaImage::decode_png(pack.read(&texture).map_err(|error| error.to_string())?)
+                        .map_err(|error| format!("cannot decode {texture}: {error}"))?;
                 sources.push(Source {
                     filter: spec.filter,
-                    kind: Kind::Bitmap(BitmapPage::new(&spec, pixels, width, height)?),
+                    kind: Kind::Bitmap(BitmapPage::new(
+                        &spec,
+                        image.rgba,
+                        image.width,
+                        image.height,
+                    )?),
                 });
             }
             Provider::Unihex(spec) => {

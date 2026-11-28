@@ -185,6 +185,11 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_render_controller`: Render controllers of a client entity: the layers, their geometry, texture and visible bones in a frame
 - `mcrs_minecraft_render_probe`: GPU pass timings, CPU stage timings, draw counters and GPU warm-up for the terrain renderer
 
+## resource
+
+- `mcrs_minecraft_resource`: Resource locations, resource keys, tag keys, registry keys and registry ids
+- `mcrs_minecraft_resource_pack`: The files of a resource pack, its PNG decoder and the missing texture, with no Bevy
+
 ## server
 
 - `mcrs_minecraft_server`: The vanilla server plugin group MinecraftServerPlugins: it adds the engine, the vanilla gameplay plugins and the commands to an app
@@ -273,7 +278,6 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_region_disk`: The region disk layer: a column of the data layer as the anvil files under one dimension, with quarantine of damaged regions
 - `mcrs_minecraft_registry_catalog`: The STATIC_REGISTRIES table: the entry locations of every static registry
 - `mcrs_minecraft_replication`: The Minecraft side of entity replication: the muxer codec for players and mobs, mob trackers, delta bases for moves, spawn bundles, profile entries and the player list policy, as encoded packets
-- `mcrs_minecraft_resource`: Resource locations, resource keys, tag keys, registry keys and registry ids
 - `mcrs_minecraft_save`: The files of a world save other than its regions: the level, its world generation settings and each player's file
 - `mcrs_minecraft_simulation`: Block simulation kernels: the step and update chain over a volume, their queues and ordering policies
 - `mcrs_minecraft_snbt`: The read and the write of stringified NBT as the game reads and writes it
