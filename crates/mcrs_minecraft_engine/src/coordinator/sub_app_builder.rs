@@ -26,7 +26,7 @@ use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 
-use crate::block_simulation::{BlockSimulationConfig, DimensionBlockRules};
+use crate::block_simulation::{BlockSimulation, BlockSimulationConfig, DimensionBlockRules};
 use crate::column_store::ColumnStorePlugin;
 use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use crate::minecraft_entity::MinecraftEntityPlugin;
@@ -231,7 +231,7 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
         (rules.0)(&mut sub_app);
         sub_app.add_plugins((BlockBreakPlugin, MinecraftEntityPlugin));
         sub_app.add_plugins(DimHeightmapPlugin);
-        sub_app.add_plugins(ColumnStorePlugin { owned });
+        sub_app.add_plugins(ColumnStorePlugin::<BlockSimulation>::new(owned));
         let default_op_level = app
             .world()
             .get_resource::<crate::coordinator::ops::DefaultOpLevel>()

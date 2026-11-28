@@ -42,6 +42,7 @@ mod column_snapshot;
 pub mod column_store;
 mod column_store_mail;
 pub mod column_streams;
+mod column_tick_holder;
 pub mod column_ticks;
 pub mod column_version;
 pub mod command_handoff;
@@ -128,6 +129,7 @@ impl Plugin for EnginePlugin {
 
 pub use autosave::{AutosaveCadence, AutosavePlugin};
 pub use block_break::{BlockBreakSet, eye_position, in_reach, reach};
+pub use column_tick_holder::{ColumnTickHolder, CopiedTicks, NoColumnTicks, TakenTicks};
 pub use consume_inbound_player_spawn::InboundPlayerSpawnSet;
 pub use dim_inbox_drain::DimInboxDrain;
 pub use held_joins::HeldJoins;

@@ -13,10 +13,10 @@ use mcrs_minecraft_engine_world::world::storage::column::{
 };
 use mcrs_minecraft_engine_world::world::storage::section_stage::SectionStage;
 
-use crate::block_simulation::BlockSimulation;
 use crate::column_asks::{ColumnHold, Hold};
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::ColumnStoreLink;
+use crate::column_tick_holder::ColumnTickHolder;
 use crate::coordinator::clock::GameTime;
 use crate::stored_columns_landing::TakenFromStore;
 use mcrs_minecraft_simulation::GameTick;
@@ -100,8 +100,8 @@ pub(crate) fn columns_cooling(dims: Query<&ColumnLoading>) -> bool {
         reason = "each snapshot is built only for a column that cools in this tick, and it moves into the column store"
     )
 )]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(6))]
-pub(crate) fn write_cold_columns(
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
+pub(crate) fn write_cold_columns<T: ColumnTickHolder>(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     columns: Query<ColumnMarks>,
     marks: Query<SectionMarks>,
@@ -109,7 +109,7 @@ pub(crate) fn write_cold_columns(
     light_gated: Option<Res<LightGated>>,
     owned: Option<Res<OwnedColumns>>,
     mut store: ResMut<ColumnStoreLink>,
-    mut simulation: Option<ResMut<BlockSimulation>>,
+    mut simulation: Option<ResMut<T>>,
     time: Res<GameTime>,
 ) {
     let now = GameTick(time.0);
@@ -162,15 +162,15 @@ pub(crate) fn write_cold_columns(
         reason = "runs only on a save request, and each snapshot moves into the column store"
     )
 )]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(8))]
-pub(crate) fn save_dirty_loaded_columns(
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(5))]
+pub(crate) fn save_dirty_loaded_columns<T: ColumnTickHolder>(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     columns: Query<ColumnMarks>,
     marks: Query<SectionMarks>,
     snapshots: ColumnSnapshots,
     owned: Option<Res<OwnedColumns>>,
     mut store: ResMut<ColumnStoreLink>,
-    simulation: Option<Res<BlockSimulation>>,
+    simulation: Option<Res<T>>,
     time: Res<GameTime>,
     mut commands: Commands,
     request: Option<Res<SaveRequest>>,
@@ -238,13 +238,13 @@ fn dirty_sections(column: &ColumnSections, marks: &Query<SectionMarks>) -> Vec<E
         reason = "runs only on a save request, and each snapshot moves into the column store"
     )
 )]
-#[cfg_attr(mcrs_lint, mcrs::alloc_sites(6))]
-pub(crate) fn save_all_loaded_columns(
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
+pub(crate) fn save_all_loaded_columns<T: ColumnTickHolder>(
     dims: Query<(&ColumnLoading, &ColumnIndex)>,
     snapshots: ColumnSnapshots,
     owned: Option<Res<OwnedColumns>>,
     mut store: ResMut<ColumnStoreLink>,
-    mut simulation: Option<ResMut<BlockSimulation>>,
+    mut simulation: Option<ResMut<T>>,
     time: Res<GameTime>,
     mut commands: Commands,
     request: Option<Res<SaveRequest>>,
