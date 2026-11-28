@@ -24,7 +24,7 @@ use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 
-use crate::block_simulation::DimensionBlockRules;
+use crate::block_simulation::{BlockSimulationConfig, DimensionBlockRules};
 use crate::column_store::ColumnStorePlugin;
 use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use crate::minecraft_entity::MinecraftEntityPlugin;
@@ -206,6 +206,12 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             ..AssetPlugin::default()
         });
         sub_app.add_plugins(PlayerTrackerPlugin);
+        let config = app
+            .world()
+            .get_resource::<BlockSimulationConfig>()
+            .copied()
+            .unwrap_or_default();
+        sub_app.insert_resource(config);
         let rules = app
             .world()
             .get_resource::<DimensionBlockRules>()

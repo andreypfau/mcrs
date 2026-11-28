@@ -23,7 +23,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::{
     VanillaBlocksPlugin, VanillaEntityPhysicsPlugin, VanillaItemEntityPlugin,
 };
-use mcrs_minecraft_simulation::BlockUpdateFlags;
+use mcrs_minecraft_simulation::{BlockUpdateFlags, ChainLimit, KernelConfig};
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 use serde_json::{Value, json};
 
@@ -41,10 +41,10 @@ struct World {
 
 impl World {
     fn new() -> Self {
-        Self::with_blocks(None)
+        Self::start(None, KernelConfig::default().chain_limit)
     }
 
-    fn with_blocks(blocks: Option<Blocks>) -> Self {
+    fn start(blocks: Option<Blocks>, chain_limit: ChainLimit) -> Self {
         let mut app = host_app::make_host_app();
         if let Some(blocks) = blocks {
             let items = test_corpus().1.clone();
@@ -52,7 +52,7 @@ impl World {
         }
         install_item_table(app.world_mut(), test_item_table()).unwrap();
         app.add_plugins((
-            VanillaBlocksPlugin,
+            VanillaBlocksPlugin { chain_limit },
             VanillaEntityPhysicsPlugin,
             VanillaItemEntityPlugin,
         ));
@@ -255,7 +255,10 @@ fn poppy_testing_all_directions() -> Blocks {
 
 #[test]
 fn sup_run_001_an_unavailable_base_keeps_the_plant() {
-    let mut world = World::with_blocks(Some(poppy_testing_all_directions()));
+    let mut world = World::start(
+        Some(poppy_testing_all_directions()),
+        KernelConfig::default().chain_limit,
+    );
     let stone = world.state("minecraft:stone", &[]);
     let poppy = world.state("minecraft:poppy", &[]);
     let lowest = BlockPos::new(P.x, BELOW.y - 15, P.z);
@@ -280,4 +283,59 @@ fn sup_veg_002_a_side_neighbour_leaves_a_tall_plant() {
     world.set(ABOVE + IVec3::X, stone, BlockUpdateFlags::ALL);
 
     assert_eq!([world.block_at(P), world.block_at(ABOVE)], [lower, upper]);
+}
+
+const COLUMN: i32 = 8;
+
+fn carpet_column(world: &mut World) -> Vec<BlockStateId> {
+    (0..COLUMN)
+        .map(|height| world.block_at(BlockPos::new(P.x, P.y + height, P.z)))
+        .collect()
+}
+
+#[test]
+fn sim_nbr_004_the_chain_limit_of_the_plugin_stops_a_support_cascade() {
+    for (limit, gone) in [
+        (ChainLimit::Limited(20), 3),
+        (ChainLimit::Unlimited, COLUMN),
+    ] {
+        let mut world = World::start(None, limit);
+        let dirt = world.state("minecraft:dirt", &[]);
+        let carpet = world.state("minecraft:white_carpet", &[]);
+        world.set(BELOW, dirt, BlockUpdateFlags::ALL);
+        for height in 0..COLUMN {
+            let pos = BlockPos::new(P.x, P.y + height, P.z);
+            world.set(pos, carpet, BlockUpdateFlags::ALL);
+        }
+        assert_eq!(
+            carpet_column(&mut world),
+            vec![carpet; COLUMN as usize],
+            "the column stands with {limit:?}"
+        );
+
+        world.set(BELOW, BlockStateId::AIR, BlockUpdateFlags::ALL);
+
+        let expected: Vec<BlockStateId> = (0..COLUMN)
+            .map(|height| {
+                if height < gone {
+                    BlockStateId::AIR
+                } else {
+                    carpet
+                }
+            })
+            .collect();
+        assert_eq!(
+            carpet_column(&mut world),
+            expected,
+            "with {limit:?}, the first {gone} carpets lose their support: each pop offers one \
+             neighbours-around request and six shape requests, the carpet above goes with the \
+             sixth, so the requests 1, 8 and 15 pop three carpets and a limit of 20 discards \
+             the twenty-second"
+        );
+        assert_eq!(
+            world.item_entities().len(),
+            gone as usize,
+            "with {limit:?}, each popped carpet drops once"
+        );
+    }
 }
