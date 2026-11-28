@@ -8,14 +8,14 @@ use mcrs_minecraft_engine_world::world::sub_app::{
 };
 use tracing::{debug, info, warn};
 
-use crate::banlist::BanListHostPlugin;
+use crate::coordinator::ban_list_host_plugin::BanListHostPlugin;
 use crate::coordinator::birth_clock::BirthClockPlugin;
-use crate::coordinator::clock::WorldClockHostPlugin;
 use crate::coordinator::dim::DimSubAppHandle;
 use crate::coordinator::dim_cells::DimCellsPlugin;
-use crate::coordinator::ops::OpListHostPlugin;
-use crate::server_edit::ServerStateHostPlugin;
-use crate::whitelist::WhitelistHostPlugin;
+use crate::coordinator::op_list_host_plugin::OpListHostPlugin;
+use crate::coordinator::server_state_host_plugin::ServerStateHostPlugin;
+use crate::coordinator::whitelist_host_plugin::WhitelistHostPlugin;
+use crate::coordinator::world_clock_host_plugin::WorldClockHostPlugin;
 use crate::world_state::WorldStatePlugin;
 
 pub struct CoordinatorPlugin;

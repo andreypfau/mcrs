@@ -1,5 +1,4 @@
 use crate::ability::{AnnounceOpLevel, AnswerOpLevel, OpLevelAnnounced};
-use crate::block_break::BlockBreakPlugin;
 use crate::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerReleased};
 use crate::client_info::ClientInfoPlugin;
 use crate::client_view_distance::on_client_view_distance;
@@ -10,8 +9,7 @@ use crate::coordinator::default_game_mode::DefaultGameMode;
 use crate::coordinator::ops::OpList;
 use crate::departure::PlayerTransfer;
 use crate::despawn_inbound_player::{InboundPlayerDespawnSet, despawn_inbound_player};
-use crate::dim_tick::DimInboxDrain;
-use crate::dim_tick::drain_dim_inbox;
+use crate::dim_inbox_drain::DimInboxDrain;
 use crate::game_mode::{self, GameModePlugin};
 use crate::loaded_client::LoadedClientPlugin;
 use crate::movement::MovementPlugin;
@@ -47,12 +45,7 @@ impl Plugin for DimPlayerPlugin {
         app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
         app.add_message::<ChangeDimensionRequest>();
         app.add_message::<PlayerTransfer>();
-        app.add_plugins((
-            MovementPlugin,
-            ColumnStreamPlugin,
-            GameModePlugin,
-            BlockBreakPlugin,
-        ));
+        app.add_plugins((MovementPlugin, ColumnStreamPlugin, GameModePlugin));
         app.add_message::<OpLevelAnnounced>();
         app.configure_sets(Update, (AnnounceOpLevel, AnswerOpLevel).chain());
         if !app.is_plugin_added::<ClientInfoPlugin>() {
@@ -89,15 +82,14 @@ impl Plugin for DimPlayerPlugin {
             FixedPreUpdate,
             receive_transfers
                 .run_if(on_message::<PlayerTransfer>)
-                .in_set(DimInboxDrain)
-                .after(drain_dim_inbox),
+                .in_set(DimInboxDrain::After),
         );
         app.add_message::<OrderedPlayer>();
         app.add_systems(
             FixedPreUpdate,
             obey_orders
                 .run_if(on_message::<OrderedPlayer>)
-                .in_set(DimInboxDrain)
+                .in_set(DimInboxDrain::After)
                 .after(receive_transfers),
         );
         add_join_and_leave(app);

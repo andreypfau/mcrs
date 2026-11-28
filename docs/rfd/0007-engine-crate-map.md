@@ -57,8 +57,9 @@ direction.
 The maintainer decided the following.
 
 1. The engine becomes six crates and a facade, with these jobs:
-   - `mcrs_minecraft_engine_shared`: the shared state and its edits (`Shared` and `Edit`), the
-     time, the table of dimensions and the bus messages. It is the vocabulary of the others.
+   - `mcrs_minecraft_engine_shared`: the time, the table of dimensions and the bus messages.
+     It is the vocabulary of the others. The shared state and its edits are in
+     `mcrs_engine_shared` (item 5).
    - `mcrs_minecraft_engine_host`: the dimension cells, the roster, the join placement, the world
      state and the autosave.
    - `mcrs_minecraft_engine_edge`: the network edge, today `src/muxer/`.
@@ -72,6 +73,16 @@ The maintainer decided the following.
 3. `mcrs_minecraft_engine_server` splits off `mcrs_minecraft_engine_login` after #1111.
 4. `mcrs_minecraft_engine_world` splits into a tick crate, a world crate and a session crate
    after the GUI rewrite (#1159) merges.
+5. The code says that one shared crate cannot hold both the shared state and the vocabulary.
+   The author chose two crates from the code:
+   - `mcrs_engine_shared`: `Shared`, `Edit`, `SharedSet` and the datum trait. It holds no game
+     type and depends only on `bevy_ecs`. It sits below `mcrs_minecraft_engine_world`.
+   - `mcrs_minecraft_engine_shared`: the vocabulary of item 1. It sits above
+     `mcrs_minecraft_engine_world` and depends on `mcrs_engine_shared`.
+
+   `TickPace` and `BirthClock` stay in `mcrs_minecraft_engine_world`, and go to its tick crate
+   after its split. Section "The shared crate above `mcrs_minecraft_engine_world`" gives the
+   facts. RFD 6 states the same map.
 
 ## Proposal
 
@@ -82,7 +93,7 @@ behaviour.
 
 | Crate | Layer | Files | Lines | Job |
 |---|---|---|---|---|
-| `mcrs_minecraft_engine_shared` | 4 | about 22 | about 2,400 | Vocabulary: messages, shared values, time, dimension table |
+| `mcrs_minecraft_engine_shared` | 4 | about 22 | about 2,400 | Vocabulary: messages, shared values, game time, dimension table |
 | `mcrs_minecraft_engine_columns` | 4 | 22 | 4,449 | Column store, cold and stored columns, column streams, light codec, heightmap |
 | `mcrs_minecraft_engine_player` | 4 | 36 | about 5,700 | Player spawn and despawn, persistence, movement, teleport, transfer, player tiles |
 | `mcrs_minecraft_engine_block` | 4 | 11 | 2,186 | Block simulation, block updates, block break, digs |
@@ -108,17 +119,23 @@ host                   ->  block, player, columns, shared
 block                  ->  player, columns, shared
 player                 ->  columns, shared
 columns                ->  shared
-shared                 ->  mcrs_minecraft_engine_world, and crates of layers 1 to 3
+shared                 ->  mcrs_minecraft_engine_world, mcrs_engine_shared, and crates of layers 1 to 3
+mcrs_minecraft_engine_world  ->  mcrs_engine_shared
 ```
+
+`mcrs_engine_shared` is the generic crate of RFD 6. It is not one of the seven crates of this
+page, and it depends on no crate of this page.
 
 The graph is acyclic. A topological order is shared, columns, player, block, host, edge, facade.
 The code says that this order holds only after the cuts of section "Cuts". Without them, nine
 module references go in the wrong direction.
 
 The code says that the edge depends on the host. The edge reads the channel types between the
-host and the dimensions (`channel_types`, `to_muxer`, `to_coordinator`). These types carry
-`Departure`, `PlayerTransfer` and `OrderedPlayer` of the player crate. So they cannot go down to
-the shared crate without those types. Open question 2 asks the maintainer to choose.
+host and the dimensions (`channel_types`, `to_muxer`, `to_coordinator`) and the schedule of
+`dim_tick`. These types carry `Departure`, `PlayerTransfer` and `OrderedPlayer` of the player
+crate. So they cannot go down to the shared crate without those types. After cut 2, no module
+of the host reads a module of the edge. So the direction from the edge to the host is resolved
+for this map. Open question 2 keeps only the later move of the edge beside the host.
 
 ### What each crate holds
 
@@ -184,14 +201,15 @@ feature to each of them.
 ### Shared state of RFD 6
 
 RFD 6, the boundary between the host and the dimensions, is drafted in parallel as
-`docs/rfd/0006-host-dimension-boundary.md`. It adds `Shared` and `Edit`. These two types land in
-`mcrs_minecraft_engine_shared` first. Either the pull request of RFD 6 or step 8 below creates
-the crate, whichever merges first. No other crate holds a copy of them.
+`docs/rfd/0006-host-dimension-boundary.md`. It adds `Shared`, `Edit` and `SharedSet`. These
+types land in `mcrs_engine_shared`, and step 2 of RFD 6 creates that crate. No other crate holds
+a copy of them. Either step 1 of RFD 6 or step 8 below creates `mcrs_minecraft_engine_shared`,
+whichever merges first.
 
-### `mcrs_minecraft_engine_world` below the shared crate
+### The shared crate above `mcrs_minecraft_engine_world`
 
-The maintainer placed the shared crate below `mcrs_minecraft_engine_world`. The code says that
-this does not hold today. The shared modules use these items of `mcrs_minecraft_engine_world`:
+The first sketch placed the shared crate below `mcrs_minecraft_engine_world`. The code says
+that this does not hold. The shared modules use these items of `mcrs_minecraft_engine_world`:
 
 | Item | Used by | Part of `engine_world` after its split |
 |---|---|---|
@@ -202,9 +220,15 @@ this does not hold today. The shared modules use these items of `mcrs_minecraft_
 | `world::dimension_list::DimensionList` | `dimension_generators` | world |
 | `world::sub_app::AddDimensionPlugins` | `persisted_registry` | world |
 
-So until the split of `mcrs_minecraft_engine_world`, the shared crate depends on it. After the
-split, the shared crate depends on the tick crate and the session crate. It can then sit below
-the world crate if `DimensionList` and `AddDimensionPlugins` move. Open question 1 asks how.
+The code also says that `mcrs_minecraft_engine_world` reads `TickPace` and `BirthClock` itself,
+in `server_loop` and `entity_births`. A crate above it cannot hold them.
+
+So `mcrs_minecraft_engine_shared` sits above `mcrs_minecraft_engine_world`. `TickPace` and
+`BirthClock` stay in `mcrs_minecraft_engine_world`, and go to its tick crate after its split.
+`GameTime` moves to the vocabulary, because no crate below it reads `GameTime`. The table of
+dimensions of RFD 6 replaces `DimensionList` in the vocabulary, because no module of
+`mcrs_minecraft_engine_world` reads `DimensionList`. Only the generic part, `Shared` and `Edit`,
+sits below `mcrs_minecraft_engine_world`, in `mcrs_engine_shared`.
 
 ## Cuts
 
@@ -330,17 +354,25 @@ crate group.
 - **Re-exports in the facade.** Each extraction keeps the old paths with `pub use`, and a last
   step deletes them. It keeps each pull request inside one crate group. Turned down for now: it
   opens a second path for each moved item, for the length of the migration.
+- **One shared crate for the state and the vocabulary.** `Shared`, `Edit`, the time and the
+  bus messages are in one crate. Turned down from the code: the vocabulary needs
+  `PlayerSession`, `DimensionList` and `AddDimensionPlugins` of `mcrs_minecraft_engine_world`,
+  so the crate sits above it. `mcrs_minecraft_engine_world` then cannot read `Shared`.
+- **The vocabulary below `mcrs_minecraft_engine_world`.** It is the first sketch, and RFD 6
+  had it. Turned down from the code: `PlayerSession` and the two dimension items must move down
+  first, and `TickPace` and `BirthClock` are read inside `mcrs_minecraft_engine_world`.
 - **Fewer crates.** For example, columns and block in one crate. `rust-style` says to split a
   crate only when a dependency forces it. Turned down by the maintainer's choice of six crates.
 
 ## Open questions
 
-1. **The shared crate and `mcrs_minecraft_engine_world`.** Should `PlayerSession`,
-   `ChunkTrackingView`, `DimensionList` and `AddDimensionPlugins` move down so that the shared
-   crate sits below the world crate? Recommendation: the dimension table of the shared crate
-   takes `DimensionList` with #154. The rest waits for the split of `mcrs_minecraft_engine_world`.
-2. **The edge on the host, or the edge beside the host.** Recommendation: the edge on the host,
-   as proposed. The other option moves player types into the vocabulary.
+1. **Resolved: the shared crate and `mcrs_minecraft_engine_world`.** The vocabulary sits
+   above `mcrs_minecraft_engine_world`, and the generic shared state sits below it in
+   `mcrs_engine_shared` (determination 5). The dimension table of the vocabulary takes
+   `DimensionList` with #154.
+2. **Resolved for this map: the edge on the host.** The code shows the edge on the host and no
+   reference back after cut 2. Open: should a later step move the edge beside the host? That
+   step moves player types into the vocabulary.
 3. **Crate groups.** May an extraction change the `use` lines of callers in other crate groups?
    Recommendation: yes, for `use` lines only, as RFD 5 allowed for its step 2.
 4. **Cut 7.** Is a generic cold system over a small trait the right seam between the columns and

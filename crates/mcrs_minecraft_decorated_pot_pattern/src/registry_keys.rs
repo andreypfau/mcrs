@@ -1,7 +1,7 @@
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const DECORATED_POT_PATTERN: RegistryKey<crate::DecoratedPotPattern> =
-    RegistryKey::new(rl!("minecraft:decorated_pot_pattern"));
+    <crate::DecoratedPotPattern as Registered>::REGISTRY;
 impl Registered for crate::DecoratedPotPattern {
-    const REGISTRY: RegistryKey<Self> = DECORATED_POT_PATTERN;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:decorated_pot_pattern"));
 }

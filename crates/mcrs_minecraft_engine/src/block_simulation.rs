@@ -42,12 +42,13 @@ use mcrs_minecraft_volume::{BlockVolume, PalettedSection};
 use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
+use crate::block_mail::BlockOutbox;
 use crate::block_update::{BroadcastMarks, remove_replaced_block_entities};
 use crate::bus::PacketPayload;
-use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
 use crate::column_change::ColumnChange;
 use crate::column_streams::ColumnStreams;
+use crate::column_tick_holder::{ColumnTickHolder, CopiedTicks, TakenTicks};
 use crate::column_ticks::LandedTicks;
 use crate::coordinator::clock::GameTime;
 use crate::random_tick_speed::RandomTickSpeed;
@@ -134,18 +135,6 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TakenTicks {
-    pub ticks: ColumnTicks,
-    pub changed: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CopiedTicks {
-    pub ticks: ColumnTicks,
-    pub changed: bool,
-}
-
 #[derive(Resource, Default)]
 pub struct BlockSimulation {
     shard: BlockShard<WorldKinds>,
@@ -195,8 +184,10 @@ impl BlockSimulation {
             !runs
         });
     }
+}
 
-    pub fn copy_column(
+impl ColumnTickHolder for BlockSimulation {
+    fn copy_column(
         &self,
         column: ColumnPos,
         rows: impl IntoIterator<Item = i32>,
@@ -223,7 +214,7 @@ impl BlockSimulation {
         }
     }
 
-    pub fn take_column(
+    fn take_column(
         &mut self,
         column: ColumnPos,
         rows: impl IntoIterator<Item = i32>,
@@ -334,7 +325,7 @@ impl<T: TickKind> Taken<T> {
 #[derive(SystemParam)]
 struct CellLinks<'w> {
     owned: Option<Res<'w, OwnedColumns>>,
-    outbox: Option<ResMut<'w, CellOutbox>>,
+    outbox: Option<ResMut<'w, BlockOutbox>>,
 }
 
 #[derive(SystemParam)]

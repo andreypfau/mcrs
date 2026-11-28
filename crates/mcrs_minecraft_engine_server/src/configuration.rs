@@ -1,4 +1,6 @@
-use crate::login::{SessionsById, disconnect, duplicate_login_reason};
+use crate::session_state::{
+    AwaitingConfigurationAck, SessionsById, disconnect, duplicate_login_reason,
+};
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
@@ -53,10 +55,6 @@ use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 pub struct AwaitingKnownPacks(Vec<mcrs_minecraft_datapack::KnownPack>);
-
-#[derive(Component)]
-#[component(storage = "SparseSet")]
-pub(crate) struct AwaitingConfigurationAck;
 
 pub struct ConfigurationStatePlugin;
 
@@ -267,7 +265,7 @@ pub fn initial_player_spawn() -> ScheduleConfigs<ScheduleSystem> {
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
 )]
-pub fn request_initial_player_spawn(
+pub(crate) fn request_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
     sessions: Query<(&Session, &SessionPlacement, &GameProfile)>,
     dim_inputs: Res<DimInputs>,

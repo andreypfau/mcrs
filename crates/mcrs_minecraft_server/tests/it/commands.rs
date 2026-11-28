@@ -32,7 +32,8 @@ use mcrs_minecraft_server::operator_broadcast::OperatorBroadcastPlugin;
 
 use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_tree::{CommandNode, NumberRange, ParserProperties};
-use mcrs_minecraft_engine::coordinator::clock::{GameTime, WorldClockHostPlugin};
+use mcrs_minecraft_engine::coordinator::clock::GameTime;
+use mcrs_minecraft_engine::coordinator::world_clock_host_plugin::WorldClockHostPlugin;
 use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
 use mcrs_minecraft_environment::{AdvanceTime, WorldClockPlugin};
 use mcrs_minecraft_environment::{ClockTime, WorldClock, WorldClocks};

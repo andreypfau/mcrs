@@ -98,6 +98,12 @@ determination when the state is published.
 7. `GameTime`, the birth clock, `TickPace` and one `Dimensions` table live in a vocabulary
    crate below `mcrs_minecraft_engine_world`. The default game mode and the operator level
    become configuration of the vanilla player crate.
+
+   The code says that the vocabulary cannot sit below `mcrs_minecraft_engine_world`. RFD 7,
+   determination 5, gives the one map of the shared crates. `Shared`, `Edit` and `SharedSet`
+   sit below `mcrs_minecraft_engine_world`, in `mcrs_engine_shared`. `GameTime` and `Dimensions`
+   sit above it, in `mcrs_minecraft_engine_shared`. The birth clock and `TickPace` stay in
+   `mcrs_minecraft_engine_world`, because it reads them itself.
 8. Three wants stay out of scope, and each keeps an extension point. The first is a dimension
    that opens or closes at run time. The second is an override of a rule or of the weather for
    one dimension. The third is a leash across dimensions.
@@ -114,15 +120,20 @@ map of the engine. This page names only the crates that the boundary needs.
 | Crate | Layer | Content | Bevy | `no_std` |
 |---|---|---|---|---|
 | `mcrs_engine_shared` | 4 | `Shared<T>`, `Edit<T>`, `SharedSet`, the datum trait | `bevy_ecs` only | yes, with `alloc` |
-| `mcrs_minecraft_engine_shared` | 4 | `GameTime`, `BirthClock`, `TickPace`, `Dimensions`, `EntityParcel`, `EntityRef`, `RemovalCause`, `Ticket` and its request and answer | derives only | yes, with `alloc` |
+| `mcrs_minecraft_engine_shared` | 4 | `GameTime`, `Dimensions`, `EntityParcel`, `EntityRef`, `RemovalCause`, `Ticket` and its request and answer, and the vocabulary of RFD 7 | yes | no |
 | `mcrs_minecraft_vanilla_player` | 5 | The whitelist, the ban list, the operator list, the login gate, the default game mode, the default operator level | plugin | no |
 
 `mcrs_engine_shared` holds no game type, so it takes the prefix `mcrs_`. It sits beside
-`mcrs_engine_cell` and depends on nothing of the game. The vocabulary crate depends on the
-data crates of layer 3 and on `mcrs_engine_shared`. `mcrs_minecraft_engine_world` and
-`mcrs_minecraft_engine` depend on both.
+`mcrs_engine_cell` and depends on nothing of the game. `mcrs_minecraft_engine_world` depends on
+it. The vocabulary crate depends on the data crates of layer 3, on `mcrs_engine_shared` and on
+`mcrs_minecraft_engine_world`. The code says that the vocabulary must sit above
+`mcrs_minecraft_engine_world`: it reads `PlayerSession`, `DimensionList` and
+`AddDimensionPlugins` of that crate. `BirthClock` and `TickPace` stay in
+`mcrs_minecraft_engine_world`, because its `server_loop` and `entity_births` read them. RFD 7,
+determination 5, records this map.
 
-The vocabulary crate holds types, and it holds no system. The systems that use a parcel or a
+RFD 7 gives the vocabulary crate the bus messages and their plugins. The types of this page in
+that crate hold no system. The systems that use a parcel or a
 ticket stay in the crates that hold them today, until the crate map moves them.
 
 ### Shared state
@@ -307,8 +318,8 @@ field of its own in the input.
 
 ### Time and the dimension table
 
-`GameTime`, `BirthClock` and `TickPace` move to the vocabulary crate without a change of
-meaning. The host stays the one writer of each.
+`GameTime` moves to the vocabulary crate without a change of meaning. `BirthClock` and
+`TickPace` stay in `mcrs_minecraft_engine_world`. The host stays the one writer of each.
 
 One `Dimensions` table replaces the three forms of the dimension set. A row holds the key of
 the dimension, its dimension type and its place in the dimension order (ARG-ENT-019). The index
@@ -358,8 +369,8 @@ The project allows three open migrations. Step 1 starts when a place is free.
 
 | Step | Content | Issues |
 |---|---|---|
-| 1 | Create `mcrs_minecraft_engine_shared`. Move `GameTime`, `BirthClock` and `TickPace` into it. Add `Dimensions` and move each reader to it. | #154 |
-| 2 | Create `mcrs_engine_shared`. Split `DimWorlds<X>` from `DimCells`. Make `DimInput` and `DimOutput` generic. Move the clocks, the tick pace, the weather, the game rules and the three lists to `Shared<T>` and `Edit<T>`. Update section "Crossing a boundary" of `CLAUDE.md` and `docs/crates.md`. | #154, #1110 step 1 |
+| 1 | Create `mcrs_minecraft_engine_shared`, or use it if step 8 of RFD 7 made it. Move `GameTime` into it. Add `Dimensions` and move each reader to it. | #154 |
+| 2 | Create `mcrs_engine_shared` below `mcrs_minecraft_engine_world`. Split `DimWorlds<X>` from `DimCells`. Make `DimInput` and `DimOutput` generic. Move the clocks, the tick pace, the weather, the game rules and the three lists to `Shared<T>` and `Edit<T>`. Update section "Crossing a boundary" of `CLAUDE.md` and `docs/crates.md`. | #154, #1110 step 1 |
 | 3 | Create `mcrs_minecraft_vanilla_player`. Move the three lists, the login gate, the default game mode and the default operator level into it. The engine keeps a plugin point for the login gate. | #1110 step 2 |
 | 4 | Move the registry snapshot to `Shared<T>` by value. | #1112 step 7 |
 | 5 | Turn each report of a cell into a message with data. | none |
@@ -459,8 +470,8 @@ discussion.
    the host builds from reports?
 4. Does a `SharedSet` save and load its data, or does each persistent datum register with the
    world state writer by itself?
-5. Are the three crate names of section "Crates and layers" final, or does the crate map RFD
-   set them?
+5. Resolved: RFD 7, determination 5, sets the names and the places of the two shared crates.
+   The name of the vanilla player crate stays open.
 6. Which crate owns the plugin point for the login gate after step 3?
 7. Does an entity keep its network id when it crosses between two cells of one dimension? The
    specification of entity transfer must state it.

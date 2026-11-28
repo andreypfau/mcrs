@@ -13,37 +13,32 @@ use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::{
-    self, BlockChange, CellBlockWrite, HaloBlockChanges, VoxelUpdateSet,
+    self, BlockChange, HaloBlockChanges, VoxelUpdateSet,
 };
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
-use mcrs_minecraft_simulation::{ChainLedger, Message};
 use mcrs_voxel::ColumnPos;
 
+use crate::block_mail::{BlockMail, BlockOutbox};
 use crate::block_simulation::BlockSimulation;
 use crate::cell_crossing::{self, Crossing};
-use crate::column_asks::{ColumnAnswer, ColumnAsk, ColumnHold};
 use crate::column_light::ColdStageLandSet;
 use crate::column_production::ColumnProduction;
 use crate::column_store::{ColumnStoreLink, StoredColumnLandSet};
-use crate::dim_tick::{DimInboxDrain, drain_dim_inbox};
+use crate::column_store_mail::ColumnStoreMail;
+use crate::dim_inbox_drain::DimInboxDrain;
 use crate::foreign_views::ForeignViews;
 use crate::hot_ticket::{RemoteTickets, TicketMail, TicketUpdate};
 use crate::player_view::PlayerView;
-use crate::world_kinds::WorldKinds;
 
 #[derive(Debug, Default)]
 pub struct CellMail {
     pub(crate) tickets: Vec<TicketUpdate>,
     pub(crate) halo: Vec<BlockChange>,
-    pub(crate) writes: Vec<CellBlockWrite>,
     pub(crate) crossings: Vec<Crossing>,
-    pub(crate) messages: Vec<Message<WorldKinds>>,
-    pub(crate) ledgers: Vec<ChainLedger>,
     pub(crate) views: Vec<PlayerView>,
-    pub(crate) holds: Vec<ColumnHold>,
-    pub(crate) asks: Vec<ColumnAsk>,
-    pub(crate) answers: Vec<ColumnAnswer>,
+    pub(crate) blocks: BlockMail,
+    pub(crate) store: ColumnStoreMail,
 }
 
 impl CellMail {
@@ -51,27 +46,19 @@ impl CellMail {
     pub(crate) fn is_empty(&self) -> bool {
         self.tickets.is_empty()
             && self.halo.is_empty()
-            && self.writes.is_empty()
             && self.crossings.is_empty()
-            && self.messages.is_empty()
-            && self.ledgers.is_empty()
             && self.views.is_empty()
-            && self.holds.is_empty()
-            && self.asks.is_empty()
-            && self.answers.is_empty()
+            && self.blocks.is_empty()
+            && self.store.is_empty()
     }
 
     pub(crate) fn append(&mut self, other: &mut Self) {
         self.tickets.append(&mut other.tickets);
         self.halo.append(&mut other.halo);
-        self.writes.append(&mut other.writes);
         self.crossings.append(&mut other.crossings);
-        self.messages.append(&mut other.messages);
-        self.ledgers.append(&mut other.ledgers);
         self.views.append(&mut other.views);
-        self.holds.append(&mut other.holds);
-        self.asks.append(&mut other.asks);
-        self.answers.append(&mut other.answers);
+        self.blocks.append(&mut other.blocks);
+        self.store.append(&mut other.store);
     }
 }
 
@@ -90,6 +77,7 @@ impl Plugin for CellMailPlugin {
         app.insert_resource(self.owned);
         app.init_resource::<CellInbox>();
         app.init_resource::<CellOutbox>();
+        app.init_resource::<BlockOutbox>();
         app.init_resource::<TicketMail>();
         app.init_resource::<RemoteTickets>();
         app.init_resource::<HaloBlockChanges>();
@@ -98,8 +86,7 @@ impl Plugin for CellMailPlugin {
             FixedPreUpdate,
             receive_cell_mail
                 .run_if(inbox_holds_messages)
-                .in_set(DimInboxDrain)
-                .before(drain_dim_inbox),
+                .in_set(DimInboxDrain::Before),
         );
         app.add_systems(
             FixedUpdate,
@@ -141,14 +128,19 @@ fn receive_cell_mail(world: &mut World) {
     let CellMail {
         tickets,
         halo,
-        writes,
         crossings,
-        mut messages,
-        mut ledgers,
         views,
-        holds,
-        asks,
-        answers,
+        blocks:
+            BlockMail {
+                writes,
+                mut messages,
+                mut ledgers,
+            },
+        store: ColumnStoreMail {
+            holds,
+            asks,
+            answers,
+        },
     } = mem::take(&mut inbox.0);
     let dimension = world
         .query_filtered::<Entity, With<Dimension>>()
@@ -235,12 +227,15 @@ pub(crate) fn take_cell_mail(world: &mut World, mail: &mut CellMail) {
     if let Some(mut outbox) = world.get_resource_mut::<CellOutbox>() {
         mail.append(&mut outbox.0);
     }
+    if let Some(mut outbox) = world.get_resource_mut::<BlockOutbox>() {
+        mail.blocks.append(&mut outbox.0);
+    }
     cell_crossing::cross_players(world, &mut mail.crossings);
     if let Some(mut tickets) = world.get_resource_mut::<TicketMail>() {
         mail.tickets.append(&mut tickets.0);
     }
     if let Some(mut store) = world.get_resource_mut::<ColumnStoreLink>() {
-        store.take_mail(mail);
+        store.take_mail(&mut mail.store);
     }
     if world.contains_resource::<OwnedColumns>()
         && let Some(views) = world.get_resource::<Messages<PlayerView>>()

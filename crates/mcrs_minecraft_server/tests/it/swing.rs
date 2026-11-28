@@ -9,7 +9,7 @@ use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::column_version::ColumnVersion;
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClockPlugin;
-use mcrs_minecraft_engine::coordinator::clock::WorldClockHostPlugin;
+use mcrs_minecraft_engine::coordinator::world_clock_host_plugin::WorldClockHostPlugin;
 use mcrs_minecraft_engine::player_state::{Effect, PlayerFileState};
 use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_engine_item::{ItemCommandsExt, StackCommandsExt};

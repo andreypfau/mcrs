@@ -9,6 +9,7 @@ use mcrs_engine_store::MemoryDisk;
 use tracing::{error, warn};
 
 use crate::assign_global_entity_id::assign_global_entity_id;
+use crate::block_break::BlockBreakPlugin;
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::cell_mail::CellMailPlugin;
 use crate::command_handoff::CommandHandoff;
@@ -16,15 +17,16 @@ use crate::coordinator::dim::DimSubAppHandle;
 use crate::coordinator::dim_cells::{ColumnDisk, DimCells};
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::coordinator::running_dimensions::{RunningDimension, RunningDimensions};
+use crate::dim_inbox_drain::DimInboxDrain;
 use crate::dim_mail::DimMail;
-use crate::dim_tick::{DimInbox, DimInboxDrain, drain_dim_inbox, inbox_holds_messages};
+use crate::dim_tick::{DimInbox, drain_dim_inbox, inbox_holds_messages};
 use crate::player_order::{DepartureRequests, OrderedPlayer};
 use crate::player_roster::{ForeignPlayers, OwnPlayers, report_own_players};
 use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 
-use crate::block_simulation::{BlockSimulationConfig, DimensionBlockRules};
+use crate::block_simulation::{BlockSimulation, BlockSimulationConfig, DimensionBlockRules};
 use crate::column_store::ColumnStorePlugin;
 use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use crate::minecraft_entity::MinecraftEntityPlugin;
@@ -177,11 +179,20 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             label_entity,
         ));
 
+        sub_app.configure_sets(
+            FixedPreUpdate,
+            (
+                DimInboxDrain::Before,
+                DimInboxDrain::Drain,
+                DimInboxDrain::After,
+            )
+                .chain(),
+        );
         sub_app.add_systems(
             FixedPreUpdate,
             drain_dim_inbox
                 .run_if(inbox_holds_messages)
-                .in_set(DimInboxDrain),
+                .in_set(DimInboxDrain::Drain),
         );
         sub_app.add_systems(
             FixedUpdate,
@@ -218,9 +229,9 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             .copied()
             .unwrap_or_default();
         (rules.0)(&mut sub_app);
-        sub_app.add_plugins(MinecraftEntityPlugin);
+        sub_app.add_plugins((BlockBreakPlugin, MinecraftEntityPlugin));
         sub_app.add_plugins(DimHeightmapPlugin);
-        sub_app.add_plugins(ColumnStorePlugin { owned });
+        sub_app.add_plugins(ColumnStorePlugin::<BlockSimulation>::new(owned));
         let default_op_level = app
             .world()
             .get_resource::<crate::coordinator::ops::DefaultOpLevel>()

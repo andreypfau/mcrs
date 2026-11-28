@@ -1,6 +1,5 @@
 use crate::ability::PlayerOpLevel;
-use bevy_app::{App, Plugin};
-use bevy_ecs::prelude::{Event, On, ResMut, Resource};
+use bevy_ecs::prelude::{Event, Resource};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -65,21 +64,6 @@ pub enum OpListError {
 pub enum EditOps {
     Add(OpListEntry),
     Remove(Uuid),
-}
-
-pub struct OpListHostPlugin;
-
-impl Plugin for OpListHostPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<OpList>();
-        app.add_observer(apply_ops_edit);
-    }
-}
-
-fn apply_ops_edit(edit: On<EditOps>, mut ops: ResMut<OpList>) {
-    if ops.apply(edit.event()) {
-        ops.write_file();
-    }
 }
 
 impl OpList {
