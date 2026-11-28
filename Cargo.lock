@@ -6552,6 +6552,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_pathfind"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_minecraft_physics",
+ "mcrs_voxel",
+ "rustc-hash 2.1.1",
+]
+
+[[package]]
 name = "mcrs_minecraft_physics"
 version = "0.5.8"
 dependencies = [
