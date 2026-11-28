@@ -12,7 +12,8 @@ use mcrs_minecraft_model_file::content_error::{ContentError, ContentErrorKind};
 use mcrs_minecraft_model_file::face_bake::{self, ElementFace, VariantTransform};
 use mcrs_minecraft_model_file::model_resolver::ModelResolver;
 use mcrs_minecraft_model_file::property_table::PropertyTable;
-use mcrs_minecraft_model_file::resource_id::resource_path;
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource_pack::pack_path;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BakedFace {
@@ -147,7 +148,19 @@ impl<'a> BlockModels<'a> {
             .block_states
             .entry(block.to_owned())
             .or_insert_with(|| {
-                let path = resource_path(block, "blockstates", "json");
+                let location = match ResourceLocation::read(block) {
+                    Ok(location) => location,
+                    Err(error) => {
+                        self.errors.push(ContentError {
+                            path: block.to_owned(),
+                            kind: ContentErrorKind::Location {
+                                reason: error.reason,
+                            },
+                        });
+                        return None;
+                    }
+                };
+                let path = pack_path(location, "blockstates", "json");
                 let Some(bytes) = pack.get(&path) else {
                     self.errors.push(ContentError {
                         path,

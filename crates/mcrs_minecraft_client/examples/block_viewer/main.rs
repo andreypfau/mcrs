@@ -37,8 +37,8 @@ use mcrs_minecraft_mesh::smooth_light::{self, LightState, Sample};
 use mcrs_minecraft_model::bake::BlockModels;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_model_file::property_table::PropertyTable;
-use mcrs_minecraft_model_file::resource_id;
-use mcrs_minecraft_resource_pack::RgbaImage;
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource_pack::{RgbaImage, pack_path};
 
 const DEFAULT_TARGET: &str = "minecraft:oak_log[axis=y]";
 
@@ -329,7 +329,8 @@ fn build_mesh(
 fn build_atlas(pack: &ResourceSet, sprites: &[String]) -> Result<Image, String> {
     let mut cells: Vec<(usize, Vec<u8>)> = Vec::new();
     for id in sprites {
-        let path = resource_id::resource_path(id, "textures", "png");
+        let location = ResourceLocation::read(id).map_err(|error| error.to_string())?;
+        let path = pack_path(location, "textures", "png");
         let image = RgbaImage::decode_png(pack.read(&path).map_err(|error| error.to_string())?)
             .map_err(|error| format!("cannot decode {path}: {error}"))?;
         let data = image.rgba;

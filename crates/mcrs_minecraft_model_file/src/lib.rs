@@ -7,4 +7,3 @@ pub mod model_file;
 pub mod model_file_error;
 pub mod model_resolver;
 pub mod property_table;
-pub mod resource_id;

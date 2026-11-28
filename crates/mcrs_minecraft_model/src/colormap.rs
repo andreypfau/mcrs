@@ -1,10 +1,14 @@
 use crate::resource_set::ResourceSet;
 use crate::sprite_error::SpriteError;
-use mcrs_minecraft_model_file::resource_id::resource_path;
-use mcrs_minecraft_resource_pack::RgbaImage;
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource_pack::{RgbaImage, pack_path};
 
 pub fn load_colormap(pack: &ResourceSet, name: &str) -> Result<Vec<u8>, SpriteError> {
-    let path = resource_path(&format!("minecraft:colormap/{name}"), "textures", "png");
+    let path = pack_path(
+        ResourceLocation::new("minecraft", &format!("colormap/{name}"))?,
+        "textures",
+        "png",
+    );
     let image = RgbaImage::decode_png(pack.read(&path)?).map_err(|error| SpriteError::Decode {
         path: path.clone(),
         error,

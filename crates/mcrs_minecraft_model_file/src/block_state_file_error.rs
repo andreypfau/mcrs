@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::fmt;
 
+use mcrs_minecraft_resource::InvalidResourceLocation;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BlockStateFileError {
@@ -40,6 +42,10 @@ pub enum BlockStateFileError {
     },
     Weight {
         weight: i64,
+    },
+    Location {
+        id: String,
+        reason: String,
     },
 }
 
@@ -82,8 +88,20 @@ impl fmt::Display for BlockStateFileError {
             BlockStateFileError::Weight { weight } => {
                 write!(f, "the weight {weight} is below 1")
             }
+            BlockStateFileError::Location { id, reason } => {
+                write!(f, "the resource location `{id}`: {reason}")
+            }
         }
     }
 }
 
 impl Error for BlockStateFileError {}
+
+impl From<InvalidResourceLocation> for BlockStateFileError {
+    fn from(error: InvalidResourceLocation) -> Self {
+        BlockStateFileError::Location {
+            id: error.input,
+            reason: error.reason,
+        }
+    }
+}

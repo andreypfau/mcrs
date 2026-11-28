@@ -21,6 +21,7 @@ pub enum ContentErrorKind {
     NoBlockState,
     ModelCycle { parent: String },
     NoPart { state: Vec<usize> },
+    Location { reason: String },
 }
 
 impl fmt::Display for ContentError {
@@ -48,6 +49,7 @@ impl fmt::Display for ContentErrorKind {
             ContentErrorKind::NoPart { state } => {
                 write!(f, "no part for the state {state:?}")
             }
+            ContentErrorKind::Location { reason } => f.write_str(reason),
         }
     }
 }

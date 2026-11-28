@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use bevy::math::{Rect, URect, UVec2};
 
 use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_resource_pack::{PackFiles, RgbaImage};
+use mcrs_minecraft_resource_pack::{PackFiles, RgbaImage, pack_path};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 
@@ -193,7 +193,7 @@ impl<'a, F: Fn(&[u8]) -> Result<Vec<InflatedFile>, String>> Loading<'a, F> {
         if self.stack.contains(&id) {
             return Err(FontError::SelfReference { id });
         }
-        let file = format!("{}/font/{}.json", location.namespace(), location.path());
+        let file = pack_path(location, "font", "json");
         let bytes = self.pack.read(&file)?;
         let definition = match serde_json::from_slice::<Definition>(bytes)
             .map_err(|error| DefinitionError::Json {

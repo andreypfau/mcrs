@@ -5597,7 +5597,6 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_model",
- "mcrs_minecraft_model_file",
  "mcrs_minecraft_pack_file",
  "mcrs_minecraft_pose",
  "mcrs_minecraft_registries",
@@ -6420,6 +6419,7 @@ dependencies = [
  "glam",
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_resource",
  "mcrs_minecraft_resource_pack",
  "serde",
  "serde_json",
@@ -6966,6 +6966,7 @@ dependencies = [
 name = "mcrs_minecraft_resource_pack"
 version = "0.5.8"
 dependencies = [
+ "mcrs_minecraft_resource",
  "png",
 ]
 
