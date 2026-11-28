@@ -233,12 +233,15 @@ impl Anchors {
     }
 
     pub fn filters_change(&self, ty: Ty<'_>) -> bool {
-        self.is_gate_param(ty)
-            && ty.walk().any(|arg| {
-                arg.as_type()
-                    .and_then(adt_of)
-                    .is_some_and(|did| did == self.changed || did == self.added)
-            })
+        self.is_gate_param(ty) && self.mentions_change(ty)
+    }
+
+    pub fn mentions_change(&self, ty: Ty<'_>) -> bool {
+        ty.walk().any(|arg| {
+            arg.as_type()
+                .and_then(adt_of)
+                .is_some_and(|did| did == self.changed || did == self.added)
+        })
     }
 
     pub fn query_data<'tcx>(&self, ty: Ty<'tcx>) -> Option<Ty<'tcx>> {

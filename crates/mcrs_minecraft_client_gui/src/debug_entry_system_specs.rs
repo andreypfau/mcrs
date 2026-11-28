@@ -14,6 +14,7 @@ pub const GROUP: ResourceLocation<'static> = rl!("minecraft:system");
         reason = "runs only on a debug screen refresh, at most ten times a second while the F3 overlay shows or when the stats log is due"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(5))]
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     adapter: Res<RenderAdapterInfo>,

@@ -7,6 +7,7 @@ use bevy_time::Fixed;
 use bevy_time::Real;
 use bevy_time::Time;
 use fixture_sets::Enabled;
+use fixture_sets::enabled_changed;
 
 #[derive(Component, PartialEq)]
 pub struct Score(pub u8);
@@ -52,6 +53,7 @@ fn load() {
 }
 
 #[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 fn allocates(scores: Query<&Score>) {
     let values: Vec<u8> = scores.iter().map(|score| score.0).collect();
     drop(values);
@@ -66,6 +68,83 @@ fn reuses(mut buffer: Local<Vec<u8>>, scores: Query<&Score>) {
     let units: Vec<()> = scores.iter().map(|_| ()).collect();
     drop(units);
     drop(async { load() });
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn grows_local(scores: Query<&Score>) {
+    let mut values = Vec::new();
+    for score in &scores {
+        values.push(score.0);
+    }
+    drop(values);
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn grows_a_deque(scores: Query<&Score>) {
+    let mut values = std::collections::VecDeque::new();
+    for score in &scores {
+        values.push_back(score.0);
+    }
+    drop(values);
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn fills_through_helper(scores: Query<&Score>) {
+    let mut values = Vec::new();
+    fill(&mut values, &scores);
+    for value in &values {
+        assert!(*value < 10, "fixture scores are small");
+    }
+}
+
+fn fill(buffer: &mut Vec<u8>, scores: &Query<&Score>) {
+    buffer.extend(scores.iter().map(|score| score.0));
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn formats_a_label(scores: Query<&Score>) {
+    for score in &scores {
+        drop(format!("score {}", score.0));
+    }
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_site_count, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn states_a_wrong_count(scores: Query<&Score>) {
+    let first: Vec<u8> = scores.iter().map(|score| score.0).collect();
+    let second: Vec<u8> = scores.iter().map(|score| score.0 + 1).collect();
+    drop((first, second));
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_site_count, reason = "fixture"))]
+fn states_no_count(scores: Query<&Score>) {
+    let values: Vec<u8> = scores.iter().map(|score| score.0).collect();
+    drop(values);
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
+fn states_the_right_count(scores: Query<&Score>) {
+    let first: Vec<u8> = scores.iter().map(|score| score.0).collect();
+    let second: Vec<u8> = scores.iter().map(|score| score.0 + 1).collect();
+    drop((first, second));
+}
+
+pub struct Holder {
+    pub items: Vec<u8>,
+}
+
+fn moves_a_new_vec(scores: Query<&Score>) {
+    let items = Vec::new();
+    let holder = Holder { items };
+    let unused: Vec<u8> = Vec::new();
+    drop((holder, unused, scores));
 }
 
 #[cfg_attr(mcrs_lint, expect(mcrs::per_frame_insert_resource, reason = "fixture"))]
@@ -190,6 +269,109 @@ fn inserts_in_observer(mut commands: Commands) {
         });
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+fn score_arrived(scores: Query<(), Added<Score>>) -> bool {
+    !scores.is_empty()
+}
+
+fn score_waiting(scores: Query<&Score>) -> bool {
+    scores.iter().len() > 3
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::invalid_event_condition, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+pub fn counts_scores(scores: Query<&Score>) -> u8 {
+    u8::try_from(scores.iter().len()).unwrap_or(u8::MAX)
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::invalid_event_condition, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+fn never_gates(scores: Query<&Score>) -> bool {
+    scores.is_empty()
+}
+
+pub fn checks_directly(world: &mut World) -> bool {
+    world.run_system_cached(never_gates).unwrap_or(false)
+}
+
+fn collect_scores(scores: &Query<&Score>) {
+    let values: Vec<u8> = scores.iter().map(|score| score.0).collect();
+    drop(values);
+}
+
+fn allocates_when_marked(scores: Query<&Score>) {
+    collect_scores(&scores);
+}
+
+fn allocates_when_marked_and(scores: Query<&Score>) {
+    collect_scores(&scores);
+}
+
+fn allocates_when_enabled_changes(scores: Query<&Score>) {
+    collect_scores(&scores);
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn allocates_when_unmarked(scores: Query<&Score>) {
+    collect_scores(&scores);
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn allocates_when_marked_or(scores: Query<&Score>) {
+    collect_scores(&scores);
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn allocates_when_negated(scores: Query<&Score>) {
+    collect_scores(&scores);
+}
+
+fn allocates_on_changed_resource(counter: Res<Counter>) {
+    if counter.is_changed() {
+        let copy: Vec<u8> = std::iter::once(counter.0).collect();
+        drop(copy);
+    }
+}
+
+fn allocates_after_unchanged_exit(counter: Res<Counter>) {
+    if !counter.is_changed() {
+        return;
+    }
+    let copy: Vec<u8> = std::iter::once(counter.0).collect();
+    drop(copy);
+}
+
+fn allocates_on_changed_ref(scores: Query<Ref<Score>>) {
+    for score in &scores {
+        if Ref::is_changed(&score) {
+            let copy: Vec<u8> = std::iter::once(score.0).collect();
+            drop(copy);
+        }
+    }
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn allocates_when_unchanged(counter: Res<Counter>) {
+    if !counter.is_changed() {
+        let copy: Vec<u8> = std::iter::once(counter.0).collect();
+        drop(copy);
+    }
+}
+
+#[cfg_attr(mcrs_lint, expect(mcrs::alloc_in_tick, reason = "fixture"))]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+fn allocates_after_changed_exit(counter: Res<Counter>) {
+    if counter.is_changed() {
+        return;
+    }
+    let copy: Vec<u8> = std::iter::once(counter.0).collect();
+    drop(copy);
+}
+
 pub fn build_tick_rules(app: &mut App) {
     let gate = resource_exists::<Enabled>;
     app.add_systems(
@@ -198,6 +380,14 @@ pub fn build_tick_rules(app: &mut App) {
             reads_clock,
             reads_file_through_helper,
             allocates,
+            grows_local,
+            grows_a_deque,
+            fills_through_helper,
+            formats_a_label,
+            states_a_wrong_count,
+            states_no_count,
+            states_the_right_count,
+            moves_a_new_vec,
             reuses,
             inserts,
             inserts_once,
@@ -214,6 +404,12 @@ pub fn build_tick_rules(app: &mut App) {
         Update,
         (
             allocates_on_message.run_if(on_message::<Note>.and_then(gate)),
+            allocates_when_marked.run_if(score_arrived),
+            allocates_when_marked_and.run_if(score_arrived.and_then(score_waiting)),
+            allocates_when_enabled_changes.run_if(enabled_changed),
+            allocates_when_unmarked.run_if(score_waiting),
+            allocates_when_marked_or.run_if(score_arrived.or_else(score_waiting)),
+            allocates_when_negated.run_if(not(score_arrived)),
             inserts_until_present.run_if(not(resource_exists::<Counter>)),
             (
                 allocates_per_message,
@@ -223,6 +419,11 @@ pub fn build_tick_rules(app: &mut App) {
                 inserts_after_return,
                 inserts_on_change,
                 inserts_in_observer,
+                allocates_on_changed_resource,
+                allocates_after_unchanged_exit,
+                allocates_on_changed_ref,
+                allocates_when_unchanged,
+                allocates_after_changed_exit,
             )
                 .run_if(gate),
         ),

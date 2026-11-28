@@ -43,6 +43,7 @@ pub(crate) fn has_waiting_spawns(waiting: Res<WaitingSpawns>) -> bool {
         reason = "the metadata entries move into the `Mob` component of each spawned mob"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 pub(crate) fn spawn_mob_entities(
     mut commands: Commands,
     mut requests: MessageReader<MobSpawnRequest>,

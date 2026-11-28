@@ -20,7 +20,9 @@ use mcrs_minecraft_model::stack_view::StackView;
 use mcrs_minecraft_player_holders::{PlayerHolders, PlayerHoldersPlugin, restore_holders};
 use mcrs_minecraft_resource::ResourceLocation;
 
-use crate::creative_screen_draw::draw_creative_screen;
+use crate::creative_screen_draw::{
+    CreativeTextTooltip, draw_creative_screen, rebuild_creative_text,
+};
 use crate::creative_screen_open::open_creative_screen;
 use crate::creative_screen_shown::creative_screen_shown;
 use crate::creative_screen_state::CreativeScreenState;
@@ -153,11 +155,13 @@ pub(crate) fn creative_app() -> App {
         .insert_resource(VANILLA.clone())
         .init_resource::<CreativeScreenState>()
         .init_resource::<Time<Real>>()
+        .init_resource::<CreativeTextTooltip>()
         .add_observer(open_creative_screen)
         .add_systems(
             Update,
             (
                 mark_creative_screen,
+                rebuild_creative_text.run_if(resource_exists_and_changed::<ClientLanguage>),
                 draw_creative_screen.run_if(creative_screen_shown),
             )
                 .chain(),

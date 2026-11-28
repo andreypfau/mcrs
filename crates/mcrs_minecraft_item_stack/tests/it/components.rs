@@ -24,6 +24,7 @@ use mcrs_minecraft_item_stack::ToolRule;
 use mcrs_minecraft_item_stack::TooltipDisplay;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
+use mcrs_minecraft_sound::SoundEventValue;
 use mcrs_minecraft_text::Text;
 
 const QUIET_NAN: u32 = 0x7fc0_0000;
@@ -49,6 +50,14 @@ fn food(saturation: f32) -> Food {
 fn modifier(amount: f64) -> AttributeModifier {
     let id = ResourceLocationBuf::read("test:bonus").expect("a valid identifier");
     AttributeModifier::new(AttributeId(3), id, amount, ModifierOperation::AddValue)
+}
+
+fn sound(range: f32) -> SoundEventValue {
+    let sound_id = ResourceLocationBuf::read("test:ping").expect("a valid identifier");
+    SoundEventValue {
+        sound_id,
+        range: Some(range),
+    }
 }
 
 fn tool(default_mining_speed: f32) -> Tool {
@@ -85,6 +94,12 @@ fn floats_are_equal_by_bit_pattern_with_one_nan() {
             &format!("modifier: {name}"),
             &modifier(f64::from(left)),
             &modifier(f64::from(right)),
+            equal,
+        );
+        assert_relation(
+            &format!("sound range: {name}"),
+            &sound(left),
+            &sound(right),
             equal,
         );
     }

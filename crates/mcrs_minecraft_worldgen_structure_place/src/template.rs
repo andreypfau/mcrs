@@ -35,7 +35,7 @@ pub struct OceanRuinBlocks {
 
 impl OceanRuinBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         temp: OceanTemperature,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {

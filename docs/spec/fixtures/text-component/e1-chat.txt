@@ -1,0 +1,265 @@
+# Experiment E1 of docs/spec/text-component.md, section 8.7: chat and the plain string of the client.
+# Source: the log of the vanilla client. Each "[CHAT]" line is one message that the client shows in chat.
+# A tellraw command resolves a selector, a score and an nbt content on the server before it sends the text.
+# Thus the cases of these contents are in e4-server-string.txt. They go through an item name instead.
+# The player is the offline test player Recorder. The vanilla client of the project version joined the vanilla server
+# on 127.0.0.1. The server ran in offline mode. The console of the server gave each command.
+# Each case has a header line with the id, the line of the command, and the log lines that the case wrote.
+# A line that starts with "C " is a line of the client log. A line that starts with "S " is a line of the server log.
+# A command with no output line wrote nothing in that log. The text after "[CHAT] " is the plain string that the process makes.
+#
+# case DSP001-a
+> tellraw Recorder {text:"A",extra:[{text:"B",extra:[{text:"C"}]},{text:"D"}]}
+C [01:43:55] [Render thread/INFO]: [System] [CHAT] ABCD
+# case DSP001-b
+> tellraw Recorder {translate:"[%s]",with:["x"],extra:["Y"]}
+C [01:43:55] [Render thread/INFO]: [System] [CHAT] [x]Y
+# case DSP001-c
+> tellraw Recorder {translate:"%s|%s",with:[{text:"a",extra:["b"]},"c"],extra:["d"]}
+C [01:43:56] [Render thread/INFO]: [System] [CHAT] ab|cd
+# case DSP001-d
+> tellraw Recorder {text:"",extra:["z"]}
+C [01:43:56] [Render thread/INFO]: [System] [CHAT] z
+# case DSP001-e
+> tellraw Recorder {keybind:"key.jump",extra:[" after"]}
+C [01:43:57] [Render thread/INFO]: [System] [CHAT] Space after
+# case DSP001-f
+> tellraw Recorder {selector:"@e[type=cow]",extra:["!"]}
+C [01:43:57] [Render thread/INFO]: [System] [CHAT] Cow, Cow, Cow, Cow, Cow, Cow, Cow, Cow, Cow, Cow, Cow!
+# case DSP001-g
+> tellraw Recorder {translate:"a%sb",with:[{translate:"c%sd",with:["X"],extra:["e"]}],extra:["f"]}
+C [01:43:58] [Render thread/INFO]: [System] [CHAT] acXdebf
+# case DSP002-a
+> tellraw Recorder {text:"  two  spaces  "}
+C [01:43:58] [Render thread/INFO]: [System] [CHAT]   two  spaces  
+# case DSP002-b
+> tellraw Recorder {text:"a%sb%%c%1$s"}
+C [01:43:59] [Render thread/INFO]: [System] [CHAT] a%sb%%c%1$s
+# case TPL-plain
+> tellraw Recorder {text:"T1 plain"}
+C [01:43:59] [Render thread/INFO]: [System] [CHAT] T1 plain
+# case TPL-two-args
+> tellraw Recorder {translate:"<%s> %s",with:["A","B"]}
+C [01:44:00] [Render thread/INFO]: [System] [CHAT] <A> B
+# case TPL-no-key
+> tellraw Recorder {translate:"no.such.key"}
+C [01:44:00] [Render thread/INFO]: [System] [CHAT] no.such.key
+# case TPL-fallback
+> tellraw Recorder {translate:"no.such.key",fallback:"fb %s!",with:["X"]}
+C [01:44:01] [Render thread/INFO]: [System] [CHAT] fb X!
+# case TPL-table-over-fallback
+> tellraw Recorder {translate:"gui.yes",fallback:"fb"}
+C [01:44:01] [Render thread/INFO]: [System] [CHAT] Yes
+# case TPL-table-args
+> tellraw Recorder {translate:"chat.type.text",with:["P","hi"]}
+C [01:44:02] [Render thread/INFO]: [System] [CHAT] <P> hi
+# case TPL-numbered
+> tellraw Recorder {translate:"%2$s %1$s %s",with:["a","b"]}
+C [01:44:03] [Render thread/INFO]: [System] [CHAT] b a a
+# case TPL-percent
+> tellraw Recorder {translate:"P%%Q %%",with:["x"]}
+C [01:44:03] [Render thread/INFO]: [System] [CHAT] P%Q %
+# case TPL-err-d
+> tellraw Recorder {translate:"%d",with:["x"]}
+C [01:44:04] [Render thread/INFO]: [System] [CHAT] %d
+# case TPL-err-end
+> tellraw Recorder {translate:"abc%",with:["x"]}
+C [01:44:04] [Render thread/INFO]: [System] [CHAT] abc%
+# case TPL-err-zero
+> tellraw Recorder {translate:"%0$s",with:["x"]}
+C [01:44:05] [Render thread/INFO]: [System] [CHAT] %0$s
+# case TPL-err-width
+> tellraw Recorder {translate:"%5s",with:["x"]}
+C [01:44:05] [Render thread/INFO]: [System] [CHAT] %5s
+# case TPL-err-space
+> tellraw Recorder {translate:"50% off",with:["x"]}
+C [01:44:06] [Render thread/INFO]: [System] [CHAT] 50% off
+# case TPL-err-missing
+> tellraw Recorder {translate:"<%s> %s",with:["A"]}
+C [01:44:06] [Render thread/INFO]: [System] [CHAT] <%s> %s
+# case TPL-err-missing-two
+> tellraw Recorder {translate:"%s%s",with:["A"]}
+C [01:44:07] [Render thread/INFO]: [System] [CHAT] %s%s
+# case TPL-err-large
+> tellraw Recorder {translate:"a%3$sb",with:["A","B"]}
+C [01:44:07] [Render thread/INFO]: [System] [CHAT] a%3$sb
+# case TPL-err-huge
+> tellraw Recorder {translate:"a%99999999999$sb",with:["A"]}
+C [01:44:08] [Render thread/INFO]: [System] [CHAT] a%99999999999$sb
+# case TPL-err-upper
+> tellraw Recorder {translate:"%S",with:["x"]}
+C [01:44:08] [Render thread/INFO]: [System] [CHAT] %S
+# case TPL-err-dollar-d
+> tellraw Recorder {translate:"%1$d",with:["x"]}
+C [01:44:09] [Render thread/INFO]: [System] [CHAT] %1$d
+# case TPL-err-after-pieces
+> tellraw Recorder {translate:"ok %s %d",with:["x"]}
+C [01:44:09] [Render thread/INFO]: [System] [CHAT] ok %s %d
+# case TPL-err-fallback
+> tellraw Recorder {translate:"no.such.key",fallback:"%d",with:["x"]}
+C [01:44:10] [Render thread/INFO]: [System] [CHAT] %d
+# case TPL-extra-arg
+> tellraw Recorder {translate:"%s extra",with:["a","unused"]}
+C [01:44:10] [Render thread/INFO]: [System] [CHAT] a extra
+# case TPL-unused
+> tellraw Recorder {translate:"unused",with:["x"]}
+C [01:44:11] [Render thread/INFO]: [System] [CHAT] unused
+# case TPL-repeat
+> tellraw Recorder {translate:"%1$s%1$s",with:["ab"]}
+C [01:44:11] [Render thread/INFO]: [System] [CHAT] abab
+# case TPL-empty
+> tellraw Recorder {translate:"",with:["x"]}
+C [01:44:12] [Render thread/INFO]: [System] [CHAT] 
+# case TPL-empty-then-extra
+> tellraw Recorder {translate:"",extra:["after"]}
+C [01:44:12] [Render thread/INFO]: [System] [CHAT] after
+# case TPL-err-then-extra
+> tellraw Recorder {translate:"%d",extra:["after"]}
+C [01:44:13] [Render thread/INFO]: [System] [CHAT] %dafter
+# case ARG-string-empty
+> tellraw Recorder {translate:"[%s][%s]",with:["","x"]}
+C [01:44:13] [Render thread/INFO]: [System] [CHAT] [][x]
+# case ARG-ints
+> tellraw Recorder {translate:"%s|%s|%s|%s",with:[1b,2s,3,4L]}
+C [01:44:14] [Render thread/INFO]: [System] [CHAT] 1|2|3|4
+# case ARG-ints-negative
+> tellraw Recorder {translate:"%s|%s|%s|%s",with:[-1b,-2s,-3,-4L]}
+C [01:44:14] [Render thread/INFO]: [System] [CHAT] -1|-2|-3|-4
+# case ARG-ints-large
+> tellraw Recorder {translate:"%s|%s",with:[2147483647,9223372036854775807L]}
+C [01:44:15] [Render thread/INFO]: [System] [CHAT] 2147483647|9223372036854775807
+# case ARG-floats-a
+> tellraw Recorder {translate:"%s|%s|%s|%s|%s",with:[1.5f,1.0E10d,1.0E-5d,1.0E8f,0.1f]}
+C [01:44:15] [Render thread/INFO]: [System] [CHAT] 1.5|1.0E10|1.0E-5|1.0E8|0.1
+# case ARG-floats-b
+> tellraw Recorder {translate:"%s|%s",with:[16777216.0f,0.001d]}
+C [01:44:16] [Render thread/INFO]: [System] [CHAT] 1.6777216E7|0.001
+# case ARG-floats-edge
+> tellraw Recorder {translate:"%s|%s|%s|%s|%s|%s",with:[9999999.0d,1.0E7d,0.00099d,0.001f,2.0d,0.0d]}
+C [01:44:16] [Render thread/INFO]: [System] [CHAT] 9999999.0|1.0E7|9.9E-4|0.001|2.0|0.0
+# case ARG-floats-negative
+> tellraw Recorder {translate:"%s|%s|%s",with:[-1.5d,-2.0f,-1.0E10d]}
+C [01:44:17] [Render thread/INFO]: [System] [CHAT] -1.5|-2.0|-1.0E10
+# case ARG-floats-shortest
+> tellraw Recorder {translate:"%s|%s|%s|%s",with:[0.1d,0.1f,0.3d,0.30000001192092896d]}
+C [01:44:17] [Render thread/INFO]: [System] [CHAT] 0.1|0.1|0.3|0.30000001192092896
+# case ARG-floats-long
+> tellraw Recorder {translate:"%s|%s",with:[123456.789f,1.23456789012d]}
+C [01:44:18] [Render thread/INFO]: [System] [CHAT] 123456.79|1.23456789012
+# case ARG-boolean
+> tellraw Recorder {translate:"%s|%s",with:[true,false]}
+C [01:44:18] [Render thread/INFO]: [System] [CHAT] 1|0
+# case ARG-boolean-nbt
+> tellraw Recorder {translate:"%s|%s",with:[1b,0b]}
+C [01:44:19] [Render thread/INFO]: [System] [CHAT] 1|0
+# case ARG-text-plain
+> tellraw Recorder {translate:"[%s]",with:[{text:"a"}]}
+C [01:44:19] [Render thread/INFO]: [System] [CHAT] [a]
+# case ARG-text-styled
+> tellraw Recorder {translate:"[%s]",with:[{text:"a",color:"red",extra:["b"]}]}
+C [01:44:20] [Render thread/INFO]: [System] [CHAT] [ab]
+# case ARG-text-translate
+> tellraw Recorder {translate:"[%s]",with:[{translate:"gui.yes"}]}
+C [01:44:20] [Render thread/INFO]: [System] [CHAT] [Yes]
+# case ARG-text-list
+> tellraw Recorder {translate:"[%s]",with:[["a","b"]]}
+C [01:44:21] [Render thread/INFO]: [System] [CHAT] [ab]
+# case ARG-text-keybind
+> tellraw Recorder {translate:"[%s]",with:[{keybind:"key.jump"}]}
+C [01:44:21] [Render thread/INFO]: [System] [CHAT] [Space]
+# case ARG-text-object
+> tellraw Recorder {translate:"[%s]",with:[{atlas:"minecraft:blocks",sprite:"minecraft:block/stone"}]}
+C [01:44:22] [Render thread/INFO]: [System] [CHAT] [[block/stone]]
+# case KEY-unbound
+> tellraw Recorder {keybind:"key.spectatorOutlines"}
+C [01:44:22] [Render thread/INFO]: [System] [CHAT] Not Bound
+# case KEY-attack
+> tellraw Recorder {keybind:"key.attack"}
+C [01:44:23] [Render thread/INFO]: [System] [CHAT] Left Button
+# case KEY-nonmapping-with-lang
+> tellraw Recorder {keybind:"key.keyboard.a"}
+C [01:44:24] [Render thread/INFO]: [System] [CHAT] key.keyboard.a
+# case KEY-nonexistent
+> tellraw Recorder {keybind:"key.nonexistent"}
+C [01:44:24] [Render thread/INFO]: [System] [CHAT] key.nonexistent
+# case KEY-lang-only
+> tellraw Recorder {keybind:"gui.yes"}
+C [01:44:25] [Render thread/INFO]: [System] [CHAT] Yes
+# case KEY-empty
+> tellraw Recorder {keybind:""}
+C [01:44:25] [Render thread/INFO]: [System] [CHAT] 
+# case KEY-case
+> tellraw Recorder {keybind:"KEY.JUMP"}
+C [01:44:26] [Render thread/INFO]: [System] [CHAT] KEY.JUMP
+# case KEY-jump
+> tellraw Recorder {keybind:"key.jump"}
+C [01:44:26] [Render thread/INFO]: [System] [CHAT] Space
+# case KEY-sneak
+> tellraw Recorder {keybind:"key.sneak"}
+C [01:44:27] [Render thread/INFO]: [System] [CHAT] Left Shift
+# case KEY-percent
+> tellraw Recorder {keybind:"%s"}
+C [01:44:27] [Render thread/INFO]: [System] [CHAT] %s
+# case KEY-styled-extra
+> tellraw Recorder {keybind:"key.jump",color:"red",extra:["!"]}
+C [01:44:28] [Render thread/INFO]: [System] [CHAT] Space!
+# case OBJ-blocks
+> tellraw Recorder {atlas:"minecraft:blocks",sprite:"minecraft:block/stone"}
+C [01:44:28] [Render thread/INFO]: [System] [CHAT] [block/stone]
+# case OBJ-blocks-fallback
+> tellraw Recorder {atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:"FB"}
+C [01:44:29] [Render thread/INFO]: [System] [CHAT] FB
+# case OBJ-items
+> tellraw Recorder {atlas:"minecraft:items",sprite:"minecraft:item/diamond"}
+C [01:44:29] [Render thread/INFO]: [System] [CHAT] [item/diamond@items]
+# case OBJ-custom-atlas
+> tellraw Recorder {atlas:"my:atl",sprite:"foo/bar"}
+C [01:44:30] [Render thread/INFO]: [System] [CHAT] [foo/bar@my:atl]
+# case OBJ-custom-sprite
+> tellraw Recorder {atlas:"minecraft:blocks",sprite:"my:foo/bar"}
+C [01:44:30] [Render thread/INFO]: [System] [CHAT] [my:foo/bar]
+# case OBJ-default-atlas
+> tellraw Recorder {sprite:"minecraft:block/dirt"}
+C [01:44:31] [Render thread/INFO]: [System] [CHAT] [block/dirt]
+# case OBJ-player-name
+> tellraw Recorder {player:{name:"Steve"}}
+C [01:44:31] [Render thread/INFO]: [System] [CHAT] [Steve head]
+# case OBJ-player-name-hat-false
+> tellraw Recorder {player:{name:"Steve"},hat:false}
+C [01:44:32] [Render thread/INFO]: [System] [CHAT] [Steve head]
+# case OBJ-player-string
+> tellraw Recorder {player:"Alex"}
+C [01:44:32] [Render thread/INFO]: [System] [CHAT] [Alex head]
+# case OBJ-player-id
+> tellraw Recorder {player:{id:[I;1,2,3,4]}}
+C [01:44:33] [Render thread/INFO]: [System] [CHAT] [unknown player head]
+# case OBJ-player-fallback
+> tellraw Recorder {player:{name:"Steve"},fallback:"F"}
+C [01:44:33] [Render thread/INFO]: [System] [CHAT] F
+# case OBJ-fallback-styled
+> tellraw Recorder {atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:{text:"x",extra:["y"]}}
+C [01:44:34] [Render thread/INFO]: [System] [CHAT] xy
+# case OBJ-fallback-empty
+> tellraw Recorder {atlas:"minecraft:blocks",sprite:"minecraft:block/stone",fallback:""}
+C [01:44:34] [Render thread/INFO]: [System] [CHAT] 
+# case SEC-a
+> tellraw Recorder {text:"§cR§lB§zX§"}
+C [01:44:48] [Render thread/INFO]: [System] [CHAT] §cR§lB§zX§
+# case SEC-b
+> tellraw Recorder {text:"a§"}
+C [01:44:49] [Render thread/INFO]: [System] [CHAT] a§
+# case SEC-c
+> tellraw Recorder {text:"§§cX"}
+C [01:44:49] [Render thread/INFO]: [System] [CHAT] §§cX
+# case SEC-d
+> tellraw Recorder {text:"§"}
+C [01:44:50] [Render thread/INFO]: [System] [CHAT] §
+# case SEC-e
+> tellraw Recorder {translate:"%s§%s",with:["a","b"]}
+C [01:44:50] [Render thread/INFO]: [System] [CHAT] a§b
+# case SEC-f
+> tellraw Recorder {text:"A§",extra:["B"]}
+C [01:44:51] [Render thread/INFO]: [System] [CHAT] A§B
+# case LIM-second-root
+> tellraw Recorder {text:"second root"}
+C [01:45:19] [Render thread/INFO]: [System] [CHAT] second root

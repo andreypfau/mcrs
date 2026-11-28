@@ -39,7 +39,7 @@ pub struct FortressBlocks {
 
 impl FortressBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let oriented = |block: Block| Oriented::named(world, blocks, block, &[]);

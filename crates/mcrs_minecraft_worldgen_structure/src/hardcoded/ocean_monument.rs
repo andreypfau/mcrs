@@ -10,13 +10,13 @@ use mcrs_voxel::ColumnPos;
 use super::on_top_of_chunk_centre;
 use crate::orient::{Orientation, orient_box, world_pos};
 use crate::piece::{MonumentChild, MonumentRoom, MonumentRoomKind, OceanMonumentPiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 const BIOME_RANGE_CHECK: i32 = 29;
 
 pub fn site(
     surrounding: &BiomeMask,
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     _rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
     let centre = IVec3::new(
@@ -33,7 +33,7 @@ pub fn site(
     on_top_of_chunk_centre(ctx, HeightmapName::OceanFloorWg)
 }
 
-pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, mut site: Site) -> Vec<Piece> {
     start_piece(&mut site.rng, ctx.chunk)
         .map(Piece::OceanMonument)
         .into_iter()

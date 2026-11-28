@@ -4,7 +4,7 @@ use mcrs_minecraft_client_options::{
 };
 use mcrs_minecraft_client_widget::{
     BUTTON_HEIGHT, CycleButton, DONE_BUTTON_WIDTH, GuiExtent, GuiRect, KeyModifiers, Slider,
-    TooltipDelay, Widget, WidgetId, WidgetKind,
+    TooltipDelay, Widget, WidgetId, WidgetKind, WidgetValue,
 };
 
 use crate::font::{Font, Span};
@@ -146,36 +146,33 @@ pub(crate) fn write_option(
     max_gui_scale: u32,
     modifiers: KeyModifiers,
 ) {
-    match (widget.id(), &widget.kind) {
-        (BRIGHTNESS, WidgetKind::Slider(slider)) => options.brightness = slider.position() as f32,
-        (MAX_FRAMERATE, WidgetKind::Slider(slider)) => {
-            if let Some(framerate) = slider
-                .value()
-                .and_then(|steps| u16::try_from(steps).ok())
+    match (widget.id(), widget.value()) {
+        (BRIGHTNESS, Some(WidgetValue::Number(position))) => options.brightness = position as f32,
+        (MAX_FRAMERATE, Some(WidgetValue::Int(steps))) => {
+            if let Some(framerate) = u16::try_from(steps)
+                .ok()
                 .and_then(|steps| steps.checked_mul(MAX_FRAMERATE_STEP))
             {
                 options.max_framerate = framerate;
             }
         }
-        (RENDER_DISTANCE, WidgetKind::Slider(slider)) => {
-            if let Some(columns) = slider
-                .value()
-                .and_then(|columns| u8::try_from(columns).ok())
+        (RENDER_DISTANCE, Some(WidgetValue::Int(columns))) => {
+            if let Some(columns) = u8::try_from(columns).ok()
                 && columns != options.view_distance.unwrap_or(VIEW_DISTANCE_DEFAULT)
             {
                 options.view_distance = Some(columns);
             }
         }
-        (VSYNC, WidgetKind::CycleButton(_)) => options.vsync = !options.vsync,
-        (FULLSCREEN, WidgetKind::CycleButton(_)) => options.fullscreen = !options.fullscreen,
-        (SMOOTH_LIGHTING, WidgetKind::CycleButton(_)) => {
+        (VSYNC, Some(WidgetValue::Choice(_))) => options.vsync = !options.vsync,
+        (FULLSCREEN, Some(WidgetValue::Choice(_))) => options.fullscreen = !options.fullscreen,
+        (SMOOTH_LIGHTING, Some(WidgetValue::Choice(_))) => {
             options.smooth_light = !options.smooth_light;
         }
-        (CLOUDS, WidgetKind::CycleButton(_)) => options.clouds = !options.clouds,
-        (IMPROVED_TRANSPARENCY, WidgetKind::CycleButton(_)) => {
+        (CLOUDS, Some(WidgetValue::Choice(_))) => options.clouds = !options.clouds,
+        (IMPROVED_TRANSPARENCY, Some(WidgetValue::Choice(_))) => {
             options.improved_transparency = !options.improved_transparency;
         }
-        (GUI_SCALE, WidgetKind::CycleButton(_)) => {
+        (GUI_SCALE, Some(WidgetValue::Choice(_))) => {
             options.gui_scale = activated_gui_scale(options.gui_scale, max_gui_scale, modifiers);
         }
         _ => {}

@@ -243,6 +243,7 @@ fn schedule_refresh(
         reason = "runs only when the stats log interval is due"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 fn log_debug_screen(displayer: Res<DebugScreenDisplayer>) {
     let (left, right) = displayer.columns();
     let line = left

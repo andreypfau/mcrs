@@ -16,6 +16,11 @@ impl Language {
     }
 
     #[must_use]
+    pub fn find(&self, key: &str) -> Option<&str> {
+        self.0.get(key).map(String::as_str)
+    }
+
+    #[must_use]
     pub fn get<'a>(&'a self, key: &'a str) -> &'a str {
         self.0.get(key).map_or(key, String::as_str)
     }

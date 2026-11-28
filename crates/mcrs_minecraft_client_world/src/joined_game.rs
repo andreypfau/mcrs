@@ -2,7 +2,7 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_game_mode::Abilities;
+use mcrs_minecraft_game_mode::{Abilities, PlayerGameMode, PreviousGameMode};
 use mcrs_minecraft_network::client::{ConnectionEnd, close_connection_later};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::Packet;
@@ -13,7 +13,7 @@ use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_registries::{CurrentRegistries, Namer, Registries};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
-use crate::game_mode::{LocalGameMode, PermissionLevel};
+use crate::game_mode::PermissionLevel;
 use crate::hardcore_mode::HardcoreMode;
 use crate::health_packets::{NEW_PLAYER_FOOD, NEW_PLAYER_VITALS};
 use crate::local_motion::LocalMotion;
@@ -113,7 +113,6 @@ fn on_login(
                     LocalMotion::spawned(mode, DVec3::ZERO),
                     SyncedData::default(),
                     LastSentInput::default(),
-                    LocalGameMode::spawned(&login.player_spawn_info),
                     PermissionLevel::default(),
                     respawn_screen,
                     hardcore_mode,
@@ -121,6 +120,10 @@ fn on_login(
                     NEW_PLAYER_FOOD,
                     InSession(event.entity),
                     PlayerLoad::Loading(LoadProgress::default()),
+                ));
+                player.insert((
+                    PlayerGameMode(mode),
+                    PreviousGameMode(login.player_spawn_info.prev_game_mode.0),
                 ));
                 if let Some(bases) = mcrs_minecraft_entity::attribute_bases(EntityType::Player) {
                     player.insert(AttributeInstances::new(bases));

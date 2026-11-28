@@ -678,7 +678,7 @@ fn column_block(
     x: i32,
     y: i32,
     z: i32,
-    barrier: &mut dyn FnMut(i32, i32, i32) -> f64,
+    barrier: &mut impl FnMut(i32, i32, i32) -> f64,
 ) -> VoxelId {
     if density > 0.0 {
         return default_block;

@@ -1,6 +1,7 @@
 use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_widget::{
     BUTTON_HEIGHT, DONE_BUTTON_WIDTH, GuiExtent, GuiRect, Slider, Widget, WidgetId, WidgetKind,
+    WidgetValue,
 };
 
 use crate::font::Font;
@@ -35,9 +36,9 @@ pub(crate) fn mouse_settings_screen(
 
 pub(crate) fn write_option(options: &mut ClientOptions, widget: &Widget) {
     if widget.id() == SENSITIVITY
-        && let WidgetKind::Slider(slider) = &widget.kind
+        && let Some(WidgetValue::Number(position)) = widget.value()
     {
-        options.sensitivity = slider.position() as f32;
+        options.sensitivity = position as f32;
     }
 }
 

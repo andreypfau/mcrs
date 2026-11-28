@@ -76,9 +76,8 @@ Start from an open issue with a settled Decision and specification. Ask to take 
 |---|---|
 | Scope | One problem in one crate group, including the code, tests and docs it needs. Unrelated renames, cleanup and refactors go in separate PRs. |
 | Size | At most 1000 added lines, excluding generated data. Agree on a split into stacked PRs in the issue before starting a larger change. |
-| Design | A new crate, dependency or subsystem needs a design note accepted by the team in the issue. |
+| Design | A new crate, dependency or subsystem needs a published RFD. |
 | Project configuration | Changes to `.github/`, `xtask/`, `.config/`, `clippy.toml` or `AGENTS.md` need an issue that asks for them. |
-| Concurrent work | At most two open PRs per person. A third is closed on opening. |
 
 Show the commands you ran and their actual output. Client, renderer and GUI changes need screenshots before and after. In the PR's "Models" section, list every model used and what it did, including code, tests, specs, review or the PR text; write "none" if no model was used. The person opening the PR answers for every line and replies to review questions in their own words.
 
@@ -100,7 +99,7 @@ cargo nextest run --profile full    # plus the exhaustive sweeps
 
 These three commands come from the [README Development section](https://github.com/andreypfau/mcrs/blob/main/README.md#development). They need the `cargo-nextest` runner installed, and the first run downloads the game's client jar to get the data pack.
 
-The section "Working discipline" of [AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md) gives the general scope rules. One issue is one pull request, and a new subsystem needs a design note with crate names, layers and migration path before its first code PR. Its general split threshold is about 3k added lines, generated data excluded, or more than one crate group. Outside contributors use the stricter 1000-line and one-group limits above. A `refactor` PR changes no behavior.
+The section "Working discipline" of [AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md) gives the general scope rules. One issue is one pull request, and a new subsystem needs a published RFD with crate names, layers and migration path before its first code PR. Its general split threshold is about 3k added lines, generated data excluded, or more than one crate group. Outside contributors use the stricter 1000-line and one-group limits above. A `refactor` PR changes no behavior.
 
 <Aside type="caution" title="WIP">
 The detailed setup guide is not written yet. It will appear before the alpha for players. Until then use the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start) and the technical notes linked from this section.
@@ -112,7 +111,7 @@ The instructions for coding agents live in the repository. [AGENTS.md](https://g
 
 | Path | What is there |
 |---|---|
-| [.agents/skills](https://github.com/andreypfau/mcrs/tree/main/.agents/skills) | Skills that `AGENTS.md` names with "Load `<name>`", such as `rust-style`, `efficient-testing` and `ship`. `.claude/skills/` links to the same folders. |
+| [.agents/skills](https://github.com/andreypfau/mcrs/tree/main/.agents/skills) | Skills that `AGENTS.md` names with "Load `<name>`", such as `rust-style` and `efficient-testing`. `.claude/skills/` links to the same folders. |
 | [.agents/rules](https://github.com/andreypfau/mcrs/tree/main/.agents/rules) | One rule file per domain: `codec`, `memory`, `rendering` and `simulation`. The header of a rule lists the crate paths it covers. `.claude/rules/` links to them. |
 | [.claude/agents](https://github.com/andreypfau/mcrs/tree/main/.claude/agents) | The roles `implementer`, `spec-author` and `reviewer`, and two read-only helpers: `Explore` finds code, and `log-reader` reports the failures in a test or CI log. Each file sets the model of its role. |
 | [.claude/hooks/cargo-guard.sh](https://github.com/andreypfau/mcrs/blob/main/.claude/hooks/cargo-guard.sh) | A Claude Code hook that rejects `cargo test`. [Build and test](/docs/en/contributing/build-and-test/) says why. |

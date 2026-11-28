@@ -476,6 +476,7 @@ impl LightVolumeFeed {
         reason = "every buffer stays empty, so it does not allocate, on a tick with no column change and no section to light"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(14))]
 fn feed_light_volume(
     mut feed: ResMut<LightVolumeFeed>,
     mut changes: MessageReader<ColumnChange>,

@@ -1,0 +1,24 @@
+# Experiment E7 of docs/spec/text-component.md, section 8.7: the key mappings that the player changed.
+# Source: the log of the vanilla client, and the log of the vanilla server.
+# The options file of the client binds the key mapping key.jump to the key X, and it leaves the key mapping key.sneak with no key.
+# The player is the offline test player Recorder. The vanilla client of the project version joined the vanilla server
+# on 127.0.0.1. The server ran in offline mode. The console of the server gave each command.
+# A line that starts with "C " is a line of the client log. A line that starts with "S " is a line of the server log.
+# The text after "[CHAT] " is the plain string that the process makes.
+#
+# case KEYR-jump
+> tellraw Recorder {keybind:"key.jump"}
+C [01:53:36] [Render thread/INFO]: [System] [CHAT] X
+# case KEYR-sneak
+> tellraw Recorder {keybind:"key.sneak"}
+C [01:53:36] [Render thread/INFO]: [System] [CHAT] Not Bound
+# case KEYR-attack
+> tellraw Recorder {keybind:"key.attack"}
+C [01:53:37] [Render thread/INFO]: [System] [CHAT] Left Button
+# case KEYR-arg
+> tellraw Recorder {translate:"[%s]",with:[{keybind:"key.jump"}]}
+C [01:53:37] [Render thread/INFO]: [System] [CHAT] [X]
+# case KEYR-item
+> item replace entity Recorder weapon.mainhand with minecraft:stone[custom_name={keybind:"key.jump"}]
+C [01:53:38] [Render thread/INFO]: [System] [CHAT] [Server: Replaced 1 slot(s) on Recorder with [X]]
+S [01:53:38] [Server thread/INFO]: System chat: Replaced 1 slot(s) on Recorder with [key.jump]

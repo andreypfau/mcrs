@@ -33,8 +33,8 @@ impl EntityForm for PiercingWeapon {
         Self {
             deals_knockback: self.deals_knockback,
             dismounts: self.dismounts,
-            sound: self.sound.as_ref().map(SoundEventRef::borrow_static),
-            hit_sound: self.hit_sound.as_ref().map(SoundEventRef::borrow_static),
+            sound: self.sound.clone(),
+            hit_sound: self.hit_sound.clone(),
         }
     }
 }

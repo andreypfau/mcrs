@@ -19,6 +19,7 @@ pub(crate) fn on_create_world(screen: Res<Screen>) -> bool {
         reason = "allocates the world name only when the player confirms the create world screen"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
 pub(crate) fn follow_create_world(
     mut events: MessageReader<MenuEvent>,
     (mut screen, mut reason): (ResMut<Screen>, ResMut<DisconnectReason>),

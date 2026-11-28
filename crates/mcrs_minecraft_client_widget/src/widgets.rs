@@ -9,8 +9,9 @@ use crate::scroll_area::ScrollArea;
 use crate::widget::Widget;
 use crate::widget_event::WidgetEvent;
 use crate::widget_id::WidgetId;
-use crate::widget_id_taken::WidgetIdTaken;
 use crate::widget_kind::WidgetKind;
+use crate::widget_push_error::WidgetPushError;
+use crate::widget_value::WidgetValue;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Drag {
@@ -57,9 +58,12 @@ impl Widgets {
         }
     }
 
-    pub fn push(&mut self, widget: Widget) -> Result<(), WidgetIdTaken> {
+    pub fn push(&mut self, widget: Widget) -> Result<(), WidgetPushError> {
+        if widget.area.is_some() && widget.kind.is_scroll_container() {
+            return Err(WidgetPushError::ContainerInArea(widget.id()));
+        }
         if self.index(widget.id()).is_some() {
-            return Err(WidgetIdTaken(widget.id()));
+            return Err(WidgetPushError::IdTaken(widget.id()));
         }
         self.widgets.push(widget);
         Ok(())
@@ -75,6 +79,11 @@ impl Widgets {
     #[must_use]
     pub fn get(&self, id: WidgetId) -> Option<&Widget> {
         self.widgets.iter().find(|widget| widget.id() == id)
+    }
+
+    #[must_use]
+    pub fn value(&self, id: WidgetId) -> Option<WidgetValue<'_>> {
+        self.get(id)?.value()
     }
 
     pub fn get_mut(&mut self, id: WidgetId) -> Option<&mut Widget> {

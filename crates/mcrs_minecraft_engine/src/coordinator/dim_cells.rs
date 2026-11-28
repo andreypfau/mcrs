@@ -824,6 +824,7 @@ fn changed<R: Resource + Clone>(host: &World) -> Option<R> {
         reason = "the routed input of the tick is split per cell and moves into the input of each cell"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(13))]
 pub fn tick_dimensions(world: &mut World) {
     let globals = Globals::read(world);
     let routed: Vec<RoutedInput> = world

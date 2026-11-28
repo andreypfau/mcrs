@@ -26,7 +26,6 @@ use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_item::Stacks;
-use mcrs_minecraft_engine_item::stack_capacity;
 use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_inventory_click::ClickPlayer;
@@ -37,11 +36,9 @@ use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::PatchEntry;
-use mcrs_minecraft_item_stack::write_wire_with_length;
+use mcrs_minecraft_item_stack::WireStackWithLength;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_player_holders::PlayerHolders;
-use mcrs_minecraft_protocol::Decode;
-use mcrs_minecraft_protocol_game::item::DelimitedStack;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
 
 use crate::CreativeArea;
@@ -71,9 +68,8 @@ pub(crate) struct CreativeScratch {
     writes: Vec<SlotWrite>,
     drops: Vec<ItemStack>,
     moved: Vec<ItemStack>,
-    drop_items: Vec<DelimitedStack>,
+    drop_items: Vec<WireStackWithLength>,
     dropped: Vec<Entity>,
-    bytes: Vec<u8>,
 }
 
 struct EntryBefore {
@@ -350,20 +346,19 @@ fn encodes(scratch: &mut CreativeScratch, cursor_slot: SlotRef, names: &Registry
         drops,
         moved,
         drop_items,
-        bytes,
         ..
     } = scratch;
     for drop in drops.iter() {
-        let Some(item) = delimited(Some(drop), names, bytes) else {
+        let Some(item) = with_length(Some(drop), names) else {
             return false;
         };
         drop_items.push(item);
     }
-    if !(moved.iter()).all(|stack| delimited(Some(stack), names, bytes).is_some()) {
+    if !(moved.iter()).all(|stack| with_length(Some(stack), names).is_some()) {
         return false;
     }
     let mut entry_writes = writes.iter().filter(|write| write.slot != cursor_slot);
-    entry_writes.all(|write| delimited(write.stack.as_ref(), names, bytes).is_some())
+    entry_writes.all(|write| with_length(write.stack.as_ref(), names).is_some())
 }
 
 fn plan_grid(
@@ -479,7 +474,7 @@ fn slot_locked(stack: &ItemStack) -> bool {
 }
 
 fn capacity(table: &ItemTable, stack: &ItemStack) -> u8 {
-    stack_capacity(table.effective::<MaxStackSize>(stack))
+    Count::capacity(table.effective::<MaxStackSize>(stack))
 }
 
 fn with_count(stack: &ItemStack, count: u8) -> Option<ItemStack> {
@@ -501,7 +496,6 @@ fn send_creative(
     let CreativeScratch {
         entries,
         drop_items,
-        bytes,
         ..
     } = scratch;
     for item in drop_items.drain(..) {
@@ -527,7 +521,7 @@ fn send_creative(
             continue;
         }
         let value = after.and_then(|stack| stacks.to_value(stack));
-        if let Some(item) = delimited(value.as_ref(), &names, bytes) {
+        if let Some(item) = with_length(value.as_ref(), &names) {
             outbox
                 .0
                 .push(Outgoing::CreativeSlot(ServerboundSetCreativeModeSlot {
@@ -538,15 +532,11 @@ fn send_creative(
     }
 }
 
-fn delimited(
+fn with_length(
     stack: Option<&ItemStack>,
     names: &RegistryNames<'_>,
-    bytes: &mut Vec<u8>,
-) -> Option<DelimitedStack> {
-    bytes.clear();
-    if let Err(error) = write_wire_with_length(stack, names, bytes) {
-        tracing::warn!("a creative stack has no wire form: {error:?}");
-        return None;
-    }
-    DelimitedStack::decode(&mut bytes.as_slice()).ok()
+) -> Option<WireStackWithLength> {
+    WireStackWithLength::write(stack, names)
+        .inspect_err(|error| tracing::warn!("a creative stack has no wire form: {error:?}"))
+        .ok()
 }

@@ -312,6 +312,9 @@ pub(crate) fn widgets_of(
     Some(widgets)
 }
 
+#[derive(Resource, Default, PartialEq, Eq)]
+pub(crate) struct MenuExtent(pub(crate) GuiExtent);
+
 pub(crate) fn project_menu(
     source: MenuSource,
     menu: Option<ResMut<Menu>>,

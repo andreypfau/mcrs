@@ -29,7 +29,7 @@ pub fn place_fallen_tree<W: WorldGenVolume>(
     tree: &CompiledFallenTree,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    sink: &mut dyn TreeSink<W>,
+    sink: &mut impl TreeSink<W>,
     origin: BlockPos,
 ) -> bool {
     let stump = place_log(tree, volume, rng, origin, None);
@@ -116,7 +116,7 @@ fn decorate<W: WorldGenVolume>(
     decorators: &[CompiledTreeDecorator],
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    sink: &mut dyn TreeSink<W>,
+    sink: &mut impl TreeSink<W>,
     logs: &[BlockPos],
 ) {
     if decorators.is_empty() {

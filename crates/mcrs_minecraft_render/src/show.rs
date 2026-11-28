@@ -2,7 +2,7 @@ use bevy::core_pipeline::FullscreenShader;
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
-use bevy::render::view::{ExtractedView, ViewDepthStencilTexture};
+use bevy::render::view::ViewDepthStencilTexture;
 use bevy::shader::ShaderDefVal;
 
 use crate::gbuffer::{WORLD_IMAGE_FORMAT, nearest_sampler};
@@ -13,11 +13,10 @@ use crate::terrain::Terrain;
 
 #[derive(Resource)]
 pub struct DepthDisplay {
-    shader: Handle<Shader>,
     layout: BindGroupLayoutDescriptor,
     nearest: Sampler,
-    depth: Option<CachedRenderPipelineId>,
-    pyramid: Option<CachedRenderPipelineId>,
+    depth: CachedRenderPipelineId,
+    pyramid: CachedRenderPipelineId,
 }
 
 pub enum DepthSource<'a> {
@@ -50,7 +49,7 @@ impl DepthDisplay {
                 }),
             ),
         };
-        let Some(pipeline) = pipeline.and_then(|id| cache.get_render_pipeline(id)) else {
+        let Some(pipeline) = cache.get_render_pipeline(pipeline) else {
             return;
         };
         let bind_group = device.create_bind_group(
@@ -80,32 +79,18 @@ pub(crate) fn init_depth_display(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     device: Res<RenderDevice>,
-) {
-    commands.insert_resource(DepthDisplay {
-        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/core/show.wesl"),
-        layout: show::layout(),
-        nearest: nearest_sampler(&device),
-        depth: None,
-        pyramid: None,
-    });
-}
-
-pub(crate) fn prepare_depth_display(
-    mut display: ResMut<DepthDisplay>,
-    _views: Populated<&ExtractedView, With<Camera3d>>,
     fullscreen: Res<FullscreenShader>,
     cache: Res<PipelineCache>,
 ) {
-    if display.depth.is_some() {
-        return;
-    }
+    let shader = asset_server.load("embedded://mcrs_minecraft_render/shaders/core/show.wesl");
+    let layout = show::layout();
     let queue = |label: &str, defs: Vec<ShaderDefVal>| {
         let mut descriptor = RenderPipelineDescriptor {
             vertex: fullscreen.to_vertex_state(),
             ..descriptor(
                 label.into(),
-                vec![display.layout.clone()],
-                &display.shader,
+                vec![layout.clone()],
+                &shader,
                 String::new(),
                 "show".into(),
                 WORLD_IMAGE_FORMAT,
@@ -119,6 +104,10 @@ pub(crate) fn prepare_depth_display(
     };
     let depth = queue("show depth", Vec::new());
     let pyramid = queue("show depth pyramid", vec!["PYRAMID".into()]);
-    display.depth = Some(depth);
-    display.pyramid = Some(pyramid);
+    commands.insert_resource(DepthDisplay {
+        layout,
+        nearest: nearest_sampler(&device),
+        depth,
+        pyramid,
+    });
 }

@@ -18,7 +18,4 @@ pub enum WidgetSprite {
         handle_highlighted: bool,
         handle_rect: GuiRect,
     },
-    TextField {
-        highlighted: bool,
-    },
 }

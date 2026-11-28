@@ -2,18 +2,15 @@ use std::fmt;
 
 use anyhow::ensure;
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
-use mcrs_minecraft_registries::{Named, Namer, Refs, Resolve, Resolved, WireId};
+use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved, WireId};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::map_only;
-use crate::data_component_type_keys::DataComponentType;
-use crate::hash_ops;
 use crate::patch::ComponentPatch;
-use crate::patch::{decode_delimited_patch, encode_delimited_patch};
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_registries::{FromWire, Wire, WireNames};
+use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::nested;
 use mcrs_minecraft_wire::{Decode, Encode, Error, Result, VarInt};
 use std::io::Write;
@@ -168,50 +165,6 @@ where
         };
         stack.validate()?;
         Ok(Template(stack))
-    }
-}
-
-pub const MAX_HASHED_COMPONENTS: usize = 256;
-
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct HashedPatchMap {
-    pub added: Vec<(DataComponentType, i32)>,
-    pub removed: Vec<DataComponentType>,
-}
-
-impl HashedPatchMap {
-    pub fn create(patch: &ComponentPatch, names: &impl Namer) -> anyhow::Result<Self> {
-        let added = patch
-            .added
-            .iter()
-            .map(|value| Ok((value.kind(), hash_ops::hash(&value.name(names)?)?)))
-            .collect::<anyhow::Result<_>>()?;
-        Ok(HashedPatchMap {
-            added,
-            removed: patch.removed.clone(),
-        })
-    }
-
-    pub fn matches(&self, patch: &ComponentPatch, names: &impl Namer) -> bool {
-        if self.removed.len() != patch.removed.len()
-            || !patch.removed.iter().all(|kind| self.removed.contains(kind))
-        {
-            return false;
-        }
-        if self.added.len() != patch.added.len() {
-            return false;
-        }
-        patch.added.iter().all(|value| {
-            let Some((_, expected)) = self.added.iter().find(|(kind, _)| *kind == value.kind())
-            else {
-                return false;
-            };
-            value
-                .name(names)
-                .ok()
-                .and_then(|value| hash_ops::hash(&value).ok())
-                .is_some_and(|actual| actual == *expected)
-        })
     }
 }
 
@@ -394,127 +347,5 @@ impl Encode for ProtoStack<Wire> {
 impl Decode<'_> for ProtoStack<Wire> {
     fn decode(r: &mut &[u8]) -> Result<Self> {
         decode_with(r, ComponentPatch::decode)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct DelimitedStack(pub ProtoStack<Wire>);
-
-impl DelimitedStack {
-    pub fn check(self, lookup: &impl WireNames) -> anyhow::Result<ProtoStack> {
-        let stack = ProtoStack::from_wire(self.0, lookup)?;
-        if !stack.is_empty() {
-            let value = stack.to_value()?.name(lookup)?;
-            let persistent = mcrs_minecraft_nbt::to_nbt_compound(&value)?;
-            mcrs_minecraft_nbt::from_tag::<ItemStackValue<Named>>(persistent.into())?;
-        }
-        Ok(stack)
-    }
-}
-
-impl Encode for DelimitedStack {
-    fn encode(&self, w: impl Write) -> Result<()> {
-        encode_with(&self.0, w, |patch, w| encode_delimited_patch(patch, w))
-    }
-}
-
-impl Decode<'_> for DelimitedStack {
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        decode_with(r, decode_delimited_patch).map(DelimitedStack)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct HashedStack {
-    pub id: Id<Item>,
-    pub count: i32,
-    pub components: HashedPatchMap,
-}
-
-impl HashedStack {
-    pub fn create(stack: &ProtoStack, names: &impl Namer) -> anyhow::Result<Option<Self>> {
-        if stack.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(HashedStack {
-            id: stack.id,
-            count: stack.count,
-            components: HashedPatchMap::create(&stack.components, names)?,
-        }))
-    }
-
-    pub fn matches(&self, stack: &ProtoStack, names: &impl Namer) -> bool {
-        self.count == stack.count
-            && self.id == stack.id
-            && self.components.matches(&stack.components, names)
-    }
-}
-
-impl Encode for HashedStack {
-    fn encode(&self, mut w: impl Write) -> Result<()> {
-        self.id.encode(&mut w)?;
-        VarInt(self.count).encode(&mut w)?;
-        self.components.encode(w)
-    }
-}
-
-impl Decode<'_> for HashedStack {
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        Ok(HashedStack {
-            id: Item::decode(r)?.id(),
-            count: VarInt::decode(r)?.0,
-            components: HashedPatchMap::decode(r)?,
-        })
-    }
-}
-
-impl Encode for HashedPatchMap {
-    fn encode(&self, mut w: impl Write) -> Result<()> {
-        mcrs_minecraft_wire::ensure!(
-            self.added.len() <= MAX_HASHED_COMPONENTS
-                && self.removed.len() <= MAX_HASHED_COMPONENTS,
-            "more than {MAX_HASHED_COMPONENTS} hashed components"
-        );
-        VarInt(self.added.len() as i32).encode(&mut w)?;
-        for (kind, hash) in &self.added {
-            kind.encode(&mut w)?;
-            hash.encode(&mut w)?;
-        }
-        VarInt(self.removed.len() as i32).encode(&mut w)?;
-        for kind in &self.removed {
-            kind.encode(&mut w)?;
-        }
-        Ok(())
-    }
-}
-
-impl Decode<'_> for HashedPatchMap {
-    fn decode(r: &mut &[u8]) -> Result<Self> {
-        let count = |r: &mut &[u8]| -> Result<usize> {
-            let n = VarInt::decode(r)?.0;
-            mcrs_minecraft_wire::ensure!(
-                (0..=MAX_HASHED_COMPONENTS as i32).contains(&n),
-                "hashed component count {n} is outside 0..={MAX_HASHED_COMPONENTS}"
-            );
-            Ok(n as usize)
-        };
-        let added = count(r)?;
-        let mut map = HashedPatchMap::default();
-        for _ in 0..added {
-            let kind = DataComponentType::decode(r)?;
-            let hash = i32::decode(r)?;
-            match map.added.iter_mut().find(|(k, _)| *k == kind) {
-                Some(entry) => entry.1 = hash,
-                None => map.added.push((kind, hash)),
-            }
-        }
-        let removed = count(r)?;
-        for _ in 0..removed {
-            let kind = DataComponentType::decode(r)?;
-            if !map.removed.contains(&kind) {
-                map.removed.push(kind);
-            }
-        }
-        Ok(map)
     }
 }

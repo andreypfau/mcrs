@@ -1,7 +1,9 @@
 mod language;
-mod pattern;
+mod piece;
 mod primitive;
+mod template;
 
 pub use language::{EN_US, Language};
-pub use pattern::{Piece, fill_pattern};
-pub use primitive::primitive_text;
+pub use piece::Piece;
+pub use primitive::{primitive_text, write_primitive_text};
+pub use template::{FormatError, template_pieces};

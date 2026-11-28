@@ -5,16 +5,22 @@ use rustc_hir::Block;
 use rustc_hir::BodyId;
 use rustc_hir::Expr;
 use rustc_hir::ExprKind;
+use rustc_hir::HirId;
+use rustc_hir::LetStmt;
 use rustc_hir::MatchSource;
+use rustc_hir::Mutability;
+use rustc_hir::PatKind;
 use rustc_hir::QPath;
 use rustc_hir::Stmt;
 use rustc_hir::StmtKind;
 use rustc_hir::UnOp;
 use rustc_hir::def::DefKind;
+use rustc_hir::def::Res;
 use rustc_hir::def_id::DefId;
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::intravisit::Visitor;
 use rustc_hir::intravisit::walk_expr;
+use rustc_hir::intravisit::walk_stmt;
 use rustc_middle::hir::nested_filter;
 use rustc_middle::ty::GenericArgsRef;
 use rustc_middle::ty::Ty;
@@ -69,6 +75,7 @@ pub fn scan(tcx: TyCtxt<'_>, anchors: &Anchors, test: bool) -> BodyMap {
             detached: 0,
             event: 0,
             moved: Vec::new(),
+            pending: FxHashMap::default(),
             test,
             anchors,
             bodies: &mut bodies,
@@ -90,6 +97,7 @@ struct Scanner<'a, 'tcx> {
     detached: usize,
     event: usize,
     moved: Vec<(LocalDefId, String)>,
+    pending: FxHashMap<HirId, (LocalDefId, Span)>,
     test: bool,
     anchors: &'a Anchors,
     bodies: &'a mut BodyMap,
@@ -118,6 +126,13 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
         self.owners.pop();
     }
 
+    fn visit_stmt(&mut self, stmt: &'tcx Stmt<'tcx>) {
+        if let StmtKind::Let(local) = stmt.kind {
+            self.track_creation(local);
+        }
+        walk_stmt(self, stmt);
+    }
+
     fn visit_block(&mut self, block: &'tcx Block<'tcx>) {
         let (mut compared, mut finished, mut event) = (0, 0, 0);
         for stmt in block.stmts {
@@ -134,7 +149,7 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
                 finished += 1;
                 self.finished += 1;
             }
-            if self.mentions_event(condition) {
+            if self.mentions_event(condition) || self.change_guard(condition, Polarity::Unchanged) {
                 event += 1;
                 self.event += 1;
             }
@@ -154,7 +169,10 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
             ExprKind::If(condition, ..) => {
                 let compares = compares(condition);
                 let finished = calls_is_finished(condition);
-                let event = usize::from(self.mentions_event(condition));
+                let event = usize::from(
+                    self.mentions_event(condition)
+                        || self.change_guard(condition, Polarity::Changed),
+                );
                 self.event += event;
                 self.conditional += 1;
                 self.guarded += 1;
@@ -184,6 +202,7 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
                 self.conditional -= 1;
             }
             ExprKind::Assign(place, value, _) => {
+                self.forget(value);
                 if !self.negates(place, value)
                     && !self.counts(place, value)
                     && !self.was_moved(place)
@@ -202,6 +221,16 @@ impl<'tcx> Visitor<'tcx> for Scanner<'_, 'tcx> {
                 self.detached += 1;
                 walk_expr(self, expr);
                 self.detached -= 1;
+            }
+            ExprKind::Ret(Some(value)) => {
+                self.forget(value);
+                walk_expr(self, expr);
+            }
+            ExprKind::Struct(_, fields, _) => {
+                for field in fields {
+                    self.forget(field.expr);
+                }
+                walk_expr(self, expr);
             }
             _ => {
                 self.inspect_call(expr);
@@ -284,6 +313,80 @@ impl<'tcx> Scanner<'_, 'tcx> {
         }
     }
 
+    fn track_creation(&mut self, local: &'tcx LetStmt<'tcx>) {
+        if self.event > 0 || self.detached > 0 {
+            return;
+        }
+        let (Some(init), PatKind::Binding(_, binding, _, None)) = (local.init, local.pat.kind)
+        else {
+            return;
+        };
+        let Some(Call { callee, args, .. }) = call(self.typeck, init) else {
+            return;
+        };
+        if args.is_empty()
+            && matches!(self.tcx.item_name(callee).as_str(), "new" | "default")
+            && self.anchors.is_heap(self.typeck.expr_ty(init))
+        {
+            let owner = self.owner();
+            self.pending.insert(binding, (owner, init.span));
+        }
+    }
+
+    fn pending_binding(&self, expr: &Expr<'_>) -> Option<HirId> {
+        let ExprKind::Path(QPath::Resolved(None, path)) = expr.kind else {
+            return None;
+        };
+        match path.res {
+            Res::Local(binding) if self.pending.contains_key(&binding) => Some(binding),
+            _ => None,
+        }
+    }
+
+    fn forget(&mut self, expr: &Expr<'_>) {
+        if let Some(binding) = self.pending_binding(expr) {
+            self.pending.remove(&binding);
+        }
+    }
+
+    fn grow(&mut self, expr: &Expr<'_>) {
+        let Some(binding) = self.pending_binding(expr) else {
+            return;
+        };
+        if let Some((owner, span)) = self.pending.remove(&binding) {
+            self.bodies.entry(owner).or_default().allocs.push(span);
+        }
+    }
+
+    fn track_growth(&mut self, expr: &Expr<'_>, callee: DefId, args: &[&'tcx Expr<'tcx>]) {
+        if self.pending.is_empty() {
+            return;
+        }
+        let grows = matches!(
+            self.tcx.item_name(callee).as_str(),
+            "push"
+                | "push_back"
+                | "push_front"
+                | "extend"
+                | "extend_from_slice"
+                | "insert"
+                | "push_str"
+                | "append"
+                | "resize"
+                | "reserve"
+        );
+        if let Some(receiver) = args.first().filter(|_| grows) {
+            self.grow(receiver);
+        }
+        let receivers = usize::from(matches!(expr.kind, ExprKind::MethodCall(..)));
+        for arg in args.iter().skip(receivers) {
+            match arg.kind {
+                ExprKind::AddrOf(_, Mutability::Mut, place) => self.grow(place),
+                _ => self.forget(arg),
+            }
+        }
+    }
+
     fn inspect_call(&mut self, expr: &'tcx Expr<'tcx>) {
         let Some(Call {
             callee,
@@ -296,6 +399,7 @@ impl<'tcx> Scanner<'_, 'tcx> {
         let tcx = self.tcx;
         let anchors = self.anchors;
         self.check_unit_in_bundle(expr, callee, generics);
+        self.track_growth(expr, callee, &args);
         if anchors.moves.contains(&callee)
             && let Some(ExprKind::AddrOf(_, _, place)) = args.first().map(|arg| arg.kind)
             && let Some(root) = self.root(place)
@@ -392,6 +496,37 @@ impl<'tcx> Scanner<'_, 'tcx> {
             ExprKind::Let(binding) => self.mentions_event(binding.init),
             _ => false,
         }
+    }
+
+    fn change_guard(&self, expr: &'tcx Expr<'tcx>, wanted: Polarity) -> bool {
+        match expr.kind {
+            ExprKind::Unary(UnOp::Not, inner) => self.change_guard(inner, wanted.flipped()),
+            ExprKind::DropTemps(inner) => self.change_guard(inner, wanted),
+            ExprKind::Binary(op, left, right) => {
+                let either = matches!(
+                    (op.node, wanted),
+                    (BinOpKind::And, Polarity::Changed) | (BinOpKind::Or, Polarity::Unchanged)
+                );
+                let joined = matches!(op.node, BinOpKind::And | BinOpKind::Or);
+                joined
+                    && if either {
+                        self.change_guard(left, wanted) || self.change_guard(right, wanted)
+                    } else {
+                        self.change_guard(left, wanted) && self.change_guard(right, wanted)
+                    }
+            }
+            _ => wanted == Polarity::Changed && self.is_change_check(expr),
+        }
+    }
+
+    fn is_change_check(&self, expr: &'tcx Expr<'tcx>) -> bool {
+        call(self.typeck, expr).is_some_and(|Call { callee, .. }| {
+            self.tcx.crate_name(callee.krate).as_str() == "bevy_ecs"
+                && matches!(
+                    self.tcx.item_name(callee).as_str(),
+                    "is_changed" | "is_added"
+                )
+        })
     }
 
     fn owner(&self) -> LocalDefId {
@@ -507,6 +642,21 @@ impl<'tcx> Scanner<'_, 'tcx> {
         self.anchors
             .partial_eq
             .is_some_and(|partial_eq| implements(self.tcx, self.root, partial_eq, [ty, ty]))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Polarity {
+    Changed,
+    Unchanged,
+}
+
+impl Polarity {
+    fn flipped(self) -> Polarity {
+        match self {
+            Polarity::Changed => Polarity::Unchanged,
+            Polarity::Unchanged => Polarity::Changed,
+        }
     }
 }
 

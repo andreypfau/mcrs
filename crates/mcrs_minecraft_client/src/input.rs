@@ -2,8 +2,9 @@ use bevy::input::mouse::{AccumulatedMouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_engine_item::Selected;
-use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
+use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_mode::PlayerGameMode;
 use mcrs_minecraft_item::LAST_HOTBAR_SLOT;
 
 use mcrs_minecraft_client_gui::item_key_codes;
@@ -11,7 +12,6 @@ use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_gui::wheel_notches;
 use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::attack_input::AttackInput;
-use mcrs_minecraft_client_world::game_mode::LocalGameMode;
 use mcrs_minecraft_client_world::local_player::LocalPlayerTick;
 use mcrs_minecraft_client_world::movement_input::MovementInput;
 use mcrs_minecraft_client_world::player::Player;
@@ -149,7 +149,7 @@ fn read_wheel(
     mut sums: Local<WheelSums>,
     screen: Option<Res<Screen>>,
     window: Single<(&CursorOptions, &Window), With<PrimaryWindow>>,
-    mut player: Query<(&mut Abilities, &mut Selected, Option<&LocalGameMode>), With<Player>>,
+    mut player: Query<(&mut Abilities, &mut Selected, Option<&PlayerGameMode>), With<Player>>,
 ) {
     let (cursor, window) = *window;
     let screen_open = cursor.grab_mode == CursorGrabMode::None || !screen_is_none(screen);
@@ -161,7 +161,7 @@ fn read_wheel(
         wheel.clear();
         return;
     }
-    let spectator = game_mode.is_some_and(|mode| mode.current == GameMode::Spectator);
+    let spectator = game_mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
     let mut speed = abilities.flying_speed;
     let mut slot = selected.0;
     for event in wheel.read() {
@@ -188,7 +188,7 @@ fn read_wheel(
 
 fn read_hotbar_keys(
     keys: Res<ButtonInput<KeyCode>>,
-    mut player: Query<(&mut Selected, Option<&Abilities>, Option<&LocalGameMode>), With<Player>>,
+    mut player: Query<(&mut Selected, Option<&Abilities>, Option<&PlayerGameMode>), With<Player>>,
 ) {
     let Some(slot) = (0..=LAST_HOTBAR_SLOT)
         .zip(item_key_codes::HOTBAR)
@@ -199,7 +199,7 @@ fn read_hotbar_keys(
     let Ok((mut selected, abilities, game_mode)) = player.single_mut() else {
         return;
     };
-    if game_mode.is_some_and(|mode| mode.current == GameMode::Spectator) {
+    if game_mode.is_some_and(|mode| mode.0 == GameMode::Spectator) {
         return;
     }
     if abilities.is_some_and(|abilities| abilities.instant_build)
@@ -260,20 +260,16 @@ pub(crate) fn apply_mouse_look(
     motion: Res<AccumulatedMouseMotion>,
     options: Res<ClientOptions>,
     window: Single<&CursorOptions, With<PrimaryWindow>>,
-    player: Single<(&mut PhysicsTransform, &mut OldTransform), With<Player>>,
+    transform: Single<&mut PhysicsTransform, With<Player>>,
 ) {
     if window.grab_mode == CursorGrabMode::None || motion.delta == Vec2::ZERO {
         return;
     }
-    let (transform, previous) = player.into_inner();
     let turn = motion.delta * degrees_per_motion_unit(options.sensitivity);
     let rotation = transform.rotation.turn(turn.x, turn.y);
     transform
+        .into_inner()
         .map_unchanged(|transform| &mut transform.rotation)
-        .set_if_neq(rotation);
-    let rotation = previous.rotation.turn(turn.x, turn.y);
-    previous
-        .map_unchanged(|previous| &mut previous.0.rotation)
         .set_if_neq(rotation);
 }
 

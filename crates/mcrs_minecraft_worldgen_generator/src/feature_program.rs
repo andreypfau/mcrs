@@ -539,12 +539,12 @@ impl Run<'_> {
     }
 }
 
-struct TreeRun<'r, 'a, 'c> {
+struct TreeRun<'r, 'a, 'c, C> {
     run: &'r mut Run<'a>,
-    carries: &'c dyn Fn(u16) -> bool,
+    carries: &'c C,
 }
 
-impl<W: WorldGenVolume> TreeSink<W> for TreeRun<'_, '_, '_> {
+impl<W: WorldGenVolume, C: Fn(u16) -> bool> TreeSink<W> for TreeRun<'_, '_, '_, C> {
     fn moss_patch(&mut self, region: &mut W, rng: &mut WorldgenRandom, at: BlockPos) {
         if let Some(generator) = self.run.moss_patch {
             generator.place(self.run, region, rng, at, self.carries);
@@ -566,7 +566,7 @@ impl Nested {
         region: &mut W,
         rng: &mut WorldgenRandom,
         at: BlockPos,
-        carries: &dyn Fn(u16) -> bool,
+        carries: &impl Fn(u16) -> bool,
     ) -> bool {
         let generator = self.generator.as_ref();
         let mut scratch = run.scratch.placers.pop().unwrap_or_default();
@@ -577,7 +577,7 @@ impl Nested {
             at,
             rng,
             carries,
-            &mut |region, rng, pos| {
+            |region, rng, pos| {
                 generator.is_some_and(|generator| generator.place(run, region, rng, pos, carries))
             },
         );
@@ -621,7 +621,7 @@ impl Generator {
         region: &mut W,
         rng: &mut WorldgenRandom,
         at: BlockPos,
-        carries: &dyn Fn(u16) -> bool,
+        carries: &impl Fn(u16) -> bool,
     ) -> bool {
         match self {
             Generator::Ore(ore) => place_modern_ore(ore, region, rng, at, &mut run.scratch.ore),
@@ -657,7 +657,7 @@ impl Generator {
                 place_fallen_tree(tree, region, rng, &mut TreeRun { run, carries }, at)
             }
             Generator::RootSystem { config, feature } => {
-                place_root_system(config, region, rng, at, &mut |region, rng, pos| {
+                place_root_system(config, region, rng, at, |region, rng, pos| {
                     feature.place(run, region, rng, pos, carries)
                 })
             }
@@ -677,7 +677,7 @@ impl Generator {
                 .all(|nested| nested.place(run, region, rng, at, carries)),
             Generator::ScatteredOre(ore) => place_scattered_ore(ore, region, rng, at),
             Generator::VegetationPatch { config, feature } => {
-                place_vegetation_patch(config, region, rng, at, &mut |region, rng, pos| {
+                place_vegetation_patch(config, region, rng, at, |region, rng, pos| {
                     feature.place(run, region, rng, pos, carries)
                 })
             }
@@ -706,17 +706,17 @@ impl Generator {
             Generator::Spike(config) => place_spike(config, region, rng, at),
             Generator::Speleothem(config) => place_speleothem(config, region, rng, at),
             Generator::CoralTree(feature) => {
-                place_coral_tree(region, rng, at, &mut |region, rng, pos| {
+                place_coral_tree(region, rng, at, |region, rng, pos| {
                     feature.place(run, region, rng, pos, carries)
                 })
             }
             Generator::CoralClaw(feature) => {
-                place_coral_claw(region, rng, at, &mut |region, rng, pos| {
+                place_coral_claw(region, rng, at, |region, rng, pos| {
                     feature.place(run, region, rng, pos, carries)
                 })
             }
             Generator::SingleBlockPillar { config, cap } => {
-                place_single_block_pillar(config, region, rng, at, &mut |region, rng, pos| {
+                place_single_block_pillar(config, region, rng, at, |region, rng, pos| {
                     cap.as_ref()
                         .is_some_and(|cap| cap.place(run, region, rng, pos, carries))
                 })

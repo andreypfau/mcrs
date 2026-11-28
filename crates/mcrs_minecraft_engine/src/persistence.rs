@@ -480,6 +480,7 @@ pub(crate) fn advance_autosave_cadence(mut cadence: ResMut<AutosaveCadence>) {
     cadence.advance();
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 pub(crate) fn autosave_due(cadence: Res<AutosaveCadence>) -> bool {
     cadence.is_due()
 }
@@ -915,6 +916,7 @@ pub fn write_player(world: &mut World, player: Entity, cause: CaptureCause) {
         reason = "runs only on a save request, and each player file moves into the save queue"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(3))]
 pub fn autosave_players(world: &mut World) {
     let players: Vec<Entity> = world
         .query_filtered::<Entity, With<Player>>()

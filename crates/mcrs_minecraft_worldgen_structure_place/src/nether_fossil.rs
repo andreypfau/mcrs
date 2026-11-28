@@ -25,7 +25,7 @@ pub struct NetherFossilBlocks {
 
 impl NetherFossilBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
         Ok(NetherFossilBlocks {

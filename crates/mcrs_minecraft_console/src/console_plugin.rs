@@ -50,17 +50,11 @@ pub(crate) struct Console {
     pub(crate) log: AnswerLog,
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn console_has_lines(console: Res<Console>) -> bool {
     !console.pending.is_empty() || !console.receive.is_empty()
 }
 
-#[cfg_attr(
-    mcrs_lint,
-    expect(
-        mcrs::alloc_in_tick,
-        reason = "each console line is boxed only when an operator types it, and the box moves to the overworld input channel"
-    )
-)]
 fn send_console_lines(
     mut console: ResMut<Console>,
     running: Option<Res<RunningDimensions>>,

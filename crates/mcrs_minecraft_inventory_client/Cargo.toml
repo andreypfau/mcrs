@@ -30,11 +30,13 @@ mcrs_minecraft_player_holders.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_inventory_file.workspace = true
 mcrs_minecraft_menu_key.workspace = true

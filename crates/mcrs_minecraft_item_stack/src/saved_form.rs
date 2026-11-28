@@ -532,7 +532,10 @@ impl<L: NameLookup> Walk<'_, L> {
             SoundEventRef::Inline(inline) => {
                 let range = inline.range.map(|range| sink.leaf(Leaf::Float(range)));
                 Ok(sink.fields([
-                    Field::new("sound_id", sink.leaf(Leaf::Name(inline.sound_id()))),
+                    Field::new(
+                        "sound_id",
+                        sink.leaf(Leaf::Name(inline.sound_id.as_location())),
+                    ),
                     Field::optional("range", range),
                 ]))
             }
@@ -585,7 +588,10 @@ impl<L: NameLookup> Walk<'_, L> {
             RegistryValue::Inline(material) => {
                 let description = self.text(sink, &material.description)?;
                 sink.fields([
-                    Field::new("palette_id", sink.leaf(Leaf::Name(material.palette_id()))),
+                    Field::new(
+                        "palette_id",
+                        sink.leaf(Leaf::Name(material.palette_id.as_location())),
+                    ),
                     Field::new("description", description),
                 ])
             }
@@ -595,7 +601,10 @@ impl<L: NameLookup> Walk<'_, L> {
             RegistryValue::Inline(pattern) => {
                 let description = self.text(sink, &pattern.description)?;
                 sink.fields([
-                    Field::new("asset_id", sink.leaf(Leaf::Name(pattern.asset_id()))),
+                    Field::new(
+                        "asset_id",
+                        sink.leaf(Leaf::Name(pattern.asset_id.as_location())),
+                    ),
                     Field::new("description", description),
                     Field::new("decal", sink.leaf(Leaf::Boolean(pattern.decal))),
                 ])
@@ -811,7 +820,10 @@ impl<L: NameLookup> Walk<'_, L> {
         let pattern = match &layer.pattern {
             RegistryValue::Reference(id) => self.entry(sink, NameTable::BannerPattern, id.0)?,
             RegistryValue::Inline(pattern) => sink.fields([
-                Field::new("asset_id", sink.leaf(Leaf::Name(pattern.asset_id()))),
+                Field::new(
+                    "asset_id",
+                    sink.leaf(Leaf::Name(pattern.asset_id.as_location())),
+                ),
                 Field::new(
                     "translation_key",
                     sink.leaf(Leaf::String(&pattern.translation_key)),

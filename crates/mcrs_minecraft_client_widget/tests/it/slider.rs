@@ -17,7 +17,7 @@ fn slider_screen(slider: Slider) -> Widgets {
 }
 
 fn slider(screen: &Widgets) -> Option<Slider> {
-    match screen.get(WidgetId(2)).map(|widget| &widget.kind) {
+    match screen.get(WidgetId(2)).map(|widget| widget.kind()) {
         Some(WidgetKind::Slider(slider)) => Some(*slider),
         _ => None,
     }

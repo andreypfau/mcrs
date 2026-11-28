@@ -1,3 +1,5 @@
+use std::io;
+
 use bevy_ecs::change_detection::Mut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
@@ -19,7 +21,7 @@ use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
-use mcrs_minecraft_engine_registries::write_packet_hashed;
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_game_mode::Abilities;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_mode::PlayerGameMode;
@@ -28,12 +30,18 @@ use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_player::PlayerMode;
 use mcrs_minecraft_inventory_transaction::Op;
 use mcrs_minecraft_item_stack::HashScratch;
+use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::NameLookup;
+use mcrs_minecraft_item_stack::NameTable;
+use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_player_holders::PlayerHolders;
 use mcrs_minecraft_protocol::Bounded;
+use mcrs_minecraft_protocol::Encode;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol_game::item::HashedStack;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
+use mcrs_minecraft_resource::rl;
 
 use crate::RemoteMenu;
 use crate::click_purpose::ClickPurpose;
@@ -48,7 +56,6 @@ pub(crate) struct ClickScratch {
     touched: Vec<SlotRef>,
     before: Vec<EntryBefore>,
     hash: HashScratch,
-    bytes: Vec<u8>,
     pub(crate) creative: CreativeScratch,
 }
 
@@ -203,12 +210,7 @@ fn claim_click(
     names: StackNames,
 ) -> Option<ClickClaims> {
     let names = names.names()?;
-    let ClickScratch {
-        before,
-        hash,
-        bytes,
-        ..
-    } = scratch;
+    let ClickScratch { before, hash, .. } = scratch;
     let occupant = |slot: SlotRef| {
         (holders.get(slot.holder).ok()).and_then(|slots| slots.get(usize::from(slot.index)))
     };
@@ -224,10 +226,7 @@ fn claim_click(
             continue;
         }
         let value = after.and_then(|stack| stacks.to_value(stack));
-        changed.push((
-            before.entry,
-            write_packet_hashed(value.as_ref(), &names, hash, bytes),
-        ));
+        changed.push((before.entry, claim(value.as_ref(), &names, hash)));
     }
     let cursor = players.get(viewer).ok().and_then(|player_holders| {
         occupant(SlotRef {
@@ -238,6 +237,55 @@ fn claim_click(
     let cursor = cursor.and_then(|stack| stacks.to_value(stack));
     Some(ClickClaims {
         changed,
-        carried: write_packet_hashed(cursor.as_ref(), &names, hash, bytes),
+        carried: claim(cursor.as_ref(), &names, hash),
     })
+}
+
+fn claim(
+    stack: Option<&ItemStack>,
+    names: &RegistryNames<'_>,
+    scratch: &mut HashScratch,
+) -> Option<HashedStack> {
+    if let Ok(hashed) = hash_stack(stack, names, scratch)
+        && hashed.encode(io::sink()).is_ok()
+    {
+        return hashed;
+    }
+    Some(HashedStack {
+        kind: Kind(names.id(NameTable::Item, rl!("minecraft:air"))?),
+        count: 1,
+        values: Vec::new(),
+        removals: Vec::new(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use mcrs_minecraft_engine_registries::test_item_table;
+    use mcrs_minecraft_game_registries::registry_load::test_registries;
+    use mcrs_minecraft_item_stack::Count;
+
+    use super::*;
+
+    #[test]
+    fn an_unhashable_stack_is_claimed_as_one_air() {
+        let items = test_item_table();
+        let names = RegistryNames::new(test_registries(), &items);
+        let count = Count::new(5).expect("5 is a count");
+        let stack = ItemStack::new(Kind(u16::MAX), count);
+        let air = HashedStack {
+            kind: Kind(
+                names
+                    .id(NameTable::Item, rl!("minecraft:air"))
+                    .expect("the air is named"),
+            ),
+            count: 1,
+            values: Vec::new(),
+            removals: Vec::new(),
+        };
+        assert_eq!(
+            claim(Some(&stack), &names, &mut HashScratch::default()),
+            Some(air)
+        );
+    }
 }

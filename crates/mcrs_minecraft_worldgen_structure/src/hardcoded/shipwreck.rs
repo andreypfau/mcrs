@@ -10,7 +10,7 @@ use super::{corner_heights, lowest_y, on_top_of_chunk_centre};
 use crate::frozen::TemplateId;
 use crate::orient::random_rotation;
 use crate::piece::{Piece, ShipwreckPiece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 pub const BEACHED: &[ResourceLocation<'static>] = &[
     rl!("minecraft:shipwreck/with_mast"),
@@ -63,7 +63,7 @@ pub fn heightmap(is_beached: bool) -> HeightmapName {
 
 pub fn site(
     is_beached: bool,
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     _rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
     on_top_of_chunk_centre(ctx, heightmap(is_beached))
@@ -72,7 +72,7 @@ pub fn site(
 pub fn layout(
     is_beached: bool,
     templates: &[TemplateId],
-    ctx: &mut Context<'_>,
+    ctx: &mut Context<'_, impl SiteWorld>,
     mut site: Site,
 ) -> Vec<Piece> {
     let rotation = random_rotation(&mut site.rng);

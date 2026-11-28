@@ -80,6 +80,13 @@ pub(crate) fn stone_floor(blocks: &TestBlocks) -> ColumnStore {
     columns
 }
 
+pub(crate) fn take_column(app: &mut App, pos: ColumnPos) -> Column {
+    let mut columns = app.world_mut().resource_mut::<ColumnStore>();
+    let column = columns.get(pos).unwrap().as_ref().clone();
+    columns.remove(pos);
+    column
+}
+
 pub(crate) fn receive<P: Packet + Encode>(app: &mut App, connection: Entity, packet: P) {
     let mut data = Vec::new();
     packet.encode(&mut data).unwrap();

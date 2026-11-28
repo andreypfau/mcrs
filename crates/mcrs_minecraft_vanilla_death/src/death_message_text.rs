@@ -1,12 +1,10 @@
-use alloc::borrow::Cow;
 use alloc::format;
 use alloc::vec;
 use alloc::vec::Vec;
 
 use mcrs_minecraft_entity::damage_type::DamageType;
 use mcrs_minecraft_entity::damage_type::DeathMessageType;
-use mcrs_minecraft_text::ClickEvent;
-use mcrs_minecraft_text::HoverEvent;
+use mcrs_minecraft_text::IntoText;
 use mcrs_minecraft_text::Text;
 
 const BUG_REPORT: &str = "MCPE-28723";
@@ -33,15 +31,9 @@ pub fn death_message_text(
 }
 
 fn bug_report_link(base: &str) -> Text {
-    let mut link = Text::text("[");
-    link.extra
-        .push(Text::translate(format!("{base}.link"), Vec::new()));
-    link.extra.push(Text::text("]"));
-    link.style.click_event = Some(ClickEvent::OpenUrl {
-        url: Cow::Borrowed(BUG_REPORT_URL),
-    });
-    link.style.hover_event = Some(HoverEvent::ShowText {
-        value: Text::text(BUG_REPORT),
-    });
-    link
+    Text::text("[")
+        .add_child(Text::translate(format!("{base}.link"), Vec::new()))
+        .add_child(Text::text("]"))
+        .on_click_open_url(BUG_REPORT_URL)
+        .on_hover_show_text(Text::text(BUG_REPORT))
 }

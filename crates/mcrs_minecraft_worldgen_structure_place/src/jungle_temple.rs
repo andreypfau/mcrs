@@ -43,7 +43,7 @@ pub struct JungleTempleBlocks {
 
 impl JungleTempleBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let of = |block: Block, properties: &[(&str, &str)]| {

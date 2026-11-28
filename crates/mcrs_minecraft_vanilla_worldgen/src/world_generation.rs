@@ -99,6 +99,7 @@ pub(crate) fn generates_worlds(generation: Res<WorldGeneration>) -> bool {
         reason = "the asks allocate only on ticks that ask for columns, and the view list only when the views change, as it moves into the generation link"
     )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
 pub(crate) fn ask_world_columns(
     mut cells: ResMut<DimCells>,
     mut generation: ResMut<WorldGeneration>,

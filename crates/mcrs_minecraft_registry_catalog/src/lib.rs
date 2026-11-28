@@ -44,7 +44,7 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_keys::CREATIVE_MODE_TAB, mcrs_minecraft_keys::creative_mode_tab::ENTRIES),
     (mcrs_minecraft_keys::TRIGGER_TYPE, mcrs_minecraft_keys::trigger_type::ENTRIES),
     (mcrs_minecraft_keys::NUMBER_FORMAT_TYPE, mcrs_minecraft_keys::number_format_type::ENTRIES),
-    (mcrs_minecraft_item::registry_keys::DATA_COMPONENT_TYPE.location(), mcrs_minecraft_item::data_component_type_keys::DataComponentType::ENTRIES),
+    (mcrs_minecraft_item_stack::registry_keys::DATA_COMPONENT_TYPE.location(), mcrs_minecraft_item_stack::data_component_type_keys::DataComponentType::ENTRIES),
     (mcrs_minecraft_game_rule::registry_keys::GAME_RULE.location(), mcrs_minecraft_game_rule::game_rule_keys::GameRule::ENTRIES),
     (mcrs_minecraft_predicate::registry_keys::ENTITY_SUB_PREDICATE_TYPE.location(), mcrs_minecraft_predicate::entity_sub_predicate_type_keys::EntitySubPredicateType::ENTRIES),
     (mcrs_minecraft_item::registry_keys::DATA_COMPONENT_PREDICATE_TYPE.location(), mcrs_minecraft_item::data_component_predicate_type_keys::DataComponentPredicateType::ENTRIES),

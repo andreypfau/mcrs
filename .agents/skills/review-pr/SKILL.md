@@ -18,7 +18,8 @@ A new agent that did not write the code. Give it the diff range, not your conclu
 ```text
 Review `git diff origin/main...HEAD` in <worktree>. Load the skills rust-style and
 efficient-testing; load bevy-ecs when the diff adds or changes a component, a resource, a
-message or a system. Read CLAUDE.md. Apply every lens of the section "What the reviewer looks
+message or a system. Read CLAUDE.md. Read issue <N> and the specification rules <ids> that
+the change implements, and work out the expected result before you read the diff. Apply every lens of the section "What the reviewer looks
 for" of the skill review-pr, the simplify and verbosity lenses included. You are the only
 reviewer. Do not edit files.
 Do not run the workspace test suite. Report findings only, most severe first: file, line, the
@@ -51,4 +52,4 @@ summary of the change.
 - Apply each valid finding. Fold the fix into the commit it belongs to
   (`git commit --fixup=<commit>`, then `git rebase --autosquash <base>`).
 - Give each rejected finding one line with the reason, in your report to the owner.
-- Run the scoped tests of the crates the fixes touch. Then continue with the skill `ship`.
+- Run the scoped tests of the crates the fixes touch.
