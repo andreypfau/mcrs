@@ -530,9 +530,9 @@ fn definition_text(out: &mut String, registry: &str, key: &str, value: Option<&s
             out.push('\n');
         }
         out.push_str(&format!(
-            "pub const {key}: RegistryKey<{value}> = RegistryKey::new(rl!(\"{registry}\"));\n\
+            "pub const {key}: RegistryKey<{value}> = <{value} as Registered>::REGISTRY;\n\
              impl Registered for {value} {{\n    \
-                 const REGISTRY: RegistryKey<Self> = {key};\n\
+                 const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!(\"{registry}\"));\n\
              }}\n"
         ));
     } else {
@@ -1425,9 +1425,9 @@ mod tests {
             files["crates/mcrs_minecraft_biome/src/registry_keys.rs"],
             "use mcrs_minecraft_resource::{Registered, RegistryKey, rl};\n\
              \n\
-             pub const BIOME: RegistryKey<crate::Biome> = RegistryKey::new(rl!(\"minecraft:worldgen/biome\"));\n\
+             pub const BIOME: RegistryKey<crate::Biome> = <crate::Biome as Registered>::REGISTRY;\n\
              impl Registered for crate::Biome {\n\
-             \x20   const REGISTRY: RegistryKey<Self> = BIOME;\n\
+             \x20   const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!(\"minecraft:worldgen/biome\"));\n\
              }\n"
         );
         assert!(

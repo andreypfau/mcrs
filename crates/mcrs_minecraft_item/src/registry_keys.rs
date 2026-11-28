@@ -1,84 +1,87 @@
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
 pub const CONSUME_EFFECT_TYPE: RegistryKey<crate::consume_effect_type_keys::ConsumeEffectType> =
-    RegistryKey::new(rl!("minecraft:consume_effect_type"));
+    <crate::consume_effect_type_keys::ConsumeEffectType as Registered>::REGISTRY;
 impl Registered for crate::consume_effect_type_keys::ConsumeEffectType {
-    const REGISTRY: RegistryKey<Self> = CONSUME_EFFECT_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:consume_effect_type"));
 }
 
 pub const DATA_COMPONENT_PREDICATE_TYPE: RegistryKey<
     crate::data_component_predicate_type_keys::DataComponentPredicateType,
-> = RegistryKey::new(rl!("minecraft:data_component_predicate_type"));
+> = <crate::data_component_predicate_type_keys::DataComponentPredicateType as Registered>::REGISTRY;
 impl Registered for crate::data_component_predicate_type_keys::DataComponentPredicateType {
-    const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_PREDICATE_TYPE;
+    const REGISTRY: RegistryKey<Self> =
+        RegistryKey::new(rl!("minecraft:data_component_predicate_type"));
 }
 
-pub const DIALOG: RegistryKey<crate::dialog::Dialog> = RegistryKey::new(rl!("minecraft:dialog"));
+pub const DIALOG: RegistryKey<crate::dialog::Dialog> =
+    <crate::dialog::Dialog as Registered>::REGISTRY;
 impl Registered for crate::dialog::Dialog {
-    const REGISTRY: RegistryKey<Self> = DIALOG;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:dialog"));
 }
 
 pub const DIALOG_ACTION_TYPE: RegistryKey<crate::dialog_action_type_keys::DialogActionType> =
-    RegistryKey::new(rl!("minecraft:dialog_action_type"));
+    <crate::dialog_action_type_keys::DialogActionType as Registered>::REGISTRY;
 impl Registered for crate::dialog_action_type_keys::DialogActionType {
-    const REGISTRY: RegistryKey<Self> = DIALOG_ACTION_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:dialog_action_type"));
 }
 
 pub const DIALOG_BODY_TYPE: RegistryKey<crate::dialog_body_type_keys::DialogBodyType> =
-    RegistryKey::new(rl!("minecraft:dialog_body_type"));
+    <crate::dialog_body_type_keys::DialogBodyType as Registered>::REGISTRY;
 impl Registered for crate::dialog_body_type_keys::DialogBodyType {
-    const REGISTRY: RegistryKey<Self> = DIALOG_BODY_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:dialog_body_type"));
 }
 
 pub const DIALOG_TYPE: RegistryKey<crate::dialog_type_keys::DialogType> =
-    RegistryKey::new(rl!("minecraft:dialog_type"));
+    <crate::dialog_type_keys::DialogType as Registered>::REGISTRY;
 impl Registered for crate::dialog_type_keys::DialogType {
-    const REGISTRY: RegistryKey<Self> = DIALOG_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:dialog_type"));
 }
 
 pub const ENCHANTMENT: RegistryKey<crate::enchantment::Enchantment> =
-    RegistryKey::new(rl!("minecraft:enchantment"));
+    <crate::enchantment::Enchantment as Registered>::REGISTRY;
 impl Registered for crate::enchantment::Enchantment {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:enchantment"));
 }
 
 pub const INPUT_CONTROL_TYPE: RegistryKey<crate::input_control_type_keys::InputControlType> =
-    RegistryKey::new(rl!("minecraft:input_control_type"));
+    <crate::input_control_type_keys::InputControlType as Registered>::REGISTRY;
 impl Registered for crate::input_control_type_keys::InputControlType {
-    const REGISTRY: RegistryKey<Self> = INPUT_CONTROL_TYPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:input_control_type"));
 }
 
 pub const INSTRUMENT: RegistryKey<crate::InstrumentValue> =
-    RegistryKey::new(rl!("minecraft:instrument"));
+    <crate::InstrumentValue as Registered>::REGISTRY;
 impl Registered for crate::InstrumentValue {
-    const REGISTRY: RegistryKey<Self> = INSTRUMENT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:instrument"));
 }
 
 pub const JUKEBOX_SONG: RegistryKey<crate::JukeboxSong> =
-    RegistryKey::new(rl!("minecraft:jukebox_song"));
+    <crate::JukeboxSong as Registered>::REGISTRY;
 impl Registered for crate::JukeboxSong {
-    const REGISTRY: RegistryKey<Self> = JUKEBOX_SONG;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:jukebox_song"));
 }
 
 pub const PAINTING_VARIANT: RegistryKey<crate::PaintingVariantValue> =
-    RegistryKey::new(rl!("minecraft:painting_variant"));
+    <crate::PaintingVariantValue as Registered>::REGISTRY;
 impl Registered for crate::PaintingVariantValue {
-    const REGISTRY: RegistryKey<Self> = PAINTING_VARIANT;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:painting_variant"));
 }
 
-pub const RECIPE: RegistryKey<crate::recipe::Recipe> = RegistryKey::new(rl!("minecraft:recipe"));
+pub const RECIPE: RegistryKey<crate::recipe::Recipe> =
+    <crate::recipe::Recipe as Registered>::REGISTRY;
 impl Registered for crate::recipe::Recipe {
-    const REGISTRY: RegistryKey<Self> = RECIPE;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:recipe"));
 }
 
 pub const TRIM_MATERIAL: RegistryKey<crate::TrimMaterial> =
-    RegistryKey::new(rl!("minecraft:trim_material"));
+    <crate::TrimMaterial as Registered>::REGISTRY;
 impl Registered for crate::TrimMaterial {
-    const REGISTRY: RegistryKey<Self> = TRIM_MATERIAL;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:trim_material"));
 }
 
 pub const TRIM_PATTERN: RegistryKey<crate::TrimPattern> =
-    RegistryKey::new(rl!("minecraft:trim_pattern"));
+    <crate::TrimPattern as Registered>::REGISTRY;
 impl Registered for crate::TrimPattern {
-    const REGISTRY: RegistryKey<Self> = TRIM_PATTERN;
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:trim_pattern"));
 }
