@@ -3,6 +3,8 @@ use crate::MotionEffects;
 use crate::MotionRow;
 use crate::Orientation;
 
+pub const CORPSE_REMOVAL_TICKS: u8 = 20;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Living {
     pub attributes: MotionAttributes,

@@ -499,7 +499,7 @@ with no such property removes the water. A double slab has `waterlogged=false`, 
 slab that holds water.
 
 **PLC-STA-006**. A connected block takes its connections in the placement, and the neighbour updates in
-the same tick. A fence, a pane and redstone wire are the tested cases. The placer and the observer get
+the same tick. `block-connections.md` states which neighbours give a connection. A fence, a pane and redstone wire are the tested cases. The placer and the observer get
 both changes in one `section_blocks_update`. Stairs take their shape from a neighbour, and the neighbour
 stays.
 
