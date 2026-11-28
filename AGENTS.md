@@ -127,9 +127,10 @@ implement one.
 
 Target the **26.4.x** branch, one snapshot at a time. The single source of truth
 is `assets/minecraft/version.json`, read through `mcrs_minecraft_core::VERSION`;
-a test fails when a Rust, TOML or Gradle file states one of its values. There is
-no backward compatibility and no datafixer. A `DataVersion` mismatch is a loud
-error. The data pack and the resource pack come from the pinned client jar, not
+a test fails when a Rust, TOML or Gradle file states one of its values. Saves
+have no backward compatibility and no datafixer: a `DataVersion` mismatch is a
+loud error. An older client is a design goal of the protocol; see
+`docs/rfd/0004-versions-and-protocol-compatibility.md`. The data pack and the resource pack come from the pinned client jar, not
 from the repository; generated reports and definitions are written by
 `cargo run -p mcrs_minecraft_update`, never by hand. See
 `tools/mcrs_minecraft_update/README.md`.
