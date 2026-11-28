@@ -7,6 +7,7 @@ use crate::delta_base::Pose;
 use crate::mob_signal::MobSignal;
 use crate::player_entries::PlayerEntries;
 use crate::player_spawn::PlayerSpawn;
+use crate::swing_recipients::SwingRecipients;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlayerData {
@@ -21,6 +22,7 @@ pub enum PlayerData {
         hand: Hand,
         animation: SwingAnimationKind,
         duration: i32,
+        recipients: SwingRecipients,
     },
     Signal(MobSignal),
     Hide,

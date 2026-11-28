@@ -225,9 +225,7 @@ fn modifiers() -> AttributeModifiers {
 }
 
 fn tooltip() -> TooltipDisplay {
-    let mut display = TooltipDisplay::hiding([ComponentType(3), ComponentType(1)]);
-    display.hide_tooltip = true;
-    display
+    TooltipDisplay::new(true, [ComponentType(3), ComponentType(1)])
 }
 
 fn tool() -> Tool {

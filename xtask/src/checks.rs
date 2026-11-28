@@ -52,7 +52,7 @@ const NO_STD_PACKAGES: [&str; 21] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 144] = [
+const NO_BEVY_PACKAGES: [&str; 145] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -151,6 +151,7 @@ const NO_BEVY_PACKAGES: [&str; 144] = [
     "mcrs_minecraft_painting_variant",
     "mcrs_minecraft_numeric",
     "mcrs_minecraft_particle",
+    "mcrs_minecraft_pathfind",
     "mcrs_minecraft_physics",
     "mcrs_minecraft_pose",
     "mcrs_minecraft_potion",

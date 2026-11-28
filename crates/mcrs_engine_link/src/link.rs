@@ -150,7 +150,7 @@ mod tests {
 
     use bevy_tasks::block_on;
 
-    use crate::step::Step;
+    use crate::stage::Step;
     use crate::task_end::TaskOutcome;
 
     #[derive(Default)]

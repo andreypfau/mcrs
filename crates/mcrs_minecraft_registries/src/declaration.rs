@@ -1,4 +1,5 @@
 use std::any::{Any, type_name};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use mcrs_minecraft_datapack::{PackFiles, read_json};
@@ -192,6 +193,11 @@ pub fn insert_entry<V: DataValue>(
     files.insert_value(pack, entry_path(registry.path(), name), Box::new(value));
 }
 
+pub struct DeclarationSources {
+    pub typed: Vec<Declaration>,
+    pub extra: Vec<Declaration>,
+}
+
 pub struct Declaration {
     pub(crate) key: ResourceLocationBuf,
     pub(crate) stage: Stage,
@@ -239,6 +245,35 @@ impl Declaration {
             self.stage = stage;
         }
         self
+    }
+}
+
+impl DeclarationSources {
+    pub fn assemble(
+        self,
+        fixed: Vec<Declaration>,
+        mut stages: BTreeMap<ResourceLocationBuf, Stage>,
+    ) -> Vec<Declaration> {
+        let DeclarationSources { typed, extra } = self;
+        let mut declarations = fixed;
+        let replaced: BTreeSet<&ResourceLocationBuf> =
+            extra.iter().map(|declaration| &declaration.key).collect();
+        let kept: Vec<Declaration> = typed
+            .into_iter()
+            .filter(|declaration| !replaced.contains(&declaration.key))
+            .collect();
+        for declaration in kept.into_iter().chain(extra) {
+            declarations.push(match stages.remove(&declaration.key) {
+                Some(stage) => declaration.in_stage(stage),
+                None => declaration,
+            });
+        }
+        declarations.extend(
+            stages
+                .into_iter()
+                .map(|(key, stage)| Declaration::names_only(key, stage)),
+        );
+        declarations
     }
 }
 

@@ -9,10 +9,10 @@ use crate::Gift;
 use crate::Given;
 use crate::InSlot;
 use crate::Slots;
+use crate::in_slot::touch;
 use crate::merge_into::Offer;
 use crate::merge_into::merge_into;
 use crate::placement::Placement;
-use crate::slot_changed::touch;
 use crate::spawn_stack::spawn_stack;
 
 #[derive(Clone, Copy, Debug, PartialEq)]

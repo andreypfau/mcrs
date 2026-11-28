@@ -46,4 +46,6 @@ pub enum DimensionChangeError {
     NoPlayer,
     #[error("the player lacks the state its arrival sends")]
     NoArrivalState,
+    #[error("the world does not carry swing messages")]
+    NoSwingMessages,
 }

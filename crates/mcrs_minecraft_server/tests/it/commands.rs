@@ -159,11 +159,11 @@ pub(crate) fn load_stone_column(server: &mut PlayServer) {
 pub(crate) fn load_stone_column_at(server: &mut PlayServer, column_x: i32, column_z: i32) {
     use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
     use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
-    use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
     use mcrs_minecraft_engine_world::world::storage::column::{
         ColumnIndex, ColumnPos, ColumnSections, ColumnSlot,
     };
     use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+    use mcrs_minecraft_engine_world::world::storage::section_stage::SectionStage;
     use mcrs_minecraft_heightmap::{
         MotionHeightmap, NoLeavesHeightmap, SolidHeightmap, SurfaceHeightmap,
     };

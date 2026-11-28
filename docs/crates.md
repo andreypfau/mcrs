@@ -268,6 +268,7 @@ Use the crate that owns the item. Do not write a second copy.
 - `mcrs_minecraft_pack_file`: Files of an entity pack: lenient JSON, the client entity file, load diagnostics and the compile of Molang fields
 - `mcrs_minecraft_painting_variant`: The value of the painting variant registry
 - `mcrs_minecraft_particle`: Particle types and their options as data packs and attributes write them
+- `mcrs_minecraft_pathfind`: Path type queries and ground node evaluation
 - `mcrs_minecraft_physics`: The entity physics kernel: boxes, block shapes, the collision algorithm, step-up and the move procedure
 - `mcrs_minecraft_player_holders`: The holders of a player, their vanilla slot policy and the restore of their stacks
 - `mcrs_minecraft_pose`: The pose of an entity with its wire codec, and the dimensions of a player in each pose
