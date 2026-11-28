@@ -7,9 +7,9 @@ use mcrs_minecraft_environment::{AdvanceTime, WorldClock, WorldClocks};
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_save::{
-    LevelDat, RespawnData, SaveError, WeatherData, WorldClockStates, read_game_rules,
-    read_level_dat, read_weather, read_world_clocks, write_birth_clock, write_game_rules,
-    write_level_dat, write_weather, write_world_clocks,
+    LevelDat, SaveError, WeatherData, WorldClockStates, read_game_rules, read_level_dat,
+    read_weather, read_world_clocks, write_birth_clock, write_game_rules, write_level_dat,
+    write_weather, write_world_clocks,
 };
 use std::path::PathBuf;
 use tracing::error;
@@ -18,6 +18,7 @@ use crate::background_writer::{BackgroundWriter, WriteJob};
 use crate::coordinator::birth_clock::advance_birth_clock;
 use crate::coordinator::clock::GameTime;
 use crate::persistence::{AutosavePlugin, advance_autosave_cadence, autosave_due};
+use crate::saved_spawn::SavedSpawn;
 use crate::server_edit::Weather;
 
 pub struct WorldStatePlugin;
@@ -42,9 +43,6 @@ impl Plugin for WorldStatePlugin {
         );
     }
 }
-
-#[derive(Resource, Debug, Clone)]
-pub struct SavedSpawn(pub RespawnData);
 
 fn load_world_state(
     mut commands: Commands,
