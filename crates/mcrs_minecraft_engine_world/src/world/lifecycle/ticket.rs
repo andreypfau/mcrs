@@ -69,7 +69,7 @@ fn release_sections(
     mut stages: SectionStages,
 ) {
     for (mut loading, section_index) in &mut dims {
-        loading.release_pending(|pos| {
+        loading.cool_and_release(|pos| {
             let Some(section) = section_index.get(pos) else {
                 return false;
             };

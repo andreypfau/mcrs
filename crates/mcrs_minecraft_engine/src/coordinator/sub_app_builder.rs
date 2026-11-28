@@ -41,7 +41,8 @@ use mcrs_minecraft_engine_world::world::dimension::{
 use mcrs_minecraft_engine_world::world::dimension_builders::{
     DimensionBuild, DimensionBuilders, DimensionHostBuilder,
 };
-use mcrs_minecraft_engine_world::world::dimension_plugin::{DimensionBundle, DimensionPlugin};
+use mcrs_minecraft_engine_world::world::dimension_bundle::DimensionBundle;
+use mcrs_minecraft_engine_world::world::dimension_plugin::DimensionPlugin;
 use mcrs_minecraft_engine_world::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
 use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_minecraft_engine_world::world::sub_app::{
