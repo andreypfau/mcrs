@@ -9,10 +9,10 @@ use crate::Dropped;
 use crate::consume::consume;
 use crate::give::Overflow;
 use crate::give::put_in;
+use crate::in_slot::touch;
 use crate::placement::Placement;
 use crate::placement::put_at;
 use crate::placement::swap;
-use crate::slot_changed::touch;
 use crate::store::Target;
 use crate::store::store;
 

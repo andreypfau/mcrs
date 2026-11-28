@@ -31,8 +31,10 @@ impl PlayerTable {
     }
 
     #[must_use]
-    pub fn rows(&self) -> &[PlayerRow] {
-        &self.rows
+    pub fn qualified_within(&self, position: DVec3, reach: f64) -> bool {
+        self.rows.iter().any(|player| {
+            player.is_qualified() && player.position.distance_squared(position) < reach * reach
+        })
     }
 
     #[must_use]

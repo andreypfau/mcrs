@@ -1,6 +1,7 @@
-use flume::{Receiver, Sender};
+use flume::{Receiver, RecvError, Selector, Sender};
 
 use crate::task_end::{TaskEnd, TaskId, TaskOutcome};
+use crate::waited::Waited;
 
 pub(crate) struct Tasks<T> {
     sender: Sender<TaskOutcome<T>>,
@@ -27,8 +28,23 @@ impl<T> Tasks<T> {
         TaskEnd::new(id, self.sender.clone())
     }
 
-    pub(crate) fn receiver(&self) -> &Receiver<TaskOutcome<T>> {
-        &self.receiver
+    pub(crate) fn select<I>(&mut self, inputs: &Receiver<I>) -> Waited<I, TaskOutcome<T>> {
+        enum Event<I, T> {
+            Input(Result<I, RecvError>),
+            Outcome(Result<TaskOutcome<T>, RecvError>),
+        }
+        let event = Selector::new()
+            .recv(inputs, Event::Input)
+            .recv(&self.receiver, Event::Outcome)
+            .wait();
+        match event {
+            Event::Input(Ok(input)) => Waited::Input(input),
+            Event::Outcome(Ok(outcome)) => {
+                self.taken();
+                Waited::Outcome(outcome)
+            }
+            Event::Input(Err(_)) | Event::Outcome(Err(_)) => Waited::Closed,
+        }
     }
 
     pub(crate) fn try_take(&mut self) -> Option<TaskOutcome<T>> {
@@ -46,7 +62,7 @@ impl<T> Tasks<T> {
         Some(outcome)
     }
 
-    pub(crate) fn taken(&mut self) {
+    fn taken(&mut self) {
         self.open = self.open.saturating_sub(1);
     }
 }

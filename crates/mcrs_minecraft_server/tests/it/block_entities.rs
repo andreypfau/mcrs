@@ -11,7 +11,6 @@ use mcrs_minecraft_engine::block_entity_packet::packet_entry;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::ColumnLoading;
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SectionSimulation;
-use mcrs_minecraft_engine_world::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::TicketPlugin;
 use mcrs_minecraft_engine_world::world::storage::block_entity::{
     BlockEntity, spawn_block_entities,
@@ -20,6 +19,9 @@ use mcrs_minecraft_engine_world::world::storage::block_entity::{
     InSection, SectionBlockEntities, reconcile_block_entities,
 };
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_engine_world::world::storage::section_stage::{
+    SectionStage, SectionStageChanged,
+};
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;

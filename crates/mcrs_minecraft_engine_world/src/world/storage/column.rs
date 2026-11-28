@@ -1,7 +1,7 @@
 use crate::tick::TickSet;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
-use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged};
-use crate::world::lifecycle::ticket::ChunkSpawnSet;
+use crate::world::storage::chunk_spawn_set::ChunkSpawnSet;
+use crate::world::storage::section_stage::{SectionStage, SectionStageChanged};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::{

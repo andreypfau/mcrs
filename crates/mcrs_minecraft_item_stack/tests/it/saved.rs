@@ -202,11 +202,13 @@ fn a_saved_stack_with_each_decoded_type_reads_to_its_value_and_writes_back() {
     base.slot = SlotGroup::Mainhand;
     let mut hidden = modifier("test:hidden", -2.5, ModifierOperation::AddMultipliedTotal);
     hidden.display = ModifierDisplay::Hidden;
-    let mut tooltip = TooltipDisplay::hiding([
-        ComponentType(DAMAGE_TYPE),
-        ComponentType(MAX_STACK_SIZE_TYPE),
-    ]);
-    tooltip.hide_tooltip = true;
+    let tooltip = TooltipDisplay::new(
+        true,
+        [
+            ComponentType(DAMAGE_TYPE),
+            ComponentType(MAX_STACK_SIZE_TYPE),
+        ],
+    );
     let mut tag_rule = ToolRule::new(BlockSet::Tag(BlockTagId(MINEABLE_PICKAXE)))
         .with_speed(8.0)
         .expect("8 is a valid speed");

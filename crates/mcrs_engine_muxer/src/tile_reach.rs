@@ -48,24 +48,31 @@ struct AxisReach {
     far: f64,
 }
 
-pub(crate) fn tracks(
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Place {
     reach: TileReach,
     range: u32,
-    held: bool,
-    distance: impl FnOnce() -> Option<f64>,
-) -> bool {
-    if reach.is_inside(range) {
-        return true;
+}
+
+impl Place {
+    pub(crate) fn new(reach: TileReach, range: u32) -> Self {
+        Self { reach, range }
     }
-    let limit = if held {
-        f64::from(range) + KEEP_MARGIN
-    } else {
-        f64::from(range)
-    };
-    if reach.near > limit {
-        return false;
+
+    pub(crate) fn tracks(self, held: bool, distance: impl FnOnce() -> Option<f64>) -> bool {
+        if self.reach.is_inside(self.range) {
+            return true;
+        }
+        let limit = if held {
+            f64::from(self.range) + KEEP_MARGIN
+        } else {
+            f64::from(self.range)
+        };
+        if self.reach.near > limit {
+            return false;
+        }
+        distance().is_some_and(|distance| distance <= limit)
     }
-    distance().is_some_and(|distance| distance <= limit)
 }
 
 pub(crate) fn region(
@@ -111,9 +118,9 @@ mod tests {
             near: 150.0,
             far: 190.0,
         };
-        assert!(tracks(reach, 160, false, || Some(160.0)));
-        assert!(!tracks(reach, 160, false, || Some(160.5)));
-        assert!(tracks(reach, 160, true, || Some(160.5)));
-        assert!(!tracks(reach, 160, true, || Some(161.5)));
+        assert!(Place::new(reach, 160).tracks(false, || Some(160.0)));
+        assert!(!Place::new(reach, 160).tracks(false, || Some(160.5)));
+        assert!(Place::new(reach, 160).tracks(true, || Some(160.5)));
+        assert!(!Place::new(reach, 160).tracks(true, || Some(161.5)));
     }
 }

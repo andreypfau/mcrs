@@ -62,6 +62,7 @@ use crate::FireworkExplosion;
 use crate::FireworkShape;
 use crate::Fireworks;
 use crate::Food;
+use crate::Identifier;
 use crate::InlineInstrument;
 use crate::Instrument;
 use crate::InstrumentId;
@@ -437,9 +438,7 @@ impl<L: NameLookup> Reader<'_, L> {
         for _ in 0..count {
             hidden.push(ComponentType(self.id(input, NameTable::ComponentType)?));
         }
-        let mut display = TooltipDisplay::hiding(hidden);
-        display.hide_tooltip = hide_tooltip;
-        Ok(display)
+        Ok(TooltipDisplay::new(hide_tooltip, hidden))
     }
 
     fn tool(&self, input: &mut &[u8]) -> Result<Tool, WireError> {
@@ -496,8 +495,12 @@ impl<L: NameLookup> Reader<'_, L> {
     fn equippable(&self, input: &mut &[u8]) -> Result<Equippable, WireError> {
         let mut equippable = Equippable::new(self.list_entry(input, &EquippableSlot::ALL)?);
         equippable.equip_sound = self.optional(input, Self::sound_event)?;
-        equippable.set_asset_id(self.optional(input, Self::identifier_buf)?);
-        equippable.set_camera_overlay(self.optional(input, Self::identifier_buf)?);
+        equippable.asset_id = self
+            .optional(input, Self::identifier_buf)?
+            .map(Identifier::Owned);
+        equippable.camera_overlay = self
+            .optional(input, Self::identifier_buf)?
+            .map(Identifier::Owned);
         equippable.allowed_entities = self.optional(input, Self::entity_type_set)?;
         equippable.dispensable = self.boolean(input)?;
         equippable.swappable = self.boolean(input)?;
@@ -1045,8 +1048,13 @@ impl<L: NameLookup> Writer<'_, L> {
     fn equippable(&self, equippable: &Equippable, output: &mut Vec<u8>) -> Result<(), WireError> {
         self.list_id(&EquippableSlot::ALL, equippable.slot, output)?;
         self.optional(equippable.equip_sound.as_ref(), output, Self::sound_event)?;
-        self.optional(equippable.asset_id(), output, Self::identifier)?;
-        self.optional(equippable.camera_overlay(), output, Self::identifier)?;
+        let asset_id = equippable.asset_id.as_ref().map(Identifier::as_location);
+        self.optional(asset_id, output, Self::identifier)?;
+        let camera_overlay = equippable
+            .camera_overlay
+            .as_ref()
+            .map(Identifier::as_location);
+        self.optional(camera_overlay, output, Self::identifier)?;
         self.optional(
             equippable.allowed_entities.as_ref(),
             output,
