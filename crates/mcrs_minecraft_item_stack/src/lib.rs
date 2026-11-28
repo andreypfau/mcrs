@@ -194,6 +194,7 @@ pub use hashed_component::HashedComponent;
 pub use hashed_stack::HashedStack;
 pub use hashed_stack::hash_stack;
 pub use hashed_stack::matches_hashed;
+pub use identifier::Identifier;
 pub use inline_instrument::InlineInstrument;
 pub use instrument::Instrument;
 pub use instrument_id::InstrumentId;

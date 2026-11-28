@@ -39,7 +39,7 @@ impl Worlds<'_> {
     ) -> Result<(), PlayerChangeError> {
         let to = self
             .targets
-            .dimensions
+            .dimensions()
             .get(destination)
             .ok_or(PlayerChangeError::NoDimension)?
             .key

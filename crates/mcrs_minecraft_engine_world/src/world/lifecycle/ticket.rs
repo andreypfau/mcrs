@@ -4,15 +4,17 @@ use crate::entity::physics::Transform;
 use crate::entity::player::Player;
 use crate::tick::TickSet;
 use crate::world::dimension::InDimension;
-use crate::world::lifecycle::column_loading::{ColumnLoading, is_loaded};
+use crate::world::lifecycle::column_loading::ColumnLoading;
+use crate::world::lifecycle::pending_spawn::PendingSpawn;
 use crate::world::lifecycle::simulation::{
     SectionSimulation, SimulationDistance, raise_simulation_ticket, release_simulation_ticket,
     track_held_simulation_areas, track_simulation_tickets,
 };
-use crate::world::lifecycle::stage::{SectionStage, SectionStageChanged, SectionStages};
 use crate::world::lifecycle::trace::{self, ColumnStage, ColumnTraceLog};
+use crate::world::storage::chunk_spawn_set::ChunkSpawnSet;
 use crate::world::storage::random_ticks::RandomTickIndex;
 use crate::world::storage::section::{SectionBundle, SectionIndex};
+use crate::world::storage::section_stage::{SectionStage, SectionStageChanged, SectionStages};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_voxel::SectionPos;
@@ -21,9 +23,6 @@ const MAX_DESPAWNS_PER_TICK: usize = MAX_SPAWNS_PER_TICK;
 pub const MAX_SPAWNS_PER_TICK: usize = 4096;
 
 pub struct TicketPlugin;
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ChunkSpawnSet;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnCoolSet;
@@ -70,18 +69,7 @@ fn release_sections(
     mut stages: SectionStages,
 ) {
     for (mut loading, section_index) in &mut dims {
-        let ColumnLoading {
-            covered,
-            section_y,
-            pending_release,
-            cooling,
-            ..
-        } = &mut *loading;
-        cooling.clear();
-        pending_release.retain(|&pos| {
-            if is_loaded(covered, section_y, pos) {
-                return false;
-            }
+        loading.cool_and_release(|pos| {
             let Some(section) = section_index.get(pos) else {
                 return false;
             };
@@ -134,27 +122,13 @@ fn despawn_chunks(
             continue;
         };
         if loading.is_loaded(*pos) {
-            loading.pending_spawn.insert(*pos);
+            loading.requeue(*pos);
             continue;
         }
         section_index.remove(*pos, random_ticks.as_deref_mut());
         commands.entity(section).try_despawn();
         taken += 1;
     }
-}
-
-#[derive(Clone, Copy)]
-pub struct PendingSpawn {
-    distance_sq: i32,
-    pos: SectionPos,
-}
-
-fn nearest_player_distance_sq(pos: SectionPos, centers: &[SectionPos]) -> i32 {
-    centers
-        .iter()
-        .map(|center| pos.distance_squared(**center))
-        .min()
-        .unwrap_or(0)
 }
 
 #[cfg_attr(
@@ -179,7 +153,7 @@ pub fn spawn_chunks(
     mut keys_to_process: Local<Vec<PendingSpawn>>,
 ) {
     for (dim, mut loading, mut section_index, simulation) in dims.iter_mut() {
-        if loading.pending_spawn.is_empty() {
+        if !loading.has_pending_spawns() {
             continue;
         }
 
@@ -191,20 +165,10 @@ pub fn spawn_chunks(
                 .map(|(transform, _)| SectionPos::from(transform.translation)),
         );
 
-        keys_to_process.clear();
-        keys_to_process.extend(loading.pending_spawn.iter().map(|&pos| PendingSpawn {
-            distance_sq: nearest_player_distance_sq(pos, &centers),
-            pos,
-        }));
-        if MAX_SPAWNS_PER_TICK < keys_to_process.len() {
-            keys_to_process
-                .select_nth_unstable_by_key(MAX_SPAWNS_PER_TICK, |pending| pending.distance_sq);
-            keys_to_process.truncate(MAX_SPAWNS_PER_TICK);
-        }
-        keys_to_process.sort_unstable_by_key(|pending| pending.distance_sq);
+        loading.take_nearest(&centers, MAX_SPAWNS_PER_TICK, &mut keys_to_process);
 
-        for PendingSpawn { pos, .. } in keys_to_process.drain(..) {
-            loading.pending_spawn.swap_remove(&pos);
+        for pending in keys_to_process.drain(..) {
+            let pos = pending.pos();
             if !loading.is_loaded(pos) {
                 continue;
             }

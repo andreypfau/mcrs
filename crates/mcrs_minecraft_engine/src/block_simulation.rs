@@ -19,9 +19,11 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite, VoxelUpdateSet};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
-use mcrs_minecraft_engine_world::world::lifecycle::simulation::{BlockTicking, EntityTicking};
+use mcrs_minecraft_engine_world::world::lifecycle::simulation::BlockTicking;
+use mcrs_minecraft_engine_world::world::storage::entity_ticking::EntityTicking;
+use mcrs_minecraft_engine_world::world::storage::random_listing::RandomListing;
 use mcrs_minecraft_engine_world::world::storage::random_ticks::{
-    RandomListing, RandomTickIndex, RandomTickIndexPlugin,
+    RandomTickIndex, RandomTickIndexPlugin,
 };
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
@@ -69,6 +71,9 @@ impl BlockDrops for InertBlocks {}
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct BlockRules<B>(pub B);
 
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BlockSimulationConfig(pub KernelConfig);
+
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct DimensionBlockRules(pub fn(&mut SubApp));
 
@@ -99,6 +104,7 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
 {
     fn build(&self, app: &mut App) {
         app.insert_resource(BlockRules(self.rules.clone()));
+        app.init_resource::<BlockSimulationConfig>();
         app.init_resource::<BlockSimulation>();
         app.init_resource::<RandomTickSpeed>();
         app.init_resource::<LandedTicks>();
@@ -338,6 +344,7 @@ struct Kernel<'w, B: BlockBehaviour<WorldKinds> + Send + 'static> {
     rules: Res<'w, BlockRules<B>>,
     definitions: Option<Res<'w, Blocks>>,
     time: Res<'w, GameTime>,
+    config: Res<'w, BlockSimulationConfig>,
 }
 
 #[derive(SystemParam)]
@@ -493,7 +500,7 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     });
 
     let facts = WorldFacts::new(definitions);
-    let config = KernelConfig::default();
+    let config = kernel.config.0;
     let env = Env {
         partition,
         facts: &facts,

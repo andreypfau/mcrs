@@ -22,7 +22,7 @@ use crate::departures::Departures;
 use crate::departures::depart;
 use crate::hold_unseen::hold_unseen;
 use crate::mob_news::MobNews;
-use crate::mob_news::has_mob_spawns;
+use crate::mob_news::has_mob_changes;
 use crate::mob_news::take_mob_news;
 use crate::network_ids::NetworkIds;
 use crate::network_ids::forget_network_id;
@@ -65,7 +65,7 @@ impl Plugin for EntityMotionReplicationPlugin {
         app.add_systems(
             FixedUpdate,
             take_mob_news
-                .run_if(has_mob_spawns.or_else(on_message::<Damaged>))
+                .run_if(has_mob_changes.or_else(on_message::<Damaged>))
                 .in_set(MobPublish),
         );
         app.add_systems(

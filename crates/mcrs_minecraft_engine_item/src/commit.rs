@@ -5,6 +5,7 @@ use core::mem;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
+use bevy_ecs::resource::Resource;
 use bevy_ecs::system::In;
 use bevy_ecs::system::InMut;
 use bevy_ecs::system::InRef;
@@ -40,12 +41,16 @@ use crate::StackRows;
 use crate::Stacks;
 use crate::capacity::capacity;
 use crate::placement::Placement;
-use crate::request_scratch::RequestScratch;
 use crate::slot_changed::write_slot_changed;
 use crate::spawn_stack::spawn_stack;
 
+#[derive(Resource, Default)]
+pub(crate) struct RequestScratch {
+    settlement: Settlement,
+}
+
 #[derive(Default)]
-pub(crate) struct Settlement {
+struct Settlement {
     changed: Vec<SlotRef>,
     placed: Vec<Placed>,
     dropped: Vec<Taken>,

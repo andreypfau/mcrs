@@ -107,11 +107,13 @@ fn serve() -> AppExit {
             seed: settings.world_seed,
             preset: settings.world_preset.clone(),
             default_game_mode: settings.default_game_mode,
+            spawn: settings.spawn,
             ..Default::default()
         },
         world_gen: WorldGenPlugin,
         network,
     }
+    .with_local_packs(settings.local_packs.iter().cloned())
     .build();
     if !settings.mob_ai {
         server = server.disable::<VanillaMobBrainPlugin>();

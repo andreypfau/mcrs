@@ -73,7 +73,7 @@ impl<C: ReplicationCodec + Default> Muxers<C> {
             MuxerInput::Publish { deltas, .. } => muxer.publish(&deltas),
             MuxerInput::Subscribe { viewer, view, .. } => muxer.subscribe(viewer, view),
             MuxerInput::Unsubscribe { viewer, .. } => muxer.unsubscribe(viewer),
-            MuxerInput::Codec { input, .. } => muxer.codec_mut().receive(input),
+            MuxerInput::Codec { input, .. } => muxer.receive(input),
             MuxerInput::Open { .. } | MuxerInput::Close { .. } => {}
         }
     }

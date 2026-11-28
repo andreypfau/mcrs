@@ -29,12 +29,13 @@ use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_goal_world::GoalWorld;
 use mcrs_minecraft_volume::BlockVolume;
 
-use crate::AiStats;
 use crate::BlockGoalWorld;
 use crate::BrainState;
 use crate::brain_state_ext::BrainStateExt;
+use crate::prepare_stats::PrepareStats;
 use crate::run_tiles::run_tiles;
 use crate::sensed::Sensed;
+use crate::stage_stats::StageStats;
 
 pub(crate) type Thinking<'w, 's> = Query<
     'w,
@@ -53,14 +54,13 @@ pub(crate) type Thinking<'w, 's> = Query<
 pub struct MobAi<B: Send + Sync + 'static> {
     driver: AiDriver<B>,
     brain_for: fn(&'static EntityTypeData) -> Option<B>,
-    panic_causes: PanicCauses,
     arrivals: Vec<Arrival<B>>,
     departures: Vec<EntityId>,
     due: Vec<Decision>,
     ended: Vec<EntityId>,
     gathered: BrainOut,
     facts: Vec<TiledFact>,
-    stats: AiStats,
+    prepared: PrepareStats,
 }
 
 #[derive(Debug)]
@@ -78,7 +78,6 @@ pub(crate) struct BrainOut {
     facts: Vec<Fact>,
     ended: Vec<EntityId>,
     moves: Vec<Move>,
-    applied: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -98,7 +97,7 @@ struct Pass<'a, B, V> {
     players: &'a PlayerTable,
     panic_causes: &'a PanicCauses,
     due: &'a [Decision],
-    stage: &'a Stage<B>,
+    driver: &'a AiDriver<B>,
     world: &'a BlockGoalWorld<'a, V>,
 }
 
@@ -108,19 +107,14 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         Self {
             driver: AiDriver::new(config),
             brain_for,
-            panic_causes: PanicCauses::default(),
             arrivals: Vec::new(),
             departures: Vec::new(),
             due: Vec::new(),
             ended: Vec::new(),
             gathered: BrainOut::default(),
             facts: Vec::new(),
-            stats: AiStats::default(),
+            prepared: PrepareStats::default(),
         }
-    }
-
-    pub fn set_panic_causes(&mut self, panic_causes: PanicCauses) {
-        self.panic_causes = panic_causes;
     }
 
     #[must_use]
@@ -128,14 +122,13 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         self.driver.stage()
     }
 
-    #[must_use]
-    pub const fn tick(&self) -> u64 {
-        self.driver.tick()
+    pub(crate) const fn prepared(&self) -> &PrepareStats {
+        &self.prepared
     }
 
     #[must_use]
-    pub const fn stats(&self) -> &AiStats {
-        &self.stats
+    pub const fn tick(&self) -> u64 {
+        self.driver.tick()
     }
 
     pub(crate) fn brain_for(&self, kind: &'static EntityTypeData) -> Option<B> {
@@ -155,6 +148,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         &mut self,
         world: &BlockGoalWorld<'_, V>,
         players: PlayerTable,
+        panic_causes: &PanicCauses,
         mut mobs: Thinking<'_, '_>,
         threads: &mut Parallel<BrainOut>,
     ) {
@@ -162,13 +156,13 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         let tick = self.driver.begin_tick();
         self.follow_life_cycle(tick);
         let followed = Instant::now();
-        self.take_due();
+        let waits = self.take_due();
         let pass = Pass {
             tick,
             players: &players,
-            panic_causes: &self.panic_causes,
+            panic_causes,
             due: &self.due,
-            stage: self.driver.stage(),
+            driver: &self.driver,
             world,
         };
         let shared = &*threads;
@@ -185,27 +179,27 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         );
         let ran = Instant::now();
         self.publish(threads, players);
-        self.stats.life_cycle = followed.duration_since(started);
-        self.stats.tile_tasks = ran.duration_since(followed);
-        self.stats.publish = ran.elapsed();
-        self.stats.prepare = started.elapsed();
+        self.prepared = PrepareStats {
+            waits,
+            life_cycle: followed.duration_since(started),
+            tile_tasks: ran.duration_since(followed),
+            publish: ran.elapsed(),
+            prepare: started.elapsed(),
+        }
     }
 
-    pub fn run_stage<W: GoalWorld + Sync>(&mut self, pool: &TaskPool, world: &W)
+    pub fn run_stage<W: GoalWorld + Sync>(&mut self, pool: &TaskPool, world: &W) -> StageStats
     where
         B: MobBrain<W>,
     {
         let started = Instant::now();
-        let evaluations = self.driver.stage().evaluations();
-        self.stats.decisions = self
+        let run = self
             .driver
             .run_stage(world, |work, cx| run_tiles(pool, work, cx));
-        self.stats.evaluations = self
-            .driver
-            .stage()
-            .evaluations()
-            .saturating_sub(evaluations);
-        self.stats.stage = started.elapsed();
+        StageStats {
+            run,
+            elapsed: started.elapsed(),
+        }
     }
 
     fn follow_life_cycle(&mut self, tick: u64) {
@@ -214,7 +208,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         }
         self.arrivals.sort_unstable_by_key(|arrival| arrival.key);
         for arrival in self.arrivals.drain(..) {
-            if self.driver.stage().tile_of(arrival.id).is_some() {
+            if self.driver.tile_of(arrival.id).is_some() {
                 continue;
             }
             let cadence = Cadence::new(tick, arrival.phase);
@@ -226,34 +220,31 @@ impl<B: Send + Sync + 'static> MobAi<B> {
                 arrival.brain,
             );
         }
-        self.stats.mobs = self.driver.stage().len();
     }
 
-    fn take_due(&mut self) {
+    fn take_due(&mut self) -> u64 {
         self.due.clear();
         let issued = self.driver.take_due();
-        self.stats.waits = self.driver.waits();
+        let waits = self.driver.waits();
         for decisions in issued {
             for decision in decisions.tiles.into_values().flatten() {
-                if self.driver.stage().tile_of(decision.mob).is_some() {
+                if self.driver.tile_of(decision.mob).is_some() {
                     self.due.push(decision);
                 }
             }
         }
         self.due
             .sort_by_key(|decision| (decision.key, decision.issue_tick));
+        waits
     }
 
     fn publish(&mut self, threads: &mut Parallel<BrainOut>, players: PlayerTable) {
         let gathered = &mut self.gathered;
-        let mut applied: usize = 0;
         for out in threads.iter_mut() {
             gathered.views.append(&mut out.views);
             gathered.facts.append(&mut out.facts);
             gathered.ended.append(&mut out.ended);
             gathered.moves.append(&mut out.moves);
-            applied = applied.saturating_add(out.applied);
-            out.applied = 0;
         }
         gathered.moves.sort_unstable_by_key(|moved| moved.mob);
         self.driver.relocate_all(
@@ -281,7 +272,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
             kind: FactKind::PathEnded,
         });
         for fact in ended.chain(gathered.facts.drain(..)) {
-            if let Some(tile) = self.driver.stage().tile_of(fact.mob) {
+            if let Some(tile) = self.driver.tile_of(fact.mob) {
                 self.facts.push(TiledFact { tile, fact });
             }
         }
@@ -295,7 +286,6 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         gathered.ended.sort_unstable();
         self.ended.append(&mut gathered.ended);
         self.driver.publish_players(players);
-        self.stats.applied = applied;
     }
 }
 
@@ -329,7 +319,6 @@ impl<B, V: BlockVolume> Pass<'_, B, V> {
         for decision in due.iter().take_while(|decision| decision.key == state.key) {
             if decision.mob == id {
                 next.apply(&decision.intents, state);
-                out.applied = out.applied.saturating_add(1);
             }
         }
         if let Some((steered, ended)) = next.steer(self.world, self.tick, sensed) {
@@ -340,7 +329,7 @@ impl<B, V: BlockVolume> Pass<'_, B, V> {
         }
         brain.set_if_neq(next);
         let tile = TileKey::at(state.body.position);
-        if self.stage.tile_of(id) != Some(tile) {
+        if self.driver.tile_of(id) != Some(tile) {
             out.moves.push(Move { mob: id, tile });
         }
     }

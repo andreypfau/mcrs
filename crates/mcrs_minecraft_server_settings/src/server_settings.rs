@@ -8,7 +8,7 @@ use mcrs_minecraft_game_mode::GameMode;
 
 use crate::setting_error::SettingError;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ServerSettings {
     pub port: Option<u16>,
@@ -25,6 +25,8 @@ pub struct ServerSettings {
     pub forwarding: bool,
     pub forwarding_secret: String,
     pub proxy_upstreams: Vec<IpAddr>,
+    pub local_packs: Vec<String>,
+    pub spawn: Option<[f64; 3]>,
 }
 
 impl Default for ServerSettings {
@@ -44,6 +46,8 @@ impl Default for ServerSettings {
             forwarding: false,
             forwarding_secret: String::new(),
             proxy_upstreams: Vec::new(),
+            local_packs: Vec::new(),
+            spawn: None,
         }
     }
 }
@@ -93,6 +97,29 @@ impl ServerSettings {
                     |raw| raw.split(',').map(|ip| ip.trim().parse().ok()).collect(),
                 )
                 .unwrap_or(defaults.proxy_upstreams),
+            local_packs: reader
+                .read(
+                    "LOCAL_PACKS",
+                    "pack folder names separated by commas",
+                    |raw| {
+                        raw.split(',')
+                            .map(str::trim)
+                            .filter(|name| !name.is_empty())
+                            .map(|name| pack_folder(name).then(|| name.to_owned()))
+                            .collect()
+                    },
+                )
+                .unwrap_or(defaults.local_packs),
+            spawn: reader.read("SPAWN", "x,y,z in blocks", |raw| {
+                let mut at = raw.split(',').map(|part| {
+                    part.trim()
+                        .parse::<f64>()
+                        .ok()
+                        .filter(|value| value.is_finite())
+                });
+                let spot = [at.next()??, at.next()??, at.next()??];
+                at.next().is_none().then_some(spot)
+            }),
         }
     }
 }
@@ -131,6 +158,10 @@ impl<L: Fn(&str) -> Option<String>, R: FnMut(SettingError)> Reader<'_, L, R> {
         })
         .unwrap_or(default)
     }
+}
+
+fn pack_folder(name: &str) -> bool {
+    !matches!(name, "." | "..") && !name.contains(['/', '\\'])
 }
 
 fn positive<T: core::str::FromStr + Default + PartialOrd>(raw: &str) -> Option<T> {
@@ -190,6 +221,8 @@ mod tests {
             ("FORWARDING", "on"),
             ("FORWARDING_SECRET", " secret "),
             ("PROXY_UPSTREAMS", " 192.0.2.1, ::1 "),
+            ("LOCAL_PACKS", " worldgen, ,probe "),
+            ("SPAWN", " 1.5, 70 ,-3 "),
         ]);
         assert_eq!(
             settings,
@@ -208,6 +241,8 @@ mod tests {
                 forwarding: true,
                 forwarding_secret: " secret ".to_owned(),
                 proxy_upstreams: vec![[192, 0, 2, 1].into(), core::net::Ipv6Addr::LOCALHOST.into()],
+                local_packs: vec!["worldgen".to_owned(), "probe".to_owned()],
+                spawn: Some([1.5, 70.0, -3.0]),
             }
         );
         assert_eq!(rejected, ["ENABLE_STATUS"]);
@@ -223,6 +258,8 @@ mod tests {
             ("MOB_AI", "2"),
             ("FORWARDING", "enabled"),
             ("PROXY_UPSTREAMS", "192.0.2.1,localhost"),
+            ("LOCAL_PACKS", "worldgen,../mcrs"),
+            ("SPAWN", "1,2"),
         ]);
         assert_eq!(settings.world_seed, u64::MAX, "an unsigned seed reads");
         assert_eq!(
@@ -242,7 +279,9 @@ mod tests {
                 "DEFAULT_GAMEMODE",
                 "MOB_AI",
                 "FORWARDING",
-                "PROXY_UPSTREAMS"
+                "PROXY_UPSTREAMS",
+                "LOCAL_PACKS",
+                "SPAWN"
             ]
         );
     }

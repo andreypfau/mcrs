@@ -232,7 +232,7 @@ fn a_filter_hides_matching_files_of_lower_packs_only() {
                 r#"{"values":[]}"#,
             )
             .world_with_meta("b", &meta, &[("data/t/damage_type/z.json", &damage("z"))]);
-        let (_, stack_diagnostics) = packs.stack();
+        let stack_diagnostics = packs.stack().diagnostics;
         let (registries, load_diagnostics) = packs.load(declarations()).unwrap();
         let reported = stack_diagnostics
             .into_iter()

@@ -132,7 +132,9 @@ mod tests {
     use mcrs_minecraft_protocol::uuid::Uuid;
     use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
     use mcrs_minecraft_protocol_game::{Hand, SwingAnimationKind};
-    use mcrs_minecraft_replication::{PlayerData, PlayerEntries, PlayerSpawn, Pose};
+    use mcrs_minecraft_replication::{
+        PlayerData, PlayerEntries, PlayerSpawn, Pose, SwingRecipients,
+    };
     use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 
     use crate::bus::PacketPayload;
@@ -246,6 +248,7 @@ mod tests {
                                 hand: Hand::Main,
                                 animation: SwingAnimationKind::Whack,
                                 duration: 6,
+                                recipients: SwingRecipients::Observers,
                             }
                             .into(),
                         ),
