@@ -1,4 +1,5 @@
 use std::any::{Any, type_name};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use mcrs_minecraft_datapack::{PackFiles, read_json};
@@ -224,6 +225,32 @@ impl Declaration {
             kind: Kind::Fixed,
             names,
         }
+    }
+
+    pub fn assemble(
+        mut declarations: Vec<Declaration>,
+        typed: Vec<Declaration>,
+        extra: Vec<Declaration>,
+        mut stages: BTreeMap<ResourceLocationBuf, Stage>,
+    ) -> Vec<Declaration> {
+        let replaced: BTreeSet<&ResourceLocationBuf> =
+            extra.iter().map(|declaration| &declaration.key).collect();
+        let kept: Vec<Declaration> = typed
+            .into_iter()
+            .filter(|declaration| !replaced.contains(&declaration.key))
+            .collect();
+        for declaration in kept.into_iter().chain(extra) {
+            declarations.push(match stages.remove(&declaration.key) {
+                Some(stage) => declaration.in_stage(stage),
+                None => declaration,
+            });
+        }
+        declarations.extend(
+            stages
+                .into_iter()
+                .map(|(key, stage)| Declaration::names_only(key, stage)),
+        );
+        declarations
     }
 
     pub fn key(&self) -> &ResourceLocationBuf {
