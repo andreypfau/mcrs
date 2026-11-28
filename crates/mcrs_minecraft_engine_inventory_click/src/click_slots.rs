@@ -11,7 +11,6 @@ use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
-use mcrs_minecraft_engine_item::stack_capacity;
 use mcrs_minecraft_inventory_menu::MenuLayout;
 use mcrs_minecraft_inventory_menu::worn_slot;
 use mcrs_minecraft_inventory_player::EquipSlot;
@@ -20,6 +19,7 @@ use mcrs_minecraft_inventory_player::Stacking;
 use mcrs_minecraft_inventory_transaction::Filter;
 use mcrs_minecraft_inventory_transaction::Loaded;
 use mcrs_minecraft_inventory_transaction::Planned;
+use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::Equippable;
 use mcrs_minecraft_item_stack::MaxStackSize;
@@ -218,7 +218,7 @@ fn planned(
 ) -> Option<Planned<StackHandle>> {
     let kind = stacks.kind(entity)?;
     let count = stacks.count(entity)?;
-    let max = stack_capacity(stacks.get::<MaxStackSize>(entity));
+    let max = Count::capacity(stacks.get::<MaxStackSize>(entity));
     let stacking = if stacks
         .get::<Damage>(entity)
         .is_some_and(|damage| damage.0 > 0)

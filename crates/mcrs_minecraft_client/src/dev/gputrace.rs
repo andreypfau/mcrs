@@ -11,17 +11,36 @@ const FRAMES: u32 = 10;
 #[derive(Resource)]
 pub struct AutoTrace(pub Option<String>);
 
+#[derive(Resource, Default)]
+pub struct CaptureFrames(u32);
+
+pub fn trace_due(
+    auto: Res<AutoTrace>,
+    keys: Res<ButtonInput<KeyCode>>,
+    left: Res<CaptureFrames>,
+) -> bool {
+    left.0 > 0 || auto.0.is_some() || keys.just_pressed(KeyCode::F9)
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        mcrs::blocking_in_system,
+        reason = "the path and the removal of an old trace happen only when a capture starts"
+    )
+)]
 pub fn gputrace(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     auto: Res<AutoTrace>,
     streaming: stream::Streaming,
     mut settled: Local<u32>,
-    mut left: Local<u32>,
+    mut left: ResMut<CaptureFrames>,
 ) {
-    if *left > 0 {
-        *left -= 1;
-        if *left == 0 {
+    if left.0 > 0 {
+        left.0 -= 1;
+        if left.0 == 0 {
             // SAFETY: the shared capture manager is a process-wide singleton that Metal creates on first use.
             unsafe { MTLCaptureManager::sharedCaptureManager() }.stopCapture();
             info!("gpu trace written");
@@ -40,7 +59,7 @@ pub fn gputrace(
         _ => return,
     };
     match start(&path) {
-        Ok(()) => *left = FRAMES,
+        Ok(()) => left.0 = FRAMES,
         Err(error) => error!("cannot capture {path}: {error}"),
     }
 }

@@ -9,21 +9,39 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 pub trait LocationView {
     fn block_state(&self, pos: BlockPos) -> Option<BlockStateId>;
 
-    fn is_loaded(&self, pos: BlockPos) -> bool;
+    fn is_loaded(&self, pos: BlockPos) -> bool {
+        self.block_state(pos).is_some()
+    }
 
-    fn fluid_state(&self, pos: BlockPos) -> Option<FluidState>;
+    fn fluid_state(&self, _pos: BlockPos) -> Option<FluidState> {
+        None
+    }
 
-    fn block_light(&self, pos: BlockPos) -> Option<u8>;
+    fn block_light(&self, _pos: BlockPos) -> Option<u8> {
+        None
+    }
 
-    fn sky_light(&self, pos: BlockPos) -> Option<u8>;
+    fn sky_light(&self, _pos: BlockPos) -> Option<u8> {
+        None
+    }
 
-    fn sky_light_level(&self) -> Option<f32>;
+    fn sky_light_level(&self) -> Option<f32> {
+        None
+    }
 
-    fn biome(&self, pos: BlockPos) -> Option<Id<Biome>>;
+    fn biome(&self, _pos: BlockPos) -> Option<Id<Biome>> {
+        None
+    }
 
-    fn inside_structure(&self, pos: BlockPos, structure: Id<Structure>) -> Option<bool>;
+    fn inside_structure(&self, _pos: BlockPos, _structure: Id<Structure>) -> Option<bool> {
+        None
+    }
 
-    fn dimension(&self) -> Option<Id<Dimension>>;
+    fn dimension(&self) -> Option<Id<Dimension>> {
+        None
+    }
 
-    fn block_entity_data(&self, pos: BlockPos, data: &mut NbtCompound) -> bool;
+    fn block_entity_data(&self, _pos: BlockPos, _data: &mut NbtCompound) -> bool {
+        false
+    }
 }

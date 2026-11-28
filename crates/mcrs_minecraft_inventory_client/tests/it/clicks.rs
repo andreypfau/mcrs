@@ -4,12 +4,12 @@ use mcrs_minecraft_container_click::ClickKind;
 use mcrs_minecraft_container_click::Clicked;
 use mcrs_minecraft_inventory_client::MenuAction;
 use mcrs_minecraft_inventory_client::MenuInput;
+use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetCursorItem;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetPlayerInventory;
-use mcrs_minecraft_protocol_game::item::HashedStack;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
 use mcrs_minecraft_wire::VarInt;
 
@@ -155,7 +155,7 @@ fn set_up(world: &mut World, row: &Row) {
 
 fn held(hashed: Option<&HashedStack>) -> Held {
     let hashed = hashed?;
-    let kind = Kind(hashed.id.number());
+    let kind = hashed.kind;
     let count = u8::try_from(hashed.count).expect("a hashed count fits a stack");
     Some((kind, count))
 }

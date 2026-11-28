@@ -152,11 +152,7 @@ fn send<P: Encode + Packet>(app: &mut App, client: &Client, packet: &P) {
         .dispatch(P::STATE, P::ID, &data)
         .unwrap()
         .unwrap();
-    trigger.raise(
-        &mut app.world_mut().commands(),
-        client.connection,
-        data.into(),
-    );
+    trigger.raise(app.world_mut().commands(), client.connection, data.into());
     app.world_mut().flush();
 }
 

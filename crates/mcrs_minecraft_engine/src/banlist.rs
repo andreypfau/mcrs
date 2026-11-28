@@ -1,4 +1,4 @@
-use crate::json_list::{read_json_list, text_or_none, write_atomic};
+use crate::json_list::{read_json_list, text_or_none};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::{Commands, Event, On, ResMut, Resource};
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -249,7 +249,7 @@ impl BanList {
         let entries: Vec<_> = self.entries.values().map(|e| e.to_file(offset)).collect();
         let written = serde_json::to_string_pretty(&entries)
             .map_err(std::io::Error::from)
-            .and_then(|json| write_atomic(path, &json));
+            .and_then(|json| mcrs_minecraft_save::write_atomic(path, json.as_bytes()));
         if let Err(err) = written {
             tracing::warn!("failed to write {}: {err}", path.display());
         }

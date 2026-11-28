@@ -274,9 +274,12 @@ impl ColumnBound {
         true
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "one column of one band of the lattice"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "one column of one band of the lattice"
+        )
     )]
     fn column(
         &self,

@@ -2,11 +2,13 @@ use bevy_ecs::prelude::*;
 use glam::DVec3;
 use mcrs_minecraft_client_world::apply_entity_data::apply_entity_data;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
+use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::session::InSession;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{AttributeInstances, InstanceChange};
+use mcrs_minecraft_entity_key::{Cause, EntityUuid};
 use mcrs_minecraft_entity_visual::{
     Age, ClientEntity, Equipment, Living, Motion, Placement, PlayerPoseTicks, ServerTicking,
     SleepingBed, SyncedData, TickVelocity,
@@ -23,6 +25,7 @@ use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::entity_data_index;
 
 use crate::add_entity_data::AddEntityData;
+use crate::entity_damaged::EntityDamaged;
 use crate::fuse::{FUSE_INDEX, Fuse};
 use crate::item_entity_stack::{ITEM_STACK_INDEX, ItemEntityStack};
 use crate::network_entities::NetworkEntities;
@@ -150,7 +153,7 @@ fn on_remove_entities(
     }
 }
 
-fn clear_entities(entities: &mut NetworkEntities, commands: &mut Commands) {
+fn clear_entities(entities: &mut NetworkEntities, mut commands: Commands<'_, '_>) {
     for entity in entities.drain() {
         commands.entity(entity).despawn();
     }
@@ -161,7 +164,7 @@ fn on_login(
     mut entities: ResMut<NetworkEntities>,
     mut commands: Commands,
 ) {
-    clear_entities(&mut entities, &mut commands);
+    clear_entities(&mut entities, commands.reborrow());
 }
 
 fn on_respawn(
@@ -169,7 +172,7 @@ fn on_respawn(
     mut entities: ResMut<NetworkEntities>,
     mut commands: Commands,
 ) {
-    clear_entities(&mut entities, &mut commands);
+    clear_entities(&mut entities, commands.reborrow());
 }
 
 fn on_rotate_head(
@@ -214,9 +217,13 @@ fn on_set_entity_data(
             stack.as_mut(),
             motion.as_mut(),
         ) {
-            (FUSE_INDEX, MetaDataValue::VarInt(ticks), Some(fuse), _, _) => fuse.0 = ticks.0,
+            (FUSE_INDEX, MetaDataValue::VarInt(ticks), Some(fuse), _, _) => {
+                fuse.set_if_neq(Fuse(ticks.0));
+            }
             (ITEM_STACK_INDEX, MetaDataValue::Slot(item), _, Some(stack), _) => {
-                stack.0 = item.clone();
+                if stack.0 != *item {
+                    stack.0 = item.clone();
+                }
             }
             (
                 entity_data_index::NO_GRAVITY,
@@ -295,15 +302,49 @@ fn on_update_attributes(
 fn on_damage_event(
     event: On<Received<ClientboundDamageEvent>>,
     entities: Res<NetworkEntities>,
+    connections: Query<&JoinedGame>,
+    own_player: Query<Entity, With<Player>>,
+    clients: Query<&ClientEntity>,
     mut living: Query<&mut Living>,
+    mut damaged: MessageWriter<EntityDamaged>,
 ) {
-    if let Some(packet) = event.packet()
-        && let Some(entity) = entities.get(packet.entity_id.0)
-        && let Ok(mut living) = living.get_mut(entity)
-    {
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let network_id = packet.entity_id.0;
+    let own = connections
+        .get(event.entity)
+        .is_ok_and(|joined| joined.player_id == network_id);
+    let entity = if own {
+        own_player.single().ok()
+    } else {
+        entities.get(network_id)
+    };
+    let Some(entity) = entity else {
+        return;
+    };
+    if let Ok(mut living) = living.get_mut(entity) {
         living.hurt();
         living.walk.hurt();
     }
+    let Ok(damage_type) = u32::try_from(packet.damage_type.0) else {
+        return;
+    };
+    let uuid_of = |shifted_id: i32| {
+        let network_id = shifted_id.checked_sub(1)?;
+        let entity = entities.get(network_id)?;
+        let client = clients.get(entity).ok()?;
+        Some(EntityUuid(client.uuid))
+    };
+    damaged.write(EntityDamaged {
+        entity,
+        damage_type,
+        cause: Cause {
+            causing: uuid_of(packet.cause_entity_id.0),
+            direct: uuid_of(packet.direct_entity_id.0),
+        },
+        source_position: packet.source_position,
+    });
 }
 
 fn on_hurt_animation(
@@ -337,17 +378,18 @@ fn on_ticking_state(
     event: On<Received<ClientboundTickingState>>,
     mut ticking: ResMut<ServerTicking>,
 ) {
-    if let Some(packet) = event.packet() {
+    if let Some(packet) = event.packet()
+        && (ticking.tick_rate != packet.tick_rate || ticking.frozen != packet.frozen)
+    {
         ticking.tick_rate = packet.tick_rate;
         ticking.frozen = packet.frozen;
     }
 }
 
-fn on_ticking_step(
-    event: On<Received<ClientboundTickingStep>>,
-    mut ticking: ResMut<ServerTicking>,
-) {
+fn on_ticking_step(event: On<Received<ClientboundTickingStep>>, ticking: ResMut<ServerTicking>) {
     if let Some(packet) = event.packet() {
-        ticking.steps = u32::try_from(packet.steps.0).unwrap_or(0);
+        ticking
+            .map_unchanged(|ticking| &mut ticking.steps)
+            .set_if_neq(u32::try_from(packet.steps.0).unwrap_or(0));
     }
 }

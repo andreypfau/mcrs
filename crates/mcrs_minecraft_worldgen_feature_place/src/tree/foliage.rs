@@ -384,9 +384,12 @@ impl Foliage {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one foliage row"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one foliage row"
+        )
     )]
     fn place_leaves_row_with_hanging_leaves_below<W: WorldGenVolume>(
         &self,
@@ -560,9 +563,12 @@ impl Foliage {
         self.try_place_leaf(cx, rng, at)
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one foliage row"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one foliage row"
+        )
     )]
     fn poplar_row<W: WorldGenVolume>(
         &self,
@@ -610,9 +616,12 @@ impl Foliage {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one foliage row"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one foliage row"
+        )
     )]
     fn replace_leaves_with_log<W: WorldGenVolume>(
         &self,

@@ -95,7 +95,7 @@ pub fn place_tree<W: WorldGenVolume>(
     tree: &CompiledTree,
     volume: &mut W,
     rng: &mut WorldgenRandom,
-    sink: &mut dyn TreeSink<W>,
+    sink: &mut impl TreeSink<W>,
     origin: BlockPos,
 ) -> bool {
     let mut cx = TreeContext::new(

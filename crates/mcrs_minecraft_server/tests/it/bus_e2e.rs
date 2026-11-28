@@ -19,6 +19,7 @@ use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };
 use mcrs_minecraft_engine_world::world::sub_app::{DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_network::Instant;
 
 use crate::host_app;
 use crate::mock_connection::{marker, marker_seq};
@@ -157,6 +158,8 @@ fn inbound_latency_is_zero_host_ticks() {
             id: 0xCAFE,
             data: Bytes::new(),
             trigger: None,
+            acknowledged_tick: 0,
+            arrival: Instant::now(),
         });
 
     app.update();
@@ -228,6 +231,8 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
                             id,
                             data: Bytes::new(),
                             trigger: None,
+                            acknowledged_tick: 0,
+                            arrival: Instant::now(),
                         },
                     )
                     .is_ok()

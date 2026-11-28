@@ -26,7 +26,6 @@ use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::sync::Arc;
-#[cfg(not(target_family = "wasm"))]
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
@@ -293,6 +292,7 @@ async fn reader_loop<R: AsyncRead + Unpin>(
     let mut switches = Some(switches);
     let mut after = None;
     let mut play = PlayChecks::Off;
+    let mut last: Option<Instant> = None;
     loop {
         while let Some(receiver) = &mut switches {
             match receiver.try_recv() {
@@ -337,7 +337,11 @@ async fn reader_loop<R: AsyncRead + Unpin>(
             after = None;
         }
 
-        let timestamp = Instant::now();
+        let now = Instant::now();
+        let timestamp = last
+            .and_then(|last| last.checked_add(Duration::from_nanos(1)))
+            .map_or(now, |next| next.max(now));
+        last = Some(timestamp);
         let verdict = play.check(frame.id, &frame.body);
         play = play.after(frame.id);
         let packet = ReceivedPacket {

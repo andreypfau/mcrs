@@ -7,9 +7,16 @@ use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
+use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::DimPlayerIndex;
+
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InboundPlayerDespawnSet {
+    Drop,
+    Close,
+}
 
 pub fn despawn_inbound_player(
     mut reader: MessageReader<InboundPlayerDespawn>,

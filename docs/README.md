@@ -6,6 +6,7 @@ For people: start at https://mc.rs/docs/ (to read the source of the site, see `d
 
 | File | About | Read if you |
 |---|---|---|
+| `crates.md` | generated map of every crate with its description. Regenerate it with `cargo run -p xtask -- crate-map` | write a helper or a value type |
 | `clean-room.md` | who may read what, and what the repository may contain | send any PR |
 | `spec/` | behavior of the game as rules with IDs. Start with `spec/README.md` | write or implement a specification |
 | `minecraft-bevy-sharding-architecture.md` | principles of the Bevy server: compatibility levels, sharding, ticks, determinism | change the engine design |
@@ -21,3 +22,4 @@ For people: start at https://mc.rs/docs/ (to read the source of the site, see `d
 | `item-design.md` | public API and crate map of the item and inventory rework: a stack as one entity, the read and write tools, the steps | touch items, inventories or containers |
 | `command-dimensions.md` | commands across dimensions | touch commands |
 | `bevy-asset-cycles.md` | how cyclic registries reference assets by id and join at freeze | load assets with cycles |
+| `ecs-lint.md` | `mcrs_lint`, the rustc driver that checks the ECS rules: process, model of registrations, facts files, rules | add or change an ECS lint |

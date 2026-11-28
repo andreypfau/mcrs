@@ -7,6 +7,7 @@ mod damage_set;
 mod damaged;
 mod died;
 mod pending_hits;
+mod respawn_request;
 mod tick_vitals;
 mod vitals_work;
 
@@ -17,3 +18,4 @@ pub use damage_set::DamageSet;
 pub use damaged::Damaged;
 pub use died::Died;
 pub use pending_hits::PendingHits;
+pub use respawn_request::RespawnRequest;

@@ -36,11 +36,12 @@ pub(crate) fn save_options_to(app: &mut App, path: PathBuf) {
     );
 }
 
-fn owe_save(mut file: ResMut<OptionsFile>) {
-    file.owed = true;
+fn owe_save(file: ResMut<OptionsFile>) {
+    file.map_unchanged(|file| &mut file.owed).set_if_neq(true);
 }
 
 fn collect_write(mut file: ResMut<OptionsFile>) {
+    let file = file.bypass_change_detection();
     if let Some(write) = &mut file.write
         && let Some(saved) = futures::check_ready(write)
     {
@@ -56,6 +57,7 @@ fn save_pending(file: Res<OptionsFile>, buttons: Option<Res<ButtonInput<MouseBut
 }
 
 fn save_options(options: Res<ClientOptions>, mut file: ResMut<OptionsFile>) {
+    let file = file.bypass_change_detection();
     file.owed = false;
     let Some(text) = options_text(&options) else {
         return;
@@ -64,7 +66,15 @@ fn save_options(options: Res<ClientOptions>, mut file: ResMut<OptionsFile>) {
     file.write = Some(IoTaskPool::get().spawn(async move { write_options(&path, &text) }));
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the app exits after this frame, so the options must reach the disk before the process ends"
+    )
+)]
 fn save_options_at_exit(options: Res<ClientOptions>, mut file: ResMut<OptionsFile>) {
+    let file = file.bypass_change_detection();
     if let Some(write) = file.write.take() {
         let _ = block_on(write);
         file.failed = false;
@@ -130,7 +140,10 @@ mod tests {
         app.update();
         assert!(!path.exists(), "the start-up options are not saved");
 
-        app.world_mut().resource_mut::<ClientOptions>().fov = 90;
+        app.world_mut()
+            .resource_mut::<ClientOptions>()
+            .map_unchanged(|options| &mut options.fov)
+            .set_if_neq(90);
         app.update();
         while app.world().resource::<OptionsFile>().write.is_some() {
             app.update();
@@ -165,7 +178,10 @@ mod tests {
         app.world_mut()
             .resource_mut::<ButtonInput<MouseButton>>()
             .press(MouseButton::Left);
-        app.world_mut().resource_mut::<ClientOptions>().fov = 90;
+        app.world_mut()
+            .resource_mut::<ClientOptions>()
+            .map_unchanged(|options| &mut options.fov)
+            .set_if_neq(90);
         app.update();
         assert!(!path.exists(), "a drag is saved after its release");
 
@@ -196,7 +212,10 @@ mod tests {
         .init_resource::<ButtonInput<MouseButton>>();
         app.update();
 
-        app.world_mut().resource_mut::<ClientOptions>().fov = 90;
+        app.world_mut()
+            .resource_mut::<ClientOptions>()
+            .map_unchanged(|options| &mut options.fov)
+            .set_if_neq(90);
         app.update();
         app.world_mut()
             .resource_mut::<ButtonInput<MouseButton>>()

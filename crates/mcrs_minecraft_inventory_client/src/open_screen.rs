@@ -45,7 +45,7 @@ pub(crate) fn open_screen(
         commands.entity(holder).despawn();
         return;
     };
-    clear_first_slot(player_holders.cursor, &holders, &mut commands);
+    clear_first_slot(player_holders.cursor, &holders, commands.reborrow());
     commands.entity(viewer).open_titled_menu(
         layout,
         parts,

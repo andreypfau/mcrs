@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_server"
-description = "mcrs_minecraft_server"
+description = "The vanilla server plugin group MinecraftServerPlugins: it adds the engine, the vanilla gameplay plugins and the commands to an app"
 version.workspace = true
 edition.workspace = true
 
@@ -23,12 +23,15 @@ mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_attributes.workspace = true
 mcrs_minecraft_engine_brain.workspace = true
 mcrs_minecraft_engine_damage.workspace = true
+mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_engine_entity_motion_replication.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_engine_mob_attributes.workspace = true
+mcrs_minecraft_engine_player_vitals.workspace = true
 mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_entity_key.workspace = true
@@ -64,6 +67,9 @@ mcrs_minecraft_inventory_server.workspace = true
 mcrs_minecraft_vanilla_inventory.workspace = true
 mcrs_minecraft_vanilla_item_entity.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
+mcrs_minecraft_vanilla_player_attack.workspace = true
+mcrs_minecraft_vanilla_death.workspace = true
+mcrs_minecraft_vanilla_respawn.workspace = true
 mcrs_minecraft_vanilla_swing.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
@@ -82,11 +88,12 @@ anyhow.workspace = true
 libc.workspace = true
 tracing-subscriber.workspace = true
 mcrs_minecraft_container_click.workspace = true
-mcrs_minecraft_engine_entity_motion.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_probe.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_lang.workspace = true
+mcrs_minecraft_move_validate.workspace = true
 mcrs_minecraft_text_flatten.workspace = true
 mcrs_engine_link.workspace = true
 mcrs_engine_muxer.workspace = true
@@ -106,7 +113,6 @@ mcrs_voxel.workspace = true
 mcrs_minecraft_game_mode = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_assets.workspace = true
-mcrs_minecraft_datapack.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }

@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::*;
-use mcrs_command::{ArgumentHandle, BuildError, NodeId};
+use mcrs_command::{ArgumentHandle, BuildError, FloatArgument, NodeId};
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
 use mcrs_minecraft_command_argument::TimeArgument;
 use mcrs_minecraft_command_engine::{
@@ -15,12 +15,24 @@ use crate::server_change::ServerChange;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Branch {
     Query,
+    Change(ChangeBranch),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ChangeBranch {
+    Rate,
+    Freeze,
+    Unfreeze,
+    Step,
+    StepStop,
     Sprint,
     SprintStop,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct TickCommand {
+    rate: ArgumentHandle<FloatArgument>,
+    step: ArgumentHandle<TimeArgument>,
     sprint: ArgumentHandle<TimeArgument>,
 }
 
@@ -36,36 +48,72 @@ pub(crate) fn build(
         .runs(Branch::Query)
         .in_any_world()
         .id()?;
+    let rate = registrar.literal(tick, "rate").id()?;
+    let rate = registrar
+        .arg(
+            rate,
+            "rate",
+            FloatArgument {
+                min: 1.0,
+                max: 10000.0,
+            },
+        )
+        .runs(Branch::Change(ChangeBranch::Rate))
+        .in_any_world()
+        .id()?;
+    let step = registrar
+        .literal(tick, "step")
+        .runs(Branch::Change(ChangeBranch::Step))
+        .in_any_world()
+        .id()?;
+    let _ = registrar
+        .literal(step, "stop")
+        .runs(Branch::Change(ChangeBranch::StepStop))
+        .in_any_world()
+        .id()?;
+    let step = registrar
+        .arg(step, "time", TimeArgument { min: 1 })
+        .runs(Branch::Change(ChangeBranch::Step))
+        .in_any_world()
+        .id()?;
     let sprint = registrar.literal(tick, "sprint").id()?;
     let _ = registrar
         .literal(sprint, "stop")
-        .runs(Branch::SprintStop)
+        .runs(Branch::Change(ChangeBranch::SprintStop))
         .in_any_world()
         .id()?;
     let sprint = registrar
         .arg(sprint, "time", TimeArgument { min: 1 })
-        .runs(Branch::Sprint)
+        .runs(Branch::Change(ChangeBranch::Sprint))
         .in_any_world()
         .id()?;
-    Ok(TickCommand { sprint })
+    let _ = registrar
+        .literal(tick, "unfreeze")
+        .runs(Branch::Change(ChangeBranch::Unfreeze))
+        .in_any_world()
+        .id()?;
+    let _ = registrar
+        .literal(tick, "freeze")
+        .runs(Branch::Change(ChangeBranch::Freeze))
+        .in_any_world()
+        .id()?;
+    Ok(TickCommand { rate, step, sprint })
 }
 
 fn millis_text(nanos: u64) -> String {
     format!("{:.1}", nanos as f32 / 1.0e6)
 }
 
-fn tick_rate_text(pace: &TickPace) -> String {
-    format!("{:.1}", 1.0e9 / pace.target_nanos().max(1) as f64)
-}
-
-fn tick_rate(pace: &TickPace) -> i32 {
-    i32::try_from(1_000_000_000 / pace.target_nanos().max(1)).unwrap_or(i32::MAX)
+fn rate_text(rate: f32) -> String {
+    format!("{rate:.1}")
 }
 
 pub(crate) fn query_messages(pace: &TickPace) -> [Text; 3] {
     let average = pace.average_nanos();
     let status = if pace.is_sprinting() {
         "commands.tick.status.sprinting"
+    } else if pace.is_frozen() {
+        "commands.tick.status.frozen"
     } else if pace.target_nanos() < average {
         "commands.tick.status.lagging"
     } else {
@@ -75,7 +123,7 @@ pub(crate) fn query_messages(pace: &TickPace) -> [Text; 3] {
         Text::translate(
             "commands.tick.query.rate.sprinting",
             vec![
-                tick_rate_text(pace).into_text(),
+                rate_text(pace.rate()).into_text(),
                 millis_text(average).into_text(),
             ],
         )
@@ -83,7 +131,7 @@ pub(crate) fn query_messages(pace: &TickPace) -> [Text; 3] {
         Text::translate(
             "commands.tick.query.rate.running",
             vec![
-                tick_rate_text(pace).into_text(),
+                rate_text(pace.rate()).into_text(),
                 millis_text(average).into_text(),
                 millis_text(pace.target_nanos()).into_text(),
             ],
@@ -117,6 +165,89 @@ pub(crate) fn report_message(report: SprintReport, pace: &TickPace) -> Text {
     )
 }
 
+struct Change {
+    edit: ServerEdit,
+    message: Text,
+    result: i32,
+}
+
+impl Change {
+    fn new(edit: ServerEdit, key: &'static str, result: i32) -> Self {
+        Self {
+            edit,
+            message: Text::translate(key, vec![]),
+            result,
+        }
+    }
+}
+
+fn change(
+    call: &Call<Branch, TickCommand>,
+    branch: ChangeBranch,
+    context: &VanillaContext,
+    pace: &TickPace,
+) -> Result<Change, CommandFailure> {
+    let fail = |key: &'static str| Err(CommandFailure::translate(key, vec![]));
+    let step = |ticks: i32| Change {
+        edit: ServerEdit::Step {
+            ticks: u64::try_from(ticks).unwrap_or_default(),
+        },
+        message: Text::translate_args("commands.tick.step.success", vec![ticks.into()]),
+        result: 1,
+    };
+    match branch {
+        ChangeBranch::Rate => {
+            let rate = context.arg(&call.invocation, call.command.rate)?;
+            Ok(Change {
+                edit: ServerEdit::TickRate { rate },
+                message: Text::translate(
+                    "commands.tick.rate.success",
+                    vec![rate_text(rate).into_text()],
+                ),
+                result: rate as i32,
+            })
+        }
+        ChangeBranch::Freeze => Ok(Change::new(
+            ServerEdit::Freeze,
+            "commands.tick.status.frozen",
+            1,
+        )),
+        ChangeBranch::Unfreeze => Ok(Change::new(
+            ServerEdit::Unfreeze,
+            "commands.tick.status.running",
+            0,
+        )),
+        ChangeBranch::Step if !pace.is_frozen() => fail("commands.tick.step.fail"),
+        ChangeBranch::Step => Ok(step(
+            context
+                .opt(&call.invocation, call.command.step)?
+                .unwrap_or(1),
+        )),
+        ChangeBranch::StepStop if pace.steps() == 0 => fail("commands.tick.step.stop.fail"),
+        ChangeBranch::StepStop => Ok(Change::new(
+            ServerEdit::StopStep,
+            "commands.tick.step.stop.success",
+            1,
+        )),
+        ChangeBranch::Sprint => {
+            let ticks = context.arg(&call.invocation, call.command.sprint)?;
+            Ok(Change::new(
+                ServerEdit::StartSprint {
+                    ticks: u64::try_from(ticks).unwrap_or_default(),
+                },
+                "commands.tick.status.sprinting",
+                1,
+            ))
+        }
+        ChangeBranch::SprintStop if !pace.is_sprinting() => fail("commands.tick.sprint.stop.fail"),
+        ChangeBranch::SprintStop => Ok(Change::new(
+            ServerEdit::StopSprint,
+            "commands.tick.sprint.stop.success",
+            1,
+        )),
+    }
+}
+
 pub(crate) fn run(
     In(call): In<Call<Branch, TickCommand>>,
     context: VanillaContext,
@@ -127,51 +258,27 @@ pub(crate) fn run(
     let Some(pace) = pace else {
         return Err(CommandFailure::failed());
     };
-    match call.branch {
-        Branch::Query => {
-            for message in query_messages(&pace) {
-                output.success(&call.invocation, message, Feedback::Source);
-            }
-            Ok(tick_rate(&pace))
+    let Branch::Change(branch) = call.branch else {
+        for message in query_messages(&pace) {
+            output.success(&call.invocation, message, Feedback::Source);
         }
-        Branch::Sprint => {
-            let ticks = context.arg(&call.invocation, call.command.sprint)?;
-            if pace.is_sprinting() {
-                output.success(
-                    &call.invocation,
-                    Text::translate("commands.tick.sprint.stop.success", vec![]),
-                    Feedback::SourceAndOperators,
-                );
-            }
-            output.effect(
-                &mut changes,
-                ServerChange(ServerEdit::StartSprint {
-                    ticks: u64::try_from(ticks).unwrap_or_default(),
-                }),
-            );
-            output.success(
-                &call.invocation,
-                Text::translate("commands.tick.status.sprinting", vec![]),
-                Feedback::SourceAndOperators,
-            );
-            Ok(1)
-        }
-        Branch::SprintStop => {
-            if !pace.is_sprinting() {
-                return Err(CommandFailure::translate(
-                    "commands.tick.sprint.stop.fail",
-                    vec![],
-                ));
-            }
-            output.effect(&mut changes, ServerChange(ServerEdit::StopSprint));
-            output.success(
-                &call.invocation,
-                Text::translate("commands.tick.sprint.stop.success", vec![]),
-                Feedback::SourceAndOperators,
-            );
-            Ok(1)
-        }
+        return Ok(pace.rate() as i32);
+    };
+    let change = change(&call, branch, &context, &pace)?;
+    if branch == ChangeBranch::Sprint && pace.is_sprinting() {
+        output.success(
+            &call.invocation,
+            Text::translate("commands.tick.sprint.stop.success", vec![]),
+            Feedback::SourceAndOperators,
+        );
     }
+    output.effect(&mut changes, ServerChange(change.edit));
+    output.success(
+        &call.invocation,
+        change.message,
+        Feedback::SourceAndOperators,
+    );
+    Ok(change.result)
 }
 
 #[cfg(test)]

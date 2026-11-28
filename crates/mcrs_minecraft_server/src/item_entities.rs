@@ -1,5 +1,5 @@
 use bevy_app::{App, FixedUpdate, Plugin, SubApp};
-use bevy_ecs::prelude::{Commands, Entity, IntoScheduleConfigs, Query, With, World};
+use bevy_ecs::prelude::{Commands, Entity, IntoScheduleConfigs, Populated, With, World};
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::{PlayerBody, PoseSystems};
@@ -62,7 +62,7 @@ fn build_dimension_items(host: &World, _: &DimensionBuild<'_>, sub_app: &mut Sub
 )]
 fn track_collectors(
     mut commands: Commands,
-    mut players: Query<
+    mut players: Populated<
         (
             Entity,
             &Owner,

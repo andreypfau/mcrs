@@ -83,6 +83,7 @@ impl CreativeSession<'_, '_> {
     }
 }
 
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
 fn creative_inputs_changed(session: CreativeSession, content: Res<CreativeTabContent>) -> bool {
     let (Some(registries), Some(items)) = (&session.registries, &session.items) else {
         return false;

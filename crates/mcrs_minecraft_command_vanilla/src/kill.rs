@@ -51,11 +51,14 @@ pub(crate) fn run(
             SelfSource::Entity,
             targets,
         )?;
-        for mob in targets.mobs() {
+        for victim in targets.iter() {
+            let Some(target) = victim.entity() else {
+                continue;
+            };
             output.effect(
                 &mut hits,
                 HitMob {
-                    target: mob.entity,
+                    target,
                     hit: Hit::new(f32::MAX, DamageSource::of(damage_type)),
                 },
             );

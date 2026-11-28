@@ -422,7 +422,7 @@ pub enum ChainKind {
 }
 
 pub fn block_mask(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     list: &[Block],
 ) -> Result<StateMask, FeatureCompileError> {
     let names: Vec<ResourceLocationBuf> =
@@ -431,7 +431,7 @@ pub fn block_mask(
 }
 
 pub fn state(
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     block: Block,
     properties: &[(&str, &str)],
 ) -> Result<VoxelId, FeatureCompileError> {
@@ -452,7 +452,7 @@ pub fn state(
 pub fn compile_chain(
     list: &[StructureProcessor],
     kind: ChainKind,
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     world_seed: i64,
 ) -> Result<CompiledChain, FeatureCompileError> {
     let mut processors = Vec::with_capacity(list.len() + 3);
@@ -493,7 +493,7 @@ pub fn compile_chain(
 
 fn compile_processor(
     processor: &StructureProcessor,
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
     world_seed: i64,
 ) -> Result<Option<CompiledProcessor>, FeatureCompileError> {
     use StructureProcessor::*;
@@ -581,7 +581,7 @@ fn compile_processor(
 
 fn compile_processor_rule(
     rule: &ProcessorRule,
-    blocks: &dyn BlockResolver,
+    blocks: &impl BlockResolver,
 ) -> Result<CompiledRule, FeatureCompileError> {
     let position = match &rule.position_predicate {
         None | Some(PosRuleTest::AlwaysTrue) => None,

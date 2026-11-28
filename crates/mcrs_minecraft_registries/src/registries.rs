@@ -156,7 +156,7 @@ impl Registries {
         Arc::make_mut(&mut self.tables).push(table);
     }
 
-    pub(crate) fn stack(&self, stage: Stage) -> &PackStack {
+    pub fn stack(&self, stage: Stage) -> &PackStack {
         match stage {
             Stage::Reloadable => &self.reload_stack,
             _ => &self.world_stack,

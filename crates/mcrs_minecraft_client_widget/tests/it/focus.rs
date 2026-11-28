@@ -1,6 +1,6 @@
 use mcrs_minecraft_client_widget::{
-    GuiKey, GuiRect, KeyModifiers, Overflow, Widget, WidgetEvent, WidgetId, WidgetIdTaken,
-    WidgetKind, Widgets,
+    GuiKey, GuiRect, KeyModifiers, Overflow, Widget, WidgetEvent, WidgetId, WidgetKind,
+    WidgetPushError, Widgets,
 };
 
 use crate::screen::{button, key, screen_of, widget};
@@ -185,7 +185,7 @@ fn a_screen_refuses_a_taken_id_and_a_clear_drops_the_widgets_and_the_focus() {
     screen.focus_initial(Some(WidgetId(1)), 0, &mut Vec::new());
     assert_eq!(
         screen.push(button(1, 0, 30, 100, 20)),
-        Err(WidgetIdTaken(WidgetId(1)))
+        Err(WidgetPushError::IdTaken(WidgetId(1)))
     );
     assert_eq!(screen.iter().count(), 1);
     screen.clear();

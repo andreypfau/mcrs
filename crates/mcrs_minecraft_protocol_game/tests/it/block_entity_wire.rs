@@ -1,8 +1,10 @@
 use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
+use mcrs_minecraft_protocol_game::chunk::ChunkDataBlockEntity;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockEntityData;
 use mcrs_voxel::BlockPos;
+use std::borrow::Cow;
 
 fn frame(pos: BlockPos, body: impl FnOnce(&mut Vec<u8>)) -> Vec<u8> {
     let mut buf = Vec::new();
@@ -48,4 +50,55 @@ fn a_frame_the_client_cannot_read_decodes_without_data() {
             ClientboundBlockEntityData { pos, data: None }
         );
     }
+}
+
+fn chest_entry(data: NbtCompound) -> ChunkDataBlockEntity<'static> {
+    ChunkDataBlockEntity {
+        packed_xz: 0x2c,
+        y: -24,
+        kind: BlockEntityType::Chest,
+        data: Cow::Owned(data),
+    }
+}
+
+#[test]
+fn a_chunk_entry_data_is_a_compound_or_the_end_tag() {
+    let cases: [(&[u8], Option<ChunkDataBlockEntity>); 4] = [
+        (
+            &[0x2c, 0xff, 0xe8, 0x01, 0x00],
+            Some(chest_entry(NbtCompound::new())),
+        ),
+        (
+            &[0x2c, 0xff, 0xe8, 0x01, 0x0a, 0x00],
+            Some(chest_entry(NbtCompound::new())),
+        ),
+        (&[0x2c, 0xff, 0xe8, 0x01, 0x08, 0x00, 0x00], None),
+        (&[0x2c, 0xff, 0xe8, 0x01], None),
+    ];
+    for (bytes, expected) in cases {
+        let mut r = bytes;
+        let decoded = ChunkDataBlockEntity::decode(&mut r).ok();
+        assert_eq!(decoded, expected, "{bytes:02x?}");
+        if expected.is_some() {
+            assert!(r.is_empty(), "the entry {bytes:02x?} is taken whole");
+        }
+    }
+}
+
+#[test]
+fn a_chunk_entry_writes_the_end_tag_only_for_data_without_keys() {
+    let mut keyed = NbtCompound::new();
+    keyed.put_int("Delay", 20);
+    let mut empty = Vec::new();
+    chest_entry(NbtCompound::new())
+        .encode(&mut empty)
+        .expect("encode");
+    assert_eq!(empty, [0x2c, 0xff, 0xe8, 0x01, 0x00]);
+    let entry = chest_entry(keyed);
+    let mut bytes = Vec::new();
+    entry.encode(&mut bytes).expect("encode");
+    assert_eq!(bytes.get(4), Some(&0x0a));
+    let mut r = bytes.as_slice();
+    assert_eq!(ChunkDataBlockEntity::decode(&mut r).ok(), Some(entry));
+    assert!(r.is_empty(), "the entry is taken whole");
 }

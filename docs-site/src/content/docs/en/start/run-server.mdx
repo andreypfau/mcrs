@@ -11,11 +11,19 @@ sources:
   - README.md
   - crates/mcrs_minecraft_server_settings/src/server_settings.rs
   - crates/mcrs_minecraft_engine_server/src/server_network_plugin.rs
+  - crates/mcrs_minecraft_engine_server/src/loopback_ops.rs
+  - crates/mcrs_minecraft_engine/src/dig_rate.rs
+  - src/main.rs
   - issue:82
+  - pr:933
+  - pr:735
+  - pr:749
+  - pr:768
+  - pr:770
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: b9bf112d8
+  date: 2026-11-18
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -48,8 +56,8 @@ Use a vanilla client of the same snapshot, {fact('snapshot')}. The server announ
 ## What you can do
 
 - Write in chat.
-- Run commands from the client or from the server console, which reads standard input: `/gamemode`, `/tp`, `/summon pig`, `/time`, `/fill`.
-- Break blocks in creative mode. The default game mode is creative.
+- Run commands from the server console, which reads standard input: `/gamemode`, `/tp`, `/summon pig`, `/time`, `/fill`. To run them from the client you need operator rights. Joining from the same machine does not give them, so after you join, type `op <your name>` in the console, or list the player in `ops.json` in the working directory of the server and restart it, because the server reads the file only at start.[^pr933] [Who becomes an operator](/docs/en/server/connections/#who-becomes-an-operator) explains the rules.
+- Place and break blocks. The default game mode is creative. You can also dig in survival mode, but a tool is no faster than an empty hand yet. A broken block drops items that you can pick up.
 - Fly around the generated world and spawn mobs with `/summon`: pigs, cows, sheep, chickens and zombified piglins.
 
 The server reads its settings from environment variables, for example `MCRS_PORT`, `MCRS_WORLD_SEED`, `MCRS_WORLD_PRESET` (`normal` or `flat`) and `MCRS_DEFAULT_GAMEMODE`. The full list is in [`server_settings.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
@@ -62,3 +70,4 @@ The expected console output and a first-run checklist are not written yet. For t
 
 [^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
 [^pr624]: <Status pr={624} state="works" /> The server disconnects and saves every player before a shutdown exits.
+[^pr933]: <Status pr={933} state="works" /> The server binary gives operator rights only to the players that `ops.json` or the `op` command names.

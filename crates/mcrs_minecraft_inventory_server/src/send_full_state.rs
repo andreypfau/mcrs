@@ -25,10 +25,14 @@ use crate::sent_selected::SentSelected;
 use crate::wire_names::WireNames;
 use mcrs_minecraft_player_holders::PlayerHolders;
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the send reads the holders, the stacks and the wire names, and writes the view"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the slot list of a full content send moves into the outbound packet"
+    )
 )]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
 pub(crate) fn send_full_state(
     mut sends: ResMut<FullSends>,
     players: Query<(&Owner, &Selected, &Menus, Option<&PlayerHolders>)>,

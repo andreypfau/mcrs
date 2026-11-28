@@ -5,7 +5,7 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 
 use crate::orient::{Orientation, find_collision, move_inside_heights, orient_box, orient_box_at};
 use crate::piece::{FortressKind, FortressPiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 use super::{PieceWeight, WeightTable};
 
@@ -14,7 +14,10 @@ const LOWEST_Y: i32 = 10;
 const START_Y: i32 = 64;
 const REACH: i32 = 112;
 
-pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    _rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     let chunk = ctx.chunk;
     Some((
         IVec3::new(chunk.min_block_x(), START_Y, chunk.min_block_z()),
@@ -72,7 +75,7 @@ struct Layout {
     start_min: IVec3,
 }
 
-pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, mut site: Site) -> Vec<Piece> {
     use FortressKind::*;
     let bridge_weights = [
         entry(BridgeStraight, 30, 0, true),

@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_registries"
-description = "Registry tables, tags and the registry loader"
+description = "The Registries store: registry tables, tags, declarations, diagnostics, and the loader and wire forms of a registry snapshot"
 version.workspace = true
 edition.workspace = true
 

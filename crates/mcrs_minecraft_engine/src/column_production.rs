@@ -46,6 +46,11 @@ impl ColumnProduction {
         self.light_awaits.drain(..)
     }
 
+    #[must_use]
+    pub fn has_light_work(&self) -> bool {
+        !self.light_edits.is_empty() || !self.light_awaits.is_empty()
+    }
+
     pub fn lit(&mut self, light: ColumnLight) {
         self.lit.push(light);
     }

@@ -2,9 +2,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::Hash;
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
 use bevy::app::{App, Plugin, Update};
-use bevy::ecs::change_detection::DetectChangesMut;
+use bevy::ecs::change_detection::{DetectChangesMut, Mut};
 use bevy::ecs::message::{Message, MessageWriter};
 use bevy::ecs::prelude::{
     Commands, Entity, IntoScheduleConfigs, Local, On, Res, ResMut, Resource, Single,
@@ -40,7 +39,9 @@ use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 
 use crate::block_prediction::BlockPredictions;
 use crate::client_light;
+use crate::column_decode_error::ColumnDecodeError;
 use crate::joined_game::CurrentDimension;
+use crate::refused_chunk::RefusedChunk;
 use crate::sign::sign_block;
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{
@@ -356,6 +357,10 @@ impl ColumnStore {
         self.changes.push(ColumnChange::Relit(pos, vec![at.y]));
     }
 
+    pub(crate) fn has_changes(&self) -> bool {
+        !self.changes.is_empty()
+    }
+
     pub fn drain_changes(&mut self, into: &mut Vec<ColumnChange>) {
         into.append(&mut self.changes);
     }
@@ -583,9 +588,10 @@ impl Column {
         extent: Extent,
         block_state_count: usize,
         biome_count: usize,
-    ) -> Result<Column> {
+    ) -> Result<Column, ColumnDecodeError> {
         let sections = data
-            .sections(extent.sections, block_state_count, biome_count)?
+            .sections(extent.sections, block_state_count, biome_count)
+            .map_err(ColumnDecodeError::Sections)?
             .into_iter()
             .map(|section| {
                 if section.non_empty_block_count == 0 {
@@ -608,10 +614,12 @@ impl Column {
                     states,
                 }))
             })
-            .collect::<Result<_>>()?;
+            .collect::<Result<_, ColumnDecodeError>>()?;
 
         let mut column = Column::unlit(extent.min_section_y, sections);
-        column.relight(&unpack_light_data(light, extent.sections + 2)?);
+        let light =
+            unpack_light_data(light, extent.sections + 2).map_err(ColumnDecodeError::Light)?;
+        column.relight(&light);
         Ok(column)
     }
 
@@ -709,14 +717,12 @@ fn write_nibbles(source: &LightChunk, out: &mut [u8; SectionPos::VOLUME], shift:
 fn biome_ids(
     sent: &PalettedContainer<u8, { Biomes::SIZE }>,
     biome_count: usize,
-) -> Result<PalettedContainer<u8, { Biomes::SIZE }>> {
-    let local = |number: u8| -> Result<u8> {
+) -> Result<PalettedContainer<u8, { Biomes::SIZE }>, ColumnDecodeError> {
+    let local = |number: u8| -> Result<u8, ColumnDecodeError> {
         if usize::from(number) < biome_count {
             Ok(number)
         } else {
-            Err(anyhow!(
-                "biome {number} is not one the session registries hold"
-            ))
+            Err(ColumnDecodeError::UnknownBiome(number))
         }
     };
     match sent {
@@ -805,7 +811,9 @@ impl Plugin for ColumnCachePlugin {
                     .in_set(SessionSet::Clear)
                     .before(settle_columns)
                     .run_if(session_boundary),
-                settle_columns.in_set(ClientTerrainSet::Settle),
+                settle_columns
+                    .run_if(columns_unsettled)
+                    .in_set(ClientTerrainSet::Settle),
             ),
         );
     }
@@ -848,7 +856,7 @@ impl Default for Arrivals {
 
 enum Arrival {
     Enter(Dimension),
-    Column(Task<Result<Option<(ColumnPos, Column)>>>),
+    Column(Task<Result<Option<(ColumnPos, Column)>, RefusedChunk>>),
     Light(ColumnPos, ColumnLight),
     Blocks(Vec<BlockChange>),
     Sign(BlockPos, SignUpdate),
@@ -967,13 +975,11 @@ fn on_level_chunk(
     let block_state_count = blocks.state_count();
     let task = AsyncComputeTaskPool::get().spawn(async move {
         let mut bytes = &data[..];
-        let packet = ClientboundLevelChunkWithLight::decode(&mut bytes)
-            .map_err(|error| anyhow!("chunk packet: {error:?}"))?;
-        anyhow::ensure!(
-            bytes.is_empty(),
-            "chunk packet: {} bytes left over",
-            bytes.len()
-        );
+        let packet =
+            ClientboundLevelChunkWithLight::decode(&mut bytes).map_err(RefusedChunk::Packet)?;
+        if !bytes.is_empty() {
+            return Err(RefusedChunk::TrailingBytes(bytes.len()));
+        }
         let Some(extent) = extent else {
             return Ok(None);
         };
@@ -988,7 +994,10 @@ fn on_level_chunk(
             block_state_count,
             biome_count,
         )
-        .with_context(|| format!("column {:?}", packet.pos))?;
+        .map_err(|error| RefusedChunk::Column {
+            pos: packet.pos,
+            error,
+        })?;
         let column = column.with_chunk_signs(packet.pos, &packet.chunk_data.block_entities);
         Ok(Some((packet.pos, column)))
     });
@@ -1140,7 +1149,7 @@ enum Settling {
 }
 
 impl LightStep<'_> {
-    fn settle(&mut self, store: &mut ResMut<ColumnStore>, when: Settling) {
+    fn settle(&mut self, mut store: Mut<'_, ColumnStore>, when: Settling) {
         if store.has_light_checks() {
             let store = store.as_mut();
             let checks = store.take_light_checks();
@@ -1169,9 +1178,20 @@ impl LightStep<'_> {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and writer is its own parameter"
+#[cfg_attr(mcrs_lint, mcrs::event_condition)]
+fn columns_unsettled(arrivals: Res<Arrivals>, store: Res<ColumnStore>) -> bool {
+    !arrivals.queue.is_empty()
+        || store.has_changes()
+        || store.has_light_checks()
+        || store.has_unlit_arrivals()
+}
+
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the chunk batch rate that the client reports to the server is measured in wall-clock time"
+    )
 )]
 fn settle_columns(
     mut arrivals: ResMut<Arrivals>,
@@ -1194,14 +1214,14 @@ fn settle_columns(
     while let Some(arrival) = arrivals.queue.pop_front() {
         match arrival {
             Arrival::Enter(dimension) => {
-                light.settle(&mut store, Settling::NamedByServer);
+                light.settle(store.reborrow(), Settling::NamedByServer);
                 if store.dimension.as_ref() != Some(&dimension) {
                     predictions.clear();
                 }
                 store.enter(dimension);
             }
             Arrival::Forget(pos) => {
-                light.settle(&mut store, Settling::NamedByServer);
+                light.settle(store.reborrow(), Settling::NamedByServer);
                 store.remove(pos);
             }
             Arrival::Light(pos, update) => light.server.push(ServerLight { pos, update }),
@@ -1242,16 +1262,16 @@ fn settle_columns(
                     break;
                 }
                 Some(Ok(Some((pos, column)))) => {
-                    light.settle(&mut store, Settling::NamedByServer);
+                    light.settle(store.reborrow(), Settling::NamedByServer);
                     store.insert(pos, column);
                 }
                 Some(Ok(None)) => {}
                 Some(Err(error)) => {
                     if let Some((entity, _)) = &connection {
                         close_connection_later(
-                            &mut commands,
+                            commands.reborrow(),
                             *entity,
-                            ConnectionEnd::Lost(format!("Internal Exception: {error:#}")),
+                            ConnectionEnd::Lost(format!("Internal Exception: {error}")),
                         );
                     }
                     arrivals.queue.clear();
@@ -1260,7 +1280,7 @@ fn settle_columns(
             },
         }
     }
-    light.settle(&mut store, Settling::FrameEnd);
+    light.settle(store.reborrow(), Settling::FrameEnd);
     store.bypass_change_detection().drain_changes(&mut drained);
     changes.write_batch(drained.drain(..));
 }
@@ -1452,7 +1472,7 @@ mod tests {
         }
     }
 
-    fn decoded(sections: &[ChunkSection], biomes: usize) -> Result<Column> {
+    fn decoded(sections: &[ChunkSection], biomes: usize) -> Result<Column, ColumnDecodeError> {
         let blob = sections.iter().flat_map(written).collect::<Vec<u8>>();
         Column::decode(
             &ChunkData {
@@ -1505,10 +1525,19 @@ mod tests {
         let Err(error) = decoded(&[held.clone(), lacking], biomes) else {
             panic!("a biome the session registries lack was accepted");
         };
-        assert!(format!("{error:#}").contains("biome 12"), "{error:#}");
+        assert!(
+            matches!(error, ColumnDecodeError::UnknownBiome(12)),
+            "{error:?}"
+        );
 
         let lacking_in_one_cell = biomes_with_one_cell(7, (0, 3, 2), 12);
-        assert!(decoded(&[held, lacking_in_one_cell], biomes).is_err());
+        assert!(
+            matches!(
+                decoded(&[held, lacking_in_one_cell], biomes),
+                Err(ColumnDecodeError::UnknownBiome(12))
+            ),
+            "a biome the session registries lack in one cell was accepted"
+        );
     }
 
     #[test]

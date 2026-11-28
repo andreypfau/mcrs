@@ -41,7 +41,7 @@ pub struct DesertPyramidBlocks {
 
 impl DesertPyramidBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
@@ -555,7 +555,7 @@ pub struct SwampHutBlocks {
 
 impl SwampHutBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
         let oriented = |block: Block| Oriented::named(world, blocks, block, &[]);

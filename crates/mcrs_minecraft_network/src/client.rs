@@ -4,6 +4,7 @@ use crate::metrics::{PacketDispatcher, PlayTable};
 use crate::packet_io::PacketIo;
 use crate::{ConnectionState, RawConnection};
 use bevy_app::{App, Plugin, Update};
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
@@ -12,9 +13,11 @@ use bevy_ecs::prelude::{Commands, On, Query, Res, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::common_conditions::on_message;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy_ecs::system::Populated;
 use bevy_ecs::world::World;
 use bytes::Bytes;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_protocol::packets::common::serverbound::KeepAlive;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
@@ -118,7 +121,7 @@ pub struct RegistriesReceived {
     pub configuration: Configuration,
 }
 
-pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
+pub fn finish_configuration(mut commands: Commands, connection: Entity) {
     commands.queue(move |world: &mut World| {
         let Ok(mut entity) = world.get_entity_mut(connection) else {
             return;
@@ -127,7 +130,7 @@ pub fn finish_configuration(commands: &mut Commands, connection: Entity) {
             client.write_packet(&ServerboundFinishConfiguration);
         }
         if let Some(mut state) = entity.get_mut::<ConnectionState>() {
-            *state = ConnectionState::Game;
+            state.set_if_neq(ConnectionState::Game);
         }
     });
 }
@@ -171,7 +174,7 @@ impl fmt::Display for ConnectionEnd {
             ConnectionEnd::Kicked(reason) => write!(
                 f,
                 "the server disconnected you: {}",
-                crate::disconnect_reason::disconnect_reason(reason)
+                mcrs_minecraft_text_flatten::plain_text(&Language::default(), reason)
             ),
             ConnectionEnd::JoinFailed(cause) => write!(f, "the connection failed: {cause}"),
             ConnectionEnd::Lost(cause) => f.write_str(cause),
@@ -190,7 +193,7 @@ struct PendingJoin {
     view_distance: u8,
 }
 
-pub fn close_connection_later(commands: &mut Commands, connection: Entity, reason: ConnectionEnd) {
+pub fn close_connection_later(mut commands: Commands, connection: Entity, reason: ConnectionEnd) {
     commands.queue(move |world: &mut World| {
         if world.despawn(connection) {
             match reason {
@@ -250,7 +253,7 @@ impl Plugin for ClientNetworkPlugin {
 
 fn leave_sessions(sessions: Query<Entity, With<ClientSession>>, mut commands: Commands) {
     for session in &sessions {
-        close_connection_later(&mut commands, session, ConnectionEnd::Left);
+        close_connection_later(commands.reborrow(), session, ConnectionEnd::Left);
     }
 }
 
@@ -326,8 +329,16 @@ fn start_joins(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the allocations happen only when a join completes or fails"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(5))]
 fn collect_joins(
-    mut pending: Query<(Entity, &mut PendingJoin)>,
+    mut pending: Populated<(Entity, &mut PendingJoin)>,
     play: Option<Res<ClientPlayTable>>,
     deferred: Option<Res<DeferredRows>>,
     mut commands: Commands,
@@ -347,7 +358,7 @@ fn collect_joins(
         } = match outcome {
             Ok(joined) => joined,
             Err(e) => {
-                close_connection_later(&mut commands, session, ConnectionEnd::JoinFailed(e));
+                close_connection_later(commands.reborrow(), session, ConnectionEnd::JoinFailed(e));
                 continue;
             }
         };
@@ -401,8 +412,16 @@ async fn connect_and_join(server: ServerAddress, join: Join) -> anyhow::Result<J
 
 const MAX_BUNDLE_PACKETS: usize = 4096;
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the allocations happen only on a bundle start, on a malformed packet or when the connection ends"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(19))]
 fn receive_packets(
-    mut connections: Query<(Entity, &mut ClientConnection, &ConnectionState)>,
+    mut connections: Populated<(Entity, &mut ClientConnection, &ConnectionState)>,
     mut commands: Commands,
 ) {
     for (entity, mut connection, &state) in connections.iter_mut() {
@@ -411,7 +430,7 @@ fn receive_packets(
             Some(ended) if ended == state => {
                 if connection.raw.reader_closed() {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
                         ConnectionEnd::Lost("the server closed the connection".into()),
                     );
@@ -427,7 +446,7 @@ fn receive_packets(
                 Ok(None) => break,
                 Err(_) => {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
                         ConnectionEnd::Lost("the server closed the connection".into()),
                     );
@@ -444,7 +463,7 @@ fn receive_packets(
                         warn!("{line}");
                     }
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
                         ConnectionEnd::Lost(format!("Internal Exception: {}", malformed.cause)),
                     );
@@ -454,7 +473,7 @@ fn receive_packets(
             if state == ConnectionState::Game && packet.id == ClientboundBundleDelimiter::ID {
                 match connection.bundle.take() {
                     None => connection.bundle = Some(Vec::new()),
-                    Some(bundle) => raise_bundle(&mut commands, entity, bundle),
+                    Some(bundle) => raise_bundle(commands.reborrow(), entity, bundle),
                 }
                 continue;
             }
@@ -462,7 +481,7 @@ fn receive_packets(
             match &mut connection.bundle {
                 Some(_) if ends_state => {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
                         ConnectionEnd::Lost("Terminal message received in bundle".into()),
                     );
@@ -470,7 +489,7 @@ fn receive_packets(
                 }
                 Some(bundle) if bundle.len() >= MAX_BUNDLE_PACKETS => {
                     close_connection_later(
-                        &mut commands,
+                        commands.reborrow(),
                         entity,
                         ConnectionEnd::Lost("Too many packets in a bundle".into()),
                     );
@@ -479,7 +498,7 @@ fn receive_packets(
                 Some(bundle) => bundle.push((trigger, packet.payload)),
                 None => {
                     if let Some(trigger) = trigger {
-                        trigger.raise(&mut commands, entity, packet.payload);
+                        trigger.raise(commands.reborrow(), entity, packet.payload);
                     }
                 }
             }
@@ -491,22 +510,41 @@ fn receive_packets(
     }
 }
 
-fn raise_bundle(commands: &mut Commands, entity: Entity, bundle: Vec<(Option<Trigger>, Bytes)>) {
+fn raise_bundle(
+    mut commands: Commands<'_, '_>,
+    entity: Entity,
+    bundle: Vec<(Option<Trigger>, Bytes)>,
+) {
     for (trigger, data) in bundle {
         if let Some(trigger) = trigger {
-            trigger.raise(commands, entity, data);
+            trigger.raise(commands.reborrow(), entity, data);
         }
     }
 }
 
-fn flush(mut connections: Query<(Entity, &mut ClientConnection)>, mut commands: Commands) {
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the reason string exists only when the connection to the server fails"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(1))]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the hand-off stamp measures wall-clock time for the stalled-writer check, which must not depend on the game clock"
+    )
+)]
+fn flush(mut connections: Populated<(Entity, &mut ClientConnection)>, mut commands: Commands) {
     for (entity, mut connection) in connections.iter_mut() {
         if let Err(e) = connection.raw.flush() {
             warn!("failed to send to the server: {e}");
         }
         if connection.raw.disconnected() {
             close_connection_later(
-                &mut commands,
+                commands.reborrow(),
                 entity,
                 ConnectionEnd::Lost("the connection to the server failed".into()),
             );
@@ -550,7 +588,7 @@ fn on_configuration_packet<R: Row>(
             configuration,
         }),
         Err(error) => close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             ConnectionEnd::Lost(format!("{error:#}")),
         ),
@@ -562,7 +600,7 @@ fn on_disconnect(event: On<Received<ClientboundDisconnect>>, mut commands: Comma
         return;
     };
     close_connection_later(
-        &mut commands,
+        commands.reborrow(),
         event.entity,
         ConnectionEnd::Kicked(disconnect.reason),
     );
@@ -580,8 +618,8 @@ fn on_start_configuration(
         return;
     };
     connection.write_packet(&ServerboundConfigurationAcknowledged);
-    *state = ConnectionState::Configuration;
-    *collected = Configuration::default();
+    state.set_if_neq(ConnectionState::Configuration);
+    collected.set_if_neq(Configuration::default());
 }
 
 fn on_keep_alive(
@@ -776,7 +814,7 @@ mod tests {
         mut commands: Commands,
     ) {
         handed.configurations.push(event.configuration.clone());
-        finish_configuration(&mut commands, event.entity);
+        finish_configuration(commands.reborrow(), event.entity);
     }
 
     fn record_keep_alive(

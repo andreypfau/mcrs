@@ -3,7 +3,7 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::{Bytes, BytesMut};
@@ -25,7 +25,7 @@ use std::borrow::Cow;
 
 fn build_dispatch_world() -> World {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
     world.init_resource::<BridgeTelemetry>();
     world.init_resource::<mcrs_minecraft_engine::muxer::bridge::PendingConnections>();
     world
@@ -355,7 +355,7 @@ fn wire_of(blob: &[u8]) -> Vec<Wire> {
 }
 
 #[test]
-fn a_burst_reaches_the_wire_whole_with_the_predicted_changes_between_probes() {
+fn a_ping_starts_each_tick_with_packets_after_the_first_and_closes_the_last_one() {
     use mcrs_minecraft_engine::muxer::probes::Probes;
 
     let mut world = build_dispatch_world();
@@ -372,9 +372,9 @@ fn a_burst_reaches_the_wire_whole_with_the_predicted_changes_between_probes() {
             x => Wire::Event(x),
         })
         .collect();
-    {
+    let write = |world: &mut World, wires: &[Wire]| {
         let mut queue = world.get_mut::<OutboundQueue>(socket).unwrap();
-        for wire in &written {
+        for wire in wires {
             queue.push(OutboundPlayerPacket {
                 target: PacketTarget::AllPlayers,
                 data: payload_of(wire),
@@ -382,23 +382,22 @@ fn a_burst_reaches_the_wire_whole_with_the_predicted_changes_between_probes() {
                 epoch: 0,
             });
         }
-    }
+    };
+
+    write(&mut world, &written);
+    run_dispatch(&mut world);
+    assert_eq!(wire_of(&rx.try_recv().unwrap()), written);
 
     run_dispatch(&mut world);
+    assert_eq!(wire_of(&rx.try_recv().unwrap()), [Wire::Probe(1)]);
 
-    let mut expected: Vec<Wire> = written.clone();
-    let first = expected
-        .iter()
-        .position(|wire| matches!(wire, Wire::Update(_) | Wire::Own(_)))
-        .unwrap();
-    let last = expected
-        .iter()
-        .rposition(|wire| matches!(wire, Wire::Update(_) | Wire::Own(_)))
-        .unwrap();
-    expected.push(Wire::Probe(2));
-    expected.insert(last + 1, Wire::Probe(1));
-    expected.insert(first, Wire::Probe(0));
+    run_dispatch(&mut world);
+    assert!(rx.try_recv().is_err(), "a second empty tick sends nothing");
 
-    let wire = wire_of(&rx.try_recv().unwrap());
-    assert_eq!(wire, expected);
+    write(&mut world, &[Wire::Update(5)]);
+    run_dispatch(&mut world);
+    assert_eq!(
+        wire_of(&rx.try_recv().unwrap()),
+        [Wire::Probe(3), Wire::Update(5)]
+    );
 }

@@ -35,6 +35,16 @@ to an AI agent. These conditions apply:
 mcrs does not restrict contributions that an AI agent writes. Such contributions are welcome
 when the contributor knows how the game is structured.
 
+### Third-party open source implementations
+
+The owner can allow a named third-party open source implementation as a source for a
+specification author. The same wall applies as for the game. The author reads the
+implementation, and the implementer never reads it. No name of a class, method, field or file of
+it, no path into it, and no quotation of its code appears in the repository. A specification
+states its behaviour in the words of the author. A rule from such a source has the label
+`design`, because it is a choice of mcrs and not behaviour of the game. The owner allows GrimAC
+for the specifications of lag compensation and reach.
+
 The rules on this page have one purpose. They make sure that nobody copies code or algorithms
 from the original game, or from modifications of the game, by accident.
 

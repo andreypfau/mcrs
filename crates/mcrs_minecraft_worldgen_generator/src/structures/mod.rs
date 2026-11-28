@@ -159,8 +159,8 @@ fn freeze_variants(
             entries
                 .iter()
                 .map(|(id, selectors)| (id.clone(), selectors.as_slice())),
-            &|keys| structure_id_set(inputs, frozen, keys),
-            &|keys| biome_mask(inputs, keys),
+            |keys| structure_id_set(inputs, frozen, keys),
+            |keys| biome_mask(inputs, keys),
         )
         .map_err(|error| format!("{registry}: {error}"))
     };
@@ -204,7 +204,7 @@ fn biome_mask(inputs: &StructureInputs<'_>, keys: &KeySet<Biome>) -> Result<Biom
 
 fn biome_tag_mask(
     inputs: &StructureInputs<'_>,
-    owner: &dyn std::fmt::Display,
+    owner: &impl std::fmt::Display,
     key: TagKey<'static, Biome>,
 ) -> Result<BiomeMask, String> {
     biome_mask(inputs, &KeySet::Tag(key.into()))

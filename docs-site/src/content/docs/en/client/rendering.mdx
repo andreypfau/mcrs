@@ -11,15 +11,52 @@ sources:
   - docs/entity-render.md
   - docs/entity-render-budget.md
   - crates/mcrs_minecraft_render/src/arenas.rs
+  - crates/mcrs_minecraft_render/src/cull.rs
+  - crates/mcrs_minecraft_render/src/pass.rs
+  - crates/mcrs_minecraft_render/Cargo.toml
+  - crates/mcrs_minecraft_entity_render/Cargo.toml
   - crates/mcrs_minecraft_entity_render/src/lib.rs
+  - crates/mcrs_minecraft_entity_render/src/plugin.rs
+  - crates/mcrs_minecraft_entity_visual/src/host_entity.rs
+  - crates/mcrs_minecraft_render/src/lib.rs
+  - crates/mcrs_minecraft_render/src/render_path.rs
   - docs/spec/client-player-render.md
+  - assets/mcrs/entity/animations/player.animation.json
   - issue:330
   - issue:337
   - issue:344
+  - pr:731
+  - pr:769
+  - pr:789
+  - pr:970
+  - crates/mcrs_minecraft_client_gui/src/inventory_figure.rs
+  - crates/mcrs_minecraft_client/src/name_tag.rs
+  - crates/mcrs_minecraft_client/src/sign_text.rs
+  - crates/mcrs_minecraft_client/src/client_terrain_plugin.rs
+  - crates/mcrs_minecraft_entity_visual/src/name_tag.rs
+  - crates/mcrs_minecraft_client_world/src/sign.rs
+  - crates/mcrs_minecraft_render/src/name_tag.rs
+  - crates/mcrs_minecraft_render/src/world_text.rs
+  - crates/mcrs_minecraft_client_gui/src/sign_text.rs
+  - crates/mcrs_minecraft_client_gui/src/health_hud.rs
+  - crates/mcrs_minecraft_client_gui/src/death_screen_plugin.rs
+  - crates/mcrs_minecraft_client/src/native.rs
+  - crates/mcrs_minecraft_client/src/web.rs
+  - crates/mcrs_minecraft_entity_render/src/impostor_frame.rs
+  - crates/mcrs_minecraft_entity_render/src/impostor_atlas.rs
+  - docs/spec/client-entity-render.md
+  - docs/spec/client-sign-text.md
+  - docs/spec/client-health-hud.md
+  - pr:1056
+  - pr:1062
+  - pr:1085
+  - issue:16
+  - issue:37
+  - issue:506
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -35,13 +72,15 @@ Two crates do the drawing. `mcrs_minecraft_render` draws the terrain and the sky
 
 ## Terrain lives in a few large GPU buffers
 
-The renderer does not give each chunk its own buffer. It writes the meshes into a few large GPU buffers called arenas. There are three of them, and they hold quads, models and faces. An allocator packs blocks toward offset zero, and an arena grows in steps only as far as the highest byte in use.
+The renderer writes chunk meshes into three large geometry buffers called arenas, which hold quads, models and faces. An allocator packs blocks toward offset zero, and an arena grows in steps with spare capacity as geometry arrives.
 
-One render system builds the whole frame. It does the uploads, resolves the timestamps, dispatches the cull, and runs a single render pass that holds the sky, the opaque terrain, the clouds and the blended terrain.
+The frame is a chain of render systems that run in a fixed order. They upload the changed geometry, run the cull, draw the sky into the world image, and draw the opaque terrain into a gbuffer, a set of images that keep the surface of each pixel. Then they run the occlusion test with a second opaque pass, draw the mobs, light the gbuffer in one pass, and draw the clouds and the blended terrain in a forward pass. A last pass presents the world image in the window.
 
 ## The GPU chooses what to draw
 
-Culling means leaving out geometry that the camera cannot see. In mcrs a compute pass on the GPU does this work, and the CPU does not. The pass tests each group of quads against the view and writes the draw arguments itself.
+Culling means leaving out geometry that the camera cannot see. On the full path, a compute pass on the GPU tests each group of quads against the view and writes the draw arguments.
+
+This is the full path, which the renderer takes when the device has compute shaders, indirect draws and storage buffers. WebGL2 has none of them, so in that case the renderer takes a minimal path. The shaders stay the same, the arrays they read become textures, and the renderer draws every resident group, because nothing culls them.
 
 ## Occlusion is tested against the depth of the last frame
 
@@ -57,7 +96,7 @@ The design in `docs/entity-render.md` aims at 100,000 mobs in one world without 
 
 The ECS holds the state of each mob, and the GPU holds a projection of that state in a persistent slot. The CPU writes a slot only when something changes, which means a packet, a tick or a script input. The GPU does the rest, and only for visible mobs: it culls, computes the poses, expands the faces and draws. The poses come from Molang, the expression language that the client entity definitions use, and `mcrs_molang_wgsl` lowers the Molang channels to WGSL shader code.
 
-The note defines three execution paths, and the renderer picks one at start from the capabilities of the graphics adapter.
+The note defines three execution paths of the mobs for graphics adapters of different capabilities.
 
 | Path | What it needs |
 |---|---|
@@ -65,13 +104,27 @@ The note defines three execution paths, and the renderer picks one at start from
 | Compatibility | WebGPU compatibility mode |
 | Minimal | No compute, for WebGL2 |
 
-The web build itself does not reach a steady frame.[^344]
+Only the full path of the mobs is built. The renderer runs the entity passes when the device takes the full path of the terrain and the passes fit its limits. Each pass binds at most 8 storage buffers, the limit of WebGPU in a browser, so a Chromium browser draws mobs over WebGPU. On WebGL2 the client draws no mobs. The web client has no measured steady frame yet.[^344]
 
 ## Far mobs are flat images
 
 A mob that is far away does not need its full rig, the set of bones that poses the model. For each pair of a model and a texture, the renderer bakes a small set of views. A set has 16 yaws and 9 elevations at 64 by 64 texels and takes about 4.7 MB. A far mob is then drawn as an impostor, which is one quad that shows the nearest view. The renderer bakes a set lazily, when a model and a texture first appear on an active mob. Full rigs have a cap, and impostors have none. The note records the cost of each step and the choices that did not help.
 
-A player draws through the same passes. Its skin is a layer of the entity textures that the renderer writes when the skin arrives, so a new skin needs no rebuild. A player with a skin keeps the full rig at each distance, because a baked view would keep an old skin. A program with no server, such as a world viewer, adds a player with `host_living_entity`, moves it with `move_entity` and gives it a model with the `PlayerModel` component and a skin with the `PlayerSkin` component. The rules are in `docs/spec/client-player-render.md`.
+A player draws through the same passes. Its skin is a layer of the entity textures that the renderer writes when the skin arrives, so a new skin needs no rebuild. A player with a skin keeps the full rig at each distance, because a baked view would keep an old skin. The server sends the pose of each player, and the client draws another player sneaking, swimming, crawling, sleeping, gliding or in a spin attack with the animations in `assets/mcrs/entity/animations/player.animation.json`. The camera and the ray that finds the target block follow the eye height of the pose of the local player.[^970] A program with no server, such as a world viewer, adds a player with `host_living_entity` from `mcrs_minecraft_entity_visual`, moves it through its `Motion` component, and gives it a model with the `PlayerModel` component and a skin with the `PlayerSkin` component. The rules are in `docs/spec/client-player-render.md`.
+
+The survival inventory screen draws the local player through the same passes. The cull, the pose and the expand run a second time for this figure view, and `FigureDraw` draws its faces into a render pass of the host.
+
+## Name tags and sign text
+
+Name tags face the camera above players and named mobs. A host's `NameTag` takes precedence over the custom name from entity data; a player's profile name is the fallback. A mob also needs `SyncedData.name_visible`. Tags appear at distances below 64 blocks, or below 32 while crouching. Invisible entities and entities marked `CameraEntity` have no tag. A normal tag draws faint text through blocks and opaque text with depth; a crouching tag draws once with depth.[^1062]
+
+`NameTagPlugin` in `mcrs_minecraft_client::name_tag` is included by `ClientTerrainPlugin`. A host can add it after the renderer and entity plugins, set `NameTag` on an entity and mark the camera's entity with `CameraEntity`. The client does not yet supply the crosshair target, hidden-HUD state or passenger state to the visibility check, so those rules do not affect tags yet. Team visibility and a score line below the name are also absent. The text pass works on the minimal WebGL2 path even though that path draws no entity models.[^1062]
+
+Signs share the font and glyph atlas with name tags. Standing and wall signs draw each side's text only toward its viewer, so looking from inside a sign no longer shows the far side mirrored. The fix applies to both rendering paths.[^1056]
+
+## Health and death use GUI plugins
+
+`HealthHudPlugin` derives the hearts and food bar from the local player's `Vitals`, `FoodLevel` and maximum-health attribute each frame. `DeathScreenPlugin` follows `PlayerKilled` and sends `RequestRespawn` from its button. Both are removable GUI plugins, and the native entry point adds them. The browser entry point does not add them yet. [The client today](/docs/en/client/overview/#health-death-and-headless-clients) lists the display limits and the headless API; the HUD rules are in [`docs/spec/client-health-hud.md`](https://github.com/andreypfau/mcrs/blob/main/docs/spec/client-health-hud.md).[^1085]
 
 ## Where the rules are
 
@@ -88,4 +141,8 @@ Two more pieces of work are planned: a bound on memory at 96 columns, and render
 [^330]: <Status issue={330} /> Tracks the measurement of the deferred renderer against the pre-restructure baseline.
 [^344]: <Status issue={344} /> Tracks a web client that reaches a steady frame.
 [^337]: <Status issue={337} /> Tracks a bound on the client's memory at 96 columns.
+[^970]: <Status pr={970} state="works" /> Tracks the pose and the eye height of players on the server and the client.
 [^506]: <Status issue={506} /> Tracks rendering that embeds in a host app, which owns the window and the camera.
+[^1062]: <Status pr={1062} state="works" /> Adds name tags with host inputs and records the inputs the client does not yet supply.
+[^1056]: <Status pr={1056} state="works" /> Culls sign text seen from behind its plane.
+[^1085]: <Status pr={1085} state="works" /> Adds the removable health HUD and death-screen plugins.

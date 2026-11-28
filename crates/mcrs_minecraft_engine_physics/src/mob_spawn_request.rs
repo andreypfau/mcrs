@@ -14,6 +14,7 @@ pub struct MobSpawnRequest {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MobExtras {
     pub no_ai: bool,
+    pub on_ground: bool,
     pub custom_name: Option<String>,
     pub tags: Vec<String>,
 }

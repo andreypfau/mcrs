@@ -81,10 +81,6 @@ fn requested_view_distance(options: &ClientOptions) -> RequestedViewDistance {
     RequestedViewDistance(options.view_distance.unwrap_or(VIEW_DISTANCE_DEFAULT))
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and writer is its own parameter"
-)]
 fn project_options(
     options: Res<ClientOptions>,
     gui_scale: Res<GuiScaleOverride>,
@@ -198,7 +194,10 @@ mod tests {
     }
 
     fn set_window_fullscreen(app: &mut App, fullscreen: bool) {
-        app.world_mut().resource_mut::<WindowFullscreen>().0 = fullscreen;
+        app.world_mut()
+            .resource_mut::<WindowFullscreen>()
+            .map_unchanged(|window| &mut window.0)
+            .set_if_neq(fullscreen);
     }
 
     fn assert_rests_at(app: &mut App, fullscreen: bool) {
@@ -240,7 +239,10 @@ mod tests {
     fn a_switch_that_the_window_follows_within_the_grace_period_changes_nothing_more() {
         for delay in [1, grace_frames() - 1] {
             let mut app = idle_app(false);
-            app.world_mut().resource_mut::<ClientOptions>().fullscreen = true;
+            app.world_mut()
+                .resource_mut::<ClientOptions>()
+                .map_unchanged(|options| &mut options.fullscreen)
+                .set_if_neq(true);
             run_frames(&mut app, delay);
             assert!(option_fullscreen(&app), "delay {delay}");
             set_window_fullscreen(&mut app, true);
@@ -251,7 +253,10 @@ mod tests {
     #[test]
     fn a_switch_that_the_window_never_follows_gives_the_option_the_window_state_once() {
         let mut app = idle_app(false);
-        app.world_mut().resource_mut::<ClientOptions>().fullscreen = true;
+        app.world_mut()
+            .resource_mut::<ClientOptions>()
+            .map_unchanged(|options| &mut options.fullscreen)
+            .set_if_neq(true);
         run_frames(&mut app, grace_frames());
         assert!(option_fullscreen(&app), "the switch is still in flight");
         run_frames(&mut app, 1);
@@ -333,7 +338,10 @@ mod tests {
     #[test]
     fn a_gui_scale_of_the_plugin_wins_over_the_options_and_stays_out_of_them() {
         let mut app = app_with(ClientOptions::default(), Some(2));
-        app.world_mut().resource_mut::<ClientOptions>().gui_scale = 3;
+        app.world_mut()
+            .resource_mut::<ClientOptions>()
+            .map_unchanged(|options| &mut options.gui_scale)
+            .set_if_neq(3);
         app.update();
         assert_eq!(app.world().resource::<GuiConfig>().scale, 2);
         assert_eq!(app.world().resource::<ClientOptions>().gui_scale, 3);

@@ -26,6 +26,7 @@ mcrs_minecraft_command.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_creative_content.workspace = true
 mcrs_minecraft_creative_report.workspace = true
+mcrs_minecraft_damage = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine_inventory_click.workspace = true
 mcrs_minecraft_engine_inventory_menu.workspace = true

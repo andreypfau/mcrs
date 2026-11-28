@@ -16,7 +16,7 @@ use mcrs_voxel::BlockStateId;
 use crate::falling_block_rules::FallingBlockRules;
 
 pub(crate) fn drop_item(
-    commands: &mut Commands,
+    mut commands: Commands<'_, '_>,
     rules: &FallingBlockRules,
     definitions: &BlockDefinitions,
     carried: BlockStateId,

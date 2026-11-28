@@ -46,8 +46,8 @@ const SHORT_TICKS: u64 = 60;
 const HALF_TILES: i32 = 3;
 const CACTUS: u32 = 7;
 const HIT_TICK: u64 = 50;
-const SHORT_GOLDEN: u64 = 8_685_061_870_273_318_056;
-const LONG_GOLDEN: u64 = 14_709_177_575_086_716_212;
+const SHORT_GOLDEN: u64 = 12_682_452_769_184_371_115;
+const LONG_GOLDEN: u64 = 6_193_400_499_467_747_111;
 
 fn pig_brain(kind: &'static EntityTypeData) -> Option<PigBrain> {
     (kind.entity_type == EntityType::Pig).then(PigBrain::default)

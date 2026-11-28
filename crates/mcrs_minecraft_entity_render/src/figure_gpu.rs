@@ -43,9 +43,12 @@ pub(crate) struct FigureGpu {
 }
 
 impl FigureGpu {
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the parts of the figure view come from the world view and from the host"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the parts of the figure view come from the world view and from the host"
+        )
     )]
     pub(crate) fn new(
         device: &Device,

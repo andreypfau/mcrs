@@ -31,10 +31,6 @@ use mcrs_minecraft_player_holders::PlayerHolders;
 
 const INVENTORY_CONTAINER_ID: u8 = 0;
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the open reads the viewer, the menu, the holders, the stacks and the wire names"
-)]
 pub(crate) fn open_menu_sync(
     opened: On<MenuOpened>,
     viewers: Query<(&Menus, Option<&Owner>, Option<&PlayerHolders>)>,

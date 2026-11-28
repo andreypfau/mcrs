@@ -1,5 +1,6 @@
 use bevy_derive::Deref;
 use bevy_ecs::prelude::{Commands, Component, Entity, Query, Without};
+use bevy_ecs::system::Populated;
 use mcrs_voxel::{BlockPos, SectionPos};
 
 use crate::world::dimension::InDimension;
@@ -21,7 +22,7 @@ pub struct BlockEntityPos(pub BlockPos);
 pub struct BlockEntity(pub GeneratedBlockEntity);
 
 pub fn spawn_block_entities(
-    commands: &mut Commands,
+    mut commands: Commands,
     dim: InDimension,
     entries: Vec<GeneratedBlockEntity>,
 ) {
@@ -36,7 +37,7 @@ pub fn spawn_block_entities(
 }
 
 pub fn reconcile_block_entities(
-    unlinked: Query<(Entity, &BlockEntityPos, &InDimension), Without<InSection>>,
+    unlinked: Populated<(Entity, &BlockEntityPos, &InDimension), Without<InSection>>,
     dimensions: Query<&SectionIndex>,
     mut commands: Commands,
 ) {

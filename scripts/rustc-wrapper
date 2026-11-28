@@ -1,0 +1,6 @@
+#!/bin/sh
+driver="$(dirname "$0")/../lints/target/release/mcrs-lint-driver"
+if [ -x "$driver" ]; then
+    exec "$driver" "$@"
+fi
+exec "$@"

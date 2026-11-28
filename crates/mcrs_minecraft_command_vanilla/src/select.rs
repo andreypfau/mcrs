@@ -65,13 +65,6 @@ impl<'c> Selection<'c> {
             EntityView::Mob { view, .. } => Some(*view),
         })
     }
-
-    pub(crate) fn single_mob(&self) -> Result<MobView<'c>, CommandFailure> {
-        match self.first() {
-            Some(EntityView::Mob { view, .. }) => Ok(view),
-            _ => Err(CommandFailure::failed()),
-        }
-    }
 }
 
 pub(crate) fn select<'c>(

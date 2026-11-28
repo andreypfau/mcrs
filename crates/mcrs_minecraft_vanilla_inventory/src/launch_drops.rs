@@ -59,7 +59,7 @@ pub(crate) fn launch_drops(
         };
         let eye_height = eye_height_of(pose, attributes);
         launch_from_player(
-            &mut commands.entity(drop.stack),
+            commands.entity(drop.stack),
             transform,
             eye_height,
             profile,
@@ -73,7 +73,7 @@ pub(crate) fn eye_height_of(pose: Option<&Pose>, attributes: Option<&AttributeIn
 }
 
 pub(crate) fn launch_from_player(
-    stack: &mut EntityCommands,
+    mut stack: EntityCommands<'_>,
     transform: Option<&Transform>,
     eye_height: f32,
     profile: Option<&GameProfile>,

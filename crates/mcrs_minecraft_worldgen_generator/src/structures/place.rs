@@ -45,9 +45,12 @@ pub fn column_clip(col: ColumnPos, y_sections: &[i32]) -> BoundingBox {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one step's placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one step's placement"
+    )
 )]
 pub fn place_structures<W: WorldGenVolume>(
     frozen: &FrozenStructures,
@@ -102,9 +105,12 @@ fn sunk_bounds(piece: &DesertPyramidPiece, sink: i32) -> BoundingBox {
     ))
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one structure start"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one structure start"
+    )
 )]
 #[expect(
     clippy::too_many_lines,
@@ -427,9 +433,12 @@ pub fn place_start<W: WorldGenVolume>(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one jigsaw element's placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one jigsaw element's placement"
+    )
 )]
 pub fn place_element<W: WorldGenVolume>(
     program: &FeatureProgram,

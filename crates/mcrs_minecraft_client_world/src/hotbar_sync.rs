@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_inventory_client::InventoryClientSet;
-use mcrs_minecraft_item::{LAST_HOTBAR_SLOT, SelectedHotbarSlot};
+use mcrs_minecraft_item::LAST_HOTBAR_SLOT;
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
+use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundSetHeldSlot};
@@ -26,40 +26,31 @@ impl Plugin for HotbarSyncPlugin {
             .add_observer(on_set_held_slot)
             .add_systems(
                 FixedUpdate,
-                (
-                    send_selected_slot
-                        .in_set(SendSelectedSlot)
-                        .before(LocalPlayerTick)
-                        .run_if(any_with_component::<ClientConnection>),
-                    project_selected,
-                )
-                    .before(InventoryClientSet::Predict),
-            )
-            .add_systems(
-                Update,
-                project_selected
-                    .after(ClientNetworkSystems::Receive)
-                    .before(InventoryClientSet::Predict),
+                send_selected_slot
+                    .in_set(SendSelectedSlot)
+                    .before(LocalPlayerTick)
+                    .before(InventoryClientSet::Predict)
+                    .run_if(any_with_component::<ClientConnection>),
             );
     }
 }
 
 fn on_login(
     event: On<Received<ClientboundLogin>>,
-    mut player: Query<(&mut SelectedHotbarSlot, &mut LastSentHotbarSlot), With<Player>>,
+    mut player: Query<(&mut Selected, &mut LastSentHotbarSlot), With<Player>>,
 ) {
     if event.packet().is_none() {
         return;
     }
     if let Ok((mut selected, mut last_sent)) = player.single_mut() {
-        selected.set_if_neq(SelectedHotbarSlot(0));
+        selected.set_if_neq(Selected(0));
         last_sent.set_if_neq(LastSentHotbarSlot(0));
     }
 }
 
 fn on_set_held_slot(
     event: On<Received<ClientboundSetHeldSlot>>,
-    mut player: Query<&mut SelectedHotbarSlot, With<Player>>,
+    mut player: Query<&mut Selected, With<Player>>,
 ) {
     let Some(packet) = event.packet() else {
         return;
@@ -71,12 +62,12 @@ fn on_set_held_slot(
         return;
     };
     if let Ok(mut selected) = player.single_mut() {
-        selected.set_if_neq(SelectedHotbarSlot(slot));
+        selected.set_if_neq(Selected(slot));
     }
 }
 
 fn send_selected_slot(
-    player: Single<(&SelectedHotbarSlot, &mut LastSentHotbarSlot), With<Player>>,
+    player: Single<(&Selected, &mut LastSentHotbarSlot), With<Player>>,
     connection: Single<(&mut ClientConnection, &ConnectionState)>,
 ) {
     let (mut connection, state) = connection.into_inner();
@@ -90,16 +81,7 @@ fn send_selected_slot(
     connection.write_packet(&ServerboundSetCarriedItem {
         slot: u16::from(selected.0),
     });
-    *last_sent = LastSentHotbarSlot(selected.0);
-}
-
-fn project_selected(
-    mut players: Query<(Entity, &SelectedHotbarSlot), Changed<SelectedHotbarSlot>>,
-    mut commands: Commands,
-) {
-    for (player, slot) in &mut players {
-        commands.entity(player).try_insert(Selected(slot.0));
-    }
+    last_sent.set_if_neq(LastSentHotbarSlot(selected.0));
 }
 
 #[cfg(test)]
@@ -113,7 +95,7 @@ mod tests {
     fn slots(session: &TestSession) -> (u8, u8) {
         let world = session.app.world();
         (
-            world.get::<SelectedHotbarSlot>(session.player).unwrap().0,
+            world.get::<Selected>(session.player).unwrap().0,
             world.get::<LastSentHotbarSlot>(session.player).unwrap().0,
         )
     }
@@ -141,16 +123,9 @@ mod tests {
     #[cfg(not(target_family = "wasm"))]
     mod wire {
         use super::*;
-        use crate::joined_game::JoinedGame;
-        use crate::test_session::{OWN_PLAYER, Server, receive};
-        use mcrs_minecraft_network::client::{
-            ClientNetworkPlugin, JoinRequest, finish_configuration,
-        };
+        use crate::test_session::{Joined, Server, joined, receive};
         use mcrs_minecraft_protocol::{Decode, Packet};
         use mcrs_minecraft_protocol_game::serverbound::ServerboundClientTickEnd;
-        use std::net::TcpListener;
-        use std::thread;
-        use std::time::Duration;
 
         fn carried_items(server: &mut Server, ticks: usize) -> Vec<Vec<u16>> {
             let mut sent = vec![Vec::new()];
@@ -170,40 +145,12 @@ mod tests {
         #[test]
         fn a_slot_from_the_server_goes_back_once() {
             let mut app = TestSession::new(DVec3::ZERO).app;
-            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-            app.add_plugins((
-                HotbarSyncPlugin,
-                ClientNetworkPlugin {
-                    holds_vanilla_pack: false,
-                    play: None,
-                },
-            ));
-            app.world_mut().write_message(JoinRequest {
-                server: listener.local_addr().unwrap(),
-                username: "Steve".to_owned(),
-                profile_id: None,
-                view_distance: 8,
-            });
-            app.update();
-            let (mut server, _information) = Server::join(&listener);
-            let connection = (0..1000)
-                .find_map(|_| {
-                    app.update();
-                    thread::sleep(Duration::from_millis(10));
-                    app.world_mut()
-                        .query_filtered::<Entity, With<ClientConnection>>()
-                        .single(app.world())
-                        .ok()
-                })
-                .expect("the client joins");
-            finish_configuration(&mut app.world_mut().commands(), connection);
-            app.world_mut().flush();
-            app.update();
-            let _finished = server.next_frame();
-            app.world_mut().entity_mut(connection).insert(JoinedGame {
-                player_id: OWN_PLAYER,
-                dimensions: Vec::new(),
-            });
+            app.add_plugins(HotbarSyncPlugin);
+            let Joined {
+                mut app,
+                mut server,
+                connection,
+            } = joined(app);
             receive(&mut app, connection, login(GameMode::Survival));
             receive(
                 &mut app,

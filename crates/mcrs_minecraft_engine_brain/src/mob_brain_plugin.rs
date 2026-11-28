@@ -23,6 +23,7 @@ use mcrs_minecraft_brain::AiDelay;
 use mcrs_minecraft_brain::MobBrain;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed as StageSeed;
+use mcrs_minecraft_engine_damage::DamageSet;
 use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_physics::Mob;
@@ -89,6 +90,7 @@ where
             (
                 MobBrainSet::Prepare
                     .after(TickSet::ClientInput)
+                    .after(DamageSet::PacketReport)
                     .before(TickSet::Simulate)
                     .run_if(ready.clone()),
                 MobBrainSet::Stage.in_set(TickSet::Simulate).run_if(ready),
@@ -179,6 +181,21 @@ fn set_panic_causes<B: Send + Sync + 'static>(
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the wall clock measures the AI phases for the periodic mob AI profile log"
+    )
+)]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "the tile tasks borrow the rows of this tick and move to the compute pool, so their lists cannot live in a reused buffer"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(2))]
 fn prepare<B>(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,
@@ -194,9 +211,21 @@ fn prepare<B>(
         return;
     };
     let goal_world = BlockGoalWorld::new(&blocks, tables.collision());
-    ai.prepare(&goal_world, player_table(&players), &mut mobs, &mut threads);
+    ai.prepare(
+        &goal_world,
+        player_table(&players),
+        mobs.reborrow(),
+        &mut threads,
+    );
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the wall clock measures the AI stage for the periodic mob AI profile log"
+    )
+)]
 fn run_stage<B>(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,

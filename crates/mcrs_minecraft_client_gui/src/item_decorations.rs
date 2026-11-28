@@ -1,7 +1,9 @@
-use bevy::color::{ColorToPacked, Hsva, Srgba};
-use bevy::math::{IRect, IVec2};
+use std::io::Write;
 
-use crate::font::{Font, Span, draw_text};
+use bevy::color::{ColorToPacked, Hsva, Srgba};
+use bevy::math::{IRect, IVec2, Vec2};
+
+use crate::font::{Font, draw_str};
 use crate::scene::GuiQuad;
 use mcrs_minecraft_item_icon::Durability;
 
@@ -48,9 +50,27 @@ pub fn decorations(origin: IVec2, stack: &Decorated, font: &Font, out: &mut Vec<
         CountLabel::Plain(count) => (count, WHITE),
         CountLabel::Capped(count) => (count, CAPPED),
     };
-    let text = [Span::new(count.to_string(), color)];
-    let x = origin.x + 19 - 2 - font.width(&text);
-    draw_text(font, IVec2::new(x, origin.y + 6 + 3), &text, out);
+    let mut digits = [0; 3];
+    let mut free = digits.as_mut_slice();
+    if write!(free, "{count}").is_err() {
+        return;
+    }
+    let written = 3 - free.len();
+    let Some(text) = digits
+        .get(..written)
+        .and_then(|digits| std::str::from_utf8(digits).ok())
+    else {
+        return;
+    };
+    let x = origin.x + 19 - 2 - font.str_width(text);
+    draw_str(
+        font,
+        Vec2::new(x as f32, (origin.y + 6 + 3) as f32),
+        text,
+        color,
+        false,
+        out,
+    );
 }
 
 #[cfg(test)]

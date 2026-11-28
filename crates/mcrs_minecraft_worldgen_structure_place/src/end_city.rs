@@ -21,7 +21,7 @@ pub struct EndCityChains {
 }
 
 impl EndCityChains {
-    pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
+    pub fn compile(blocks: &impl BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(EndCityChains {
             overwrite: ignore_blocks(blocks, &[Block::StructureBlock])?,
             keep_air: ignore_blocks(blocks, &[Block::Air, Block::StructureBlock])?,
@@ -29,9 +29,12 @@ impl EndCityChains {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one piece's post-process"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one piece's post-process"
+    )
 )]
 pub fn place_end_city_piece<W: WorldGenVolume>(
     chains: &EndCityChains,

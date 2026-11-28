@@ -20,7 +20,7 @@ use crate::select_world_screen::{self, selected_row, selected_world, world_at};
 use crate::title_draw::TitleScreenState;
 use crate::title_screen;
 use crate::world_list_error_screen;
-#[derive(Resource, Default)]
+#[derive(Resource, Default, PartialEq)]
 pub(crate) struct DeleteTarget(pub(crate) Option<String>);
 
 #[derive(SystemParam)]
@@ -49,6 +49,14 @@ impl TitleActions<'_, '_> {
     }
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates a world folder id only when the player plays or deletes a world"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(4))]
 pub(crate) fn follow_menu_events(
     mut events: MessageReader<MenuEvent>,
     mut screen: ResMut<Screen>,
@@ -87,11 +95,15 @@ pub(crate) fn follow_menu_events(
                     title.play(&menu.widgets, selected_row(&menu.widgets), &mut screen);
                 }
                 (Screen::SelectWorld, select_world_screen::DELETE) => {
-                    title.delete_target.0 = selected_world(&menu.widgets, &title.worlds)
-                        .map(|world| world.folder_id.clone());
+                    title.delete_target.set_if_neq(DeleteTarget(
+                        selected_world(&menu.widgets, &title.worlds)
+                            .map(|world| world.folder_id.clone()),
+                    ));
                 }
                 (Screen::SelectWorld, select_world_screen::CREATE) => {
-                    *title.form = NewWorldForm::opened(title.time.elapsed());
+                    title
+                        .form
+                        .set_if_neq(NewWorldForm::opened(title.time.elapsed()));
                 }
                 (Screen::DeleteWorldConfirmation, delete_world_screen::DELETE) => {
                     if let Some(folder_id) = title.delete_target.0.take() {
@@ -125,7 +137,7 @@ pub(crate) fn follow_menu_events(
             _ => {}
         }
         if let Some(next) = next_screen(shown, *event, world) {
-            *screen = next;
+            screen.set_if_neq(next);
             if next == Screen::None {
                 grab(&mut cursor, true);
                 buttons.reset_all();
@@ -213,7 +225,7 @@ mod tests {
                 let Some(WidgetKind::SelectionList(list)) = menu
                     .widgets
                     .get(select_world_screen::LIST)
-                    .map(|widget| &widget.kind)
+                    .map(|widget| widget.kind())
                 else {
                     panic!("no world list");
                 };

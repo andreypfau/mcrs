@@ -6,6 +6,8 @@ use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_widget::{
     GuiExtent, GuiInput, GuiPoint, Widget, WidgetEvent, WidgetId, Widgets,
 };
+use mcrs_minecraft_client_world::hardcore_mode::HardcoreMode;
+use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_client_world::session::LocalServer;
 use mcrs_minecraft_client_world::world_list::{WorldList, WorldTypes};
@@ -15,6 +17,7 @@ use crate::accessibility_settings_screen::{
 };
 use crate::controls_screen::{self, controls_screen};
 use crate::create_world_screen::{self, NewWorldForm, create_world_menu};
+use crate::death_screen::DeathScreen;
 use crate::delete_world_screen::delete_world_screen;
 use crate::disconnected_screen::disconnected_screen;
 use crate::follow_menu_events::DeleteTarget;
@@ -83,6 +86,8 @@ pub(crate) struct MenuSource<'w, 's> {
     delete_target: Res<'w, DeleteTarget>,
     time: Res<'w, Time<Real>>,
     window: Single<'w, 's, &'static Window, With<PrimaryWindow>>,
+    death: Option<Res<'w, DeathScreen>>,
+    hardcore: Query<'w, 's, &'static HardcoreMode, With<Player>>,
 }
 
 pub(crate) fn max_gui_scale(window: &Window) -> u32 {
@@ -130,6 +135,19 @@ fn screen_menu(
                 extent,
                 input,
                 pause_screen(extent, language, font, last_button_key(source))?,
+            )?,
+            Vec::new(),
+        ),
+        Screen::Death => (
+            widgets_of(
+                extent,
+                input,
+                source.death.as_deref()?.widgets(
+                    extent,
+                    language,
+                    font,
+                    source.hardcore.single().copied().unwrap_or_default(),
+                ),
             )?,
             Vec::new(),
         ),
@@ -293,6 +311,9 @@ pub(crate) fn widgets_of(
     }
     Some(widgets)
 }
+
+#[derive(Resource, Default, PartialEq, Eq)]
+pub(crate) struct MenuExtent(pub(crate) GuiExtent);
 
 pub(crate) fn project_menu(
     source: MenuSource,

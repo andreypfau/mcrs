@@ -141,6 +141,12 @@ impl Row {
     }
 }
 
+pub(crate) fn row_mask(rows: &[Row], has: impl Fn(ComponentId) -> bool) -> u128 {
+    (rows.iter().enumerate())
+        .filter(|(_, row)| has(row.id()))
+        .fold(0, |mask, (index, _)| mask | bit(index))
+}
+
 pub(crate) fn bit(index: usize) -> u128 {
     u32::try_from(index)
         .ok()

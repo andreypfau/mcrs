@@ -2,7 +2,7 @@ use crate::mock_connection;
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::MessageRegistry;
 use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
@@ -45,8 +45,8 @@ use tokio::sync::mpsc;
 
 fn build_inbound_world() -> World {
     let mut world = World::new();
-    world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<Messages<InboundPlayerPacket>>();
+    MessageRegistry::register_message::<OutboundPlayerPacket>(&mut world);
+    MessageRegistry::register_message::<InboundPlayerPacket>(&mut world);
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<DimInputs>();
     world.init_resource::<BridgeTelemetry>();
@@ -241,7 +241,12 @@ fn disconnect_clears_pending() {
             move |mut commands: bevy_ecs::prelude::Commands,
                   mut sessions: LeavingSessions,
                   mut dim_channels: bevy_ecs::system::ResMut<DimInputs>| {
-                process_disconnect(player, &mut sessions, &mut dim_channels, &mut commands);
+                process_disconnect(
+                    player,
+                    sessions.reborrow(),
+                    &mut dim_channels,
+                    commands.reborrow(),
+                );
             },
         )
         .expect("process_disconnect system ran");
@@ -633,4 +638,56 @@ fn a_packet_past_the_nbt_budget_of_the_plugin_disconnects_and_is_not_delivered()
             "{name} {budget}"
         );
     }
+}
+
+#[test]
+fn a_packet_carries_the_tick_acknowledged_at_its_arrival_and_no_pong_reaches_the_game() {
+    use mcrs_minecraft_engine::muxer::probes::Probes;
+    use mcrs_minecraft_engine::muxer::session::PendingInbound;
+
+    let mut world = build_inbound_world();
+    let dim = Entity::from_raw_u32(10).expect("nonzero");
+    let (socket, tx) = spawn_ingame_connection(&mut world);
+    let player = register_player(&mut world, dim, None);
+    attach_anchor(&mut world, socket, player);
+    let mut probes = Probes::default();
+    for _ in 0..3 {
+        probes.pings.ping(Duration::ZERO);
+        probes.pings.end_tick(Duration::ZERO);
+    }
+    world.entity_mut(socket).insert(probes);
+
+    let pong_row = row_of(game_serverbound::NAMES, "pong").unwrap();
+    let pong = |id: i32| {
+        let mut packet = frame(pong_row, &id.to_be_bytes());
+        packet.verdict = Some(mcrs_minecraft_move_validate::check_serverbound(
+            pong_row,
+            &id.to_be_bytes(),
+        ));
+        packet
+    };
+    for packet in [
+        make_received_packet(0),
+        pong(1),
+        make_received_packet(1),
+        pong(7),
+        pong(2),
+        make_received_packet(2),
+    ] {
+        tx.try_send(packet).unwrap();
+    }
+    run_inbound(&mut world);
+
+    let delivered: Vec<(i32, u64)> = world
+        .get::<PendingInbound>(player)
+        .unwrap()
+        .0
+        .iter()
+        .map(|packet| (packet.id, packet.acknowledged_tick))
+        .collect();
+    let keep_alive = keep_alive_row();
+    assert_eq!(
+        delivered,
+        [(keep_alive, 0), (keep_alive, 1), (keep_alive, 2)]
+    );
 }

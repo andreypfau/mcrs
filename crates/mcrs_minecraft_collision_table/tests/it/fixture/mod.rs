@@ -121,7 +121,7 @@ pub fn border_of(fixture: &Fixture) -> Option<WorldBorder> {
     })
 }
 
-fn state_of(text: &str) -> BlockStateId {
+pub fn state_of(text: &str) -> BlockStateId {
     let definitions = crate::common::definitions();
     let (name, properties) = text.split_once('[').unwrap_or((text, ""));
     let block = definitions

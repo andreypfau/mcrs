@@ -58,10 +58,6 @@ impl Plugin for SlotIconPlugin {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each access is its own parameter"
-)]
 fn project_slot_icons(
     models: Res<ItemModels>,
     table: Res<ItemTable>,

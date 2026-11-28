@@ -78,7 +78,7 @@ impl TrackedVelocity {
     reason = "one query reads each part of an entity that its velocity tick needs"
 )]
 pub(crate) fn tick_velocities(
-    mut entities: Query<
+    mut entities: Populated<
         (
             &ClientEntity,
             Ref<Age>,

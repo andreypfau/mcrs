@@ -1,7 +1,9 @@
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::IntoScheduleConfigs;
+use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 
+use crate::player_signal::{PlayerSignal, publish_player_signals};
 use crate::publish_player_tiles::{publish_player_despawn, publish_player_tiles};
 use crate::swing::{PendingPlayerSwings, has_pending_player_swings, publish_player_swings};
 use crate::tile_events::TileEvents;
@@ -13,10 +15,12 @@ impl Plugin for PlayerTrackerPlugin {
         app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
         app.init_resource::<TileEvents>();
         app.init_resource::<PendingPlayerSwings>();
+        app.add_message::<PlayerSignal>();
         app.add_observer(publish_player_despawn);
         app.add_systems(
             FixedPreUpdate,
             crate::drain_player_despawn::drain_inbound_player_despawn
+                .run_if(on_message::<crate::bus::InboundPlayerDespawn>)
                 .after(crate::dim_tick::DimInboxDrain),
         );
         app.add_systems(
@@ -26,6 +30,9 @@ impl Plugin for PlayerTrackerPlugin {
                 publish_player_swings
                     .run_if(has_pending_player_swings)
                     .after(publish_player_tiles),
+                publish_player_signals
+                    .run_if(on_message::<PlayerSignal>)
+                    .after(publish_player_swings),
             ),
         );
     }

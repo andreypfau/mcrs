@@ -10,7 +10,7 @@ use mcrs_minecraft_worldgen_feature::template::{
 use super::lowest_corner_site;
 use crate::frozen::FrozenStructures;
 use crate::piece::{Piece, WoodlandMansionPiece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
 macro_rules! mansion {
     ($path:literal) => {
@@ -99,11 +99,14 @@ pub const TEMPLATES: &[ResourceLocation<'static>] = &[
     rl!("minecraft:woodland_mansion/wall_window"),
 ];
 
-pub fn site(ctx: &mut Context<'_>, rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     lowest_corner_site(ctx, rng)
 }
 
-pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, mut site: Site) -> Vec<Piece> {
     let Stub::Rotated(rotation) = site.stub else {
         return Vec::new();
     };
@@ -911,9 +914,12 @@ impl Placer<'_> {
             .relative(pos, (x - self.start_x) * 8)
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the reference passes these as separate values"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the start cell, the end cell and the heading change at each call of the wall walk"
+        )
     )]
     fn traverse_outer_walls(
         &mut self,

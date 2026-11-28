@@ -1,0 +1,117 @@
+---
+title: Connections, proxies and operators
+description: How to put the server behind Velocity or a PROXY protocol proxy, how many players and logins it lets in, and who becomes an operator.
+sidebar:
+  order: 2
+kind: how-to
+audience: [admin, jvm, rust]
+stability: changing
+tracking: [82]
+sources:
+  - src/main.rs
+  - crates/mcrs_minecraft_engine_server/src/server_network_plugin.rs
+  - crates/mcrs_minecraft_engine_server/src/login.rs
+  - crates/mcrs_minecraft_engine_server/src/loopback_ops.rs
+  - crates/mcrs_minecraft_server_settings/src/server_settings.rs
+  - crates/mcrs_minecraft_network/src/forwarding_secret.rs
+  - crates/mcrs_minecraft_network/src/proxy_header.rs
+  - crates/mcrs_minecraft_network/src/connect.rs
+  - crates/mcrs_minecraft_network/src/intent.rs
+  - crates/mcrs_minecraft_nbt/src/budget.rs
+  - crates/mcrs_minecraft_engine/src/coordinator/ops.rs
+  - crates/mcrs_minecraft_server/tests/it/proxy_forwarding.rs
+  - crates/mcrs_minecraft_server/tests/it/login_profile.rs
+  - crates/mcrs_minecraft_network/tests/it/proxy_protocol.rs
+  - crates/mcrs_minecraft_engine_server/tests/it/connection_limits.rs
+  - docs/spec/proxy-forwarding.md
+  - docs/spec/proxy-protocol.md
+  - docs/spec/connection-limits.md
+  - docs/spec/nbt-quota.md
+  - docs/spec/loopback-operators.md
+  - issue:82
+  - pr:855
+  - pr:927
+  - pr:933
+  - pr:939
+  - pr:1006
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: b9bf112d8
+  date: 2026-11-18
+---
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+import Example from '~/components/Example.astro';
+
+This page is for an admin who puts the mcrs server behind a proxy and for a Rust developer who embeds the server. It shows how the server learns the real profile and address of a player, how many players and logins it lets in, and who becomes an operator.
+
+<Aside type="danger" title="A proxy adds no authentication">
+The server has no online mode, so nobody checks a player name with Mojang.[^82] Velocity forwarding signs the player data with your secret, and the signature proves only that the data comes from your proxy. The proxy checks the player only when it runs in online mode itself. A PROXY header carries an address and no identity. Without forwarding, anyone who reaches the port of the server past the proxy joins under any name, the name of an operator included. Do not open that port to the internet.
+</Aside>
+
+## Put the server behind Velocity
+
+Velocity modern forwarding tells the server who the player is and where the player connects from. The server binary turns it on when `MCRS_FORWARDING` is `on`, and it takes the forwarding secret of your Velocity from `MCRS_FORWARDING_SECRET`. The server uses the secret as it is and trims no whitespace. Velocity drops the line breaks from its secret file, so the secret must not contain one. A value of `MCRS_FORWARDING` that does not parse stops the binary, and so does `on` with an empty secret, which the log reports as "proxy forwarding is on, but its secret is empty".
+
+When forwarding is on, every login must come through the proxy. After the server checks the player name, it asks the proxy for the player data and checks the signature of the answer with the secret. A login that fails a check ends with its own message:
+
+| What happens | What the player sees |
+|---|---|
+| A vanilla client connects directly, without the proxy | This server requires you to connect with Velocity. |
+| The proxy has another secret, or the data was changed on the way | Unable to verify player details |
+| The proxy sends a forwarding version other than 1 or 4 | Unsupported forwarding version |
+| The data breaks the layout or its limits | Malformed player details |
+| No answer comes | The vanilla message for a slow login, after 600 ticks |
+
+When the check passes, the player gets the UUID, the name and the profile properties that the proxy sends, the skin textures among them, and the server ignores the name and the UUID that the client sent itself. The ban list, the whitelist, `ops.json` and the check for a second login under the same UUID use the forwarded UUID. The address from the proxy replaces the address of the socket, and the port stays the port of the socket. The legacy BungeeCord mode, which puts the data into the handshake, is not supported.[^pr855]
+
+An app that embeds the server sets the `forwarding` field of `ServerNetworkPlugin` to a `ForwardingSecret`, and `ForwardingSecret::new` returns an error for an empty secret. The end-to-end test does this and then logs in through a fake proxy, not through a real Velocity. The [proxy-forwarding spec](https://github.com/andreypfau/mcrs/blob/main/docs/spec/proxy-forwarding.md) states every check and its order.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/proxy_forwarding.rs" from="let mut plugins = MinecraftServerPlugins::embedded();" to="plugins.network.forwarding = Some(" title="A server that expects Velocity forwarding" />
+
+## Read the player address from a PROXY header
+
+A TCP proxy or a load balancer can send a PROXY protocol header before the first Minecraft byte. The header carries the address of the player and nothing else. List the exact IP addresses of your proxies, separated by commas, in `MCRS_PROXY_UPSTREAMS` or in the `proxy_upstreams` field of `ServerNetworkPlugin`. An entry has no port and no range. A value that does not parse stops the binary, and without the variable the server reads no header.
+
+A connection from a listed address must start with a header of version 1, which is text, or version 2, which is binary. Without a header, or with a broken one, the server closes the connection and sends no Minecraft packet. From any other address, a header breaks the handshake. The source address and port of the header become the client address for the whole connection: the server list ping, the login, the limits below, the operator check and the log. An IPv4 address in IPv6 form, such as `::ffff:203.0.113.7`, counts as the plain IPv4 address.[^pr927]
+
+The limit on new connections from the next section charges the address from the header and not the proxy. A version 2 header with the LOCAL command and a version 1 header with `UNKNOWN` keep the address of the proxy and get no charge, so the server never refuses a health check of the proxy for coming too often. When forwarding is on as well, the forwarded address replaces the address from the header after the check.
+
+Nobody has run this feature against a real HAProxy or nginx yet. The tests write the headers by hand, so this page shows no proxy configuration. The [proxy-protocol spec](https://github.com/andreypfau/mcrs/blob/main/docs/spec/proxy-protocol.md) states the format rules.
+
+## Limit players and logins
+
+The `join_limits` field of `ServerNetworkPlugin` holds a `JoinLimits` with three limits. The server binary has no variable for them, and `src/main.rs` keeps the defaults.
+
+<Example file="crates/mcrs_minecraft_engine_server/src/login.rs" from="impl Default for JoinLimits" title="The default limits" />
+
+| Field | Default | What it limits |
+|---|---|---|
+| `max_players` | 20 | Players on the server. The server list ping shows the same number as the maximum. |
+| `per_ip` | 5 | Players joined from one address. `None` turns the check off. |
+| `join_rate` | 3 logins, one more every 4 seconds | Logins from one address, as a bucket of tokens. `None` turns the check off. |
+
+The server checks a login in this order: the ban list, then the whitelist, which every operator passes, then `max_players`, `per_ip` and `join_rate`. The first check that fails ends the login with its reason, so a banned player learns about the ban and not about a full server. `max_players` counts every player who passed the checks, including those still in configuration, but not an older connection with the same UUID, so a player can reconnect to a full server. It makes no exception for an operator or a loopback address, and `0` refuses everyone. `per_ip` and `join_rate` skip a loopback address and read the client address after a PROXY header and after forwarding.[^pr939]
+
+Before the login starts, the network layer limits new TCP connections from one address to 5 at once and then one every 2 seconds. Loopback addresses are exempt. The limit is off when forwarding is on, because at that point the server sees only the address of the proxy.
+
+Behind a proxy with neither forwarding nor a PROXY header, every player has the address of the proxy, and the server does not detect that setup. With the defaults, the binary then lets in at most 5 players through the proxy, 3 logins in a row and then one every 4 seconds. The proxy can open only 5 connections at once and then one every 2 seconds, server list pings included. A proxy that connects from a loopback address on the same machine escapes these limits. The binary cannot turn them off, so turn on forwarding or the PROXY header. An app that embeds the server can set `per_ip` and `join_rate` to `None`, which turns off only the login checks. The limit on connections stays on while forwarding is off, unless the proxy sends a PROXY header.
+
+The `nbt_budget` field, an `NbtBudget`, caps the total NBT that one serverbound packet may carry, by default 33554432 bytes and 262144 tags. A packet past the budget ends the connection, and the [nbt-quota spec](https://github.com/andreypfau/mcrs/blob/main/docs/spec/nbt-quota.md) states how the server counts bytes and tags.[^pr1006]
+
+## Who becomes an operator
+
+The server binary uses the public profile. A player becomes an operator only through `ops.json` in the working directory of the server or through the `op` command, and joining from the same machine gives no rights. No environment variable selects another profile.
+
+A host app that embeds the server can set `profile: ServerProfile::Local` on `ServerNetworkPlugin`. Then a player who joins from a loopback address and is missing from `ops.json` becomes an operator at level `owners` until the process ends or a `deop`, and the server does not write that player to `ops.json`. The grant comes only after the login passes the ban list, the whitelist and the limits, so it never lets a player past the whitelist.
+
+The loopback check reads the client address after a PROXY header and after forwarding, not the address of the socket. A Velocity on the same machine therefore does not make its players loopback joins, because a forwarded login counts as one only when the forwarded address is a loopback address. A proxy on the same machine with neither forwarding nor a PROXY header gives every player a loopback address, and the local profile would make each of them an operator. That is why the binary uses the public profile. The [loopback-operators spec](https://github.com/andreypfau/mcrs/blob/main/docs/spec/loopback-operators.md) states the rules.[^pr933]
+
+[Environment variables](/docs/en/reference/env-vars/#server) lists the values that the variables of the binary accept, and [Server commands](/docs/en/reference/commands/) lists the commands that need operator rights.
+
+[^82]: <Status issue={82} /> Tracks online mode: encryption and session authentication.
+[^pr855]: <Status pr={855} state="works" /> Accepts players that Velocity forwards in modern mode.
+[^pr927]: <Status pr={927} state="works" /> Reads a PROXY protocol header from trusted upstreams.
+[^pr939]: <Status pr={939} state="works" /> Adds the player limit, the per-address cap, the join rate and the packet rate.
+[^pr1006]: <Status pr={1006} state="works" /> Adds a total NBT budget for each serverbound packet and each stack.
+[^pr933]: <Status pr={933} state="works" /> Gives operator rights to a loopback join only on the local profile.

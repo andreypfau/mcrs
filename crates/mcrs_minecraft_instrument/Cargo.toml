@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_instrument"
-description = "The value of the instrument registry"
+description = "The Instrument value of the instrument registry: its sound event, use duration, range, description and durability damage."
 version.workspace = true
 edition.workspace = true
 
@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_registries.workspace = true
-mcrs_minecraft_sound.workspace = true
+mcrs_minecraft_sound = { workspace = true, features = ["registry"] }
 mcrs_minecraft_text.workspace = true
 serde = { workspace = true, features = ["derive"] }
 

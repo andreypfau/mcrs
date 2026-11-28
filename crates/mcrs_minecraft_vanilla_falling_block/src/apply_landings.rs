@@ -64,10 +64,6 @@ impl Claim {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes each resource that it reads"
-)]
 pub(crate) fn apply_landings(
     mut commands: Commands,
     landed: Query<(Entity, &Landed, &Falling, &MotionState)>,
@@ -126,7 +122,7 @@ pub(crate) fn apply_landings(
             LandingOutcome::Item(Remains::Item) => {
                 let carried = falling_block.carried;
                 drop_item(
-                    &mut commands,
+                    commands.reborrow(),
                     &rules,
                     &definitions,
                     carried,

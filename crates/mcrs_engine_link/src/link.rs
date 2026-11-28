@@ -102,6 +102,15 @@ impl<S: Stage> Link<S> {
     }
 
     #[must_use]
+    pub fn has_replies(&self) -> bool {
+        !self.held.is_empty()
+            || match &self.far {
+                FarEnd::Inline(_) => !self.is_answered(),
+                FarEnd::Thread(link) => !link.replies.is_empty(),
+            }
+    }
+
+    #[must_use]
     pub fn is_answered(&self) -> bool {
         self.answered == self.sent
     }

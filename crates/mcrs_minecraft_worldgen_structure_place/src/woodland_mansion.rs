@@ -24,7 +24,7 @@ pub struct WoodlandMansionBlocks {
 }
 
 impl WoodlandMansionBlocks {
-    pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
+    pub fn compile(blocks: &impl BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(WoodlandMansionBlocks {
             chain: ignore_blocks(blocks, &[Block::StructureBlock])?,
             chest: ChestStates::compile(blocks)?,
@@ -33,9 +33,12 @@ impl WoodlandMansionBlocks {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one column's placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's placement"
+    )
 )]
 pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
     b: &WoodlandMansionBlocks,

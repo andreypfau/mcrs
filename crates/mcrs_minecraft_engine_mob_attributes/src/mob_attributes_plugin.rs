@@ -4,6 +4,7 @@ use bevy_app::Plugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_minecraft_damage::Defence;
+use mcrs_minecraft_engine::OwnAttributesSet;
 use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_engine_physics::MobPublish;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -33,7 +34,10 @@ impl Plugin for MobAttributesPlugin {
         app.add_message::<AttributeChanged>();
         app.configure_sets(
             FixedUpdate,
-            AttributeEdits.in_set(TickSet::Project).before(MobPublish),
+            AttributeEdits
+                .in_set(TickSet::Project)
+                .before(MobPublish)
+                .before(OwnAttributesSet),
         );
         app.add_systems(
             FixedUpdate,

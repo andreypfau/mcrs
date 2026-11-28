@@ -206,9 +206,12 @@ pub struct StructureIndex {
 }
 
 impl StructureIndex {
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one dimension's structure index"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one dimension's structure index"
+        )
     )]
     pub fn new(
         tables: Arc<DimensionStructureTables>,
@@ -295,12 +298,12 @@ impl StructureIndex {
         }
     }
 
-    fn context<'a>(
+    fn context<'a, 'v>(
         &'a self,
-        view: &'a mut View<'_>,
+        view: &'a mut View<'v>,
         chunk: ColumnPos,
         structure: StructureId,
-    ) -> Context<'a> {
+    ) -> Context<'a, View<'v>> {
         Context {
             frozen: &self.tables.frozen,
             structure: &self.tables.frozen.structures[usize::from(structure.0)],

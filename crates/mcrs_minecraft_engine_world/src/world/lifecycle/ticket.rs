@@ -34,6 +34,7 @@ pub struct SectionEntitySet;
 impl Plugin for TicketPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<SectionStageChanged>();
+        app.init_resource::<Condemned>();
         app.init_resource::<SimulationDistance>();
         app.add_observer(raise_simulation_ticket);
         app.add_observer(release_simulation_ticket);
@@ -54,7 +55,7 @@ impl Plugin for TicketPlugin {
                     .before(SectionEntitySet),
                 (
                     release_sections.after(ColumnCoolSet),
-                    despawn_chunks,
+                    despawn_chunks.run_if(on_message::<SectionStageChanged>.or_else(any_condemned)),
                     spawn_chunks,
                 )
                     .chain()
@@ -65,7 +66,7 @@ impl Plugin for TicketPlugin {
 }
 
 fn release_sections(
-    mut dims: Query<(&mut ColumnLoading, &SectionIndex)>,
+    mut dims: Populated<(&mut ColumnLoading, &SectionIndex)>,
     mut stages: SectionStages,
 ) {
     for (mut loading, section_index) in &mut dims {
@@ -93,14 +94,22 @@ fn release_sections(
     }
 }
 
+#[derive(Resource, Default)]
+struct Condemned(VecDeque<Entity>);
+
+fn any_condemned(condemned: Res<Condemned>) -> bool {
+    !condemned.0.is_empty()
+}
+
 fn despawn_chunks(
     mut commands: Commands,
     mut changes: MessageReader<SectionStageChanged>,
-    mut condemned: Local<VecDeque<Entity>>,
+    mut condemned: ResMut<Condemned>,
     mut dims: Query<(&mut SectionIndex, &mut ColumnLoading)>,
     sections: Query<(&SectionStage, &SectionPos, &InDimension)>,
     mut random_ticks: Option<ResMut<RandomTickIndex>>,
 ) {
+    let condemned = &mut condemned.0;
     condemned.extend(
         changes
             .read()
@@ -148,8 +157,15 @@ fn nearest_player_distance_sq(pos: SectionPos, centers: &[SectionPos]) -> i32 {
         .unwrap_or(0)
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::blocking_in_system,
+        reason = "the column trace log stamps wall-clock times only when the trace log exists, which a debug run enables"
+    )
+)]
 pub fn spawn_chunks(
-    mut dims: Query<(
+    mut dims: Populated<(
         Entity,
         &mut ColumnLoading,
         &mut SectionIndex,
@@ -197,7 +213,7 @@ pub fn spawn_chunks(
                 trace::mark(traces.as_deref(), pos.into(), ColumnStage::Spawned);
                 let mut section = commands.spawn(SectionBundle::new(InDimension(dim), pos));
                 if let Some(simulation) = simulation {
-                    simulation.mark_spawned(&mut section, pos);
+                    simulation.mark_spawned(section.reborrow(), pos);
                 }
                 let section = section.id();
                 section_index.insert(pos, section);

@@ -498,7 +498,7 @@ mod tests {
     use mcrs_minecraft_item_table::ItemTable;
     use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
     use mcrs_minecraft_loot_condition::{LootContext, NamedEntries};
-    use mcrs_minecraft_predicate::NoWorld;
+    use mcrs_minecraft_predicate::BlockHost;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 
     #[test]
@@ -516,7 +516,7 @@ mod tests {
             tables: &[],
             named: &named,
             context: &context,
-            world: &NoWorld,
+            world: &BlockHost::none(),
             rules: &rules,
         };
         let enchantment = Id::checked(0, 1);

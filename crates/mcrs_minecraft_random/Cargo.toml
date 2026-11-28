@@ -1,5 +1,6 @@
 [package]
 name = "mcrs_minecraft_random"
+description = "The Random trait, the legacy and Xoroshiro generators, position seeds, shuffle and the worldgen random splitters"
 version.workspace = true
 edition.workspace = true
 

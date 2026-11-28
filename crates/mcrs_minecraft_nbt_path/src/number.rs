@@ -1,13 +1,14 @@
 use mcrs_minecraft_nbt::tag::NbtTag;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Number {
+pub enum Number {
     Whole(i64),
     Fraction(f64),
 }
 
 impl Number {
-    pub(crate) fn of(tag: &NbtTag) -> Option<Number> {
+    #[must_use]
+    pub fn of(tag: &NbtTag) -> Option<Number> {
         match tag {
             NbtTag::Byte(value) => Some(Number::Whole(i64::from(*value))),
             NbtTag::Short(value) => Some(Number::Whole(i64::from(*value))),
@@ -16,6 +17,14 @@ impl Number {
             NbtTag::Float(value) => Some(Number::Fraction(f64::from(*value))),
             NbtTag::Double(value) => Some(Number::Fraction(*value)),
             _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn to_f64(self) -> f64 {
+        match self {
+            Number::Whole(value) => value as f64,
+            Number::Fraction(value) => value,
         }
     }
 

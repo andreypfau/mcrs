@@ -559,7 +559,7 @@ async fn send_order(
         Order::CreativeSlot { slot, stack } => {
             io.send_packet(&ServerboundSetCreativeModeSlot {
                 slot,
-                item: PredictedStack::delimited(stack),
+                item: PredictedStack::with_length(stack)?,
             })
             .await
         }

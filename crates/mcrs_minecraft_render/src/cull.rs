@@ -304,7 +304,10 @@ impl Cull {
                 .is_some()
     }
 
-    #[expect(clippy::too_many_arguments, reason = "independent inputs of one cull")]
+    #[cfg_attr(
+        mcrs_lint,
+        expect(mcrs::too_many_arguments, reason = "independent inputs of one cull")
+    )]
     pub fn cull(
         &self,
         binds: &Bindings,
@@ -472,9 +475,12 @@ impl Cull {
         );
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "independent inputs of one layer group"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "independent inputs of one layer group"
+        )
     )]
     fn cull_indirect<'pass>(
         &'pass self,

@@ -27,6 +27,15 @@ The rules come from the reference implementation and from public documentation.
   point. How a player gets a respawn point is out of scope.
 - **World spawn**: the dimension, the block position, the yaw and the pitch of the spawn of the
   world. The game rule `respawn_radius` and the world border limit the use of the world spawn.
+- **Bottom centre** of a block position `(x, y, z)`: the point `(x + 0.5, y, z + 0.5)`. The feet
+  of a player at that point are on the lower face of the block.
+- **Minimum height**, **maximum height**: the y of the lowest and of the highest block of a
+  dimension. In the overworld they are -64 and 319.
+- **Clear position**: a block position that PLD-RSP-006 accepts for the box of a player.
+- **Height fix**: the vertical adjustment of PLD-RSP-006.
+- **Spawn placement**: the procedure of PLD-RSP-005. It gives a position from a dimension and a
+  start block `S`. The respawn with no valid respawn point and the join of a player with no
+  position both use it.
 - **Respawn request**: the packet `client_command` with the action `perform_respawn`
   (PLD-RSP-001).
 - **Respawned player**: the player after the server accepts a respawn request. It has the same
@@ -336,8 +345,9 @@ serverbound 12) has one field: the action, a VarInt enum:
 For the action `perform_respawn`, the server acts in these cases:
 
 - The health of the player is more than 0: the server ignores the request and sends nothing.
-- The health is 0: the server respawns the player in the tick of the packet (PLD-RSP-002 to
-  PLD-NET-001). The server does not check the time since the death.
+- The health is 0: the server respawns the player (PLD-RSP-002 to PLD-NET-001). The respawn
+  completes in the tick of the packet or in a later tick (PLD-RSP-007). The server does not
+  check the time since the death.
 
 The actions 1 and 2 are out of scope. The request of the player that won the game (the end
 credits) is out of scope.
@@ -406,40 +416,132 @@ position. For a bed with a bed block directly below it (a bunk), the order is di
 12 (U7) lists the bunk order as unresolved.
 
 **PLD-RSP-004** (`source_suggested`, semantic, confidence: medium). The adjusted world spawn is the
-respawn position when the player has no valid respawn point. Let `S` be the block position of the
-world spawn, taken from the world spawn of the respawn dimension. The respawn dimension is the
-dimension of the world spawn of the overworld data, or the overworld when that dimension is not
-loaded. The yaw and the pitch are those of that world spawn. The position is:
+respawn position when the player has no valid respawn point (PLD-RSP-002, steps 1 and 5). It has
+these parts:
 
-- When the default game mode of the world is spectator: the centre of the lower face of `S`.
-- When the default game mode of the world is adventure: the height fix of `S`.
-- Otherwise: the first valid candidate of the search below. When no candidate is valid, the
-  height fix of `S`.
+- The respawn dimension is the dimension of the world spawn. When the server does not have that
+  dimension, the respawn dimension is the overworld.
+- The position is the result of the spawn placement (PLD-RSP-005) in the respawn dimension, with
+  the start block `S` of this rule.
+- The yaw and the pitch are those of the world spawn.
 
-Let `r` be the value of `respawn_radius`, or 0 when the value is negative. Let `d` be the
-distance from `S` to the world border, rounded down. The search radius is `min(r, d)`. When `d`
-is 1 or less, the search radius is 1. The candidates are the columns of the square of that radius
-around `S`. For a search radius up to 15 the square has at most 961 columns. The server visits them
-in a pseudo-random order that covers each candidate one time. The order is unspecified (kind:
-unspecified). The behaviour for a search radius of 16 or more is unresolved (section 12, U4).
+`S` is the block position of the world spawn when that position is inside the world border of the
+respawn dimension. A block position is inside the border when its x and z are not less than the
+low edges and are less than the high edges. In the other case, `S` is the block that contains the
+centre of the border. Its y is one block above the highest block of the heightmap
+`MOTION_BLOCKING` of its column. When that column is not loaded, the game uses the minimum height
+as the y. The y in that case has the kind unspecified.
 
-A column `(x, z)` is a valid candidate in these cases:
+The join of a player with no position uses the same spawn placement and the same `S`
+(`persistence.md`, SAVE-PLAYER-001, paragraph "Default position"). Experiment PLD-E6 (section 13)
+confirms that a respawn with no respawn point gets the result of the spawn placement, as a join
+does. The border adjustment of `S` has no experiment.
 
-1. The top height is the motion-blocking height of the column. In a dimension with a ceiling it
-   is the spawn height of the generator. The top height must not be below the minimum height of
-   the dimension.
-2. The column must not have a fluid surface at its top. Such a column has a world-surface
-   height that is not above the top height and is above the ocean-floor height.
-3. The server scans downward from the top height plus 1. It stops with no result at the first
-   block that has a fluid. It stops with a result at the first block whose collision shape has a
-   full top face. The result is the block above that block.
-4. The box of a player at the centre of the lower face of the result has no collision and no
-   liquid.
+**PLD-RSP-005** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The spawn
+placement gives a position from a dimension and a start block `S`. The default game mode of the
+world (`GameType` of `level.dat`) selects the procedure. The game mode of the player has no
+effect.
 
-The height fix of `S` is this. From `S` move up until the box of a player has no collision and no
-liquid, or until the maximum height. Then move down until the box would collide or until the
-minimum height. Then move up 1 block. The position is the centre of the lower face of the block
-that results.
+- Spectator: the bottom centre of `S`.
+- Adventure: the height fix of `S` (PLD-RSP-006).
+- Survival or creative: the bottom centre of the first valid candidate of the search below. When
+  no candidate is valid, the height fix of `S`.
+
+Each result is a bottom centre. Its x and z are those of a block plus 0.5. Its y is a whole
+number, and the feet of the player are on the lower face of that block.
+
+Let `r` be the value of `respawn_radius`, or 0 when the value is negative. Let `d` be the distance
+from the x and z of `S` to the nearest edge of the world border of the dimension, rounded down.
+`d` is negative when `S` is outside the border. The search radius is `min(r, d)`. When `d` is 1 or
+less, the search radius is 1, also when `r` is 0.
+
+The candidates are the columns of the square of the search radius around `S`. A search radius of
+0 gives one candidate, the column of `S`. For a search radius up to 15, the square has at most 961
+columns, and the server tests each column one time. The order of the columns is pseudo-random. The
+order has the kind unspecified. For a search radius of 8, the game tests only a part of the square
+(PLD-DEV-001). The behaviour for a search radius of 16 or more is unresolved (section 12, U4).
+
+A column `(x, z)` is a valid candidate when all of these are true:
+
+1. The top height of the column is not below the minimum height. The top height is the y of the
+   highest block of the heightmap `MOTION_BLOCKING`. A column with no such block has the top
+   height of the minimum height minus 1. In a dimension with a ceiling, the top height is the
+   spawn height of the generator instead. That height is the minimum height plus the number of
+   layers for a flat generator, with the height of the dimension as a limit. It is 64 for each
+   other generator.
+2. The column has no fluid surface at its top. A column has a fluid surface when its world-surface
+   height is not above the top height and is above its ocean-floor height. These heights are the y
+   of the highest block of the heightmaps `WORLD_SURFACE` and `OCEAN_FLOOR`.
+3. The server scans the blocks of the column downward, from the top height plus 1 to the minimum
+   height. It stops with no result at the first block that holds a fluid. It stops with a result
+   at the first block whose collision shape covers the full top face of the block. The candidate
+   position is the block above that block. A scan that finds neither block gives no result.
+4. The candidate position is a clear position (PLD-RSP-006).
+
+The server tests a candidate only on a column that is fully generated (PLD-RSP-007). Experiments
+PLD-E1, PLD-E4, PLD-E5, PLD-E6 and PLD-E7 (section 13) confirm the three procedures, the search
+radius 0 and 1, item 2 and the bottom centre. The order of the candidates and a search radius
+from 2 to 15 have no experiment.
+
+**PLD-RSP-006** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The box of a
+player at a block position is 0.6 blocks wide and 1.8 blocks high. The centre of its lower face is
+the bottom centre of the position. The position is a clear position when the box overlaps none of
+these:
+
+- the collision shape of a block, for a collision with no entity;
+- a `water` or `lava` block, of each level. Such a block counts as a full cube. Another block
+  that holds a fluid, for example a waterlogged slab or `seagrass`, counts only with its
+  collision shape;
+- the box of an entity that another entity can collide with (`entity-physics.md`,
+  PHY-SHP-009). The conditions are those for a colliding entity that is not a happy ghast.
+
+The world border does not count. A box that only touches a shape at a face does not overlap it.
+
+The height fix of the block `S = (sx, sy, sz)` has these steps:
+
+1. Let `y` be `sy`. While the position `(sx, y, sz)` is not clear and `y` is less than the
+   maximum height, add 1 to `y`.
+2. Subtract 1 from `y`.
+3. While the position `(sx, y, sz)` is clear and `y` is more than the minimum height, subtract 1
+   from `y`.
+4. Add 1 to `y`.
+
+The result is the bottom centre of `(sx, y, sz)`. These results follow from the steps, and the
+game gives each of them:
+
+- `S` is clear at the minimum height, and a block 2 blocks above `S` closes the box. Step 1 stops
+  at once, and step 3 does not run. The result is `S`, the last clear position (PLD-E2).
+- A clear `S` above a column that is clear down to the minimum height, for example a column of
+  the void, gives the minimum height plus 1 (PLD-E7).
+- No position from `sy` up to the maximum height is clear, and the position one block below the
+  maximum height is not clear. The result is the maximum height, and it is not a clear position
+  (PLD-E3). The server must give the same result.
+
+A result that is not clear occurs only in one case. Step 1 stops at a position that is not clear,
+and the position one block below it is not clear too. Step 1 can stop at a position that is not
+clear only at the maximum height or above it. The entity part of a clear position has no
+experiment.
+
+**PLD-RSP-007** (`source_suggested`, semantic, confidence: medium). The spawn placement and the
+checks of the respawn point in PLD-RSP-002 read columns that can be absent from memory. The server
+tests a candidate, a respawn point or the column of `S` only when that column is fully generated.
+It loads such a column from the save. When the save does not hold the column, the server generates
+it. The result thus does not depend on the columns that were in memory before.
+
+The game completes the respawn in the tick of the request, and that tick waits for the columns. A
+server can instead complete the respawn in a later tick, after the columns are ready. The tick of
+the completion has the kind unspecified. Until the respawn completes, these are true:
+
+- The player stays a dead player. The server sends it no packet of PLD-NET-001.
+- The server sends no position before the final respawn position.
+- The server ignores each other respawn request of the player.
+- When the player disconnects, its player file holds a dead player.
+
+The world spawn and the respawn point can change while the respawn waits. The server can use the
+values of the request tick or of a later tick. This choice has the kind unspecified. When the
+respawn completes, the server sends the packets of PLD-NET-001 with the final position. The vanilla
+client keeps its death screen until it receives `respawn`. After the first press, the respawn
+button of that screen stays inactive.
 
 ## 6. The state of the respawned player
 
@@ -639,7 +741,19 @@ empty. A player that keeps its inventory (PLD-DRP-001) sends no such packet.
 
 ## 11. Intentional deviations
 
-None.
+### PLD-DEV-001: A search radius of 8 tests each column
+
+- **Rule:** PLD-RSP-005.
+- **Reference:** for a search radius of 8, the game tests only 17 of the 289 columns of the
+  square. The 17 columns have the same x, at a random offset, and each z of the square. The game
+  tests each of them 17 times. For each other search radius up to 15, it tests each column one
+  time.
+- **Reason:** a player expects the same search for each search radius. The reference result is
+  an accident of its pseudo-random order.
+- **Visible to the client:** yes, with `respawn_radius` 8. The server finds a valid candidate in
+  more cases. The game falls back to the height fix more often.
+- **Bug reference:** `none`.
+- **Test:** a differential test does not compare a spawn placement with a search radius of 8.
 
 ## 12. Unresolved
 
@@ -650,10 +764,12 @@ None.
   player changes it. Is this a defect? A player expects the same slot.
 - **U3.** The reference copies the chunk tracking view of the dead player to the respawned player.
   The behaviour of the chunk packets for a respawn in the same dimension is not stated.
-- **U4.** For a search radius of 16 or more, the square has more than 1024 columns. The reference
-  then uses 1024 candidates that form a strip along one side of the square. A player does not
-  expect this. PLD-RSP-004 states the
-  behaviour only for a radius up to 15. The owner must decide the behaviour for a larger radius.
+- **U4.** For a search radius of 16 or more, the square has more than 1024 columns. The game then
+  tests only 1024 columns. These are the first 1024 columns of the square, in rows of the same z,
+  from the row of the lowest z. They form a strip along the side of the lowest z. A player does not
+  expect this. PLD-RSP-005 states the behaviour only for a search radius up to 15. The owner must
+  decide the behaviour for a larger radius. The default `respawn_radius` 10 does not depend on this
+  decision.
 - **U5.** The pose of a dying player. DMG-NET-002 states that the death sends the pose `dying`. It is not
   known whether a viewer receives that pose for a player. The client can animate the death from
   the health 0 alone.
@@ -666,3 +782,20 @@ None.
   covered.
 - **U9.** The exact floor-height test of PLD-RSP-003 for a block with a partial collision shape,
   for example a slab or a carpet. 
+
+## 13. Experiments
+
+Each experiment runs on the vanilla server of the game version of this document, in a new world.
+Run `forceload add 0 0` and `whitelist off` first. Each join uses a new player name, so the
+player has no player file. Read the position of the join in the log line of the login. The
+maximum height of the overworld is 319.
+
+| Id | Steps | Observed result | Rules |
+|----|-------|-----------------|-------|
+| PLD-E1 | Set `respawn_radius` to 0. Place `stone` at `0 100 0`. Run `setworldspawn 0 0 0`. Join a player in survival. | The player joins at `(0.5, 101.0, 0.5)`. The y comes from the column, not from `S`. | PLD-RSP-005; `persistence.md` SAVE-PLAYER-001 |
+| PLD-E2 | Run `defaultgamemode adventure`. Place `air` at `5 -64 5` and `5 -63 5`, and `stone` at `5 -62 5`. Run `setworldspawn 5 -64 5`. Join a player. | The player joins at `(5.5, -64.0, 5.5)`. | PLD-RSP-006 |
+| PLD-E3 | In adventure, fill `8 -64 8` to `8 319 8` with `stone`. Run `setworldspawn 8 0 8`. Join a player. | The player joins at `(8.5, 319.0, 8.5)`, inside the stone. | PLD-RSP-006 |
+| PLD-E4 | Run `defaultgamemode spectator`. Run `setworldspawn 3 -10 4`. Join a player. | The player joins at `(3.5, -10.0, 4.5)`. | PLD-RSP-005 |
+| PLD-E5 | Run `defaultgamemode survival`, with `respawn_radius` 0. Place `barrier` at `12 119 12` and at the four sides of `12 120 12`. Place `water` at `12 120 12`. Run `setworldspawn 12 130 12`. Join a player. | The player joins at `(12.5, 121.0, 12.5)`, on the water. The column has a fluid surface, and the height fix stops above the water. | PLD-RSP-005, PLD-RSP-006 |
+| PLD-E6 | In survival, with `respawn_radius` 0 and `immediate_respawn` true, run `execute in minecraft:the_end run setworldspawn 20 0 20`. Join a player. Teleport it to `-10 80 -10`, then kill it. After the respawn, run `data get entity <name> Pos`. | The player joins at `(20.5, 64.0, 20.5)` in the End. After the respawn, `Pos` is `[20.5d, 64.0d, 20.5d]`. | PLD-RSP-004, PLD-RSP-005 |
+| PLD-E7 | In the End, run `worldborder set 50`, with its centre at `0 0`. Run `setworldspawn 100 70 100` in the End, and join a player. Then run `setworldspawn 30 70 30` in the End, and join another player. | The first player joins at `(100.5, 1.0, 100.5)`. The column is void, and the minimum height of the End is 0. The second player joins at `(31.5, 63.0, 29.5)`, a column of the square of radius 1 around `30 30`. | PLD-RSP-005, PLD-RSP-006; `persistence.md` SAVE-DEV-006 |

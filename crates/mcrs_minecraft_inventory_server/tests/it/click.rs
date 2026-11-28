@@ -29,21 +29,19 @@ use mcrs_minecraft_item_stack::Enchantments;
 use mcrs_minecraft_item_stack::Equippable;
 use mcrs_minecraft_item_stack::EquippableSlot;
 use mcrs_minecraft_item_stack::HashScratch;
+use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::hash_stack;
-use mcrs_minecraft_item_stack::write_hashed;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::ProtoStack;
-use mcrs_minecraft_protocol_game::item::HashedStack;
 use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
-use mcrs_minecraft_wire::Decode;
 use mcrs_minecraft_wire::Encode;
 use mcrs_minecraft_wire::VarInt;
 
@@ -75,13 +73,12 @@ pub(crate) fn joined(world: &mut World) -> Entity {
 }
 
 pub(crate) fn claim(kind: Kind, count: i32) -> Option<HashedStack> {
-    let hashed = mcrs_minecraft_item_stack::HashedStack {
+    Some(HashedStack {
         kind,
         count,
         values: Vec::new(),
         removals: Vec::new(),
-    };
-    on_wire(Some(&hashed))
+    })
 }
 
 fn claim_of(world: &World, stack: &ItemStack) -> Option<HashedStack> {
@@ -89,15 +86,7 @@ fn claim_of(world: &World, stack: &ItemStack) -> Option<HashedStack> {
         world.resource::<CurrentRegistries>(),
         world.resource::<ItemTable>(),
     );
-    let hashed =
-        hash_stack(Some(stack), &names, &mut HashScratch::default()).expect("the stack hashes");
-    on_wire(hashed.as_ref())
-}
-
-fn on_wire(hashed: Option<&mcrs_minecraft_item_stack::HashedStack>) -> Option<HashedStack> {
-    let mut bytes = Vec::new();
-    write_hashed(hashed, &mut bytes).expect("the hashed stack encodes");
-    Option::<HashedStack>::decode(&mut bytes.as_slice()).expect("the hashed stack decodes")
+    hash_stack(Some(stack), &names, &mut HashScratch::default()).expect("the stack hashes")
 }
 
 pub(crate) struct Packet {

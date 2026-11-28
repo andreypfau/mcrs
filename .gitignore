@@ -12,3 +12,5 @@ target/memory-profile/
 .claude/settings.local.json
 .claude/worktrees/
 /ops.json
+lints/target/
+lints/fixture/target/

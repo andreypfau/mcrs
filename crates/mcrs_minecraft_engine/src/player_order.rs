@@ -51,6 +51,10 @@ impl DepartureRequests {
             .map(|request| &request.to)
     }
 
+    pub fn players(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.0.iter().map(|request| request.player)
+    }
+
     fn set(&mut self, request: DepartureRequest) {
         self.cancel(request.player);
         self.0.push(request);
@@ -112,7 +116,7 @@ pub fn teleport(
     let Some(mut transform) = entity.get_mut::<Transform>() else {
         return Err(DimensionChangeError::NoPlayer);
     };
-    *transform = arrival.transform;
+    transform.set_if_neq(arrival.transform);
     let teleport_id = entity
         .get_mut::<TeleportState>()
         .map(|mut state| state.sent(arrival.transform, now))
@@ -137,6 +141,13 @@ pub fn set_game_mode(
     Ok(())
 }
 
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::exclusive_system,
+        reason = "an order goes through the world-level player API, which a command and a plugin also call"
+    )
+)]
 pub(crate) fn obey_orders(world: &mut World) {
     let Some(mut written) = world.get_resource_mut::<Messages<OrderedPlayer>>() else {
         return;

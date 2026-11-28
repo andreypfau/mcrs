@@ -54,7 +54,7 @@ impl Plugin for FallingBlockPlugin {
             build_rules(
                 settings,
                 &concrete_pairs,
-                &mut commands,
+                commands.reborrow(),
                 &blocks,
                 &items,
                 &registries,

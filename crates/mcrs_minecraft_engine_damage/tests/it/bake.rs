@@ -35,7 +35,7 @@ fn the_bake_sets_the_bits_of_the_damage_type_tags() {
     );
     assert_eq!(
         tags(damage_type_keys::CACTUS),
-        DamageTags::empty(),
-        "cactus has none of the baked tags"
+        DamageTags::NO_KNOCKBACK,
+        "cactus has only no_knockback of the baked tags"
     );
 }

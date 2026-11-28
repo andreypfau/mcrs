@@ -1,5 +1,9 @@
+[build]
+rustc-workspace-wrapper = "scripts/rustc-wrapper"
+
 [env]
 BEVY_ASSET_ROOT = { value = ".", relative = true }
+MCRS_LINT_TICK_SCHEDULES = "TickDimensions,OutboundFlush"
 
 [target.wasm32-unknown-unknown]
 rustflags = ['--cfg', 'getrandom_backend="wasm_js"', '--cfg', 'web_sys_unstable_apis', '-Zcodegen-backend=llvm']

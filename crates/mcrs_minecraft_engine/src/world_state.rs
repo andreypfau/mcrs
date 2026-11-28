@@ -46,10 +46,6 @@ impl Plugin for WorldStatePlugin {
 #[derive(Resource, Debug, Clone)]
 pub struct SavedSpawn(pub RespawnData);
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: each resource it loads is its own parameter so the scheduler sees the access"
-)]
 fn load_world_state(
     mut commands: Commands,
     save: Option<Res<WorldSave>>,
@@ -64,15 +60,17 @@ fn load_world_state(
         return;
     };
     if let Some(level) = Loaded::read(read_level_dat(&save.0), "level.dat").present() {
-        time.0 = level.time;
+        time.set_if_neq(GameTime(level.time));
         commands.insert_resource(SavedSpawn(level.spawn));
     }
     if let Some(saved) = Loaded::read(read_weather(&save.0), "weather").present() {
-        weather.clear_ticks = saved.clear_weather_time.max(0).cast_unsigned();
-        weather.rain_ticks = saved.rain_time.max(0).cast_unsigned();
-        weather.thunder_ticks = saved.thunder_time.max(0).cast_unsigned();
-        weather.raining = saved.raining;
-        weather.thundering = saved.thundering;
+        weather.set_if_neq(Weather {
+            clear_ticks: saved.clear_weather_time.max(0).cast_unsigned(),
+            rain_ticks: saved.rain_time.max(0).cast_unsigned(),
+            thunder_ticks: saved.thunder_time.max(0).cast_unsigned(),
+            raining: saved.raining,
+            thundering: saved.thundering,
+        });
     }
     if let Some(saved) = Loaded::read(read_game_rules(&save.0), "game rules").present() {
         for (rule, value) in saved.iter() {
@@ -371,8 +369,11 @@ mod tests {
             7
         );
 
-        world.resource_mut::<GameTime>().0 = 77;
-        world.resource_mut::<Weather>().raining = false;
+        world.resource_mut::<GameTime>().set_if_neq(GameTime(77));
+        world
+            .resource_mut::<Weather>()
+            .map_unchanged(|weather| &mut weather.raining)
+            .set_if_neq(false);
         world.run_system_once(autosave_world_state).unwrap();
         let read = mcrs_minecraft_save::read_level_dat(&dir).unwrap();
         assert_eq!(read.time, 77);

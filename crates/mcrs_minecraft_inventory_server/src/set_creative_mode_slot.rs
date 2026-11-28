@@ -2,24 +2,21 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::InRef;
-use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_engine_inventory_menu::MenuParts;
 use mcrs_minecraft_engine_inventory_menu::Menus;
-use mcrs_minecraft_engine_item::stack_capacity;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_game_mode::{GameMode, PlayerGameMode};
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_inventory_menu::MenuLayout;
+use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::MaxStackSize;
-use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_nbt::NbtBudget;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
-use mcrs_minecraft_wire::Encode;
 
 use crate::InventoryInput;
 use crate::MenuSync;
@@ -32,7 +29,6 @@ pub(crate) fn set_creative_mode_slot(
     received: On<Received<ServerboundSetCreativeModeSlot>>,
     wire_names: WireNames,
     mut inputs: MessageWriter<InventoryInput>,
-    mut bytes: Local<Vec<u8>>,
 ) {
     let unlimited = NbtBudget {
         bytes: u64::MAX,
@@ -40,9 +36,7 @@ pub(crate) fn set_creative_mode_slot(
     };
     let read = mcrs_minecraft_nbt::with_nbt_budget(unlimited, || {
         let packet = received.packet()?;
-        bytes.clear();
-        packet.item.encode(&mut *bytes).ok()?;
-        let stack = read_wire_with_length(&mut bytes.as_slice(), &wire_names.names()).ok()?;
+        let stack = packet.item.read(&wire_names.names()).ok()?;
         Some((packet.slot, stack))
     });
     let Ok(Some((slot, stack))) = read else {
@@ -84,7 +78,7 @@ pub(crate) fn apply_creative_packet(
     let stack = stack.as_ref();
     let creative = game_mode.is_some_and(|game_mode| game_mode.0 == GameMode::Creative);
     let fits = stack.is_none_or(|stack| {
-        stack.count.get() <= stack_capacity(table.effective::<MaxStackSize>(stack))
+        stack.count.get() <= Count::capacity(table.effective::<MaxStackSize>(stack))
     });
     let entry = u16::try_from(slot)
         .ok()

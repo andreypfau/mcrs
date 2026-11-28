@@ -1,7 +1,8 @@
 use bevy::clipboard::Clipboard;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use mcrs_minecraft_menu_geometry::CreativeTabIndex;
+use bevy::time::Real;
+use mcrs_minecraft_menu_geometry::{CreativeTabIndex, CreativeTabKind};
 
 use crate::chat_input;
 use crate::creative_screen_input::CreativePointer;
@@ -18,11 +19,20 @@ pub(crate) struct CreativeScreenEdit<'w> {
     content: Option<Res<'w, CreativeTabContent>>,
     clipboard: Option<ResMut<'w, Clipboard>>,
     atlas: Option<Res<'w, GuiAtlas>>,
+    time: Option<Res<'w, Time<Real>>>,
 }
 
 impl CreativeScreenEdit<'_> {
     pub(crate) fn select(&mut self, tab: CreativeTabIndex) {
-        self.with(|screen, content| screen.select(tab, content));
+        let now_ms = self.time.as_deref().map(menu_input::menu_clock);
+        self.with(|screen, content| {
+            screen.select(tab, content);
+            if let Some(now_ms) = now_ms
+                && screen.selected_tab().kind == CreativeTabKind::Search
+            {
+                screen.focus_search(now_ms);
+            }
+        });
     }
 
     pub(crate) fn wheel(&mut self, vertical: f64) {

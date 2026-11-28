@@ -105,16 +105,24 @@ pub(crate) fn assign_skins(
         return;
     };
     let rebuilt = slots.generation != Some(assets.generation);
-    slots.generation = Some(assets.generation);
+    if slots.generation != Some(assets.generation) {
+        slots.generation = Some(assets.generation);
+    }
     let first = assets.library.skin_variants.start;
     let retry = slots.waiting && !slots.free.is_empty();
     if retry {
-        slots.waiting = false;
+        slots
+            .reborrow()
+            .map_unchanged(|slots| &mut slots.waiting)
+            .set_if_neq(false);
     }
     let mut assign = |(entity, skin, slot): (Entity, &PlayerSkin, Option<&SkinSlot>)| {
         let Some(number) = slot.map(|slot| slot.0).or_else(|| slots.allocate()) else {
             warn_once!("more than {SKIN_SLOTS} player skins; the rest draw a default skin");
-            slots.waiting = true;
+            slots
+                .reborrow()
+                .map_unchanged(|slots| &mut slots.waiting)
+                .set_if_neq(true);
             return;
         };
         if slot.is_none() {
@@ -217,12 +225,18 @@ mod tests {
         assert_eq!(layer(&app), [slim, first_skin]);
         assert_eq!(uploads(&app), 1);
 
-        *app.world_mut().get_mut::<PlayerModel>(entity).unwrap() = PlayerModel::Wide;
+        app.world_mut()
+            .get_mut::<PlayerModel>(entity)
+            .unwrap()
+            .set_if_neq(PlayerModel::Wide);
         app.update();
         assert_eq!(layer(&app), [wide, first_skin]);
         assert_eq!(uploads(&app), 1, "a new model sends the same texels again");
 
-        *app.world_mut().get_mut::<PlayerModel>(entity).unwrap() = PlayerModel::Slim;
+        app.world_mut()
+            .get_mut::<PlayerModel>(entity)
+            .unwrap()
+            .set_if_neq(PlayerModel::Slim);
         app.world_mut().entity_mut(entity).remove::<PlayerSkin>();
         app.update();
         assert_eq!(layer(&app), [slim, alex]);

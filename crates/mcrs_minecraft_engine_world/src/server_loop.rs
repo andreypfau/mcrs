@@ -149,11 +149,16 @@ pub fn run_server_loop(
             return exit;
         }
         let nanos = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
-        let at_once = app
-            .world_mut()
-            .get_resource_mut::<TickPace>()
-            .is_some_and(|mut pace| pace.end_tick(nanos));
-        next = next_deadline(next, tick, at_once, Instant::now());
+        let (at_once, target) =
+            app.world_mut()
+                .get_resource_mut::<TickPace>()
+                .map_or((false, tick), |mut pace| {
+                    (
+                        pace.end_tick(nanos),
+                        Duration::from_nanos(pace.target_nanos()),
+                    )
+                });
+        next = next_deadline(next, target, at_once, Instant::now());
         until(&mut app, next);
     }
 }

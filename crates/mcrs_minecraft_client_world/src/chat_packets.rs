@@ -43,7 +43,7 @@ pub(crate) fn on_commands(
     ) {
         Ok(graph) => tree.0 = graph,
         Err(error) => client::close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             client::ConnectionEnd::Lost(format!("the command tree is invalid: {error}")),
         ),
@@ -76,7 +76,7 @@ pub(crate) fn on_suggestions(
         .reply(reply.id.0, start, length, &reply.suggestions, &cx);
 }
 
-fn server_text(raw: &RawText<'_>) -> Option<Text> {
+pub(crate) fn server_text(raw: &RawText<'_>) -> Option<Text> {
     raw.to_text().ok()?.map(&ItemHoverMap).ok()
 }
 
@@ -135,13 +135,7 @@ fn decorate(
         })
         .collect::<Vec<_>>();
     let mut text = Text::translate(decoration.translation_key.clone(), arguments);
-    let style = &decoration.style;
-    text.style.color = style.color;
-    text.style.bold = style.bold;
-    text.style.italic = style.italic;
-    text.style.underlined = style.underlined;
-    text.style.strikethrough = style.strikethrough;
-    text.style.obfuscated = style.obfuscated;
+    text.style = decoration.style.formatting();
     text
 }
 
@@ -158,7 +152,7 @@ pub(crate) fn on_player_chat(
     };
     if packet.global_index.0 != chat.player_chats {
         client::close_connection_later(
-            &mut commands,
+            commands.reborrow(),
             event.entity,
             client::ConnectionEnd::Lost("multiplayer.disconnect.bad_chat_index".to_owned()),
         );

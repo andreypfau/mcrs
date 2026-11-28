@@ -9,7 +9,7 @@ use crate::cursor_grab;
 
 pub(crate) fn follow_open_menu(
     screen: Option<ResMut<Screen>>,
-    player: Query<Ref<Menus>, (With<Player>, Changed<Menus>)>,
+    player: Populated<Ref<Menus>, (With<Player>, Changed<Menus>)>,
     mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     let (Some(mut screen), Ok(menus)) = (screen, player.single()) else {

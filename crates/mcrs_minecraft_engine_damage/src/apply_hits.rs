@@ -1,9 +1,12 @@
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::message::MessageWriter;
+use bevy_ecs::query::{Or, With};
+use bevy_ecs::system::InMut;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
+use glam::DVec3;
 use mcrs_minecraft_damage::DamageTypeRules;
 use mcrs_minecraft_damage::Defence;
 use mcrs_minecraft_damage::HitOutcome;
@@ -14,6 +17,7 @@ use mcrs_minecraft_engine_entity_motion::GridSlot;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::StepOutcome;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
+use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_entity_key::EntityUuid;
 use mcrs_minecraft_entity_key::WriterKey;
 use mcrs_minecraft_physics::GridRow;
@@ -37,14 +41,37 @@ type Targets<'w, 's> = Query<
     'w,
     's,
     (
-        &'static MotionState,
+        Place<'static>,
         &'static mut Vitals,
         &'static mut HitRecord,
         Option<&'static Defence>,
         Option<&'static GridSlot>,
         Option<&'static StepOutcome>,
     ),
+    Or<(With<MotionState>, (With<EntityUuid>, With<Transform>))>,
 >;
+
+type Place<'a> = (
+    Option<&'a MotionState>,
+    Option<&'a EntityUuid>,
+    Option<&'a Transform>,
+);
+
+fn key((motion, uuid, _): Place) -> Option<EntityUuid> {
+    motion.map(|motion| motion.0.key).or(uuid.copied())
+}
+
+fn position((motion, _, transform): Place) -> Option<DVec3> {
+    motion
+        .map(|motion| motion.0.body.position)
+        .or(transform.map(|transform| transform.translation))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ApplyOrder {
+    Queue,
+    Target,
+}
 
 #[derive(Default)]
 pub(crate) struct ApplyScratch {
@@ -63,6 +90,7 @@ pub(crate) struct Reports<'a, 'd, 'e> {
     reason = "a system takes each resource that it reads"
 )]
 pub(crate) fn apply_hits(
+    InMut(apply_order): InMut<ApplyOrder>,
     mut pending: ResMut<PendingHits>,
     types: Res<DamageTypeRules>,
     clock: Option<Res<BirthClock>>,
@@ -77,18 +105,24 @@ pub(crate) fn apply_hits(
     order.clear();
     dead.clear();
     for (index, request) in pending.requests.iter().enumerate() {
-        let Ok((state, ..)) = targets.get(request.target) else {
+        let Some(target) = targets
+            .get(request.target)
+            .ok()
+            .and_then(|(place, ..)| key(place))
+        else {
             continue;
         };
         order.push(HitOrder {
-            target: state.0.key,
+            target,
             writer: request.writer,
             tick: request.tick,
             sequence: request.sequence,
             index,
         });
     }
-    order.sort_unstable();
+    if *apply_order == ApplyOrder::Target {
+        order.sort_unstable();
+    }
     let mut reports = Reports {
         damaged,
         died,
@@ -100,7 +134,7 @@ pub(crate) fn apply_hits(
             &pending.requests,
             &types,
             tick,
-            &mut targets,
+            targets.reborrow(),
             dead,
             &mut reports,
         );
@@ -116,7 +150,7 @@ fn apply_group(
     requests: &[DamageRequest],
     types: &DamageTypeRules,
     tick: Option<u64>,
-    targets: &mut Targets,
+    mut targets: Targets<'_, '_>,
     dead: &mut Vec<GridRow>,
     reports: &mut Reports<'_, '_, '_>,
 ) {
@@ -132,9 +166,12 @@ fn apply_group(
         if request.crowd.is_some_and(|crowd| !crowd.overcrowded(dead)) {
             continue;
         }
-        let Ok((state, mut vitals, mut record, defence, slot, outcome)) =
+        let Ok((place, mut vitals, mut record, defence, slot, outcome)) =
             targets.get_mut(request.target)
         else {
+            continue;
+        };
+        let Some(position) = position(place) else {
             continue;
         };
         let mut next_vitals = *vitals;
@@ -163,7 +200,7 @@ fn apply_group(
         if report.died {
             reports.died.write(Died {
                 target: request.target,
-                position: state.0.body.position,
+                position,
                 source,
             });
             if let Some(row) = crowd_row.or_else(|| counted_row(slot, outcome, tick)) {

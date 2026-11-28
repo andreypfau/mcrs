@@ -5,13 +5,16 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use super::single_piece_site;
 use crate::orient::{Orientation, orient_box};
 use crate::piece::{DesertPyramidPiece, Piece};
-use crate::site::{Context, Site, Stub};
+use crate::site::{Context, Site, SiteWorld, Stub};
 
-pub fn site(ctx: &mut Context<'_>, _rng: &mut LegacyRandom) -> Option<(IVec3, Stub)> {
+pub fn site(
+    ctx: &mut Context<'_, impl SiteWorld>,
+    _rng: &mut LegacyRandom,
+) -> Option<(IVec3, Stub)> {
     single_piece_site(ctx, DesertPyramidPiece::WIDTH, DesertPyramidPiece::DEPTH)
 }
 
-pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
+pub fn layout(ctx: &mut Context<'_, impl SiteWorld>, mut site: Site) -> Vec<Piece> {
     let orientation = Orientation::random(&mut site.rng);
     let origin = IVec3::new(
         ctx.chunk.min_block_x(),

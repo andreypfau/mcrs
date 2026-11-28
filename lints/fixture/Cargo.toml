@@ -1,0 +1,12 @@
+[workspace]
+members = ["sets", "app"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+bevy_app = { version = "0.20.1", default-features = false }
+bevy_ecs = { version = "0.20.1", default-features = false, features = ["std"] }
+bevy_time = { version = "0.20.1", default-features = false, features = ["std"] }

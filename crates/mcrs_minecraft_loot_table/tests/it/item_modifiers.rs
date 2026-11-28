@@ -20,7 +20,7 @@ use mcrs_minecraft_loot_condition::{
 use mcrs_minecraft_loot_table::{
     IssueOwner, LootIssue, LootProblem, LootScratch, LootTableFile, LootTables,
 };
-use mcrs_minecraft_predicate::{DamageSource, NoWorld};
+use mcrs_minecraft_predicate::{BlockHost, DamageSource};
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf};
@@ -79,7 +79,7 @@ fn loot_mod_count_damage_enchant_modifiers_give_stacks_without_draws() {
             .roll(
                 table,
                 &context(state("minecraft:stone", &[]), None),
-                &NoWorld,
+                &BlockHost::none(),
                 &mut random,
                 &mut LootScratch::new(),
                 &mut stacks,
@@ -394,7 +394,7 @@ fn loot_mod_010_named_item_modifiers_resolve_through_the_reference_walk() {
         ("n:over", 1),
     ] {
         assert_eq!(
-            roll_named(table, &context, &NoWorld),
+            roll_named(table, &context, &BlockHost::none()),
             (
                 vec![Some(stack("minecraft:stick", count))],
                 stream(&NAMED.1, named(table), 0)
@@ -422,7 +422,7 @@ fn loot_mod_052_filtered_applies_the_branch_of_the_test() {
         roll_named(
             "n:filtered",
             &context(state("minecraft:stone", &[]), None),
-            &NoWorld
+            &BlockHost::none()
         ),
         (vec![Some(stack("minecraft:stick", count)), None], expected)
     );
@@ -536,7 +536,7 @@ fn loot_mod_026_set_attributes_draws_the_slot_of_each_element() {
         roll_named(
             "n:attributes",
             &context(state("minecraft:stone", &[]), None),
-            &NoWorld
+            &BlockHost::none()
         ),
         (
             vec![Some(stack("minecraft:iron_sword", 1).set(modifiers))],

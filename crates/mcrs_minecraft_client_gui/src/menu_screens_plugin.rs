@@ -36,7 +36,7 @@ use crate::mouse_settings_screen;
 use crate::option_sub_screen;
 use crate::options_screen;
 use crate::pause_screen;
-use crate::project_menu::{SingleplayerActive, max_gui_scale, project_menu};
+use crate::project_menu::{MenuExtent, SingleplayerActive, max_gui_scale, project_menu};
 use crate::scene::GuiAtlas;
 use crate::select_world_screen;
 use crate::session_screens::{DisconnectReason, follow_session, show_failed_start};
@@ -58,6 +58,7 @@ impl Plugin for MenuScreensPlugin {
         app.insert_resource(PreselectedWorld(self.preselected_world.clone()))
             .insert_resource(LocalOffset(self.utc_offset))
             .insert_resource(SingleplayerActive(self.singleplayer))
+            .init_resource::<MenuExtent>()
             .init_resource::<DeleteTarget>()
             .init_resource::<WorldList>()
             .init_resource::<WorldTypes>()
@@ -93,7 +94,13 @@ impl Plugin for MenuScreensPlugin {
                             resource_exists::<GuiAtlas>
                                 .and_then(resource_exists::<ClientLanguage>)
                                 .and_then(
-                                    resource_changed::<Screen>.or_else(resource_exists::<Menu>),
+                                    resource_changed::<Screen>
+                                        .or_else(resource_changed::<MenuExtent>)
+                                        .or_else(resource_changed::<ClientOptions>)
+                                        .or_else(resource_changed::<ClientLanguage>)
+                                        .or_else(resource_changed::<NewWorldForm>)
+                                        .or_else(resource_changed::<WorldTypes>)
+                                        .or_else(not(resource_exists::<Menu>)),
                                 ),
                         ),
                     )
@@ -144,6 +151,7 @@ fn parent(screen: Screen, world: WorldPresence) -> Screen {
         | Screen::GameModeSwitcher(_)
         | Screen::Chat
         | Screen::Pause
+        | Screen::Death
         | Screen::Message(_)
         | Screen::LevelLoading
         | Screen::Disconnected
@@ -204,6 +212,7 @@ pub(crate) fn next_screen(shown: Screen, event: MenuEvent, world: WorldPresence)
             if matches!(
                 shown,
                 Screen::Title
+                    | Screen::Death
                     | Screen::Message(_)
                     | Screen::LevelLoading
                     | Screen::Disconnected
@@ -248,7 +257,10 @@ fn ctrl_wheel_gui_scale(
     }
     let y = std::mem::take(&mut scroll.delta.y);
     if let Some(scale) = wheel_gui_scale(options.gui_scale, max_gui_scale(&window), y) {
-        options.gui_scale = scale;
+        options
+            .reborrow()
+            .map_unchanged(|options| &mut options.gui_scale)
+            .set_if_neq(scale);
         if let Some(mut menu) = menu {
             menu.widgets.set_scroll_offset(option_sub_screen::LIST, 0.0);
         }
@@ -303,6 +315,7 @@ fn write_menu_options(
             | Screen::GameModeSwitcher(_)
             | Screen::Chat
             | Screen::Pause
+            | Screen::Death
             | Screen::Controls(_)
             | Screen::Message(_)
             | Screen::LevelLoading
@@ -749,11 +762,14 @@ mod tests {
             );
 
             resize_window(&mut app, 1920, 1080);
-            app.world_mut().resource_mut::<GuiScene>().size = GuiSize {
-                width: GUI.width,
-                height: 150,
-                scale: 1,
-            };
+            app.world_mut()
+                .resource_mut::<GuiScene>()
+                .map_unchanged(|scene| &mut scene.size)
+                .set_if_neq(GuiSize {
+                    width: GUI.width,
+                    height: 150,
+                    scale: 1,
+                });
             let list_offset = |app: &App| {
                 let menu = app.world().resource::<Menu>();
                 menu.widgets
@@ -776,11 +792,14 @@ mod tests {
             let mut app = game_app();
             open_sub_screen(&mut app, &[VIDEO_BUTTON]);
             click(&mut app, 100, 85);
-            app.world_mut().resource_mut::<GuiScene>().size = GuiSize {
-                width: 854,
-                height: 480,
-                scale: 1,
-            };
+            app.world_mut()
+                .resource_mut::<GuiScene>()
+                .map_unchanged(|scene| &mut scene.size)
+                .set_if_neq(GuiSize {
+                    width: 854,
+                    height: 480,
+                    scale: 1,
+                });
             app.update();
             let menu = app.world().resource::<Menu>();
             let gui_scale = menu.widgets.get(video_settings_screen::GUI_SCALE).unwrap();
@@ -857,7 +876,10 @@ mod tests {
         fn the_fullscreen_button_shows_a_change_from_the_key_and_inverts_the_stored_value() {
             let mut app = game_app();
             open_sub_screen(&mut app, &[VIDEO_BUTTON]);
-            app.world_mut().resource_mut::<ClientOptions>().fullscreen = true;
+            app.world_mut()
+                .resource_mut::<ClientOptions>()
+                .map_unchanged(|resource| &mut resource.fullscreen)
+                .set_if_neq(true);
             app.update();
             let shown = caption(&app, video_settings_screen::FULLSCREEN);
             click(&mut app, 260, 85);

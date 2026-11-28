@@ -700,11 +700,13 @@ fn catalog_file(statics: &[String]) -> String {
     out
 }
 
+const REGISTRY_FEATURE_CRATES: [&str; 1] = ["mcrs_minecraft_sound"];
+
 fn catalog_manifest(static_owners: &BTreeSet<String>) -> String {
     let mut out = format!(
         "[package]\n\
          name = \"{CATALOG_CRATE}\"\n\
-         description = \"The entries of every static registry\"\n\
+         description = \"The STATIC_REGISTRIES table: the entry locations of every static registry\"\n\
          version.workspace = true\n\
          edition.workspace = true\n\
          \n\
@@ -719,7 +721,13 @@ fn catalog_manifest(static_owners: &BTreeSet<String>) -> String {
          mcrs_minecraft_resource.workspace = true\n"
     );
     for krate in static_owners {
-        out.push_str(&format!("{krate}.workspace = true\n"));
+        if REGISTRY_FEATURE_CRATES.contains(&krate.as_str()) {
+            out.push_str(&format!(
+                "{krate} = {{ workspace = true, features = [\"registry\"] }}\n"
+            ));
+        } else {
+            out.push_str(&format!("{krate}.workspace = true\n"));
+        }
     }
     out
 }

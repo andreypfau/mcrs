@@ -325,8 +325,9 @@ impl Plugin for TerrainPlugin {
             .add_systems(
                 Render,
                 (
-                    show::prepare_depth_display.in_set(RenderSystems::Prepare),
-                    pass::drop_unused_bins.in_set(RenderSystems::Prepare),
+                    pass::drop_unused_bins
+                        .run_if(pass::has_unused_bins)
+                        .in_set(RenderSystems::Prepare),
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
                     sprites::write_animation_frames.in_set(RenderSystems::Prepare),
                     (frame::write_frame_view, frame::write_camera)

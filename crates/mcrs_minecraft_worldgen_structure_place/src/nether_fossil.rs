@@ -25,7 +25,7 @@ pub struct NetherFossilBlocks {
 
 impl NetherFossilBlocks {
     pub fn compile(
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
         Ok(NetherFossilBlocks {
@@ -36,9 +36,12 @@ impl NetherFossilBlocks {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one column's paint"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's paint"
+    )
 )]
 pub fn paint_nether_fossil<W: WorldGenVolume>(
     b: &NetherFossilBlocks,

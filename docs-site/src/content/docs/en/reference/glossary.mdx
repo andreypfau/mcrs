@@ -11,10 +11,35 @@ sources:
   - docs/replication.md
   - docs/spec/README.md
   - docs/clean-room.md
+  - docs/physics-architecture.md
+  - AGENTS.md
+  - crates/mcrs_minecraft_physics/src/body_grid.rs
+  - crates/mcrs_minecraft_physics/src/tile_bodies.rs
+  - crates/mcrs_minecraft_engine_brain/src/player_table.rs
+  - crates/mcrs_minecraft_entity_key/src/entity_uuid.rs
+  - crates/mcrs_minecraft_entity_key/src/writer_key.rs
+  - crates/mcrs_minecraft_damage/src/vitals.rs
+  - crates/mcrs_minecraft_damage/src/defence.rs
+  - crates/mcrs_minecraft_engine_damage/src/damage_plugin.rs
+  - crates/mcrs_minecraft_engine_damage/src/apply_hits.rs
+  - crates/mcrs_minecraft_volume/src/lib.rs
+  - crates/mcrs_minecraft_engine_server/src/runner.rs
+  - tools/captures.json
+  - issue:388
+  - README.md
+  - crates/mcrs_minecraft_server/src/lib.rs
+  - crates/mcrs_molang/src/lib.rs
+  - crates/mcrs_molang_wgsl/src/lib.rs
+  - crates/mcrs_minecraft_entity_render/src/impostor_atlas.rs
+  - crates/mcrs_minecraft_render/src/arenas.rs
+  - crates/mcrs_minecraft_render/src/cull.rs
+  - crates/mcrs_minecraft_render/src/hiz.rs
+  - crates/mcrs_minecraft_client/src/dev/knobs.rs
+  - crates/mcrs_minecraft_client/src/dev/mod.rs
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 9eac02a81
+  date: 2026-11-23
 ---
 import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
@@ -33,8 +58,8 @@ Some of the scaling terms, such as shard, cell and tile, come from the design in
 |---|---|---|
 | ECS, entity, component, system | ECS is short for entity component system. In Bevy an entity is an id, a component is data stored on that id, and a system is a function that runs over every entity that has the data it needs. | Nothing close. A Minestom `Entity` is an object with methods, and here the same thing is split into data and functions. |
 | Bevy plugin | A plugin is a unit that adds systems and data to the app. The server is a group of plugins named `MinecraftServerPlugins`, and you can switch parts of it off with `disable`. | A Paper plugin, except that it adds functions to the app where a Paper plugin listens for events. Minestom extensions are nearer. |
-| Crate | A crate is a Rust package. The crates of this project are named `mcrs_minecraft_<name>`. | A Maven or Gradle module. |
-| Layer 1 to 7 | The project has seven layers: protocol and data, network, game data, engine, vanilla, rendering and applications. A layer should depend only on the layers below it, as the "Layers" section of the README says. | - |
+| Crate | A crate is a Rust package. A crate that is specific to the game is named `mcrs_minecraft_<name>`, and a crate for a generic concept is named `mcrs_<name>`. | A Maven or Gradle module. |
+| Layer 1 to 7 | The project has seven layers: wire, network, game data and rules, engine, vanilla, rendering and applications. A layer should depend only on the layers below it, as the ["Layers" section of AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md#layers) says. | - |
 | Kernel | A kernel is the pure Rust logic of one domain, such as blocks, physics, AI or light, and it uses neither Bevy nor tokio. The host gives it a view of the world. | - |
 | Driver | A driver is the code that owns the shards of a domain. It steps them and delivers the messages between them in a stable order. | - |
 
@@ -50,18 +75,19 @@ Some of the scaling terms, such as shard, cell and tile, come from the design in
 | Hot space, cold space | Hot space is the space that ticks, and a ticket keeps it hot. Cold space is data in the data layer that has no owner. | Loaded and unloaded chunks, loosely. |
 | Ticket | A ticket is a request to keep an area hot. It comes from a player simulation zone, the spawn, a chunk loader or an ender pearl. | Bukkit chunk ticket (`addPluginChunkTicket`). |
 | Data layer, store | The data layer is the versioned chunks of cold space, and the store is their storage on disk. The code is in `mcrs_engine_store`. | Minestom `ChunkLoader`, loosely. |
-| Link, placement | A link connects two parts with messages. Placement says where the far end of a link runs, which can be inline, on another thread or on another machine. | - |
+| Link, placement | A link connects two parts with messages. Placement says where the far end of a link runs, which is inline or on another thread. | - |
 | Muxer, edge | The muxer is the gateway for clients. It holds the connections, decides what each client receives and encodes the bytes once for all subscribers, and an edge is one muxer process. | A proxy such as Velocity, only for the part that holds connections. |
 | Coordinator | The coordinator owns the global state and the cell tree. | - |
-| Stage, ladder | A stage is a step that turns chunk data into the next level outside the tick, for example generation or light. A ladder is the chain of stages of one column (`Filled`, `Run`, `Merged`). | - |
+| Stage, ladder | A stage is a step that turns chunk data into the next level outside the tick, for example generation or light. A ladder is the chain of levels that a chunk climbs, which in Minecraft are requested, generated, lit and active. | - |
 | Tile | A tile is a square of columns, and it is the unit of entity interest and of entity work. One cell owns each tile. | - |
 | Tile delta, tile stream | A tile delta is the entity events of one tile in one tick. A tile stream is a snapshot followed by deltas in tick order. | Entity tracker updates, loosely. |
-| Tier | A tier is an update speed. Near subjects update in a fast tier and far subjects in a slow tier. | Paper entity activation range, loosely. |
-| Cap, budget | The cap is the largest number of subjects that one client can see. The budget is the largest number of bytes per second spent on entities. | - |
+| Tier | A tier is a player-update speed. Nearby players update in a fast tier and distant players in a slow tier. Mobs use type-based tracking separately. | - |
+| Cap, budget | The cap limits the players one client sees, and the budget limits bytes per second spent on players. Mobs count toward neither. | - |
 | Subject, viewer | A subject is an entity that is seen, and a viewer is a client that sees it. Both terms come from [`replication.md`](https://github.com/andreypfau/mcrs/blob/main/docs/replication.md). | - |
 | Section, column | A section is 16x16x16 blocks, and a column is a stack of sections. | Minestom `Chunk`, which holds `Section`s. |
-| Row | A row is the server record of an entity in a dense per-tile column. Mobs and items are rows, not Bevy entities. | - |
-| Entity key, order key | The entity key holds the id of an entity, its UUID, its source of new UUIDs, its random stream and its tile. The UUID is also the order key. | - |
+| Row | A row is one record in a particular table, such as a body-grid row or an AI player-table row. These tables are views for their consumers. Players and mobs are Bevy entities with components; a row does not own their health. | - |
+| Entity UUID, writer key | `EntityUuid` is the stable UUID used to order entities. `WriterKey` identifies a source of writes. Damage requests sort by target UUID, writer key, write tick and sequence. A Bevy `Entity` id is local to a world and is a different kind of id. | - |
+| Vitals, defence | `Vitals` is the shared health state of a player or mob. `Defence` holds the inputs that reduce or reject a hit. [Read player data](/docs/en/plugins/players/#health-damage-and-death) describes the damage pipeline. | - |
 | Brain, goals, wait | The brain is the mob AI stage, and its kernel wakes only the mobs that a timer or a fact names. Goals are picked by tile, and waits replace per-tick checks. | Paper mob goals (`Mob`, `Goal`), loosely. |
 | Volume | A volume is one API for blocks, heights and biomes. Worldgen, the client and the kernels all use it. | Minestom `Block.Getter`, loosely. |
 | Collision table | The collision table holds the shapes and state flags of blocks for the physics kernel. | - |
@@ -73,6 +99,7 @@ Some of the scaling terms, such as shard, cell and tile, come from the design in
 | Exact parity | Exact parity means that observable behavior matches vanilla very closely. It applies to the protocol, saves, player movement and generation. | - |
 | Semantic parity | Semantic parity means that the meaning and the result match, while the order inside a tick can differ. It applies to redstone, fluids and block updates. | - |
 | Intentional deviation | An intentional deviation is a deliberate difference from vanilla that is recorded, as [`spec/README.md`](https://github.com/andreypfau/mcrs/blob/main/docs/spec/README.md) describes. | - |
+| Quirk | A quirk is an accident of the game that mcrs keeps on purpose, because the vanilla client, a data pack or a save file depends on it. Only the owner decides that a rule is a quirk. [Specs](/docs/en/reference/specs/) lists the other kinds of rules. | - |
 | Spec rule id | A spec rule id, such as `CMD-TP-013`, is the id of one rule in a spec. Tests and issues cite it. | - |
 | Provenance label | A provenance label, such as `source_suggested`, states the origin of a spec rule. [Specs](/docs/en/reference/specs/) lists the labels. | - |
 | Oracle, oracle dump | An oracle dump is the output of a real vanilla run, taken with `tools/vanilla-oracle`. Rust tests compare their own output to it element by element. | - |
@@ -97,4 +124,4 @@ Some of the scaling terms, such as shard, cell and tile, come from the design in
 | Molang | Molang is an expression language of Bedrock for animations and conditions. The `mcrs_molang` compiler has a batch backend and a WGSL backend. | - |
 | Impostor | An impostor is a far mob that is drawn as a baked sprite. | - |
 | Arena, group table, GPU cull, depth pyramid | Arenas are memory arenas for quads, models and faces, the group table is a table of section groups, GPU cull is culling on the GPU, and the depth pyramid serves two-pass occlusion. | - |
-| Hot | Hot is a client measurement knob, `MCRS_HOT`, that keeps the fast CPU cores awake. It is not the same as hot space. | - |
+| Hot | Hot is a native client measurement knob, `MCRS_HOT`, under the `dev` feature. It keeps one CPU core spinning. It is not the same as hot space. | - |

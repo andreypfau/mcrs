@@ -48,7 +48,7 @@ pub struct RuinedPortalBlocks {
 impl RuinedPortalBlocks {
     pub fn compile(
         setups: &[RuinedPortalSetup],
-        blocks: &dyn BlockResolver,
+        blocks: &impl BlockResolver,
         features_cannot_replace: &KeySet<Block>,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
@@ -172,9 +172,12 @@ fn processors(
     chain
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "independent inputs of one column's placement"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "independent inputs of one column's placement"
+    )
 )]
 pub fn place_ruined_portal<W: WorldGenVolume>(
     b: &RuinedPortalBlocks,

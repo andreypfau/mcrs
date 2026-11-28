@@ -1,9 +1,12 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Commands, DetectChanges, Entity, Has, Query, Ref, ResMut, With, Without};
+use bevy_ecs::prelude::{
+    Commands, DetectChanges, Entity, Has, Populated, Query, Ref, ResMut, With, Without,
+};
 use bytes::Bytes;
 use mcrs_engine_muxer::{EntityEvent, EntityId, TileKey, ViewerId};
+use mcrs_minecraft_damage::Vitals;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
@@ -21,12 +24,16 @@ use crate::hot_ticket::CellCrossing;
 use crate::network_id::player_network_id;
 use crate::player_sprinting::PlayerSprinting;
 use crate::publish_pose::pose_entries;
-use crate::replicated::Replicated;
+use crate::replicated::{Replicated, Visibility};
 use crate::shift_key::ShiftKey;
 use crate::tile_events::TileEvents;
 
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct AnnounceJoin;
+
+#[derive(Component, Clone, Copy, Debug, Default)]
+#[component(storage = "SparseSet")]
+pub struct HiddenPlayer;
 
 #[must_use]
 pub fn player_entity_id(session: PlayerSession) -> EntityId {
@@ -44,10 +51,18 @@ fn pose(transform: &Transform) -> Pose {
     feature = "telemetry-tracy",
     tracing::instrument(name = "aoi::publish_player_tiles", skip_all)
 )]
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::alloc_in_tick,
+        reason = "allocates only when a player first enters replication or joins, and the spawn data moves into the tile events"
+    )
+)]
+#[cfg_attr(mcrs_lint, mcrs::alloc_sites(7))]
 pub fn publish_player_tiles(
     mut events: ResMut<TileEvents>,
     dimensions: Query<(), With<DimensionTypeConfig>>,
-    mut players: Query<
+    mut players: Populated<
         (
             Entity,
             &Owner,
@@ -59,7 +74,13 @@ pub fn publish_player_tiles(
             Has<AnnounceJoin>,
             Option<&CrossedAt>,
             Option<&AttributeInstances>,
-            (&mcrs_minecraft_pose::Pose, &ShiftKey, &PlayerSprinting),
+            (
+                &mcrs_minecraft_pose::Pose,
+                &ShiftKey,
+                &PlayerSprinting,
+                Option<&Vitals>,
+            ),
+            Has<HiddenPlayer>,
         ),
         With<Player>,
     >,
@@ -76,7 +97,8 @@ pub fn publish_player_tiles(
         announce,
         crossed,
         attributes,
-        (&body_pose, &shift, &sprinting),
+        (&body_pose, &shift, &sprinting, vitals),
+        hidden,
     ) in &mut players
     {
         if crossed.is_some() {
@@ -87,6 +109,7 @@ pub fn publish_player_tiles(
         }
         let tile = TileKey::at(transform.translation);
         let game_mode = game_mode.map(|mode| mode.0).unwrap_or_default();
+        let visibility = visibility(hidden);
         let Some(mut replicated) = replicated else {
             let id = player_entity_id(session);
             events.push(
@@ -105,7 +128,7 @@ pub fn publish_player_tiles(
                         pose: pose(&transform),
                         game_mode,
                         attributes: attributes.map(stored_attributes).unwrap_or_default(),
-                        entries: pose_entries(body_pose, shift, sprinting),
+                        entries: pose_entries(body_pose, shift, sprinting, vitals),
                     })
                     .into(),
                 ),
@@ -122,10 +145,14 @@ pub fn publish_player_tiles(
                     );
                 }
             }
+            if visibility == Visibility::Hidden {
+                publish_visibility(&mut events, tile, id, visibility);
+            }
             commands.entity(player).insert(Replicated {
                 id,
                 tile,
                 game_mode,
+                visibility,
             });
             continue;
         };
@@ -152,7 +179,32 @@ pub fn publish_player_tiles(
                 EntityEvent::Data(PlayerData::GameMode(game_mode).into()),
             );
         }
+        if replicated.visibility != visibility {
+            publish_visibility(&mut events, tile, id, visibility);
+            replicated.visibility = visibility;
+        }
     }
+}
+
+fn visibility(hidden: bool) -> Visibility {
+    if hidden {
+        Visibility::Hidden
+    } else {
+        Visibility::Shown
+    }
+}
+
+fn publish_visibility(
+    events: &mut TileEvents,
+    tile: TileKey,
+    id: EntityId,
+    visibility: Visibility,
+) {
+    let data = match visibility {
+        Visibility::Shown => PlayerData::Show,
+        Visibility::Hidden => PlayerData::Hide,
+    };
+    events.push(tile, id, EntityEvent::Data(data.into()));
 }
 
 fn stored_attributes(attributes: &AttributeInstances) -> Vec<AttributeState> {

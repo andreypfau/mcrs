@@ -4,6 +4,7 @@ use crate::{RawConnection, SwitchMode};
 use anyhow::bail;
 use bytes::Bytes;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::Brand;
 use mcrs_minecraft_protocol::packets::common::serverbound::{
@@ -237,7 +238,7 @@ impl Configuration {
             let disconnect = decode_body::<ClientboundDisconnect>(body)?;
             bail!(
                 "the server disconnected you: {}",
-                crate::disconnect_reason::disconnect_reason(&disconnect.reason)
+                mcrs_minecraft_text_flatten::plain_text(&Language::default(), &disconnect.reason)
             );
         } else if id == ClientboundFinishConfiguration::ID {
             decode_body::<ClientboundFinishConfiguration>(body)?;

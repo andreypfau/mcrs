@@ -2,7 +2,7 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::Query;
+use bevy_ecs::system::Populated;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     AttributeInstances, InstanceChange, InstanceEdit, InstanceModifier, ModifierKind,
@@ -48,7 +48,7 @@ impl Plugin for CreativeRangePlugin {
 }
 
 fn give_creative_ranges(
-    mut players: Query<(&PlayerGameMode, &mut AttributeInstances), Changed<PlayerGameMode>>,
+    mut players: Populated<(&PlayerGameMode, &mut AttributeInstances), Changed<PlayerGameMode>>,
 ) {
     for (mode, mut instances) in &mut players {
         for range in &CREATIVE_RANGES {

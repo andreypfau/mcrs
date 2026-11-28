@@ -78,7 +78,7 @@ impl Server {
                     .ok()
             })
             .expect("the client joins");
-        finish_configuration(&mut app.world_mut().commands(), connection);
+        finish_configuration(app.world_mut().commands(), connection);
         app.world_mut().flush();
         app.update();
         server

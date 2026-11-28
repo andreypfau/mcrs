@@ -14,7 +14,11 @@ use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::config::{Knobs, TerrainLimits};
 use crate::{ClientPlugins, ClientTerrainPlugin, vanilla};
-use mcrs_minecraft_client_world::registries::SessionSet;
+use mcrs_minecraft_client_world::block_breaking::BlockBreakingPlugin;
+use mcrs_minecraft_client_world::game_mode::GameModePlugin;
+use mcrs_minecraft_client_world::hotbar_sync::HotbarSyncPlugin;
+use mcrs_minecraft_client_world::local_player::LocalPlayerPlugin;
+use mcrs_minecraft_client_world::registries::{ClientRegistriesPlugin, SessionSet};
 use mcrs_minecraft_client_world::{local_player, player};
 
 pub const CANVAS: &str = "#mcrs";
@@ -106,6 +110,13 @@ pub fn run() {
         ..default()
     }))
     .add_plugins(ClientPlugins(knobs.clone()))
+    .add_plugins((
+        LocalPlayerPlugin,
+        GameModePlugin,
+        BlockBreakingPlugin,
+        HotbarSyncPlugin,
+        ClientRegistriesPlugin::default(),
+    ))
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .insert_resource(WorldClocks::default())
     .insert_resource(AdvanceTime(frozen_at.is_none()))

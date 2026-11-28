@@ -12,7 +12,12 @@ pub struct ClientGameTime(pub Option<i64>);
 
 pub(crate) fn add_systems(app: &mut App) {
     app.init_resource::<ClientGameTime>()
-        .add_systems(FixedUpdate, count_game_tick.in_set(WorldClockSystems))
+        .add_systems(
+            FixedUpdate,
+            count_game_tick
+                .in_set(WorldClockSystems)
+                .run_if(game_time_known),
+        )
         .add_systems(
             Update,
             reset_game_time
@@ -24,6 +29,10 @@ pub(crate) fn add_systems(app: &mut App) {
 
 fn reset_game_time(mut time: ResMut<ClientGameTime>) {
     time.set_if_neq(ClientGameTime::default());
+}
+
+fn game_time_known(time: Res<ClientGameTime>) -> bool {
+    time.0.is_some()
 }
 
 fn count_game_tick(mut time: ResMut<ClientGameTime>) {
@@ -43,7 +52,7 @@ fn on_set_time(
     let elapsed = time
         .0
         .map_or(0, |last| packet.game_time.saturating_sub(last));
-    time.0 = Some(packet.game_time);
+    time.set_if_neq(ClientGameTime(Some(packet.game_time)));
     for (_, state) in clocks.iter_mut() {
         state.advance_by_game_ticks(elapsed);
     }

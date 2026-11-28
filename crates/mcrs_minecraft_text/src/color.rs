@@ -109,6 +109,27 @@ impl RgbColor {
 }
 
 impl NamedColor {
+    pub const fn from_hex_digit(digit: char) -> Option<Self> {
+        Some(match digit.to_ascii_lowercase() {
+            '0' => Self::Black,
+            '1' => Self::DarkBlue,
+            '2' => Self::DarkGreen,
+            '3' => Self::DarkAqua,
+            '4' => Self::DarkRed,
+            '5' => Self::DarkPurple,
+            '6' => Self::Gold,
+            '7' => Self::Gray,
+            '8' => Self::DarkGray,
+            '9' => Self::Blue,
+            'a' => Self::Green,
+            'b' => Self::Aqua,
+            'c' => Self::Red,
+            'd' => Self::LightPurple,
+            'e' => Self::Yellow,
+            'f' => Self::White,
+            _ => return None,
+        })
+    }
     pub const fn hex_digit(self) -> char {
         self.code().0
     }

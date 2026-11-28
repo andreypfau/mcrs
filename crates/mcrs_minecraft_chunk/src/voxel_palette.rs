@@ -38,9 +38,12 @@ impl<V: Hash + Eq + Copy + Send + Sync + 'static, const DIM: usize> VoxelPalette
         self.0.get(x, y, z)
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the lower and upper bound of the box on each axis, then the value to fill it with"
+    #[cfg_attr(
+        mcrs_lint,
+        expect(
+            mcrs::too_many_arguments,
+            reason = "the lower and upper bound of the box on each axis, then the value to fill it with"
+        )
     )]
     pub fn fill_box(
         &mut self,

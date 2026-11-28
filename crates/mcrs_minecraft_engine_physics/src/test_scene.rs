@@ -1,5 +1,6 @@
 use bevy_app::App;
 use bevy_app::FixedUpdate;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::LogLevel;
@@ -242,7 +243,9 @@ impl TestScene {
 
     pub fn step(&mut self) {
         let world = self.app.world_mut();
-        world.resource_mut::<BirthClock>().0 = self.tick;
+        world
+            .resource_mut::<BirthClock>()
+            .set_if_neq(BirthClock(self.tick));
         world.run_schedule(FixedUpdate);
         self.tick = self.tick.wrapping_add(1);
     }

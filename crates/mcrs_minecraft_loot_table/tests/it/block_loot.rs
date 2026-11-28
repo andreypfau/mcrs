@@ -5,7 +5,7 @@ use mcrs_minecraft_game_registries::registry_load::{load_registries, test_additi
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_loot_condition::ConditionProblem;
 use mcrs_minecraft_loot_table::{LootProblem, LootScratch, LootTables};
-use mcrs_minecraft_predicate::NoWorld;
+use mcrs_minecraft_predicate::BlockHost;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::fixture::{Around, LOOT, block_table, blocks, context, names, state, stream, tool};
@@ -317,7 +317,7 @@ fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
         loot.roll(
             table,
             &context(state, None),
-            &NoWorld,
+            &BlockHost::none(),
             &mut stream(&loot, table, 0),
             &mut LootScratch::new(),
             &mut out,

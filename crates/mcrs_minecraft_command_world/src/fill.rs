@@ -159,7 +159,7 @@ pub(crate) fn run(
     let (from, to) = (corner(command.from)?, corner(command.to)?);
     let landing = |pos: BlockPos| !view.is_loaded(pos) && forced.contains(ColumnPos::from(pos));
     if landing(from) || landing(to) {
-        run_next_tick(&mut commands, &context, &label, &call.invocation);
+        run_next_tick(commands.reborrow(), &context, &label, &call.invocation);
         return Ok(0);
     }
     view.readable(from)?;

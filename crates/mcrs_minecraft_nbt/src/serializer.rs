@@ -30,10 +30,6 @@ impl<W: Write, E: NbtEncoding> WriteAdaptor<W, E> {
         }
     }
 
-    pub fn inner_mut(&mut self) -> &mut W {
-        &mut self.writer
-    }
-
     pub fn into_inner(self) -> W {
         self.writer
     }

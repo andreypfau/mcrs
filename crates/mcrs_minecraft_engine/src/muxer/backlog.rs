@@ -1,5 +1,5 @@
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Local, Query, ResMut};
+use bevy_ecs::prelude::{Local, Populated, Query, ResMut};
 use mcrs_minecraft_engine_world::session::Session;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_replication::Backlog;
@@ -14,7 +14,7 @@ const BEHIND_BYTES: usize = 512 * 1024;
 const CLEAR_BYTES: usize = 64 * 1024;
 
 pub fn forward_backlog(
-    connections: Query<(Entity, &ServerSideConnection, &HostAnchorRef)>,
+    connections: Populated<(Entity, &ServerSideConnection, &HostAnchorRef)>,
     sessions: Query<&Session>,
     muxer: Option<ResMut<MuxerLink>>,
     mut behind: Local<FxHashSet<Entity>>,
@@ -23,7 +23,7 @@ pub fn forward_backlog(
         return;
     };
     behind.retain(|connection| connections.contains(*connection));
-    for (connection, server_side, &HostAnchorRef(anchor)) in &connections {
+    for (connection, server_side, &HostAnchorRef(anchor)) in connections.iter() {
         let unsent = server_side.raw.unsent_bytes();
         let backlog = if behind.contains(&connection) {
             if unsent >= CLEAR_BYTES {

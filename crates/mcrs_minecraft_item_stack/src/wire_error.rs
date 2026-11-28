@@ -13,7 +13,6 @@ use crate::SavedError;
 pub enum WireError {
     UnexpectedEnd,
     Malformed,
-    CountTooLarge,
     CountOutOfRange,
     EmptyStack,
     UnknownItem,
@@ -22,6 +21,7 @@ pub enum WireError {
     UnregisteredType,
     RepeatedComponentType(ComponentType),
     BadLength(ComponentType),
+    BadShape(ComponentType),
     TooLong,
     TooManyEntries,
     BadValue(BuiltinKey),
@@ -68,7 +68,6 @@ impl fmt::Display for WireError {
         match self {
             Self::UnexpectedEnd => formatter.write_str("the input ends inside the stack"),
             Self::Malformed => formatter.write_str("the frame of the stack is malformed"),
-            Self::CountTooLarge => formatter.write_str("the count is larger than 255"),
             Self::CountOutOfRange => formatter.write_str("the count is larger than 99"),
             Self::EmptyStack => formatter.write_str("the format has no form for the empty stack"),
             Self::UnknownItem => formatter.write_str("the item id names no item"),
@@ -91,6 +90,11 @@ impl fmt::Display for WireError {
             Self::BadLength(component_type) => write!(
                 formatter,
                 "a component of type {} does not match its length prefix",
+                component_type.0
+            ),
+            Self::BadShape(component_type) => write!(
+                formatter,
+                "a component of type {} does not match its wire shape",
                 component_type.0
             ),
             Self::TooLong => formatter.write_str("a component or a list is too long for a VarInt"),

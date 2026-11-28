@@ -8,6 +8,9 @@ use std::path::{Path, PathBuf};
 use bevy_app::{App, AppExit, Plugin, PluginGroup, Update};
 use bevy_ecs::error::{BevyError, ErrorContext, FallbackErrorHandler, Severity};
 use bevy_ecs::message::MessageWriter;
+use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::system::{Res, ResMut};
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_client_jar::{Directory, Progress, RELEASE, candidates, locate};
 use mcrs_minecraft_console::{ConsolePlugin, log_console_answers};
@@ -119,22 +122,36 @@ fn serve() -> AppExit {
             language: english(),
         },
     ));
-    let (signal_send, mut signal_recv) = tokio::sync::mpsc::channel(1);
+    forward_shutdown_signal(&mut app);
+    mcrs_minecraft_engine_server::run_server_loop_with(app, log_console_answers)
+}
+
+#[derive(Resource)]
+struct ShutdownSignal(tokio::sync::mpsc::Receiver<()>);
+
+fn forward_shutdown_signal(app: &mut App) {
+    let (signal_send, signal_recv) = tokio::sync::mpsc::channel(1);
     tokio::spawn(async move {
         shutdown_signal().await;
         let _ = signal_send.send(()).await;
         shutdown_signal().await;
         std::process::exit(1);
     });
-    app.add_systems(
-        Update,
-        move |mut requests: MessageWriter<ShutdownRequest>| {
-            if signal_recv.try_recv().is_ok() {
-                requests.write(ShutdownRequest);
-            }
-        },
-    );
-    mcrs_minecraft_engine_server::run_server_loop_with(app, log_console_answers)
+    app.insert_resource(ShutdownSignal(signal_recv));
+    app.add_systems(Update, request_shutdown.run_if(shutdown_signalled));
+}
+
+fn shutdown_signalled(signal: Res<ShutdownSignal>) -> bool {
+    !signal.0.is_empty()
+}
+
+fn request_shutdown(
+    mut signal: ResMut<ShutdownSignal>,
+    mut requests: MessageWriter<ShutdownRequest>,
+) {
+    if signal.0.try_recv().is_ok() {
+        requests.write(ShutdownRequest);
+    }
 }
 
 fn log_instead_of_panic(error: BevyError, context: ErrorContext) {

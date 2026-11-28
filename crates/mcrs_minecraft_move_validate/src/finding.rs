@@ -10,5 +10,4 @@ pub enum Finding {
     SilentTicks,
     TickRate,
     UnknownAnswer,
-    SkippedAnswer,
 }

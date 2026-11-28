@@ -1,0 +1,562 @@
+{
+  "target": {
+    "operators": [
+      "attackprobealice",
+      "attackprobebob"
+    ]
+  },
+  "observe": {
+    "sound": true,
+    "animate": true,
+    "swing": true
+  },
+  "steps": [
+    {
+      "id": "prepare_peaceful",
+      "console": {
+        "lines": [
+          "difficulty peaceful",
+          "gamerule spawn_mobs false",
+          "gamerule natural_health_regeneration false"
+        ]
+      }
+    },
+    {
+      "id": "join_alice",
+      "join": "attackprobealice"
+    },
+    {
+      "id": "prepare_alice",
+      "console": {
+        "lines": [
+          "kill @e[type=!minecraft:player]",
+          "gamemode survival attackprobealice",
+          "clear attackprobealice",
+          "tp attackprobealice 0.5 -60 0.5 0 0",
+          "tick freeze"
+        ]
+      }
+    },
+    {
+      "id": "sync_alice_base",
+      "sync_position": "attackprobealice"
+    },
+    {
+      "id": "summon_targets",
+      "console": {
+        "lines": [
+          "summon minecraft:pig 0.5 -60 2.5 {NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d],Tags:[\"a1\"]}",
+          "summon minecraft:cow -1.5 -60 2.5 {NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d],Tags:[\"a2\"]}",
+          "summon minecraft:sheep 2.5 -60 0.5 {NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d],Tags:[\"a3\"]}",
+          "summon minecraft:goat 0.5 -60 -1.5 {NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d],Tags:[\"a3g\"]}",
+          "attribute @e[tag=a3g,limit=1] minecraft:knockback_resistance base set 1",
+          "summon minecraft:villager -1.5 -60 -1.5 {NoAI:1b,OnGround:1b,Invulnerable:1b,Motion:[0.0d,0.0d,0.0d],Tags:[\"a4\"]}",
+          "summon minecraft:falling_block -0.5 -60 -0.5 {BlockState:{Name:\"minecraft:sand\"},NoGravity:1b,Time:1}"
+        ]
+      }
+    },
+    {
+      "id": "wait_targets_tracked",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a1_before",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a1,limit=1] Health",
+          "data get entity @e[tag=a1,limit=1] Motion",
+          "data get entity attackprobealice foodExhaustionLevel"
+        ]
+      }
+    },
+    {
+      "id": "a1_attack_pig_full",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "minecraft:pig"
+      }
+    },
+    {
+      "id": "a1_after",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a1,limit=1] Health",
+          "data get entity @e[tag=a1,limit=1] Motion",
+          "data get entity attackprobealice foodExhaustionLevel"
+        ]
+      }
+    },
+    {
+      "id": "a2_attack_cow_weak",
+      "sequence": {
+        "steps": [
+          {
+            "punch": {
+              "client": "attackprobealice"
+            }
+          },
+          {
+            "attack": {
+              "client": "attackprobealice",
+              "target": "minecraft:cow"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "a2_after_weak",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a2,limit=1] Health",
+          "data get entity @e[tag=a2,limit=1] Motion",
+          "data get entity attackprobealice foodExhaustionLevel"
+        ]
+      }
+    },
+    {
+      "id": "a2_wait_charge",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a2_attack_cow_partial",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "minecraft:cow"
+      }
+    },
+    {
+      "id": "a2_after_partial",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a2,limit=1] Health",
+          "data get entity @e[tag=a2,limit=1] Motion",
+          "data get entity attackprobealice foodExhaustionLevel"
+        ]
+      }
+    },
+    {
+      "id": "a2_attack_cow_rejected",
+      "sequence": {
+        "steps": [
+          {
+            "punch": {
+              "client": "attackprobealice"
+            }
+          },
+          {
+            "attack": {
+              "client": "attackprobealice",
+              "target": "minecraft:cow"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "a2_after_rejected",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a2,limit=1] Health",
+          "data get entity attackprobealice foodExhaustionLevel"
+        ]
+      }
+    },
+    {
+      "id": "a3_set_knockback",
+      "console": {
+        "lines": [
+          "attribute attackprobealice minecraft:attack_knockback base set 2"
+        ]
+      }
+    },
+    {
+      "id": "a3_wait_charge",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a3_attack_sheep",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "minecraft:sheep"
+      }
+    },
+    {
+      "id": "a3_after_sheep",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a3,limit=1] Health",
+          "data get entity @e[tag=a3,limit=1] Motion",
+          "data get entity attackprobealice Motion"
+        ]
+      }
+    },
+    {
+      "id": "a3_wait_charge_goat",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a3_attack_goat",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "minecraft:goat"
+      }
+    },
+    {
+      "id": "a3_after_goat",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a3g,limit=1] Health",
+          "data get entity @e[tag=a3g,limit=1] Motion",
+          "attribute attackprobealice minecraft:attack_knockback base set 0"
+        ]
+      }
+    },
+    {
+      "id": "a4_wait_charge",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a4_attack_invulnerable_survival",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "minecraft:villager"
+      }
+    },
+    {
+      "id": "a4_after_survival",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a4,limit=1] Health",
+          "data get entity attackprobealice foodExhaustionLevel",
+          "gamemode creative attackprobealice"
+        ]
+      }
+    },
+    {
+      "id": "a4_wait_creative",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a4_attack_invulnerable_creative",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "minecraft:villager"
+      }
+    },
+    {
+      "id": "a4_after_creative",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a4,limit=1] Health",
+          "data get entity attackprobealice foodExhaustionLevel",
+          "gamemode survival attackprobealice"
+        ]
+      }
+    },
+    {
+      "id": "a4_wait_charge_falling_block",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a4_attack_falling_block",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "minecraft:falling_block"
+      }
+    },
+    {
+      "id": "a5_clear_targets",
+      "console": {
+        "lines": [
+          "kill @e[type=!minecraft:player]",
+          "tick unfreeze"
+        ]
+      }
+    },
+    {
+      "id": "a5_wait_death",
+      "wait": {
+        "ms": 2500
+      }
+    },
+    {
+      "id": "a5_prepare_sweep",
+      "console": {
+        "lines": [
+          "tick freeze",
+          "item replace entity attackprobealice weapon.mainhand with minecraft:diamond_sword",
+          "summon minecraft:pig 0.5 -60 2.5 {NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d],Tags:[\"a5t\"]}",
+          "summon minecraft:sheep 1.5 -60 2.5 {NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d],Tags:[\"a5s\"]}",
+          "summon minecraft:cow -0.5 -60 3.5 {NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d],Tags:[\"a5far\"]}"
+        ]
+      }
+    },
+    {
+      "id": "a5_wait_charge",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a5_before_sweep",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a5s,limit=1] Motion",
+          "data get entity attackprobealice foodExhaustionLevel"
+        ]
+      }
+    },
+    {
+      "id": "a5_attack_sweep",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "minecraft:pig"
+      }
+    },
+    {
+      "id": "a5_after_sweep",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a5t,limit=1] Health",
+          "data get entity @e[tag=a5s,limit=1] Health",
+          "data get entity @e[tag=a5s,limit=1] Motion",
+          "data get entity @e[tag=a5far,limit=1] Health",
+          "data get entity attackprobealice foodExhaustionLevel"
+        ]
+      }
+    },
+    {
+      "id": "a6_clear_targets",
+      "console": {
+        "lines": [
+          "kill @e[type=!minecraft:player]",
+          "tick unfreeze"
+        ]
+      }
+    },
+    {
+      "id": "a6_wait_death",
+      "wait": {
+        "ms": 2500
+      }
+    },
+    {
+      "id": "a6_prepare_slow_sword",
+      "console": {
+        "lines": [
+          "tick freeze",
+          "attribute attackprobealice minecraft:attack_speed base set 2.6",
+          "summon minecraft:pig 0.5 -60 2.5 {NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d],Tags:[\"a6t\"],attributes:[{id:\"minecraft:max_health\",base:100.0d}],Health:100.0f}",
+          "summon minecraft:sheep 1.5 -60 2.5 {NoAI:1b,OnGround:1b,Motion:[0.0d,0.0d,0.0d],Tags:[\"a6s\"],attributes:[{id:\"minecraft:max_health\",base:100.0d}],Health:100.0f}"
+        ]
+      }
+    },
+    {
+      "id": "a6_wait_tracked",
+      "wait": {
+        "ms": 1000
+      }
+    },
+    {
+      "id": "a6_attack_sweep_partial",
+      "sequence": {
+        "steps": [
+          {
+            "punch": {
+              "client": "attackprobealice"
+            }
+          },
+          {
+            "wait": {
+              "ms": 4750
+            }
+          },
+          {
+            "attack": {
+              "client": "attackprobealice",
+              "target": "minecraft:pig"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "a6_after_sweep",
+      "console": {
+        "lines": [
+          "data get entity @e[tag=a6t,limit=1] Health",
+          "data get entity @e[tag=a6s,limit=1] Health",
+          "kill @e[type=!minecraft:player]",
+          "item replace entity attackprobealice weapon.mainhand with minecraft:air",
+          "attribute attackprobealice minecraft:attack_speed base set 4",
+          "tick unfreeze"
+        ]
+      }
+    },
+    {
+      "id": "join_bob",
+      "join": "attackprobebob"
+    },
+    {
+      "id": "a7_prepare_pvp",
+      "console": {
+        "lines": [
+          "gamemode survival attackprobebob",
+          "tp attackprobebob 0.5 -60 2.5 180 0",
+          "gamerule pvp false"
+        ]
+      }
+    },
+    {
+      "id": "a7_wait_charge",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a7_attack_bob_pvp_off",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "attackprobebob"
+      }
+    },
+    {
+      "id": "a7_after_pvp_off",
+      "console": {
+        "lines": [
+          "data get entity attackprobebob Health",
+          "gamerule pvp true"
+        ]
+      }
+    },
+    {
+      "id": "a7_wait_charge_pvp_on",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a7_attack_bob_pvp_on",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "attackprobebob"
+      }
+    },
+    {
+      "id": "a7_after_pvp_on",
+      "console": {
+        "lines": [
+          "data get entity attackprobebob Health",
+          "gamemode creative attackprobebob"
+        ]
+      }
+    },
+    {
+      "id": "a7_wait_charge_creative",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a7_attack_bob_creative",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "attackprobebob"
+      }
+    },
+    {
+      "id": "a7_punch_swing_control",
+      "punch": {
+        "client": "attackprobealice"
+      }
+    },
+    {
+      "id": "a7_after_creative",
+      "console": {
+        "lines": [
+          "data get entity attackprobebob Health",
+          "gamemode survival attackprobebob",
+          "gamemode spectator attackprobealice"
+        ]
+      }
+    },
+    {
+      "id": "a8_wait_spectator",
+      "wait": {
+        "ms": 1500
+      }
+    },
+    {
+      "id": "a8_attack_bob_spectator",
+      "attack": {
+        "client": "attackprobealice",
+        "target": "attackprobebob"
+      }
+    },
+    {
+      "id": "a8_after_spectator",
+      "console": {
+        "lines": [
+          "data get entity attackprobebob Health",
+          "kill @e[type=minecraft:item]",
+          "summon minecraft:item 0.5 -60 12.5 {Item:{id:\"minecraft:stone\",count:1},PickupDelay:32767s}"
+        ]
+      }
+    },
+    {
+      "id": "a8_wait_item_tracked",
+      "wait": {
+        "ms": 1000
+      }
+    },
+    {
+      "id": "a8_attack_item_out_of_reach",
+      "attack": {
+        "client": "attackprobebob",
+        "target": "minecraft:item"
+      }
+    },
+    {
+      "id": "a8_summon_near_item",
+      "console": {
+        "lines": [
+          "summon minecraft:item 0.5 -60 3.5 {Item:{id:\"minecraft:stone\",count:1},PickupDelay:32767s}"
+        ]
+      }
+    },
+    {
+      "id": "a8_wait_near_item_tracked",
+      "wait": {
+        "ms": 1000
+      }
+    },
+    {
+      "id": "a8_attack_item",
+      "attack": {
+        "client": "attackprobebob",
+        "target": "minecraft:item"
+      }
+    },
+    {
+      "id": "a8_wait_disconnect",
+      "wait": {
+        "ms": 1000
+      }
+    }
+  ]
+}

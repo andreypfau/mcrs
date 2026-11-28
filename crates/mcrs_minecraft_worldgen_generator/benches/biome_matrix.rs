@@ -132,9 +132,12 @@ fn main() {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one pinned column of the benchmark: the noise router, material rules and biome ids, the section list and cancel token, the grid's side and offset, the biome source, and the column and scratch it reuses"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "one pinned column of the benchmark: the noise router, material rules and biome ids, the section list and cancel token, the grid's side and offset, the biome source, and the column and scratch it reuses"
+    )
 )]
 fn run_pinned(
     router: &NoiseRouter,
@@ -188,9 +191,12 @@ fn run_pinned(
     total
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the benchmark's noise router, material rules, biome names, ids and registry, the section list and cancel token, and the grid's side and offsets"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "the benchmark's noise router, material rules, biome names, ids and registry, the section list and cancel token, and the grid's side and offsets"
+    )
 )]
 fn matrix(
     router: &NoiseRouter,
@@ -270,9 +276,12 @@ fn matrix(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the benchmark's noise router, material rules, biome names, ids and registry, the section list and cancel token, and the grid's side and offset"
+#[cfg_attr(
+    mcrs_lint,
+    expect(
+        mcrs::too_many_arguments,
+        reason = "the benchmark's noise router, material rules, biome names, ids and registry, the section list and cancel token, and the grid's side and offset"
+    )
 )]
 #[expect(
     clippy::too_many_lines,

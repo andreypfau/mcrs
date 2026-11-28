@@ -1,5 +1,4 @@
 use crate::ability::PlayerOpLevel;
-use crate::json_list::write_atomic;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::{Event, On, ResMut, Resource};
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -170,7 +169,7 @@ impl OpList {
             .filter(|entry| !self.loopback.contains(&entry.uuid))
             .collect();
         entries.sort_by(|left, right| left.name.cmp(&right.name));
-        write_atomic(path, &serde_json::to_string_pretty(&entries)?)
+        mcrs_minecraft_save::write_atomic(path, serde_json::to_string_pretty(&entries)?.as_bytes())
     }
 
     pub fn write_file(&self) {

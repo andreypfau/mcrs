@@ -17,7 +17,7 @@ pub struct GeodeCrystal {
 }
 
 impl GeodeCrystal {
-    pub fn resolve(state: &BlockState, blocks: &dyn BlockResolver) -> Option<Self> {
+    pub fn resolve(state: &BlockState, blocks: &impl BlockResolver) -> Option<Self> {
         const FACES: [&str; 6] = ["down", "up", "north", "south", "west", "east"];
         let try_with = |from: &BlockState, property: &str, value: &str| -> BlockState {
             let mut candidate = from.clone();
