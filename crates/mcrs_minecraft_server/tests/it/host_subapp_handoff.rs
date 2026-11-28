@@ -19,7 +19,8 @@ use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
 use mcrs_minecraft_engine::to_coordinator::RoutedInput;
-use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
+use mcrs_minecraft_engine_server::LoginState;
+use mcrs_minecraft_engine_server::login::LoginPlugin;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSessionCounter, Session, SessionPlacement,

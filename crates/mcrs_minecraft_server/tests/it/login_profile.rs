@@ -14,10 +14,9 @@ use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
 use mcrs_minecraft_engine::whitelist::{
     EditWhitelist, Whitelist, WhitelistEntry, WhitelistHostPlugin,
 };
+use mcrs_minecraft_engine_server::LoginState;
 use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
-use mcrs_minecraft_engine_server::login::{
-    LoginPlugin, LoginState, ProxyForwarding, SingleplayerProfile,
-};
+use mcrs_minecraft_engine_server::login::{LoginPlugin, ProxyForwarding, SingleplayerProfile};
 use mcrs_minecraft_engine_server::{
     ForwardingSecret, ServerProfile, ShutdownPlugin, ShutdownRequest,
 };

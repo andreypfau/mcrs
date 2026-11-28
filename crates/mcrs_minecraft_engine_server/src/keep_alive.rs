@@ -1,4 +1,4 @@
-use crate::configuration::AwaitingConfigurationAck;
+use crate::session_state::AwaitingConfigurationAck;
 use bevy_app::{App, Plugin};
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
