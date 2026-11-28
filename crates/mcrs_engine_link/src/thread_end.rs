@@ -1,9 +1,9 @@
-use flume::{Receiver, RecvError, Selector, SendError, Sender, TryRecvError};
+use flume::{Receiver, SendError, Sender, TryRecvError};
 
 use crate::inline_end::InlineEnd;
 use crate::reply::Reply;
 use crate::stage::Stage;
-use crate::task_end::TaskOutcome;
+use crate::waited::Waited;
 
 pub(crate) struct ThreadEnd<S: Stage> {
     end: InlineEnd<S>,
@@ -12,11 +12,6 @@ pub(crate) struct ThreadEnd<S: Stage> {
     wake: Option<Sender<()>>,
     seen: u64,
     reported: u64,
-}
-
-enum Event<I, T> {
-    Input(Result<I, RecvError>),
-    Outcome(Result<TaskOutcome<T>, RecvError>),
 }
 
 impl<S: Stage> ThreadEnd<S> {
@@ -38,18 +33,11 @@ impl<S: Stage> ThreadEnd<S> {
 
     pub(crate) fn run(mut self) {
         loop {
-            if !self.end.stage.has_work() {
-                let event = Selector::new()
-                    .recv(&self.inputs, Event::Input)
-                    .recv(self.end.tasks.receiver(), Event::Outcome)
-                    .wait();
-                match event {
-                    Event::Input(Ok(input)) => self.receive(input),
-                    Event::Outcome(Ok(outcome)) => {
-                        self.end.tasks.taken();
-                        self.end.stage.finish(outcome);
-                    }
-                    Event::Input(Err(_)) | Event::Outcome(Err(_)) => return,
+            if !self.end.has_work() {
+                match self.end.wait_for(&self.inputs) {
+                    Waited::Input(input) => self.receive(input),
+                    Waited::Outcome(()) => {}
+                    Waited::Closed => return,
                 }
             }
             loop {
